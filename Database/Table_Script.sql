@@ -86,7 +86,7 @@ CREATE TABLE Paper_Versions (
     version_number INT NOT NULL, 
     is_final BOOLEAN DEFAULT FALSE,
     
-    -- [NEW] Cờ trạng thái kiểm tra nhanh
+    -- Cờ trạng thái kiểm tra nhanh
     plagiarism_safe BOOLEAN DEFAULT NULL, -- NULL: Chưa check, TRUE: An toàn, FALSE: Vi phạm
     format_ok BOOLEAN DEFAULT NULL,       -- TRUE: Đúng định dạng
     
