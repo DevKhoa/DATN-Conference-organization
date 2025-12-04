@@ -67,7 +67,7 @@ CREATE TABLE User_Roles (
 -- Bảng lưu bài báo gốc 
 CREATE TABLE Papers (
     paper_id SERIAL PRIMARY KEY,
-    conference_id INT REFERENCES Conferences(conf_id), -- Liên kết hội nghị
+    conference_id INT REFERENCES Conferences(conf_id), -- [NEW] Liên kết hội nghị
     title TEXT NOT NULL,
     abstract TEXT,
     primary_author_id INT REFERENCES Users(user_id),
@@ -86,14 +86,14 @@ CREATE TABLE Paper_Versions (
     version_number INT NOT NULL, 
     is_final BOOLEAN DEFAULT FALSE,
     
-    -- [NEW] Cờ trạng thái kiểm tra nhanh
+    -- Cờ trạng thái kiểm tra nhanh
     plagiarism_safe BOOLEAN DEFAULT NULL, -- NULL: Chưa check, TRUE: An toàn, FALSE: Vi phạm
     format_ok BOOLEAN DEFAULT NULL,       -- TRUE: Đúng định dạng
     
     upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     upload_by INT REFERENCES Users(user_id),
     
-    -- Đảm bảo mỗi bài chỉ có 1 bản 1 version
+    -- [NEĐảm bảo mỗi bài chỉ có 1 bản v1, 1 bản v2...
     UNIQUE (paper_id, version_number) 
 );
 
@@ -213,7 +213,7 @@ CREATE TABLE Transactions (
     transaction_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- CMS & Truyền thông 
+-- CMS & Truyền thông [cite: 13, 15]
 CREATE TABLE CMS_Contents (
     content_id SERIAL PRIMARY KEY,
     title VARCHAR(255),
@@ -225,7 +225,7 @@ CREATE TABLE CMS_Contents (
     created_by INT REFERENCES Users(user_id)
 );
 
--- Log gửi Email (Để theo dõi việc gửi mail cảm ơn/xác nhận)
+-- Log gửi Email (Để theo dõi việc gửi mail cảm ơn/xác nhận) [cite: 15]
 CREATE TABLE Email_Logs (
     email_log_id SERIAL PRIMARY KEY,
     recipient_email VARCHAR(255),
