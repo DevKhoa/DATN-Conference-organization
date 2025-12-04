@@ -1,5 +1,5 @@
 -- =============================================
--- 1. DATA FOR USERS (Admin, Secretariat, Authors, Reviewers, Attendees)
+-- DATA FOR USERS (Admin, Secretariat, Authors, Reviewers, Attendees)
 -- =============================================
 INSERT INTO Users (user_id, full_name, email, password_hash, role) VALUES 
 (1, 'Nguyen Van A', 'nguyenvana@email.com', 'hash123', 'ADMIN'),
@@ -12,7 +12,7 @@ INSERT INTO Users (user_id, full_name, email, password_hash, role) VALUES
 (8, 'Do Thi H', 'dothih@email.com', 'hash123', 'ATTENDEE');
 
 -- =============================================
--- 2. DATA FOR PAPERS (Bài báo)
+-- DATA FOR PAPERS (Bài báo)
 -- =============================================
 INSERT INTO Papers (paper_id, title, abstract, primary_author_id, status, best_paper_candidate) VALUES 
 (1, 'Deep Learning in Healthcare', 'Abstract about DL applications...', 3, 'SUBMITTED', FALSE),
@@ -20,7 +20,7 @@ INSERT INTO Papers (paper_id, title, abstract, primary_author_id, status, best_p
 (3, 'AI in Climate Change', 'Abstract about AI prediction models...', 3, 'UNDER_REVIEW', FALSE);
 
 -- =============================================
--- 3. DATA FOR PAPER VERSIONS (Phiên bản nộp)
+-- DATA FOR PAPER VERSIONS (Phiên bản nộp)
 -- =============================================
 INSERT INTO Paper_Versions (version_id, paper_id, file_path, version_number, is_final) VALUES 
 (1, 1, '/files/p1_v1.pdf', 1, FALSE),
@@ -29,7 +29,7 @@ INSERT INTO Paper_Versions (version_id, paper_id, file_path, version_number, is_
 (4, 3, '/files/p3_v1.pdf', 1, FALSE);
 
 -- =============================================
--- 4. DATA FOR REVIEWS (AI Attributes -> NULL)
+-- DATA FOR REVIEWS (AI Attributes -> NULL)
 -- =============================================
 -- Lưu ý: ai_depth_score và ai_sentiment_analysis để NULL
 INSERT INTO Reviews (review_id, paper_id, reviewer_id, score, comments, ai_depth_score, ai_sentiment_analysis) VALUES 
@@ -38,7 +38,7 @@ INSERT INTO Reviews (review_id, paper_id, reviewer_id, score, comments, ai_depth
 (3, 3, 5, 3.5, 'Interesting topic but lacks data.', NULL, NULL);
 
 -- =============================================
--- 5. DATA FOR AI ANALYSIS LOGS (AI Result Data -> NULL)
+-- DATA FOR AI ANALYSIS LOGS (AI Result Data -> NULL)
 -- =============================================
 -- Log ghi nhận có hoạt động kiểm tra, nhưng chưa có kết quả (NULL)
 INSERT INTO AI_Analysis_Logs (log_id, paper_version_id, check_type, result_data, passed) VALUES 
@@ -46,7 +46,7 @@ INSERT INTO AI_Analysis_Logs (log_id, paper_version_id, check_type, result_data,
 (2, 3, 'PLAGIARISM', NULL, TRUE);
 
 -- =============================================
--- 6. DATA FOR SESSIONS (Lịch trình)
+-- DATA FOR SESSIONS (Lịch trình)
 -- =============================================
 -- is_ai_generated để FALSE vì chưa chạy AI sắp xếp
 INSERT INTO Sessions (session_id, session_name, start_time, end_time, room_location, is_ai_generated, chair_person_id) VALUES 
@@ -54,7 +54,7 @@ INSERT INTO Sessions (session_id, session_name, start_time, end_time, room_locat
 (2, 'Afternoon Session: Security', '2023-11-20 13:00:00', '2023-11-20 17:00:00', 'Room 102', FALSE, 6);
 
 -- =============================================
--- 7. DATA FOR SESSION PAPERS (Gán bài vào phiên)
+-- DATA FOR SESSION PAPERS (Gán bài vào phiên)
 -- =============================================
 INSERT INTO Session_Papers (session_id, paper_id, presentation_order) VALUES 
 (1, 1, 1), -- Bài 1 báo cáo đầu tiên phiên sáng
@@ -62,33 +62,33 @@ INSERT INTO Session_Papers (session_id, paper_id, presentation_order) VALUES
 (2, 2, 1); -- Bài 2 báo cáo đầu tiên phiên chiều
 
 -- =============================================
--- 8. DATA FOR TICKET CONFIGS (Loại vé)
+-- DATA FOR TICKET CONFIGS (Loại vé)
 -- =============================================
 INSERT INTO Ticket_Configs (ticket_id, ticket_name, price, quantity_limit, sold_quantity, open_time, close_time) VALUES 
 (1, 'Early Bird', 1000000, 50, 10, '2023-01-01 00:00:00', '2023-06-01 00:00:00'),
 (2, 'Regular', 2000000, 100, 5, '2023-06-02 00:00:00', '2023-11-01 00:00:00');
 
 -- =============================================
--- 9. DATA FOR REGISTRATIONS (Đăng ký tham dự)
+-- DATA FOR REGISTRATIONS (Đăng ký tham dự)
 -- =============================================
 INSERT INTO Registrations (registration_id, user_id, ticket_id, registration_status, payment_status) VALUES 
 (1, 7, 1, 'APPROVED', 'PAID'),  -- User 7 đã trả tiền vé Early Bird
 (2, 8, 2, 'PENDING', 'UNPAID'); -- User 8 đăng ký vé thường nhưng chưa trả
 
 -- =============================================
--- 10. DATA FOR TRANSACTIONS (Giao dịch)
+-- DATA FOR TRANSACTIONS (Giao dịch)
 -- =============================================
 INSERT INTO Transactions (trans_id, registration_id, gateway_trans_code, amount, status, error_log) VALUES 
 (1, 1, 'MOMO_123456789', 1000000, 'SUCCESS', NULL);
 
 -- =============================================
--- 11. DATA FOR CMS CONTENTS (Tin tức)
+-- DATA FOR CMS CONTENTS (Tin tức)
 -- =============================================
 INSERT INTO CMS_Contents (content_id, title, body_content, content_type, scheduled_publish_time, is_published, created_by) VALUES 
 (1, 'Call for Papers 2023', '<p>Welcome to submit...</p>', 'CFP', '2023-01-01 00:00:00', TRUE, 2);
 
 -- Truy vấn data 
--- User
+-- USER
 SELECT * FROM Users;
 
 -- BÀI BÁO & AI
