@@ -1,0 +1,15 @@
+# File: .gitignore
+
+# Thư viện tải về (rất nặng, không up lên)
+node_modules/
+
+# File biến môi trường (chứa mật khẩu, tuyệt đối không up)
+.env
+
+# Các file log lỗi
+npm-debug.log
+yarn-error.log
+
+# File hệ thống Mac/Windows sinh ra
+.DS_Store
+Thumbs.db
