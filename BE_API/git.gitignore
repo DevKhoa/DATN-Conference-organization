@@ -1,9 +1,9 @@
 # File: .gitignore
 
-# Thư viện tải về (rất nặng, không up lên)
+# Thư viện tải về
 node_modules/
 
-# File biến môi trường (chứa mật khẩu, tuyệt đối không up)
+# File biến môi trường (chứa mật khẩu, không up)
 .env
 
 # Các file log lỗi
