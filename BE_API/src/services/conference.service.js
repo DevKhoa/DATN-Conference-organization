@@ -1,26 +1,25 @@
-const repo = require('../repositories/conference.repo');
+const conferenceRepo = require('../repositories/conference.repo');
 
-exports.createConference = async (payload) => {
-  if (!payload.conf_name) {
-    throw new Error('Conference name is required');
+exports.create = async (data) => {
+  return conferenceRepo.insert(data);
+};
+
+exports.getById = async (id) => {
+  const conference = await conferenceRepo.findById(id);
+  if (!conference) {
+    throw new Error('Conference not found');
   }
-  return repo.createConference(payload);
+  return conference;
 };
 
-exports.getConference = async (id) => {
-  const conf = await repo.getConferenceById(id);
-  if (!conf) throw new Error('Conference not found');
-  return conf;
+exports.update = async (id, data) => {
+  return conferenceRepo.update(id, data);
 };
 
-exports.updateConference = async (id, payload) => {
-  return repo.updateConference(id, payload);
+exports.updateStatus = async (id, status) => {
+  return conferenceRepo.updateStatus(id, status);
 };
 
-exports.changeStatus = async (id, status) => {
-  const allowed = ['DRAFT', 'PUBLISHED', 'CLOSED'];
-  if (!allowed.includes(status)) {
-    throw new Error('Invalid status');
-  }
-  return repo.updateStatus(id, status);
+exports.getOverview = async (id) => {
+  return conferenceRepo.getOverview(id);
 };

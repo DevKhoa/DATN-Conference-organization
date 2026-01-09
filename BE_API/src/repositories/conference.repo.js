@@ -1,50 +1,111 @@
-const db = require('../config/db');
+const pool = require('../config/db');
 
-exports.createConference = async (payload) => {
-  const { conf_name, start_date, end_date, location } = payload;
-
-  const result = await db.query(
-    `INSERT INTO Conferences (conf_name, start_date, end_date, location)
-     VALUES ($1, $2, $3, $4)
-     RETURNING *`,
-    [conf_name, start_date, end_date, location]
+/**
+ * Insert new conference
+ */
+exports.insert = async ({
+  conf_name,
+  start_date,
+  end_date,
+  location,
+  description
+}) => {
+  const { rows } = await pool.query(
+    `
+    INSERT INTO Conferences (
+      conf_name,
+      start_date,
+      end_date,
+      location,
+      description,
+      status
+    )
+    VALUES ($1, $2, $3, $4, $5, 'DRAFT')
+    RETURNING *
+    `,
+    [conf_name, start_date, end_date, location, description]
   );
 
-  return result.rows[0];
+  return rows[0];
 };
 
-exports.getConferenceById = async (id) => {
-  const result = await db.query(
-    `SELECT * FROM Conferences WHERE conf_id = $1`,
-    [id]
+/**
+ * Find conference by ID
+ */
+exports.findById = async (conf_id) => {
+  const { rows } = await pool.query(
+    `
+    SELECT *
+    FROM Conferences
+    WHERE conf_id = $1
+    `,
+    [conf_id]
   );
-  return result.rows[0];
+
+  return rows[0];
 };
 
-exports.updateConference = async (id, payload) => {
-  const { conf_name, start_date, end_date, location } = payload;
-
-  const result = await db.query(
-    `UPDATE Conferences
-     SET conf_name = $1,
-         start_date = $2,
-         end_date = $3,
-         location = $4
-     WHERE conf_id = $5
-     RETURNING *`,
-    [conf_name, start_date, end_date, location, id]
+/**
+ * Update conference information
+ */
+exports.update = async (
+  conf_id,
+  { conf_name, start_date, end_date, location, description }
+) => {
+  const { rows } = await pool.query(
+    `
+    UPDATE Conferences
+    SET
+      conf_name = $1,
+      start_date = $2,
+      end_date = $3,
+      location = $4,
+      description = $5
+    WHERE conf_id = $6
+    RETURNING *
+    `,
+    [conf_name, start_date, end_date, location, description, conf_id]
   );
 
-  return result.rows[0];
+  return rows[0];
 };
 
-exports.updateStatus = async (id, status) => {
-  const result = await db.query(
-    `UPDATE Conferences
-     SET is_active = $1
-     WHERE conf_id = $2
-     RETURNING *`,
-    [status === 'PUBLISHED', id]
+/**
+ * Update conference status
+ */
+exports.updateStatus = async (conf_id, status) => {
+  const { rows } = await pool.query(
+    `
+    UPDATE Conferences
+    SET status = $1
+    WHERE conf_id = $2
+    RETURNING conf_id, status
+    `,
+    [status, conf_id]
   );
-  return result.rows[0];
+
+  return rows[0];
+};
+
+/**
+ * Get conference overview
+ */
+exports.getOverview = async (conf_id) => {
+  const { rows } = await pool.query(
+    `
+    SELECT
+      c.conf_id,
+      c.conf_name,
+      c.status,
+      COUNT(p.paper_id) AS total_papers
+    FROM Conferences c
+    LEFT JOIN Papers p
+      ON p.conference_id = c.conf_id
+    WHERE c.conf_id = $1
+    GROUP BY c.conf_id, c.conf_name, c.status
+    `,
+    [conf_id]
+  );
+
+  return rows[0];
 };
