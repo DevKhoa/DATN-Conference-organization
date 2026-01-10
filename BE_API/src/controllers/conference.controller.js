@@ -42,10 +42,13 @@ exports.updateConferenceStatus = async (req, res, next) => {
 
 exports.getConferenceOverview = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const overview = await conferenceService.getOverview(id);
-    res.json(overview);
+    const data = await conferenceService.getOverview(req.params.id);
+    if (!data) {
+      return res.status(404).json({ message: 'Conference not found' });
+    }
+    res.json(data);
   } catch (err) {
     next(err);
   }
 };
+

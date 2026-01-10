@@ -1,20 +1,23 @@
-const swaggerJSDoc = require('swagger-jsdoc');
+const swaggerJsdoc = require('swagger-jsdoc');
 
-const swaggerSpec = swaggerJSDoc({
+const options = {
   definition: {
     openapi: '3.0.0',
     info: {
       title: 'Conference Organization API',
       version: '1.0.0',
-      description: 'API for conference management system',
+      description: 'Backend API for Conference Management System',
     },
     servers: [
       {
         url: 'http://localhost:3000',
+        description: 'Local server',
       },
     ],
   },
-  apis: ['./src/routes/*.js'], 
-});
 
-module.exports = swaggerSpec;
+  // QUAN TRỌNG: trỏ đúng vào routes
+  apis: ['./src/routes/*.js'],
+};
+
+module.exports = swaggerJsdoc(options);

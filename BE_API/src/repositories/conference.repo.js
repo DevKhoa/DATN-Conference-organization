@@ -88,24 +88,41 @@ exports.updateStatus = async (conf_id, status) => {
 };
 
 /**
- * Get conference overview
+ * Get conference overview dashboard
  */
 exports.getOverview = async (conf_id) => {
   const { rows } = await pool.query(
     `
     SELECT
       c.conf_id,
-      c.conf_name,
-      c.status,
-      COUNT(p.paper_id) AS total_papers
+
+      COUNT(DISTINCT p.paper_id)                       AS total_papers,
+      COUNT(DISTINCT p.paper_id) FILTER (
+        WHERE p.status = 'UNDER_REVIEW'
+      )                                                 AS papers_under_review,
+      COUNT(DISTINCT p.paper_id) FILTER (
+        WHERE p.status = 'ACCEPTED'
+      )                                                 AS accepted_papers,
+
+      COUNT(DISTINCT r.registration_id)                AS total_registrations,
+      COALESCE(SUM(t.amount), 0)                       AS total_revenue
+
     FROM Conferences c
     LEFT JOIN Papers p
       ON p.conference_id = c.conf_id
+    LEFT JOIN Registrations r
+      ON r.paper_id = p.paper_id
+    LEFT JOIN Transactions t
+      ON t.registration_id = r.registration_id
+      AND t.status = 'PAID'
+
     WHERE c.conf_id = $1
-    GROUP BY c.conf_id, c.conf_name, c.status
+    GROUP BY c.conf_id
     `,
     [conf_id]
   );
 
   return rows[0];
 };
+
+
