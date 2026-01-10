@@ -1,8 +1,5 @@
-const fs = require('fs');
-const path = require('path'); 
 const registrationRepository = require('../repositories/registration.repo');
 const ticketRepository = require('../repositories/ticket.repo');
-const exceljs = require('exceljs'); 
 const pool = require('../config/db'); 
 
 class RegistrationService {
@@ -59,37 +56,20 @@ class RegistrationService {
     }
   }
 
-  // Xuất danh sách đăng ký ra file Excel
-  async exportRegistrations() {
-    const data = await registrationRepository.getAllRegistrationsForExport();
-    
-    const workbook = new exceljs.Workbook();
-    const worksheet = workbook.addWorksheet('Registrations');
-    
-    worksheet.columns = [
-      { header: 'ID', key: 'registration_id', width: 10 },
-      { header: 'Họ Tên', key: 'full_name', width: 30 },
-      { header: 'Email', key: 'email', width: 30 },
-      { header: 'Loại vé', key: 'ticket_name', width: 20 },
-      { header: 'Trạng thái ĐK', key: 'registration_status', width: 15 },
-      { header: 'Thanh toán', key: 'payment_status', width: 15 },
-      { header: 'Ngày tạo', key: 'created_at', width: 20 },
-    ];
-
-    worksheet.addRows(data);
-    
-    const exportDir = path.join(__dirname, '../exports'); // Định vị thư mục exports
-    if (!fs.existsSync(exportDir)){
-        fs.mkdirSync(exportDir); // Tự tạo nếu chưa có
+  // Lấy danh sách đăng ký theo hội nghị (và trạng thái nếu có)
+  async getRegistrationList(conferenceId, paymentStatus) {
+    if (!conferenceId) {
+        throw new Error('Cần cung cấp Conference ID');
     }
-
-    const fileName = `registrations_export_${Date.now()}.xlsx`;
-    await workbook.xlsx.writeFile(path.join(exportDir, fileName));
     
-    return { 
-        export_format: 'EXCEL',
-        file_url: `/exports/${fileName}`, // URL tải file
-        generated_at: new Date().toISOString()
+    // Gọi repo lấy dữ liệu raw
+    const data = await registrationRepository.getRegistrationsByConference(conferenceId, paymentStatus);
+    
+    return {
+        conference_id: conferenceId,
+        filter_status: paymentStatus || 'ALL',
+        count: data.length,
+        registrations: data
     };
   }
 }

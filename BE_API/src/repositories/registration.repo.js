@@ -27,15 +27,35 @@ class RegistrationRepository {
       return result.rows[0];
   }
 
-  // Lấy tất cả đăng ký để xuất báo cáo
-  async getAllRegistrationsForExport() {
-    const query = `
-      SELECT r.registration_id, u.full_name, u.email, t.ticket_name, r.registration_status, r.payment_status, r.created_at
+  // Lấy danh sách đăng ký theo hội nghị và trạng thái thanh toán
+  async getRegistrationsByConference(conferenceId, paymentStatus = null) {
+    let query = `
+      SELECT 
+        r.registration_id, 
+        u.full_name, 
+        u.email, 
+        t.ticket_name, 
+        r.registration_status, 
+        r.payment_status, 
+        r.created_at
       FROM Registrations r
       JOIN Users u ON r.user_id = u.user_id
       JOIN Ticket_Configs t ON r.ticket_id = t.ticket_id
+      WHERE t.conference_id = $1
     `;
-    const result = await pool.query(query);
+    
+    const params = [conferenceId];
+
+    // Nếu có truyền paymentStatus thì thêm điều kiện lọc
+    if (paymentStatus) {
+        query += ` AND r.payment_status = $2`;
+        params.push(paymentStatus);
+    }
+
+    // Sắp xếp mới nhất lên đầu
+    query += ` ORDER BY r.created_at DESC`;
+
+    const result = await pool.query(query, params);
     return result.rows;
   }
 

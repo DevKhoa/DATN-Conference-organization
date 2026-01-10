@@ -22,8 +22,13 @@ exports.create = async (req, res) => {
 
 exports.exportList = async (req, res) => {
     try {
-        const result = await registrationService.exportRegistrations();
+        // Lấy tham số từ Query String (URL)
+        const { conference_id, payment_status } = req.query;
+        
+        const result = await registrationService.getRegistrationList(conference_id, payment_status);
+        
         res.status(200).json({
+            message: "Lấy danh sách đăng ký thành công",
             data: result,
             generated_at: new Date().toISOString()
         });
