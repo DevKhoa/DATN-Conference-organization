@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 
 class RegistrationRepository {
+  // Tạo đăng ký mới
   async createRegistration(userId, ticketId, paperId = null, client = null) {
     const query = `
       INSERT INTO Registrations (user_id, ticket_id, paper_id, registration_status, payment_status)
@@ -13,17 +14,20 @@ class RegistrationRepository {
     return result.rows[0];
   }
 
+  // Kiểm tra người dùng đã có vé chưa
   async checkUserHasTicket(userId, ticketId) {
       const query = `SELECT registration_id FROM Registrations WHERE user_id = $1 AND ticket_id = $2`;
       const result = await pool.query(query, [userId, ticketId]);
       return result.rows.length > 0;
   }
 
+  // Lấy thông tin đăng ký theo ID
   async getRegistrationById(regId) {
       const result = await pool.query('SELECT * FROM Registrations WHERE registration_id = $1', [regId]);
       return result.rows[0];
   }
 
+  // Lấy tất cả đăng ký để xuất báo cáo
   async getAllRegistrationsForExport() {
     const query = `
       SELECT r.registration_id, u.full_name, u.email, t.ticket_name, r.registration_status, r.payment_status, r.created_at
@@ -35,6 +39,7 @@ class RegistrationRepository {
     return result.rows;
   }
 
+  // Cập nhật mã QR cho đăng ký
   async updateQrToken(registrationId, token) {
     const query = `
       UPDATE Registrations
@@ -46,13 +51,14 @@ class RegistrationRepository {
     return result.rows[0];
   }
   
+  // Tìm đăng ký theo mã QR
   async findByQrToken(token) {
       const query = `SELECT * FROM Registrations WHERE qr_code_token = $1`;
       const result = await pool.query(query, [token]);
       return result.rows[0];
   }
 
-  // Lấy thông tin chi tiết để gửi mail
+  // Lấy thông tin đăng ký kèm chi tiết hội nghị
   async getRegistrationWithConferenceDetails(registrationId) {
     const query = `
       SELECT 
@@ -68,6 +74,27 @@ class RegistrationRepository {
     `;
     const result = await pool.query(query, [registrationId]);
     return result.rows[0];
+  }
+  
+  // Các hàm phục vụ cho check-in
+
+  // Cập nhật trạng thái check-in
+  async updateCheckinStatus(registrationId) {
+    const query = `
+      UPDATE Registrations
+      SET checkin_status = 'CHECKED_IN', checked_in_at = NOW()
+      WHERE registration_id = $1
+      RETURNING registration_id, checkin_status, checked_in_at;
+    `;
+    const result = await pool.query(query, [registrationId]);
+    return result.rows[0];
+  }
+
+  // Lấy trạng thái check-in
+  async getCheckinStatus(registrationId) {
+      const query = 'SELECT checkin_status, checked_in_at FROM Registrations WHERE registration_id = $1';
+      const result = await pool.query(query, [registrationId]);
+      return result.rows[0];
   }
 }
 
