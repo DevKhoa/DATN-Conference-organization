@@ -6,8 +6,9 @@ const exceljs = require('exceljs');
 const pool = require('../config/db'); 
 
 class RegistrationService {
+  // Tạo đăng ký mới với transaction và xử lý đồng thời
   async createRegistration(userId, ticketId) {
-    // 1. Check logic trùng lặp (User không được mua 2 lần cùng 1 loại vé)
+    // Check trùng lặp (User không được mua 2 lần cùng 1 loại vé)
     const existingReg = await registrationRepository.checkUserHasTicket(userId, ticketId);
     if (existingReg) {
         throw new Error('Bạn đã đăng ký loại vé này rồi. Vui lòng kiểm tra lại.');
@@ -18,30 +19,33 @@ class RegistrationService {
     try {
         await client.query('BEGIN'); // Bắt đầu Transaction
 
-        // 2. Lấy thông tin vé và KHÓA (Lock) để tránh Race Condition
+        // Lấy thông tin vé và KHÓA (Lock) để tránh Race Condition
         // Lúc này, không ai khác có thể mua vé này cho đến khi xong việc
         const ticket = await ticketRepository.getTicketByIdForUpdate(ticketId, client);
         
         if (!ticket) throw new Error('Vé không tồn tại');
 
-        // 3. Check thời gian
+        // Check thời gian
         const now = new Date();
         const openTime = new Date(ticket.open_time);
         const closeTime = new Date(ticket.close_time);
 
-        if (now < openTime || now > closeTime) {
-            throw new Error('Cổng đăng ký chưa mở hoặc đã đóng');
+        if (now < openTime) {
+            throw new Error('Cổng đăng ký chưa mở');
+        }
+        if (now > closeTime) {
+            throw new Error('Cổng đăng ký đã đóng');
         }
 
-        // 4. Check số lượng 
+        // Check số lượng 
         if (ticket.sold_quantity >= ticket.quantity_limit) {
             throw new Error('Đã hết vé');
         }
 
-        // 5. Tạo đăng ký (truyền client vào để chung transaction)
+        // Tạo đăng ký (truyền client vào để chung transaction)
         const registration = await registrationRepository.createRegistration(userId, ticketId, null, client);
         
-        // 6. Cập nhật số lượng vé đã bán (truyền client vào)
+        // Cập nhật số lượng vé đã bán (truyền client vào)
         await ticketRepository.incrementSoldQuantity(ticketId, client);
 
         await client.query('COMMIT'); // Xác nhận thành công
@@ -55,6 +59,7 @@ class RegistrationService {
     }
   }
 
+  // Xuất danh sách đăng ký ra file Excel
   async exportRegistrations() {
     const data = await registrationRepository.getAllRegistrationsForExport();
     
