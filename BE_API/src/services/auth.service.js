@@ -4,6 +4,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 class AuthService {
+  // Đăng ký user mới
   async registerUser(data) {
     const { full_name, email, password, organization } = data;
     
@@ -27,6 +28,7 @@ class AuthService {
     return { ...newUser, role: 'ATTENDEE' };
   }
 
+  // Xác thực email
   async verifyEmail(token) {
       try {
           const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -37,6 +39,7 @@ class AuthService {
       }
   }
 
+  // Đăng nhập
   async login(email, password) {
     const user = await userRepository.findByEmail(email);
     if (!user) throw new Error('Email hoặc mật khẩu không đúng');
@@ -58,11 +61,13 @@ class AuthService {
 
     return { user_id: user.user_id, access_token: token, expires_in: 3600 };
   }
-  
+
+  // Lấy thông tin user
   async getUserProfile(userId) {
       return await userRepository.getUserProfile(userId);
   }
   
+  // Cập nhật thông tin user
   async updateUserProfile(userId, data) {
       return await userRepository.updateUserProfile(userId, data.full_name, data.organization);
   }

@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 
 class TicketRepository {
+  // Tạo loại vé mới
   async createTicketType(ticketData) {
     const { conf_id, ticket_name, price, currency, quantity_limit, open_time, close_time } = ticketData;
     const query = `
@@ -13,6 +14,7 @@ class TicketRepository {
     return result.rows[0];
   }
 
+  // Tìm vé trùng tên đang hoạt động trong cùng hội nghị
   async findActiveDuplicate(confId, ticketName) {
     const query = `
         SELECT ticket_id 
@@ -26,6 +28,7 @@ class TicketRepository {
     return result.rows[0];
   }
 
+  // Cập nhật cấu hình vé
   async updateTicketSettings(ticketId, settings) {
     const { open_time, close_time, quantity_limit, is_active } = settings;
     const query = `
@@ -38,6 +41,7 @@ class TicketRepository {
     return result.rows[0];
   }
 
+  // Lấy thông tin vé theo ID
   async getTicketById(ticketId) {
     const result = await pool.query('SELECT * FROM Ticket_Configs WHERE ticket_id = $1', [ticketId]);
     return result.rows[0];
@@ -50,6 +54,7 @@ class TicketRepository {
       return result.rows[0];
   }
   
+  // Tăng số lượng vé đã bán (đã thêm từ bước trước)
   async incrementSoldQuantity(ticketId, client) {
       const query = 'UPDATE Ticket_Configs SET sold_quantity = sold_quantity + 1 WHERE ticket_id = $1';
       const executor = client || pool;

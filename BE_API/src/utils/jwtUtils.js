@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 
+// Hàm tạo JWT token
 const generateToken = (user) => {
   return jwt.sign(
     { user_id: user.user_id, role: user.role_name },
@@ -8,6 +9,7 @@ const generateToken = (user) => {
   );
 };
 
+// Hàm xác minh JWT token
 const verifyToken = (token) => {
   try {
     return jwt.verify(token, process.env.JWT_SECRET || 'secret_key');

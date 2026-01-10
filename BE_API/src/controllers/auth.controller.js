@@ -1,5 +1,6 @@
 const authService = require('../services/auth.service');
 
+// Đăng ký người dùng
 exports.register = async (req, res) => {
   try {
     const result = await authService.registerUser(req.body);
@@ -21,6 +22,7 @@ exports.register = async (req, res) => {
   }
 };
 
+// Đăng nhập người dùng
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -34,6 +36,7 @@ exports.login = async (req, res) => {
   }
 };
 
+// Xác thực email người dùng
 exports.verifyEmail = async (req, res) => {
     try {
         const { token } = req.query;

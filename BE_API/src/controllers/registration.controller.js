@@ -1,5 +1,6 @@
 const registrationService = require('../services/registration.service');
 
+//Đang ký tham gia hội nghị
 exports.create = async (req, res) => {
     try {
         // Lấy ID người dùng từ token: const userId = req.user.user_id;
@@ -20,6 +21,7 @@ exports.create = async (req, res) => {
     }
 };
 
+//Xuất danh sách đăng ký tham gia hội nghị
 exports.exportList = async (req, res) => {
     try {
         // Lấy tham số từ Query String (URL)

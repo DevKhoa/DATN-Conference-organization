@@ -1,5 +1,6 @@
 const ticketService = require('../services/ticket.service');
 
+//Tạo loại vé mới
 exports.createType = async (req, res) => {
     try {
         const result = await ticketService.createTicketType(req.body);
@@ -13,6 +14,7 @@ exports.createType = async (req, res) => {
     }
 };
 
+//Cập nhật cấu hình loại vé
 exports.updateSettings = async (req, res) => {
     try {
         const { ticket_id, ...settings } = req.body;

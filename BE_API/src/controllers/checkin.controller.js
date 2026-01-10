@@ -1,5 +1,6 @@
 const checkinService = require('../services/checkin.service');
 
+// Tạo mã QR cho đăng ký
 exports.generateQr = async (req, res) => {
     try {
         const { registration_id } = req.body;
@@ -16,6 +17,7 @@ exports.generateQr = async (req, res) => {
     }
 };
 
+// Xác minh mã QR và check-in
 exports.verifyQr = async (req, res) => {
     try {
         const { qr_code_token } = req.body;
