@@ -243,9 +243,11 @@ INSERT INTO Ticket_Configs (ticket_id, conference_id, ticket_name, price, quanti
 (2, 1, 'Regular Attendee', 2000000, 200, '2024-06-01', '2024-11-20');
 
 -- Registrations
-INSERT INTO Registrations (registration_id, user_id, ticket_id, paper_id, registration_status, payment_status, qr_code_token) VALUES 
-(1, 2, 1, 1, 'APPROVED', 'PAID', 'QR_ALICE_AUTH'),
-(2, 4, 2, NULL, 'PENDING', 'UNPAID', NULL);
+-- ID 1: Đã thanh toán, đã có QR và ĐÃ CHECK-IN vào cửa.
+-- ID 2: Chưa thanh toán, chưa có QR và CHƯA CHECK-IN.
+INSERT INTO Registrations (registration_id, user_id, ticket_id, paper_id, registration_status, payment_status, qr_code_token, checkin_status, checked_in_at) VALUES 
+(1, 2, 1, 1, 'APPROVED', 'PAID', 'QR_ALICE_AUTH', 'CHECKED_IN', '2024-12-01 08:30:00'),
+(2, 4, 2, NULL, 'PENDING', 'UNPAID', NULL, 'NOT_CHECKED_IN', NULL);
 
 -- Transactions
 INSERT INTO Transactions (trans_id, registration_id, payment_gateway, gateway_trans_code, amount, status) VALUES 
