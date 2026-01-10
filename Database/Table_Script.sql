@@ -41,6 +41,7 @@ CREATE TABLE Users (
     user_id SERIAL PRIMARY KEY,
     full_name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
+    is_verified BOOLEAN DEFAULT FALSE,
     password_hash VARCHAR(255) NOT NULL,
     organization VARCHAR(255), -- Đơn vị công tác
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
