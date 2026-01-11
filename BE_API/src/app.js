@@ -6,7 +6,6 @@ const express = require('express');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./docs/swagger'); 
 
-const conferenceRoutes = require('./routes/conference.routes');
 const reviewRoutes = require('./routes/review.routes');
 const errorMiddleware = require('./middlewares/error.middleware');
 const sessionRoutes = require('./routes/sessionRoutes');
