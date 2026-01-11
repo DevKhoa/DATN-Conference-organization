@@ -41,6 +41,7 @@ CREATE TABLE Users (
     user_id SERIAL PRIMARY KEY,
     full_name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
+    is_verified BOOLEAN DEFAULT FALSE,
     password_hash VARCHAR(255) NOT NULL,
     organization VARCHAR(255), -- Đơn vị công tác
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -191,6 +192,13 @@ CREATE TABLE Registrations (
     
     -- Mã QR check-in (sinh ra khi PAID)
     qr_code_token VARCHAR(255) UNIQUE, 
+
+    -- Trạng thái Check-in
+    checkin_status VARCHAR(20) DEFAULT 'NOT_CHECKED_IN'
+        CHECK (checkin_status IN ('NOT_CHECKED_IN', 'CHECKED_IN')),
+        
+    -- Thời gian check-in thực tế
+    checked_in_at TIMESTAMP,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
