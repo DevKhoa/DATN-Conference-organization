@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 
+//Middleware để xác thực JWT
 module.exports = (req, res, next) => {
     const token = req.header('Authorization')?.replace('Bearer ', '');
     

@@ -14,6 +14,14 @@ const errorMiddleware = require('./middlewares/error.middleware');
 const conferenceRoutes = require('./routes/conference.routes');
 // Auth
 const authRoutes = require('./routes/auth.routes');
+// User
+const userRoutes = require('./routes/user.routes');
+// Ticket
+const ticketRoutes = require('./routes/ticket.routes');
+// Registration
+const registrationRoutes = require('./routes/registration.routes');
+// Check-in
+const checkinRoutes = require('./routes/checkin.routes');
 
 // ----------------
 const app = express();
@@ -29,6 +37,14 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/conferences', conferenceRoutes);
 // Auth
 app.use('/auth', authRoutes);         
+// User 
+app.use('/users', userRoutes);       
+// Ticket  
+app.use('/tickets', ticketRoutes);     
+// Registration
+app.use('/registrations', registrationRoutes); 
+// Check-in
+app.use('/checkin', checkinRoutes);     
 
 // ----------------
 // Test Route
