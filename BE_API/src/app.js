@@ -4,10 +4,12 @@ const express = require('express');
 //----------------
 // Swagger Imports
 const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('./docs/swagger');
+const swaggerSpec = require('./docs/swagger'); 
 
-// Middleware Imports
+const conferenceRoutes = require('./routes/conference.routes');
 const errorMiddleware = require('./middlewares/error.middleware');
+const sessionRoutes = require('./routes/sessionRoutes');
+const agendaRoutes = require('./routes/agendaRoutes');
 
 // ----------------
 // Conference 
@@ -32,27 +34,7 @@ app.use(express.json());
 // Swagger UI
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// ----------------
-// Conference
 app.use('/conferences', conferenceRoutes);
-// Auth
-app.use('/auth', authRoutes);         
-// User 
-app.use('/users', userRoutes);       
-// Ticket  
-app.use('/tickets', ticketRoutes);     
-// Registration
-app.use('/registrations', registrationRoutes); 
-// Check-in
-app.use('/checkin', checkinRoutes);     
-
-// ----------------
-// Test Route
-app.get('/', (req, res) => {
-    res.send('Conference API System is running...');
-});
-
-// Global Error Handler
 app.use(errorMiddleware);
 
 // ----------------
