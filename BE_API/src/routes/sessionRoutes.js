@@ -15,6 +15,12 @@ const sessionController = require('../controllers/sessionController');
  *   get:
  *     summary: Lấy danh sách phiên họp
  *     tags: [Sessions]
+ *     parameters:
+ *       - in: query
+ *         name: conf_id
+ *         schema:
+ *           type: integer
+ *         description: Lọc theo ID hội nghị (Optional)
  *     responses:
  *       200:
  *         description: Thành công
@@ -30,7 +36,7 @@ const sessionController = require('../controllers/sessionController');
  *             properties:
  *               session_name:
  *                 type: string
- *                 example: "Phiên Khai Mạc - AI Technology"
+ *                 example: "Phiên Khai Mạc"
  *               start_time:
  *                 type: string
  *                 format: date-time
@@ -42,12 +48,18 @@ const sessionController = require('../controllers/sessionController');
  *               location_id:
  *                 type: integer
  *                 example: 1
+ *               conference_id:
+ *                 type: integer
+ *                 example: 1
  *     responses:
  *       201:
  *         description: Tạo thành công
  *       400:
- *         description: Lỗi logic ngày giờ hoặc ID phòng không tồn tại
+ *         description: Lỗi logic ngày giờ hoặc ID không hợp lệ
  */
+
+router.get('/', sessionController.getSessions);
+router.post('/', sessionController.createSession);
 
 /**
  * @swagger
@@ -78,14 +90,16 @@ const sessionController = require('../controllers/sessionController');
  *                 format: date-time
  *               location_id:
  *                 type: integer
+ *               conference_id:
+ *                 type: integer
  *     responses:
  *       200:
  *         description: Cập nhật thành công
  *       404:
  *         description: Không tìm thấy phiên họp
- *       400:
- *         description: Sai logic cập nhật
  */
+
+router.put('/:id', sessionController.updateSession);
 
 /**
  * @swagger
@@ -119,9 +133,7 @@ const sessionController = require('../controllers/sessionController');
  *       400:
  *         description: Bài báo đã tồn tại trong phiên hoặc ID không đúng
  */
+
 router.put('/:id/add-paper', sessionController.addPaper);
-router.put('/:id', sessionController.updateSession);
-router.get('/', sessionController.getSessions);
-router.post('/', sessionController.createSession);
 
 module.exports = router;
