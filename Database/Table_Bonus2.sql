@@ -20,3 +20,13 @@ ALTER TABLE sessions ADD COLUMN location_id INT REFERENCES locations(location_id
 
 -- Reset lại sequence của bảng Sessions
 SELECT setval('sessions_session_id_seq', (SELECT MAX(session_id) FROM sessions));
+
+
+-------------- Update 11/01 ------------------------
+
+-- Thêm cột conference_id vào bảng Sessions
+ALTER TABLE sessions 
+ADD COLUMN conference_id INT REFERENCES conferences(conf_id);
+
+-- Update dữ liệu giả để test (Giả sử tất cả session hiện tại thuộc Conference ID = 1)
+UPDATE sessions SET conference_id = 1 WHERE conference_id IS NULL;
