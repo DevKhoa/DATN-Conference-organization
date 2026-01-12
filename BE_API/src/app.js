@@ -7,17 +7,28 @@ const path = require('path');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./docs/swagger');
 
-// Middleware Imports
+// ----------------
+// Middlewares
 const errorMiddleware = require('./middlewares/error.middleware');
 
 // ----------------
 // Route Imports
 const conferenceRoutes = require('./routes/conference.routes');
+// Review (From Main)
+const reviewRoutes = require('./routes/review.routes');
+// Auth
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const ticketRoutes = require('./routes/ticket.routes');
 const registrationRoutes = require('./routes/registration.routes');
 const checkinRoutes = require('./routes/checkin.routes');
+
+// Session
+const sessionRoutes = require('./routes/sessionRoutes');
+// Agenda
+const agendaRoutes = require('./routes/agendaRoutes');
+// Proceedings
+const proceedingRoutes = require('./routes/proceedings.routes');
 
 // ----------------
 const app = express();
@@ -26,27 +37,29 @@ const app = express();
 app.use(express.json());
 
 // Cấu hình Static Folder cho thư mục public
-// Giúp truy cập file xuất ra qua URL: http://localhost:3000/exports/ten_file.xlsx
-app.use(express.static(path.join(__dirname, '../public'))); // path.join(__dirname, '../public') trỏ ra thư mục public nằm ngang hàng với thư mục src
-
+app.use(express.static(path.join(__dirname, '../public')));
 
 // 2. Swagger UI
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // ----------------
 // 3. Application Routes
-// Conference
+
+// Routes từ Main (Giữ lại Review và Proceedings)
 app.use('/conferences', conferenceRoutes);
-// Auth
-app.use('/auth', authRoutes);         
-// User 
-app.use('/users', userRoutes);       
-// Ticket  
-app.use('/tickets', ticketRoutes);     
-// Registration
-app.use('/registrations', registrationRoutes); 
-// Check-in
-app.use('/checkin', checkinRoutes);     
+app.use('/', reviewRoutes);
+app.use('/', proceedingRoutes);
+
+// Routes từ nhánh của bạn (Yen/Finance_User)
+app.use('/auth', authRoutes);
+app.use('/users', userRoutes);
+app.use('/tickets', ticketRoutes);
+app.use('/registrations', registrationRoutes);
+app.use('/checkin', checkinRoutes);
+
+// Có thể thêm Session/Agenda vào đây nếu cần dùng
+// app.use('/sessions', sessionRoutes);
+// app.use('/agendas', agendaRoutes);
 
 // ----------------
 // 4. Base Route & Error Handling
