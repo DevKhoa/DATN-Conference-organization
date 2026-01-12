@@ -29,3 +29,15 @@ exports.reviewSummary = async (req, res) => {
     await reviewService.getReviewSummary(paper_id)
   );
 };
+
+exports.votePaper = async (req, res) => {
+  res.json(
+    await reviewService.votePaper(req.body)
+  );
+};
+
+exports.adjudicatePaper = async (req, res) => {
+  res.json(
+    await reviewService.adjudicatePaper(req.body)
+  );
+};

@@ -105,4 +105,57 @@ router.post('/reviews/submit', controller.submitReview);
  */
 router.get('/reviews/summary', controller.reviewSummary);
 
+/**
+ * @openapi
+ * /reviews/vote:
+ *  post:
+ *      summary: Chair/Committee manual vote
+ *      tags: [Reviews]
+ *      requestBody:
+ *        required: true
+ *        content:
+ *          application/json:
+ *            schema:
+ *              required: [paper_id, vote]
+ *              properties:
+ *                paper_id:
+ *                  type: integer
+ *                vote:
+ *                  type: string
+ *                  enum: [ACCEPT, REJECT]
+ *                decided_by:
+ *                  type: integer
+ *                  description: User ID of the chair/committee member
+ *      responses:
+ *        200:
+ *          description: Vote recorded
+ */
+router.post('/reviews/vote', controller.votePaper);
+
+/**
+ * @openapi
+ * /reviews/adjudicate:
+ *   post:
+ *     summary: Adjudicate conflicting reviews
+ *     tags: [Reviews]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             required: [paper_id, decision_note]
+ *             properties:
+ *               paper_id:
+ *                 type: integer
+ *               decision_note:
+ *                 type: string
+ *               decided_by:
+ *                 type: integer
+ *                 description: User ID of the chair
+ *     responses:
+ *       200:
+ *         description: Adjudication recorded
+ */
+router.post('/reviews/adjudicate', controller.adjudicatePaper);
+
 module.exports = router;

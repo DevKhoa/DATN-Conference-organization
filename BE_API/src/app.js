@@ -6,14 +6,14 @@ const express = require('express');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./docs/swagger'); 
 
-const reviewRoutes = require('./routes/review.routes');
+// ----------------
+// Middlewares
 const errorMiddleware = require('./middlewares/error.middleware');
-const sessionRoutes = require('./routes/sessionRoutes');
-const agendaRoutes = require('./routes/agendaRoutes');
-
 // ----------------
 // Conference 
 const conferenceRoutes = require('./routes/conference.routes');
+// Review
+const reviewRoutes = require('./routes/review.routes');
 // Auth
 const authRoutes = require('./routes/auth.routes');
 // User
@@ -24,7 +24,10 @@ const ticketRoutes = require('./routes/ticket.routes');
 const registrationRoutes = require('./routes/registration.routes');
 // Check-in
 const checkinRoutes = require('./routes/checkin.routes');
-
+// Session
+const sessionRoutes = require('./routes/sessionRoutes');
+// Agenda
+const agendaRoutes = require('./routes/agendaRoutes');
 // ----------------
 const app = express();
 
