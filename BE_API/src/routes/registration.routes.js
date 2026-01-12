@@ -11,4 +11,8 @@ router.post('/create', regController.create);
 router.get('/export', regController.exportList);
 //router.get('/export', authMiddleware, regController.exportList);
 
+// Lấy danh sách đăng ký theo hội nghị
+router.get('/list', regController.getList);
+//router.get('/list', authMiddleware, regController.getList);
+
 module.exports = router;

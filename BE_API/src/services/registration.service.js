@@ -1,6 +1,10 @@
 const registrationRepository = require('../repositories/registration.repo');
 const ticketRepository = require('../repositories/ticket.repo');
 const pool = require('../config/db'); 
+const ExcelJS = require('exceljs');
+const PDFDocument = require('pdfkit-table');
+const path = require('path');
+const fs = require('fs');
 
 class RegistrationService {
   // Tạo đăng ký mới với transaction và xử lý đồng thời
@@ -71,6 +75,145 @@ class RegistrationService {
         count: data.length,
         registrations: data
     };
+  }
+
+  // Hàm xuất file và lưu xuống đĩa cứng
+  async exportRegistrations(conferenceId, fileType, paymentStatus) {
+    // Lấy dữ liệu
+    const registrations = await registrationRepository.getRegistrationsByConference(conferenceId, paymentStatus);
+
+    if (!registrations || registrations.length === 0) {
+      throw new Error('Không có dữ liệu đăng ký nào phù hợp để xuất.');
+    }
+
+    // Chuẩn bị dữ liệu
+    const data = registrations.map((reg, index) => ({
+      stt: index + 1,
+      full_name: reg.full_name,
+      email: reg.email,
+      ticket_name: reg.ticket_name,
+      payment_status: reg.payment_status === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán',
+      registration_status: reg.registration_status,
+      created_at: new Date(reg.created_at).toLocaleString('vi-VN')
+    }));
+
+    // Xác định thư mục con dựa trên loại file
+    const subFolder = fileType === 'excel' ? 'excel' : 'pdf';
+
+    // Cấu hình đường dẫn lưu file: public/registration_exports/excel hoặc public/registration_exports/pdf
+    const exportDir = path.join(__dirname, `../public/registration_exports/${subFolder}`);
+    
+    // Tạo thư mục nếu chưa có (recursive: true sẽ tạo cả thư mục cha nếu thiếu)
+    if (!fs.existsSync(exportDir)){
+        fs.mkdirSync(exportDir, { recursive: true });
+    }
+
+    // Tạo tên file duy nhất
+    const timestamp = Date.now();
+    const extension = fileType === 'excel' ? 'xlsx' : 'pdf';
+    const fileName = `registrations_conf_${conferenceId}_${timestamp}.${extension}`;
+    const filePath = path.join(exportDir, fileName);
+
+    // Tạo file
+    if (fileType === 'excel') {
+      await this.generateExcelFile(data, filePath);
+    } else if (fileType === 'pdf') {
+      await this.generatePDFFile(data, filePath);
+    }
+
+    // Trả về đường dẫn tương đối để Client truy cập
+    // static folder là 'public' -> URL là /registration_exports/{subFolder}/{fileName}
+    return `/registration_exports/${subFolder}/${fileName}`;
+  }
+
+  // Helper: Tạo và lưu file Excel
+  async generateExcelFile(data, filePath) {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Danh sách đăng ký');
+
+    sheet.columns = [
+      { header: 'STT', key: 'stt', width: 5 },
+      { header: 'Họ và tên', key: 'full_name', width: 25 },
+      { header: 'Email', key: 'email', width: 30 },
+      { header: 'Loại vé', key: 'ticket_name', width: 20 },
+      { header: 'Trạng thái TT', key: 'payment_status', width: 15 },
+      { header: 'Ngày đăng ký', key: 'created_at', width: 20 },
+    ];
+
+    sheet.getRow(1).font = { bold: true };
+    sheet.addRows(data);
+
+    // Ghi file xuống ổ đĩa
+    await workbook.xlsx.writeFile(filePath);
+  }
+
+  // Helper: Tạo và lưu file PDF
+  async generatePDFFile(data, filePath) {
+    return new Promise((resolve, reject) => {
+        try {
+            // Khởi tạo document
+            const doc = new PDFDocument({ margin: 30, size: 'A4' });
+            const writeStream = fs.createWriteStream(filePath);
+
+            // ============================================================
+            // CẤU HÌNH FONT TIẾNG VIỆT
+            // ============================================================
+            // Đường dẫn đến file font. 
+            // Lưu ý: path.join(__dirname, '../..') tùy thuộc vào cấu trúc thư mục thực tế của bạn.
+            // Ví dụ này giả định: src/services/registration.service.js -> font nằm ở fonts/Roboto-Regular.ttf
+            const fontPath = path.join(__dirname, '../../fonts/Roboto-Regular.ttf'); 
+            
+            // Nếu bạn để thư mục fonts ngang hàng file service thì dùng: path.join(__dirname, 'fonts/Roboto-Regular.ttf');
+            // Hãy kiểm tra kỹ đường dẫn này nhé!
+
+            if (fs.existsSync(fontPath)) {
+                // Đăng ký font và set làm mặc định
+                doc.font(fontPath); 
+            } else {
+                console.warn(`WARNING: Không tìm thấy file font tại ${fontPath}. Tiếng Việt sẽ bị lỗi.`);
+            }
+            // ============================================================
+
+            // Pipe dữ liệu vào file
+            doc.pipe(writeStream);
+
+            // Viết tiêu đề
+            doc.fontSize(18).text('DANH SÁCH ĐĂNG KÝ THAM GIA HỘI NGHỊ', { align: 'center' });
+            doc.moveDown();
+
+            // Cấu hình bảng
+            const table = {
+                title: "",
+                headers: ["STT", "Họ Tên", "Email", "Vé", "Thanh Toán", "Ngày ĐK"],
+                rows: data.map(row => [
+                    row.stt, 
+                    row.full_name, 
+                    row.email, 
+                    row.ticket_name, 
+                    row.payment_status, 
+                    row.created_at
+                ]),
+            };
+
+            // Vẽ bảng
+            doc.table(table, {
+                width: 530, // Tăng độ rộng bảng cho vừa trang A4
+                prepareHeader: () => doc.font(fontPath).fontSize(10).fillColor('black'), // Dùng font tiếng Việt cho Header
+                prepareRow: (row, indexColumn, indexRow, rectRow, rectCell) => {
+                    doc.font(fontPath).fontSize(10).fillColor('black'); // Dùng font tiếng Việt cho nội dung
+                },
+            });
+
+            doc.end();
+
+            // Xử lý sự kiện ghi file xong
+            writeStream.on('finish', resolve);
+            writeStream.on('error', reject);
+
+        } catch (err) {
+            reject(err);
+        }
+    });
   }
 }
 
