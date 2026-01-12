@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-
+const path = require('path');
 //----------------
 // Swagger Imports
 const swaggerUi = require('swagger-ui-express');
@@ -28,17 +28,23 @@ const checkinRoutes = require('./routes/checkin.routes');
 const sessionRoutes = require('./routes/sessionRoutes');
 // Agenda
 const agendaRoutes = require('./routes/agendaRoutes');
+// Proceedings
+const proceedingRoutes = require('./routes/proceedings.routes');
 // ----------------
 const app = express();
 
 // Middlewares
 app.use(express.json());
 
+// Static files
+app.use(express.static(require('path').join(__dirname, '../public')));
+
 // Swagger UI
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.use('/conferences', conferenceRoutes);
 app.use('/', reviewRoutes);
+app.use('/', proceedingRoutes);
 app.use(errorMiddleware);
 
 // ----------------
