@@ -103,3 +103,46 @@ exports.getReviewSummary = async (paper_id) => {
 
   return rows[0];
 };
+
+/**
+ * Vote (Make Final Decision)
+ */
+exports.votePaper = async ({ paper_id, vote, decided_by }) => {
+  const { rows } = await pool.query(`
+    INSERT INTO Paper_Decisions (paper_id, decision, decided_by, decided_at)
+    VALUES ($1, $2, $3, NOW())
+    RETURNING 
+        decision_id, 
+        paper_id, 
+        decision AS final_vote, 
+        decided_at  -- [THÊM] Trả về ngày duyệt
+  `, [paper_id, vote, decided_by]);
+  
+  // Cập nhật trạng thái bài báo
+  if (vote) {
+      await pool.query(`
+        UPDATE Papers 
+        SET status = CASE WHEN $1 = 'ACCEPT' THEN 'ACCEPTED' ELSE 'REJECTED' END,
+            final_decision_date = NOW()
+        WHERE paper_id = $2
+      `, [vote, paper_id]);
+  }
+
+  return rows[0];
+};
+
+/**
+ * Adjudicate (Resolve Conflicts)
+ * Logic: Ghi chú xử lý mâu thuẫn vào Paper_Decisions (hoặc cập nhật note nếu đã có decision)
+ */
+exports.adjudicatePaper = async ({ paper_id, decision_note, decided_by }) => {
+  // Kiểm tra xem đã có quyết định chưa, nếu chưa thì tạo mới với trạng thái pending hoặc chỉ lưu note
+  // Ở đây giả định Adjudicate là bước ghi chú giải quyết mâu thuẫn trước khi Vote hoặc kèm theo Vote  
+  const { rows } = await pool.query(`
+    INSERT INTO Paper_Decisions (paper_id, decision_note, decided_by, decided_at)
+    VALUES ($1, $2, $3, NOW())
+    RETURNING paper_id, decision_note, true as adjudicated
+  `, [paper_id, decision_note, decided_by]);
+
+  return rows[0];
+};

@@ -21,3 +21,11 @@ exports.getReviewSummary = (paper_id) => {
   if (!paper_id) throw new Error('paper_id is required');
   return reviewRepo.getReviewSummary(paper_id);
 };
+
+exports.votePaper = (data) => {
+  return reviewRepo.votePaper(data);
+};
+
+exports.adjudicatePaper = (data) => {
+  return reviewRepo.adjudicatePaper(data);
+};
