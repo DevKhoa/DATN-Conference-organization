@@ -10,13 +10,22 @@ import LogisticsDashboard from "../../pages/Logistics/Dashboard/Dashboard";
 import ConferenceGallery from "../../pages/Logistics/ConferenceManagement/ConferenceGallery";
 import ConferenceHub from "../../pages/Logistics/ConferenceManagement/ConferenceHub";
 
+/* ===== QR SCANNER ===== */
+import QRScanner from "../../pages/Logistics/QRScanner/QRScanner";
+
 /* ===== SIDEBAR MODULES ===== */
 const SIDEBAR_MODULES = [
   {
     key: "dashboard",
-    label: "Hôm nay",
+    label: "Các hội nghị đang diễn ra",
     icon: "LayoutDashboard",
     path: "/app/logistics/dashboard",
+  },
+  {
+    key: "qr-scanner",
+    label: "QR Scanner",
+    icon: "QrCode",
+    path: "/app/logistics/qr-scanner",
   },
   {
     key: "conference",
@@ -43,6 +52,9 @@ const LogisticsLayout = () => {
           <Routes>
             {/* ================= DASHBOARD ================= */}
             <Route path="dashboard" element={<LogisticsDashboard />} />
+
+            {/* ================= QR SCANNER ================= */}
+            <Route path="qr-scanner" element={<QRScanner />} />
 
             {/* ================= CONFERENCE MANAGEMENT ================= */}
             <Route path="conference" element={<ConferenceGallery />} />
