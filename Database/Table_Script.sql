@@ -163,16 +163,14 @@ CREATE TABLE Session_Papers (
 -- Cấu hình vé (Mở/đóng cổng) 
 CREATE TABLE Ticket_Configs (
     ticket_id SERIAL PRIMARY KEY,
-    conference_id INT REFERENCES Conferences(conf_id), -- Vé của hội nghị nào
+    conference_id INT REFERENCES Conferences(conf_id),
     ticket_name VARCHAR(100) NOT NULL,
-    price DECIMAL(10, 2) NOT NULL,
-    currency VARCHAR(10) DEFAULT 'VND',
+    price_vnd DECIMAL(15, 2) NOT NULL DEFAULT 0, -- Giá vé VND
+    price_usd DECIMAL(10, 2) NOT NULL DEFAULT 0, -- Giá vé USD
     quantity_limit INT,
     sold_quantity INT DEFAULT 0,
     open_time TIMESTAMP NOT NULL,
     close_time TIMESTAMP NOT NULL,
-    
-    -- Ẩn/Hiện vé nhanh
     is_active BOOLEAN DEFAULT TRUE, 
     description TEXT
 );
