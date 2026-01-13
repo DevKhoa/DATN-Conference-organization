@@ -30,3 +30,8 @@ ADD COLUMN conference_id INT REFERENCES conferences(conf_id);
 
 -- Update dữ liệu giả để test (Giả sử tất cả session hiện tại thuộc Conference ID = 1)
 UPDATE sessions SET conference_id = 1 WHERE conference_id IS NULL;
+-------------- Update 12/01 ------------------------
+
+-- Thêm cột doi vào bảng Pappers 
+ALTER TABLE Papers
+ADD COLUMN doi VARCHAR(255);
