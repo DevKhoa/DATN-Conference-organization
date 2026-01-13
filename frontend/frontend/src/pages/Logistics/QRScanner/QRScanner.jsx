@@ -11,6 +11,7 @@ import {
   Upload,
 } from "lucide-react";
 import Button from "../../../ui/Button";
+import { mockCheckinStats, mockRecentScans } from "@/services/logistics";
 
 /* ===== STAT CARD ===== */
 const StatCard = ({ icon: Icon, label, value, color }) => (
@@ -67,38 +68,8 @@ const QRScanner = () => {
   const [isScanning, setIsScanning] = useState(false);
 
   /* ===== MOCK DATA ===== */
-  const stats = {
-    todayScans: 342,
-    successRate: 98.5,
-    failedScans: 5,
-  };
-
-  const recentScans = [
-    {
-      id: 1,
-      name: "Nguyễn Văn A",
-      email: "nguyenvana@email.com",
-      conference: "International AI Summit",
-      time: "2 phút trước",
-      status: "success",
-    },
-    {
-      id: 2,
-      name: "Trần Thị B",
-      email: "tranthib@email.com",
-      conference: "Medical Research Conference",
-      time: "5 phút trước",
-      status: "success",
-    },
-    {
-      id: 3,
-      name: "Lê Văn C",
-      email: "levanc@email.com",
-      conference: "Education Technology Forum",
-      time: "8 phút trước",
-      status: "failed",
-    },
-  ];
+  const stats = mockCheckinStats;
+  const [recentScans, setRecentScans] = useState(mockRecentScans);
 
   /* ===== HANDLERS ===== */
   const handleQRScan = () => {

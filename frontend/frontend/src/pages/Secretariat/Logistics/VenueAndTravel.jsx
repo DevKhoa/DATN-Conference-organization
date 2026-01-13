@@ -1,18 +1,25 @@
 import React, { useState } from 'react';
 import { MapPin, Plus, Save, Download, Globe, Eye } from 'lucide-react';
 import Button from '../../../ui/Button'; // Import Button UI
+import { mockHotels, mockVIPServices } from '@/services/logistics';
 
 const VenueAndTravel = ({ data }) => {
     // Mock data for hotels and travel requests
-    const hotelList = data?.hotelList || [
-        { id: 1, name: 'Hotel A (Partner)', distance: '0.5 km', rooms: 50, status: 'Active' },
-        { id: 2, name: 'Hotel B', distance: '1.2 km', rooms: 0, status: 'Closed' }
-    ];
+    const hotelList = data?.hotelList || Object.values(mockHotels).flat().map(hotel => ({
+        id: hotel.id,
+        name: hotel.name,
+        distance: hotel.distance,
+        rooms: 50,
+        status: hotel.status === 'published' ? 'Active' : 'Closed'
+    }));
 
-    const travelRequests = data?.travelRequests || [
-        { id: 'T001', guest: 'Dr. John Smith (Keynote)', type: 'Airport Pickup', date: '2025-05-10', status: 'Confirmed' },
-        { id: 'T002', guest: 'Jane Lee (VIP)', type: 'Room Reservation', date: '2025-05-11', status: 'Pending' }
-    ];
+    const travelRequests = data?.travelRequests || Object.values(mockVIPServices).flat().map(vip => ({
+        id: vip.id,
+        guest: `${vip.guestName} (${vip.role})`,
+        type: 'Airport Pickup',
+        date: vip.arrivalTime,
+        status: vip.pickupStatus === 'confirmed' ? 'Confirmed' : 'Pending'
+    }));
 
     return (
         <div>

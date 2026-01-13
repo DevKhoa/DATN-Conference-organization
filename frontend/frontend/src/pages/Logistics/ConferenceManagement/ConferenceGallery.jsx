@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Button from "../../../ui/Button";
-import { mockConferences, mockStats } from "./mockConferenceData";
+import { mockConferences, mockStats } from "@/services/logistics";
 
 /* ===== BADGE COMPONENT ===== */
 const LogisticsBadge = ({ icon: Icon, label, value, status = "neutral" }) => {

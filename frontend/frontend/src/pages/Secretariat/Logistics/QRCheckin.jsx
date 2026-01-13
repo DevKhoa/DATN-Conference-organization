@@ -1,13 +1,10 @@
 import React from 'react';
 import { QrCode, Camera, Smartphone } from 'lucide-react';
 import Button from '../../../ui/Button';
+import { mockLiveStats } from '@/services/logistics';
 
 const QrCheckin = ({ data }) => {
-    const liveStats = [
-        { label: 'Total Checked In', value: '298 / 328', color: '#10b981' },
-        { label: 'Last Check-in', value: 'Jane Doe (09:15 AM)', color: '#2563eb' },
-        { label: 'Unpaid Issues', value: '3', color: '#ef4444' },
-    ];
+    const liveStats = mockLiveStats;
 
     return (
         <div>
