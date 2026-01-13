@@ -1,5 +1,6 @@
 import React from "react";
-import { Menu, Search, Bell, User, ChevronDown } from "lucide-react";
+import { Menu, Search, Bell } from "lucide-react";
+import RoleSelector from "../../components/RoleSelector";
 
 const TopBar = ({ sidebarOpen, setSidebarOpen }) => {
   return (
@@ -37,13 +38,7 @@ const TopBar = ({ sidebarOpen, setSidebarOpen }) => {
           </span>
         </div>
 
-        <div className="flex items-center gap-2 cursor-pointer py-2 px-3 rounded-lg border border-[#e2e8f0]">
-          <div className="w-8 h-8 bg-[#10b981] rounded-full flex items-center justify-center text-white">
-            <User size={18} />
-          </div>
-          <span className="text-sm font-medium text-[#1e293b]">Secretariat</span>
-          <ChevronDown size={16} className="text-[#64748b]" />
-        </div>
+        <RoleSelector />
       </div>
     </div>
   );

@@ -5,9 +5,6 @@ import {
   AlertTriangle,
   UtensilsCrossed,
   Plane,
-  QrCode,
-  Search,
-  Printer,
   RefreshCw,
   Clock,
   MapPin,
@@ -17,7 +14,7 @@ import {
 import Button from "../../../ui/Button";
 
 /* ===== STAT CARD ===== */
-const StatCard = ({ icon: Icon, label, value, subtext, color, trend }) => (
+const StatCard = ({ icon: Icon, label, value, subtext, color, trend, note }) => (
   <div className="bg-white rounded-xl shadow-sm p-6">
     <div className="flex justify-between items-start mb-4">
       <div
@@ -44,6 +41,11 @@ const StatCard = ({ icon: Icon, label, value, subtext, color, trend }) => (
     </div>
 
     {subtext && <div className="text-[13px] text-[#64748b]">{subtext}</div>}
+    {note && (
+      <div className="text-[13px] text-[#2563eb] font-medium mt-2">
+        {note}
+      </div>
+    )}
   </div>
 );
 
@@ -62,12 +64,23 @@ const ConferenceRow = ({ conference, onClick }) => {
             <MapPin size={14} />
             <span>{conference.venue}</span>
           </div>
+          <div className="flex items-center gap-2 text-[13px] text-[#64748b] mt-1">
+            <Clock size={14} />
+            <span>{conference.dateRange} - Ngày {conference.currentDay}/{conference.totalDays}</span>
+          </div>
         </div>
         <div className="text-right">
           <div className="text-[13px] text-[#64748b] mb-1">Check-in Progress</div>
           <div className="text-lg font-bold text-[#10b981]">
             {conference.checkedIn} / {conference.total}
           </div>
+          {conference.checkinChange !== undefined && conference.currentDay > 1 && (
+            <div className={`text-[12px] font-medium mt-1 ${
+              conference.checkinChange >= 0 ? 'text-[#10b981]' : 'text-[#ef4444]'
+            }`}>
+              {conference.checkinChange >= 0 ? '+' : ''}{conference.checkinChange} so với hôm qua
+            </div>
+          )}
         </div>
       </div>
 
@@ -146,8 +159,8 @@ const IssueLogCard = ({ issue }) => {
         return { icon: Clock, color: "#f59e0b" };
       case "vip":
         return { icon: Plane, color: "#ef4444" };
-      case "qr":
-        return { icon: QrCode, color: "#8b5cf6" };
+      case "checkin":
+        return { icon: UserCheck, color: "#8b5cf6" };
       default:
         return { icon: Bell, color: "#64748b" };
     }
@@ -168,13 +181,18 @@ const IssueLogCard = ({ issue }) => {
 
 /* ===== MAIN DASHBOARD ===== */
 const LogisticsDashboard = () => {
-  const [searchQuery, setSearchQuery] = useState("");
-
   /* ===== MOCK DATA (SAU NÀY THAY API) ===== */
   const todayStats = {
-    checkInProgress: { current: 876, total: 1024, percentage: 85.5 },
-    staffCoverage: { current: 42, total: 48, percentage: 87.5 },
-    specialMeals: { vegetarian: 28, allergies: 15, total: 43 },
+    checkInProgress: { current: 876, total: 1024, percentage: 85.5, changeFromYesterday: 45 },
+    staffCoverage: {
+      total: { current: 42, total: 48 },
+      today: { current: 15, total: 18 },
+      percentage: 87.5
+    },
+    specialMeals: {
+      total: { vegetarian: 28, allergies: 15, total: 43 },
+      today: { vegetarian: 12, allergies: 6, total: 18 },
+    },
   };
 
   const activeConferences = [
@@ -182,8 +200,12 @@ const LogisticsDashboard = () => {
       id: "conf-1",
       name: "International AI Summit 2024",
       venue: "Grand Hall A",
+      dateRange: "12-14/01",
+      currentDay: 2,
+      totalDays: 3,
       checkedIn: 342,
       total: 400,
+      checkinChange: 28, // so với ngày hôm qua
       warnings: [
         { type: "staff", message: "2/5 phiên chưa đủ nhân sự (thiếu 3 Kỹ thuật viên)" },
         { type: "chair", message: "Session Chair chưa có mặt cho phiên 14:00" },
@@ -193,8 +215,12 @@ const LogisticsDashboard = () => {
       id: "conf-2",
       name: "Medical Research Conference",
       venue: "Conference Center B",
+      dateRange: "13/01",
+      currentDay: 1,
+      totalDays: 1,
       checkedIn: 298,
       total: 328,
+      checkinChange: undefined, // không có vì là ngày đầu tiên
       warnings: [
         { type: "staff", message: "1/4 phiên chưa có Session Chair" },
       ],
@@ -203,8 +229,12 @@ const LogisticsDashboard = () => {
       id: "conf-3",
       name: "Education Technology Forum",
       venue: "Innovation Hub C",
+      dateRange: "12-13/01",
+      currentDay: 2,
+      totalDays: 2,
       checkedIn: 236,
       total: 296,
+      checkinChange: 17, // so với ngày hôm qua
       warnings: [],
     },
   ];
@@ -245,8 +275,8 @@ const LogisticsDashboard = () => {
       time: "15 phút trước",
     },
     {
-      type: "qr",
-      message: "Mã QR không hợp lệ tại quầy Check-in số 2 - Medical Research Conference",
+      type: "checkin",
+      message: "Check-in thành công tại quầy số 2 - Medical Research Conference",
       time: "23 phút trước",
     },
     {
@@ -262,31 +292,16 @@ const LogisticsDashboard = () => {
     // TODO: Implement navigation to staff assignment page
   };
 
-  const handleQRScan = () => {
-    alert("Mở giao diện quét QR Code");
-    // TODO: Implement QR scanner
-  };
-
-  const handleSearchAttendee = () => {
-    alert(`Tìm kiếm người tham dự: ${searchQuery}`);
-    // TODO: Implement search functionality
-  };
-
-  const handlePrintBadge = () => {
-    alert("Mở giao diện in badge nhanh");
-    // TODO: Implement badge printing
-  };
-
   return (
     <div>
       {/* ===== HEADER ===== */}
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="m-0 mb-2 text-[28px] font-semibold text-[#1e293b]">
-            Logistics Dashboard - Hôm nay 📋
+            Dashboard - Các hội nghị đang diễn ra 📋
           </h2>
           <p className="text-[#64748b] text-sm">
-            Real-time overview of all conferences happening today
+            Tổng quan thời gian thực về các hội nghị đang diễn ra
           </p>
         </div>
 
@@ -304,23 +319,26 @@ const LogisticsDashboard = () => {
           subtext={`${todayStats.checkInProgress.percentage}% đã check-in`}
           color="#10b981"
           trend="good"
+          note={`+${todayStats.checkInProgress.changeFromYesterday} so với hôm qua`}
         />
 
         <StatCard
           icon={Users}
-          label="Độ phủ Nhân sự"
-          value={`${todayStats.staffCoverage.current} / ${todayStats.staffCoverage.total}`}
+          label="Độ phủ Nhân sự (Tất cả hội nghị)"
+          value={`${todayStats.staffCoverage.total.current} / ${todayStats.staffCoverage.total.total}`}
           subtext={`${todayStats.staffCoverage.percentage}% phiên có đủ nhân sự`}
           color="#f59e0b"
           trend="alert"
+          note={`${todayStats.staffCoverage.today.current}/${todayStats.staffCoverage.today.total} cho hôm nay`}
         />
 
         <StatCard
           icon={UtensilsCrossed}
-          label="Yêu cầu Dịch vụ (Hôm nay)"
-          value={todayStats.specialMeals.total}
-          subtext={`${todayStats.specialMeals.vegetarian} chay • ${todayStats.specialMeals.allergies} dị ứng`}
+          label="Yêu cầu Dịch vụ (Tất cả hội nghị)"
+          value={todayStats.specialMeals.total.total}
+          subtext={`${todayStats.specialMeals.total.vegetarian} chay • ${todayStats.specialMeals.total.allergies} dị ứng`}
           color="#2563eb"
+          note={`${todayStats.specialMeals.today.total} cho hôm nay (${todayStats.specialMeals.today.vegetarian} chay, ${todayStats.specialMeals.today.allergies} dị ứng)`}
         />
       </div>
 
@@ -341,75 +359,17 @@ const LogisticsDashboard = () => {
               />
             ))}
           </div>
-
-          {/* ===== E. NHẬT KÝ SỰ CỐ (ISSUE LOGS) ===== */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="m-0 text-lg font-semibold text-[#1e293b]">
-                Nhật ký sự cố & Thông báo
-              </h3>
-              <span className="text-[13px] text-[#64748b]">
-                {issueLog.length} thông báo mới
-              </span>
-            </div>
-
-            <div className="max-h-100 overflow-y-auto">
-              {issueLog.map((issue, idx) => (
-                <IssueLogCard key={idx} issue={issue} />
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* RIGHT COLUMN - 1/3 width */}
         <div>
-          {/* ===== D. PHÍM TẮT VẬN HÀNH NHANH ===== */}
-          <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-            <h3 className="m-0 mb-4 text-lg font-semibold text-[#1e293b]">
-              Vận hành nhanh ⚡
-            </h3>
-
-            <div className="space-y-3 mb-4">
-              <Button
-                icon={QrCode}
-                variant="primary"
-                onClick={handleQRScan}
-                size="md"
-                style={{ width: "100%" }}
-              >
-                Quét QR Check-in
-              </Button>
-
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Tìm theo Tên/Email..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="flex-1 p-2.5 border border-[#e2e8f0] rounded-lg text-[14px]"
-                  onKeyPress={(e) => e.key === "Enter" && handleSearchAttendee()}
-                />
-                <Button
-                  icon={Search}
-                  variant="secondary"
-                  onClick={handleSearchAttendee}
-                />
-              </div>
-
-              <Button
-                icon={Printer}
-                variant="ghost"
-                onClick={handlePrintBadge}
-                size="md"
-                style={{ width: "100%" }}
-              >
-                In Badge nhanh
-              </Button>
-            </div>
-          </div>
+          {/* Text spacer để VIP Arrivals ngang với card hội nghị đầu tiên */}
+          <h3 className="m-0 mb-4 text-lg font-semibold text-transparent select-none">
+            &nbsp;
+          </h3>
 
           {/* ===== C. DÒNG THỜI GIAN VIP ===== */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
+          <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="m-0 text-lg font-semibold text-[#1e293b]">
                 VIP Arrivals (6h tới)
@@ -428,6 +388,24 @@ const LogisticsDashboard = () => {
                 <span className="text-[#64748b]">Tổng số VIP hôm nay:</span>
                 <span className="font-semibold text-[#1e293b]">{vipArrivals.length} người</span>
               </div>
+            </div>
+          </div>
+
+          {/* ===== E. NHẬT KÝ SỰ CỐ (ISSUE LOGS) ===== */}
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="m-0 text-lg font-semibold text-[#1e293b]">
+                Nhật ký sự cố & Thông báo
+              </h3>
+              <span className="text-[13px] text-[#64748b]">
+                {issueLog.length} thông báo mới
+              </span>
+            </div>
+
+            <div className="max-h-100 overflow-y-auto">
+              {issueLog.map((issue, idx) => (
+                <IssueLogCard key={idx} issue={issue} />
+              ))}
             </div>
           </div>
         </div>

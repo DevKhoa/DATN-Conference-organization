@@ -11,6 +11,11 @@ import {
   Clock,
 } from "lucide-react";
 import Button from "../../../ui/Button";
+import { getConferenceById } from "./mockConferenceData";
+import SessionsTab from "./SessionsTab";
+import EventsTab from "./EventsTab";
+import HotelsTab from "./HotelsTab";
+import VIPTab from "./VIPTab";
 
 /* ===== TAB NAVIGATION ===== */
 const TabNav = ({ activeTab, setActiveTab }) => {
@@ -91,79 +96,6 @@ const ConferenceHeader = ({ conference, onBack }) => (
 );
 
 /* ===== TAB CONTENT PLACEHOLDERS ===== */
-const SessionsTab = () => (
-  <div className="bg-white rounded-xl shadow-sm p-6 border border-[#e2e8f0]">
-    <h3 className="m-0 mb-4 text-lg font-semibold text-[#1e293b]">
-      Quản lý Phiên & Nhân sự
-    </h3>
-    <p className="text-[#64748b] text-[14px]">
-      📋 Bảng Master Schedule với dropdown phân công Chair & Kỹ thuật viên
-      <br />
-      🚨 Logic gray-out nhân sự bận, cảnh báo xung đột lịch trình
-      <br />
-      💾 Nút "Lưu phân công" → Tự động gửi thông báo
-    </p>
-    <div className="mt-4 p-4 bg-[#f8fafc] rounded-lg border border-[#e2e8f0]">
-      <p className="text-[13px] text-[#64748b] m-0">Coming soon...</p>
-    </div>
-  </div>
-);
-
-const EventsTab = () => (
-  <div className="bg-white rounded-xl shadow-sm p-6 border border-[#e2e8f0]">
-    <h3 className="m-0 mb-4 text-lg font-semibold text-[#1e293b]">
-      Quản lý Dịch vụ & Tiệc (Gala Dinner, Networking...)
-    </h3>
-    <p className="text-[#64748b] text-[14px]">
-      🍽️ Card/Tabs chuyển đổi giữa các phiên phụ
-      <br />
-      📊 Dashboard: Tổng khách, suất ăn chay, dị ứng
-      <br />
-      👥 Attendee Table với ghi chú đặc biệt & trạng thái Check-in
-    </p>
-    <div className="mt-4 p-4 bg-[#f8fafc] rounded-lg border border-[#e2e8f0]">
-      <p className="text-[13px] text-[#64748b] m-0">Coming soon...</p>
-    </div>
-  </div>
-);
-
-const HotelsTab = () => (
-  <div className="bg-white rounded-xl shadow-sm p-6 border border-[#e2e8f0]">
-    <h3 className="m-0 mb-4 text-lg font-semibold text-[#1e293b]">
-      Quản lý Danh sách Khách sạn (CMS & Maps)
-    </h3>
-    <p className="text-[#64748b] text-[14px]">
-      🏨 Gallery khách sạn đề xuất (Công bố / Nháp)
-      <br />
-      ✏️ Form nhập: Tên, website, mã giảm giá, room blocks
-      <br />
-      🗺️ Tích hợp Google Maps tự động ghim vị trí
-    </p>
-    <div className="mt-4 p-4 bg-[#f8fafc] rounded-lg border border-[#e2e8f0]">
-      <p className="text-[13px] text-[#64748b] m-0">Coming soon...</p>
-    </div>
-  </div>
-);
-
-const VIPTab = () => (
-  <div className="bg-white rounded-xl shadow-sm p-6 border border-[#e2e8f0]">
-    <h3 className="m-0 mb-4 text-lg font-semibold text-[#1e293b]">
-      Dịch vụ Đưa đón & Lưu trú VIP
-    </h3>
-    <p className="text-[#64748b] text-[14px]">
-      ✈️ Tracking Board cho từng khách VIP
-      <br />
-      📝 Chi tiết: Số hiệu chuyến bay, giờ đến/đi, xe đưa đón
-      <br />
-      🔄 Quản lý trạng thái: Mới → Đã liên hệ → Đã xác nhận
-      <br />
-      ⚡ Xử lý thay đổi lịch trình bay đột xuất
-    </p>
-    <div className="mt-4 p-4 bg-[#f8fafc] rounded-lg border border-[#e2e8f0]">
-      <p className="text-[13px] text-[#64748b] m-0">Coming soon...</p>
-    </div>
-  </div>
-);
 
 /* ===== MAIN COMPONENT ===== */
 const ConferenceHub = () => {
@@ -171,15 +103,26 @@ const ConferenceHub = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("sessions");
 
-  /* ===== MOCK DATA ===== */
-  const conference = {
-    id: conferenceId,
-    name: "International AI Summit 2024",
-    date: "15-17 Jan 2024",
-    location: "Grand Convention Center, Hanoi",
-    daysUntil: 3,
-    status: "live",
-  };
+  /* ===== LOAD CONFERENCE DATA ===== */
+  const conferenceData = getConferenceById(conferenceId);
+
+  // Nếu không tìm thấy hội nghị
+  if (!conferenceData) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm p-8 text-center">
+        <h3 className="text-[20px] font-semibold text-[#64748b] mb-2">
+          Không tìm thấy hội nghị
+        </h3>
+        <Button
+          icon={ArrowLeft}
+          variant="primary"
+          onClick={() => navigate("/app/logistics/conference")}
+        >
+          Quay lại danh sách
+        </Button>
+      </div>
+    );
+  }
 
   const handleBack = () => {
     navigate("/app/logistics/conference");
@@ -188,16 +131,26 @@ const ConferenceHub = () => {
   return (
     <div>
       {/* Conference Header */}
-      <ConferenceHeader conference={conference} onBack={handleBack} />
+      <ConferenceHeader conference={conferenceData} onBack={handleBack} />
 
       {/* Tab Navigation */}
       <TabNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Tab Content */}
-      {activeTab === "sessions" && <SessionsTab />}
-      {activeTab === "events" && <EventsTab />}
-      {activeTab === "hotels" && <HotelsTab />}
-      {activeTab === "vip" && <VIPTab />}
+      {activeTab === "sessions" && (
+        <SessionsTab
+          sessions={conferenceData.sessions}
+          availableChairs={conferenceData.availableChairs}
+          availableTechnicians={conferenceData.availableTechnicians}
+        />
+      )}
+      {activeTab === "events" && <EventsTab events={conferenceData.events} />}
+      {activeTab === "hotels" && (
+        <HotelsTab hotels={conferenceData.hotels} />
+      )}
+      {activeTab === "vip" && (
+        <VIPTab vipServices={conferenceData.vipServices} />
+      )}
     </div>
   );
 };
