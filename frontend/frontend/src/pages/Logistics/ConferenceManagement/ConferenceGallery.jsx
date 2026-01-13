@@ -40,7 +40,7 @@ const ConferenceCard = ({ conference, onClick }) => {
     <div className="bg-white rounded-xl shadow-sm border border-[#e2e8f0] overflow-hidden hover:shadow-lg transition-all duration-200 hover:border-[#2563eb]">
       {/* Header Image */}
       <div
-        className="h-40 bg-gradient-to-br from-[#2563eb] to-[#1d4ed8] flex items-center justify-center relative"
+        className="h-40 bg-linear-to-br from-[#2563eb] to-[#1d4ed8] flex items-center justify-center relative"
         style={{
           backgroundImage: conference.image ? `url(${conference.image})` : undefined,
           backgroundSize: 'cover',
