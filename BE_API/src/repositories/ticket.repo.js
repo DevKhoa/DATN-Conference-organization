@@ -3,13 +3,15 @@ const pool = require('../config/db');
 class TicketRepository {
   // Tạo loại vé mới
   async createTicketType(ticketData) {
-    const { conf_id, ticket_name, price, currency, quantity_limit, open_time, close_time } = ticketData;
+    // Lấy đúng field từ service đã xử lý
+    const { conf_id, ticket_name, price_vnd, price_usd, quantity_limit, open_time, close_time } = ticketData;
+    
     const query = `
-      INSERT INTO Ticket_Configs (conference_id, ticket_name, price, currency, quantity_limit, open_time, close_time, is_active)
+      INSERT INTO Ticket_Configs (conference_id, ticket_name, price_vnd, price_usd, quantity_limit, open_time, close_time, is_active)
       VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
-      RETURNING ticket_id, ticket_name, price, currency, quantity_limit; 
+      RETURNING ticket_id, ticket_name, price_vnd, price_usd, quantity_limit, open_time, close_time; 
     `;
-    const values = [conf_id, ticket_name, price, currency, quantity_limit, open_time, close_time];
+    const values = [conf_id, ticket_name, price_vnd, price_usd, quantity_limit, open_time, close_time];
     const result = await pool.query(query, values);
     return result.rows[0];
   }
@@ -30,14 +32,21 @@ class TicketRepository {
 
   // Cập nhật cấu hình vé
   async updateTicketSettings(ticketId, settings) {
-    const { open_time, close_time, quantity_limit, is_active } = settings;
+    // Service sẽ đảm bảo truyền đủ price_vnd và price_usd
+    const { open_time, close_time, quantity_limit, is_active, price_vnd, price_usd } = settings;
+    
     const query = `
       UPDATE Ticket_Configs
-      SET open_time = $1, close_time = $2, quantity_limit = $3, is_active = $4
-      WHERE ticket_id = $5
-      RETURNING ticket_id, open_time, close_time, quantity_limit, is_active;
+      SET open_time = $1, 
+          close_time = $2, 
+          quantity_limit = $3, 
+          is_active = $4,
+          price_vnd = $5,
+          price_usd = $6
+      WHERE ticket_id = $7
+      RETURNING ticket_id, open_time, close_time, quantity_limit, is_active, price_vnd, price_usd;
     `;
-    const result = await pool.query(query, [open_time, close_time, quantity_limit, is_active, ticketId]);
+    const result = await pool.query(query, [open_time, close_time, quantity_limit, is_active, price_vnd, price_usd, ticketId]);
     return result.rows[0];
   }
 
