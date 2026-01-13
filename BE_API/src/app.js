@@ -24,12 +24,19 @@ const ticketRoutes = require('./routes/ticket.routes');
 const registrationRoutes = require('./routes/registration.routes');
 // Check-in
 const checkinRoutes = require('./routes/checkin.routes');
+// Location
+const locationRoutes = require('./routes/locationRoutes');
 // Session
 const sessionRoutes = require('./routes/sessionRoutes');
 // Agenda
 const agendaRoutes = require('./routes/agendaRoutes');
 // Proceedings
 const proceedingRoutes = require('./routes/proceedings.routes');
+// CMS
+const cmsRoutes = require('./routes/cmsRoutes');
+// Email
+const emailRoutes = require('./routes/emailRoutes');
+
 // ----------------
 const app = express();
 
@@ -45,6 +52,11 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/conferences', conferenceRoutes);
 app.use('/', reviewRoutes);
 app.use('/', proceedingRoutes);
+app.use('/locations', locationRoutes); // 
+app.use('/sessions', sessionRoutes);
+app.use('/agenda', agendaRoutes);
+app.use('/cms', cmsRoutes);
+app.use('/emails', emailRoutes);
 app.use(errorMiddleware);
 
 // ----------------
