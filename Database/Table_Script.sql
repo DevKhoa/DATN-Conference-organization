@@ -44,6 +44,7 @@ CREATE TABLE Users (
     is_verified BOOLEAN DEFAULT FALSE,
     password_hash VARCHAR(255) NOT NULL,
     organization VARCHAR(255), -- Đơn vị công tác
+    is_active BOOLEAN DEFAULT TRUE, -- Tài khoản có hoạt động không
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 -- =============================================
@@ -209,16 +210,39 @@ CREATE TABLE Registrations (
 -- Giao dịch & Đối soát 
 CREATE TABLE Transactions (
     trans_id SERIAL PRIMARY KEY,
-    registration_id INT REFERENCES Registrations(registration_id),
+    registration_id INT REFERENCES Registrations(registration_id) ON DELETE CASCADE,
     
-    -- Cổng thanh toán
-    payment_gateway VARCHAR(50) CHECK (payment_gateway IN ('MOMO', 'VNPAY', 'STRIPE', 'BANK_TRANSFER')), 
-    gateway_trans_code VARCHAR(100),
-    
-    amount DECIMAL(10, 2),
-    status VARCHAR(50), 
-    error_log TEXT,
-    transaction_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    -- Phân loại giao dịch: Thanh toán / Hoàn tiền
+    transaction_type VARCHAR(20) DEFAULT 'PAYMENT' 
+        CHECK (transaction_type IN ('PAYMENT', 'REFUND')),
+
+    -- Cổng thanh toán: MOMO / PAYPAL
+    payment_gateway VARCHAR(20) NOT NULL 
+        CHECK (payment_gateway IN ('MOMO', 'PAYPAL')),
+
+    -- Mã đơn hàng do hệ thống hội nghị sinh ra (gửi sang cổng thanh toán)
+    merchant_order_id VARCHAR(100) UNIQUE NOT NULL,
+
+    -- Mã giao dịch do cổng thanh toán trả về (dùng để đối soát)
+    gateway_transaction_id VARCHAR(100),
+
+    -- Số tiền và loại tiền thực tế của giao dịch này
+    amount DECIMAL(15, 2) NOT NULL,
+    currency VARCHAR(5) NOT NULL CHECK (currency IN ('VND', 'USD')),
+
+    -- Trạng thái giao dịch
+    status VARCHAR(20) DEFAULT 'PENDING'
+        CHECK (status IN ('PENDING', 'SUCCESS', 'FAILED', 'REFUNDED', 'CANCELLED')),
+
+    -- JSONB lưu toàn bộ phản hồi từ cổng thanh toán (PayerID (PayPal), số ví/thẻ (MoMo), signature, token,...)
+    gateway_raw_response JSONB,
+
+    -- Ghi lại lỗi nếu thanh toán thất bại
+    error_message TEXT,
+
+    -- Thời gian tạo và cập nhật
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CMS & Truyền thông [cite: 13, 15]
