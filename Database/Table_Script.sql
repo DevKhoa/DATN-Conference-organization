@@ -171,7 +171,8 @@ CREATE TABLE Ticket_Configs (
     sold_quantity INT DEFAULT 0,
     open_time TIMESTAMP NOT NULL,
     close_time TIMESTAMP NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE, 
+    is_active BOOLEAN DEFAULT TRUE, -- đóng / mở bán
+    is_deleted BOOLEAN DEFAULT FALSE, -- Soft delete
     description TEXT
 );
 
