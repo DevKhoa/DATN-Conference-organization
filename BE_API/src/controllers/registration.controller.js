@@ -1,6 +1,6 @@
 const registrationService = require('../services/registration.service');
 
-//Đang ký tham gia hội nghị
+// Đang ký tham gia hội nghị
 exports.create = async (req, res) => {
     try {
         // Lấy ID người dùng từ token: const userId = req.user.user_id;
@@ -21,7 +21,28 @@ exports.create = async (req, res) => {
     }
 };
 
-//Xuất danh sách đăng ký tham gia hội nghị
+// Hủy đăng ký
+exports.cancel = async (req, res) => {
+    try {
+        const { id } = req.params; // Lấy registration_id từ URL
+        
+        const result = await registrationService.cancelRegistration(id);
+        
+        res.status(200).json({
+            message: "Hủy đăng ký thành công",
+            data: result,
+            cancelled_at: new Date().toISOString()
+        });
+    } catch (error) {
+        // Xử lý lỗi
+        if (error.message.includes('tìm thấy') || error.message.includes('không tồn tại')) {
+            return res.status(404).json({ message: error.message });
+        }
+        res.status(400).json({ message: error.message });
+    }
+};
+
+// Xuất danh sách đăng ký tham gia hội nghị
 exports.getList = async (req, res) => {
     try {
         // Lấy tham số từ Query String (URL)

@@ -15,4 +15,8 @@ router.get('/export', regController.exportList);
 router.get('/list', regController.getList);
 //router.get('/list', authMiddleware, regController.getList);
 
+// Hủy đăng ký
+router.patch('/:id/cancel', regController.cancel);
+//router.patch('/:id/cancel', authMiddleware, regController.cancel);
+
 module.exports = router;
