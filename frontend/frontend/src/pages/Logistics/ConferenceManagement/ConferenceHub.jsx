@@ -11,7 +11,7 @@ import {
   Clock,
 } from "lucide-react";
 import Button from "../../../ui/Button";
-import { getConferenceById } from "./mockConferenceData";
+import { getConferenceOverview } from "@/services/logistics";
 import SessionsTab from "./SessionsTab";
 import EventsTab from "./EventsTab";
 import HotelsTab from "./HotelsTab";
@@ -104,7 +104,7 @@ const ConferenceHub = () => {
   const [activeTab, setActiveTab] = useState("sessions");
 
   /* ===== LOAD CONFERENCE DATA ===== */
-  const conferenceData = getConferenceById(conferenceId);
+  const conferenceData = getConferenceOverview(conferenceId);
 
   // Nếu không tìm thấy hội nghị
   if (!conferenceData) {

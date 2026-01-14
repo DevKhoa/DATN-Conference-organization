@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   UtensilsCrossed,
   Users,
@@ -10,6 +10,7 @@ import {
   Clock,
 } from "lucide-react";
 import Button from "../../../ui/Button";
+import { mockAttendees } from "@/services/logistics";
 
 /* ===== ATTENDEE ROW COMPONENT ===== */
 const AttendeeRow = ({ attendee, onCheckIn }) => {
@@ -117,44 +118,17 @@ const EventsTab = ({ events }) => {
 
   const activeEvent = eventData.find((e) => e.id === activeEventId);
 
-  // Mock attendees data
-  const [attendees, setAttendees] = useState([
-    {
-      id: "a1",
-      name: "Nguyen Van A",
-      email: "nvana@example.com",
-      dietary: ["Chay"],
-      checkedIn: false,
-    },
-    {
-      id: "a2",
-      name: "Tran Thi B",
-      email: "ttb@example.com",
-      dietary: ["Dị ứng Gluten"],
-      checkedIn: true,
-    },
-    {
-      id: "a3",
-      name: "Le Van C",
-      email: "lvc@example.com",
-      dietary: [],
-      checkedIn: false,
-    },
-    {
-      id: "a4",
-      name: "Pham Thi D",
-      email: "ptd@example.com",
-      dietary: ["Chay", "Dị ứng Hải sản"],
-      checkedIn: false,
-    },
-    {
-      id: "a5",
-      name: "Hoang Van E",
-      email: "hve@example.com",
-      dietary: ["Dị ứng Hải sản"],
-      checkedIn: true,
-    },
-  ]);
+  // Mock attendees data - lấy theo event ID
+  const [attendees, setAttendees] = useState(
+    mockAttendees[events[0]?.id] || []
+  );
+
+  // Update attendees khi chọn event khác
+  useEffect(() => {
+    if (activeEventId) {
+      setAttendees(mockAttendees[activeEventId] || []);
+    }
+  }, [activeEventId]);
 
   const handleCheckIn = (attendeeId) => {
     setAttendees((prev) =>
