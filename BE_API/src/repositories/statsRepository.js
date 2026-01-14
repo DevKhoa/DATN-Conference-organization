@@ -58,8 +58,8 @@ const getOverviewStats = async (conferenceId) => {
 
 // 2. Thống kê theo Quốc gia (Geo)
 const getGeoStats = async (conferenceId) => {
-    // Phải JOIN 3 bảng: Users (lấy country) -> Registrations -> Ticket_Configs (lấy conf_id)
-    const query = `
+    // 1. Query theo Quốc gia
+    const countryQuery = `
         SELECT 
             u.country, 
             COUNT(DISTINCT u.user_id) as participants
@@ -67,17 +67,43 @@ const getGeoStats = async (conferenceId) => {
         JOIN Registrations r ON u.user_id = r.user_id
         JOIN Ticket_Configs tc ON r.ticket_id = tc.ticket_id
         WHERE tc.conference_id = $1 
-        AND u.country IS NOT NULL
+        AND u.country IS NOT NULL AND u.country <> ''
         GROUP BY u.country
         ORDER BY participants DESC;
     `;
+
+    // 2. Query theo Tổ chức/Đơn vị (Lấy Top 10 đơn vị đông nhất)
+    const orgQuery = `
+        SELECT 
+            u.organization, 
+            COUNT(DISTINCT u.user_id) as participants
+        FROM Users u
+        JOIN Registrations r ON u.user_id = r.user_id
+        JOIN Ticket_Configs tc ON r.ticket_id = tc.ticket_id
+        WHERE tc.conference_id = $1 
+        AND u.organization IS NOT NULL AND u.organization <> ''
+        GROUP BY u.organization
+        ORDER BY participants DESC
+        LIMIT 10; 
+    `;
     
-    const result = await db.query(query, [conferenceId]);
+    // Chạy song song 2 query
+    const [countryRes, orgRes] = await Promise.all([
+        db.query(countryQuery, [conferenceId]),
+        db.query(orgQuery, [conferenceId])
+    ]);
     
-    return result.rows.map(row => ({
-        country: row.country,
-        participants: parseInt(row.participants)
-    }));
+    // Format kết quả trả về
+    return {
+        by_country: countryRes.rows.map(row => ({
+            name: row.country,
+            value: parseInt(row.participants)
+        })),
+        by_organization: orgRes.rows.map(row => ({
+            name: row.organization,
+            value: parseInt(row.participants)
+        }))
+    };
 };
 
 module.exports = {
