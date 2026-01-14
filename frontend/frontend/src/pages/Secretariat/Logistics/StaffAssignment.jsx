@@ -1,14 +1,20 @@
 import React from 'react';
 import { Calendar, Plus, Edit, AlertTriangle, Check } from 'lucide-react';
 import Button from '../../../ui/Button';
+import { mockSessions } from '@/services/logistics';
 
 const StaffAssignment = ({ data }) => {
-    // Assuming data.staffAssignments is passed via props
-    const staffAssignments = data?.staffAssignments || [
-        { id: 'S1', session: 'AI & ML Session', time: '09:00-11:00', room: 'Hall A', chair: 'Dr. Smith', tech: 'John Doe', volunteers: 2, conflict: false },
-        { id: 'S2', session: 'Blockchain Track', time: '11:30-13:30', room: 'Hall B', chair: 'Dr. Lee', tech: 'Jane Smith', volunteers: 2, conflict: false },
-        { id: 'S3', session: 'Poster Session', time: '14:00-16:00', room: 'Lobby', chair: '', tech: '', volunteers: 0, conflict: true }
-    ];
+    // Convert sessions to staff assignment format
+    const staffAssignments = data?.staffAssignments || Object.values(mockSessions).flat().map(session => ({
+        id: session.id,
+        session: session.title,
+        time: session.time,
+        room: session.room,
+        chair: session.chair?.name || '',
+        tech: session.technician?.name || '',
+        volunteers: 2,
+        conflict: session.status === 'conflict'
+    }));
 
     return (
         <div>

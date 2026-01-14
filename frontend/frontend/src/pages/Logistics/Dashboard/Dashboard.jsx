@@ -12,6 +12,12 @@ import {
   Bell,
 } from "lucide-react";
 import Button from "../../../ui/Button";
+import {
+  mockTodayStats,
+  mockActiveConferences,
+  getVIPArrivalsForDashboard,
+  mockIssueLog,
+} from "@/services/logistics";
 
 /* ===== STAT CARD ===== */
 const StatCard = ({ icon: Icon, label, value, subtext, color, trend, note }) => (
@@ -181,116 +187,16 @@ const IssueLogCard = ({ issue }) => {
 
 /* ===== MAIN DASHBOARD ===== */
 const LogisticsDashboard = () => {
-  /* ===== MOCK DATA (SAU NÀY THAY API) ===== */
-  const todayStats = {
-    checkInProgress: { current: 876, total: 1024, percentage: 85.5, changeFromYesterday: 45 },
-    staffCoverage: {
-      total: { current: 42, total: 48 },
-      today: { current: 15, total: 18 },
-      percentage: 87.5
-    },
-    specialMeals: {
-      total: { vegetarian: 28, allergies: 15, total: 43 },
-      today: { vegetarian: 12, allergies: 6, total: 18 },
-    },
-  };
-
-  const activeConferences = [
-    {
-      id: "conf-1",
-      name: "International AI Summit 2024",
-      venue: "Grand Hall A",
-      dateRange: "12-14/01",
-      currentDay: 2,
-      totalDays: 3,
-      checkedIn: 342,
-      total: 400,
-      checkinChange: 28, // so với ngày hôm qua
-      warnings: [
-        { type: "staff", message: "2/5 phiên chưa đủ nhân sự (thiếu 3 Kỹ thuật viên)" },
-        { type: "chair", message: "Session Chair chưa có mặt cho phiên 14:00" },
-      ],
-    },
-    {
-      id: "conf-2",
-      name: "Medical Research Conference",
-      venue: "Conference Center B",
-      dateRange: "13/01",
-      currentDay: 1,
-      totalDays: 1,
-      checkedIn: 298,
-      total: 328,
-      checkinChange: undefined, // không có vì là ngày đầu tiên
-      warnings: [
-        { type: "staff", message: "1/4 phiên chưa có Session Chair" },
-      ],
-    },
-    {
-      id: "conf-3",
-      name: "Education Technology Forum",
-      venue: "Innovation Hub C",
-      dateRange: "12-13/01",
-      currentDay: 2,
-      totalDays: 2,
-      checkedIn: 236,
-      total: 296,
-      checkinChange: 17, // so với ngày hôm qua
-      warnings: [],
-    },
-  ];
-
-  const vipArrivals = [
-    {
-      name: "Prof. Nguyễn Văn A",
-      flightNumber: "VN208",
-      arrivalTime: "14:30",
-      hoursUntil: "2.5",
-      transportStatus: "ready",
-    },
-    {
-      name: "Dr. Sarah Johnson",
-      flightNumber: "QR975",
-      arrivalTime: "16:45",
-      hoursUntil: "4.75",
-      transportStatus: "pending",
-    },
-    {
-      name: "Prof. Michael Chen",
-      flightNumber: "SQ656",
-      arrivalTime: "18:20",
-      hoursUntil: "6.3",
-      transportStatus: "missing",
-    },
-  ];
-
-  const issueLog = [
-    {
-      type: "schedule",
-      message: "Xung đột lịch trình phát hiện tại International AI Summit - Phòng A1",
-      time: "2 phút trước",
-    },
-    {
-      type: "vip",
-      message: "Prof. Nguyễn Văn A vừa thay đổi giờ bay từ 13:30 → 14:30",
-      time: "15 phút trước",
-    },
-    {
-      type: "checkin",
-      message: "Check-in thành công tại quầy số 2 - Medical Research Conference",
-      time: "23 phút trước",
-    },
-    {
-      type: "schedule",
-      message: "Cập nhật: Phòng họp B2 chuyển từ 100 → 120 chỗ ngồi",
-      time: "1 giờ trước",
-    },
-  ];
-
   /* ===== HANDLERS ===== */
   const handleConferenceWarningClick = (conferenceId, warningType) => {
     alert(`Chuyển đến giao diện phân công nhân sự của hội nghị: ${conferenceId} (${warningType})`);
     // TODO: Implement navigation to staff assignment page
   };
+
+  const todayStats = mockTodayStats;
+  const activeConferences = mockActiveConferences;
+  const vipArrivals = getVIPArrivalsForDashboard();
+  const issueLog = mockIssueLog;
 
   return (
     <div>
