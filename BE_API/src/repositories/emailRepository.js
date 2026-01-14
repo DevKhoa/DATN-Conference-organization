@@ -20,10 +20,18 @@ const getAllTemplates = async () => {
     return result.rows;
 };
 
+
+
 // 3. Lấy 1 Template theo Tên (Code)
 const getTemplateByName = async (templateName) => {
     const query = `SELECT * FROM email_templates WHERE template_name = $1`;
     const result = await db.query(query, [templateName]);
+    return result.rows[0];
+};
+
+const getTemplateById = async (id) => {
+    const query = `SELECT * FROM email_templates WHERE template_id = $1`;
+    const result = await db.query(query, [id]);
     return result.rows[0];
 };
 
@@ -53,5 +61,6 @@ module.exports = {
     getAllTemplates,
     getTemplateByName,
     logEmail,
+    getTemplateById,
     getLogs
 };

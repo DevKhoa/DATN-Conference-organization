@@ -36,6 +36,11 @@ const proceedingRoutes = require('./routes/proceedings.routes');
 const cmsRoutes = require('./routes/cmsRoutes');
 // Email
 const emailRoutes = require('./routes/emailRoutes');
+// Notification
+const notificationRoutes = require('./routes/notificationRoutes');
+
+//Stat
+const statRoutes = require('./routes/statsRoutes');
 
 // ----------------
 const app = express();
@@ -57,6 +62,8 @@ app.use('/sessions', sessionRoutes);
 app.use('/agenda', agendaRoutes);
 app.use('/cms', cmsRoutes);
 app.use('/emails', emailRoutes);
+app.use('/notifications', notificationRoutes);
+app.use('/stats', statRoutes);
 app.use(errorMiddleware);
 
 // ----------------
