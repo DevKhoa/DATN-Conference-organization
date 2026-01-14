@@ -115,6 +115,30 @@ class TicketService {
 
     return await ticketRepository.updateTicketSettings(ticketId, updateData);
   }
+
+  // Xử lý xóa vé
+  async deleteTicket(ticketId) {
+    const currentTicket = await ticketRepository.getTicketById(ticketId);
+    if (!currentTicket) throw new Error('Loại vé không tồn tại hoặc đã bị xóa');
+
+    // Kiểm tra xem vé có được sử dụng trong bảng Registrations chưa
+    const isUsed = await ticketRepository.isTicketUsed(ticketId);
+
+    if (isUsed) {
+        // Nếu đã dùng -> Soft Delete
+        await ticketRepository.softDeleteTicket(ticketId);
+        return { message: "Loại vé đã được sử dụng. Đã chuyển sang trạng thái xóa mềm (Soft Delete).", type: "SOFT_DELETE" };
+    } else {
+        // Nếu chưa dùng -> Hard Delete
+        await ticketRepository.hardDeleteTicket(ticketId);
+        return { message: "Loại vé chưa được sử dụng. Đã xóa vĩnh viễn khỏi hệ thống (Hard Delete).", type: "HARD_DELETE" };
+    }
+  }
+
+  // Lấy danh sách vé
+  async getList(conferenceId) {
+      return await ticketRepository.getTicketList(conferenceId);
+  }
 }
 
 module.exports = new TicketService();

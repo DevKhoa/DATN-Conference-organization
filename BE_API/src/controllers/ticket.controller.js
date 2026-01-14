@@ -25,9 +25,37 @@ exports.updateSettings = async (req, res) => {
         });
     } catch (error) {
         // Kiểm tra nếu lỗi là do không tìm thấy ticket để trả về 404
-        if (error.message.toLowerCase().includes('found')) {
+        if (error.message.toLowerCase().includes('found') || error.message.includes('tồn tại')) {
             return res.status(404).json({ message: error.message });
         }
+        res.status(400).json({ message: error.message });
+    }
+};
+
+// Xóa loại vé
+exports.delete = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await ticketService.deleteTicket(id);
+        res.status(200).json(result);
+    } catch (error) {
+        if (error.message.includes('tồn tại')) {
+            return res.status(404).json({ message: error.message });
+        }
+        res.status(400).json({ message: error.message });
+    }
+};
+
+// Lấy danh sách loại vé
+exports.getList = async (req, res) => {
+    try {
+        const { conference_id } = req.query; // Có thể lọc theo conference_id nếu muốn
+        const result = await ticketService.getList(conference_id);
+        res.status(200).json({
+            count: result.length,
+            data: result
+        });
+    } catch (error) {
         res.status(400).json({ message: error.message });
     }
 };
