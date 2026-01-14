@@ -1,39 +1,40 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Zap, CheckCircle, Loader, AlertCircle, TrendingUp } from "lucide-react";
 import Button from "../../../../ui/Button";
+import { useSession } from "../../../../hooks/secretariat/useSession";
 
 /* ===== LOADING STATE ===== */
 const LoadingState = () => (
   <div className="flex flex-col items-center justify-center h-64">
-    <Loader className="animate-spin text-[#2563eb]" size={40} />
-    <div className="text-[14px] text-[#64748b] mt-4">Running AI optimization...</div>
+    <Loader className="animate-spin text-blue-600" size={40} />
+    <div className="text-sm text-slate-600 mt-4">Running AI optimization...</div>
   </div>
 );
 
 /* ===== ERROR STATE ===== */
 const ErrorState = ({ error, onRetry }) => (
-  <div className="bg-[#fee2e2] border border-[#fca5a5] rounded-xl p-6">
-    <div className="flex items-center gap-2 text-[#991b1b] mb-2">
+  <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+    <div className="flex items-center gap-2 text-red-900 mb-2">
       <AlertCircle size={20} />
-      <strong className="text-[16px] font-semibold">AI optimization failed</strong>
+      <strong className="text-base font-semibold">AI optimization failed</strong>
     </div>
-    <p className="text-[14px] text-[#dc2626] mb-4">{error}</p>
-    <Button variant="secondary" onClick={onRetry}>Try Again</Button>
+    <p className="text-sm text-red-700 mb-4">{error}</p>
+    <Button variant="secondary" onClick={onRetry}>
+      Try Again
+    </Button>
   </div>
 );
 
 /* ===== CONFIDENCE BADGE ===== */
 const ConfidenceBadge = ({ confidence }) => {
-  const getColor = () => {
-    if (confidence >= 90) return { bg: "bg-[#d1fae5]", text: "text-[#059669]" };
-    if (confidence >= 70) return { bg: "bg-[#fef3c7]", text: "text-[#d97706]" };
-    return { bg: "bg-[#fee2e2]", text: "text-[#dc2626]" };
+  const getStyle = () => {
+    if (confidence >= 90) return "bg-green-50 text-green-700";
+    if (confidence >= 70) return "bg-amber-50 text-amber-700";
+    return "bg-red-50 text-red-700";
   };
 
-  const style = getColor();
-
   return (
-    <span className={`px-2.5 py-1 rounded-md text-xs font-semibold ${style.bg} ${style.text}`}>
+    <span className={`px-2.5 py-1 rounded-md text-xs font-semibold ${getStyle()}`}>
       {confidence}%
     </span>
   );
@@ -41,180 +42,247 @@ const ConfidenceBadge = ({ confidence }) => {
 
 /* ===== STAT CARD ===== */
 const StatCard = ({ label, value, color }) => (
-  <div className="bg-white border border-[#e2e8f0] rounded-xl p-4 text-center">
-    <div className="text-[13px] text-[#64748b] mb-1 uppercase tracking-wide font-medium">{label}</div>
-    <div className="text-[24px] font-bold" style={{ color }}>{value}</div>
+  <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
+    <div className="text-xs text-slate-600 mb-1 uppercase tracking-wide font-medium">
+      {label}
+    </div>
+    <div className="text-2xl font-bold" style={{ color }}>
+      {value}
+    </div>
   </div>
 );
 
 /* ===== INFO BOX ===== */
 const InfoBox = ({ children }) => (
-  <div className="bg-[#eff6ff] border border-[#dbeafe] rounded-lg p-4">
-    <p className="text-[13px] text-[#1e40af] leading-relaxed">{children}</p>
+  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+    <p className="text-xs text-blue-900 leading-relaxed">{children}</p>
   </div>
 );
 
 /* ===== MAIN COMPONENT ===== */
 const AISessionBuilder = () => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [hasResults, setHasResults] = useState(true);
+  const {
+    aiSessions,
+    aiStats,
+    loading,
+    error,
+    fetchAISessions,
+    fetchAIStats,
+    runAIOptimization,
+    acceptAIProposals,
+  } = useSession();
 
-  const aiSessions = [
-    { id: "AI-S1", title: "Deep Learning & Neural Networks", papers: 5, confidence: 92 },
-    { id: "AI-S2", title: "Natural Language Processing", papers: 4, confidence: 88 },
-    { id: "AI-S3", title: "Computer Vision Applications", papers: 6, confidence: 95 },
-    { id: "AI-S4", title: "Reinforcement Learning", papers: 3, confidence: 75 },
-  ];
+  const [optimizing, setOptimizing] = useState(false);
+  const [config, setConfig] = useState({
+    minPapers: 3,
+    maxPapers: 6,
+    similarityThreshold: 75,
+  });
 
-  const stats = {
-    sessions: aiSessions.length,
-    papers: aiSessions.reduce((sum, s) => sum + s.papers, 0),
-    avgConfidence: Math.round(
-      aiSessions.reduce((sum, s) => sum + s.confidence, 0) / aiSessions.length
-    ),
+  useEffect(() => {
+    fetchAISessions();
+    fetchAIStats();
+  }, [fetchAISessions, fetchAIStats]);
+
+  const handleRunAI = async () => {
+    setOptimizing(true);
+    const result = await runAIOptimization(config);
+    setOptimizing(false);
+
+    if (result.success) {
+      alert("✅ AI optimization completed!");
+      fetchAISessions();
+      fetchAIStats();
+    } else {
+      alert(`❌ Optimization failed: ${result.error}`);
+    }
   };
 
-  const handleRunAI = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setHasResults(true);
-    }, 2000);
+  const handleAcceptAll = async () => {
+    const result = await acceptAIProposals();
+    if (result.success) {
+      alert(`✅ ${result.message}`);
+    }
   };
 
-  if (loading) return <LoadingState />;
-  if (error) return <ErrorState error={error} onRetry={() => setError(null)} />;
+  if (loading && !aiSessions) return <LoadingState />;
+  if (error) return <ErrorState error={error} onRetry={fetchAISessions} />;
 
   return (
-    <div>
+    <div className="p-6 space-y-6">
       {/* HEADER */}
-      <div className="mb-6">
-        <h1 className="text-[28px] font-semibold text-[#1e293b] leading-tight mb-2">
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900 mb-2">
           AI Session Builder 🧠
         </h1>
-        <p className="text-[14px] text-[#64748b] leading-relaxed">
+        <p className="text-sm text-slate-600">
           AI analyzes accepted papers and proposes optimal session structures
         </p>
       </div>
 
-      {hasResults && (
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <StatCard label="AI Sessions" value={stats.sessions} color="#2563eb" />
-          <StatCard label="Papers Grouped" value={stats.papers} color="#10b981" />
-          <StatCard label="Avg Confidence" value={`${stats.avgConfidence}%`} color="#f59e0b" />
+      {/* STATS */}
+      {aiStats && (
+        <div className="grid grid-cols-3 gap-4">
+          <StatCard
+            label="AI Sessions"
+            value={aiStats.sessions}
+            color="#2563eb"
+          />
+          <StatCard
+            label="Papers Grouped"
+            value={aiStats.papers}
+            color="#10b981"
+          />
+          <StatCard
+            label="Avg Confidence"
+            value={`${aiStats.avgConfidence}%`}
+            color="#f59e0b"
+          />
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6">
         {/* CONFIG PANEL */}
-        <div className="bg-white border border-[#e2e8f0] rounded-xl p-6">
-          <h3 className="text-[16px] font-semibold text-[#1e293b] mb-4">
-            AI Configuration
-          </h3>
-          <p className="text-[13px] text-[#64748b] mb-4">
-            Configure AI constraints such as session size and duration
-          </p>
+        <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-6">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900 mb-2">
+              AI Configuration
+            </h3>
+            <p className="text-xs text-slate-600">
+              Configure AI constraints such as session size and duration
+            </p>
+          </div>
 
-          <div className="space-y-4 mb-6">
+          <div className="space-y-4">
             <div>
-              <label className="block text-[13px] font-medium text-[#475569] mb-1.5">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
                 Min Papers per Session
               </label>
               <input
                 type="number"
-                defaultValue={3}
-                className="w-full px-4 py-2.5 border border-[#e2e8f0] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
+                value={config.minPapers}
+                onChange={(e) =>
+                  setConfig({ ...config, minPapers: parseInt(e.target.value) })
+                }
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
 
             <div>
-              <label className="block text-[13px] font-medium text-[#475569] mb-1.5">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
                 Max Papers per Session
               </label>
               <input
                 type="number"
-                defaultValue={6}
-                className="w-full px-4 py-2.5 border border-[#e2e8f0] rounded-lg text-[14px] focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
+                value={config.maxPapers}
+                onChange={(e) =>
+                  setConfig({ ...config, maxPapers: parseInt(e.target.value) })
+                }
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
 
             <div>
-              <label className="block text-[13px] font-medium text-[#475569] mb-1.5">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
                 Similarity Threshold
               </label>
               <input
                 type="range"
                 min="50"
                 max="100"
-                defaultValue="75"
+                value={config.similarityThreshold}
+                onChange={(e) =>
+                  setConfig({
+                    ...config,
+                    similarityThreshold: parseInt(e.target.value),
+                  })
+                }
                 className="w-full"
               />
-              <div className="flex justify-between text-[12px] text-[#64748b] mt-1">
+              <div className="flex justify-between text-xs text-slate-600 mt-1">
                 <span>Loose</span>
-                <span>75%</span>
+                <span>{config.similarityThreshold}%</span>
                 <span>Strict</span>
               </div>
             </div>
           </div>
 
-          <Button icon={Zap} onClick={handleRunAI} className="w-full">
-            Run AI Optimization
+          <Button
+            icon={Zap}
+            onClick={handleRunAI}
+            disabled={optimizing}
+            className="w-full"
+          >
+            {optimizing ? "Optimizing..." : "Run AI Optimization"}
           </Button>
 
-          <div className="mt-4">
-            <InfoBox>
-              💡 <strong>Tip:</strong> Higher similarity thresholds create more focused sessions but may result in more sessions overall.
-            </InfoBox>
-          </div>
+          <InfoBox>
+            💡 <strong>Tip:</strong> Higher similarity thresholds create more
+            focused sessions but may result in more sessions overall.
+          </InfoBox>
         </div>
 
         {/* RESULTS PANEL */}
-        <div className="bg-white border border-[#e2e8f0] rounded-xl p-6">
+        <div className="bg-white border border-slate-200 rounded-xl p-6">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-[16px] font-semibold text-[#1e293b]">
+            <h3 className="text-base font-semibold text-slate-900">
               AI Proposal Results
             </h3>
-            <div className="flex items-center gap-2 text-[13px] text-[#64748b]">
+            <div className="flex items-center gap-2 text-xs text-slate-600">
               <TrendingUp size={14} />
               <span>Optimized for topic clustering</span>
             </div>
           </div>
 
-          {hasResults ? (
+          {!aiSessions || aiSessions.length === 0 ? (
+            <div className="text-center py-12">
+              <Zap size={48} className="text-slate-300 mx-auto mb-4" />
+              <p className="text-sm text-slate-600 mb-4">
+                Click "Run AI Optimization" to generate session proposals
+              </p>
+              <Button icon={Zap} onClick={handleRunAI} disabled={optimizing}>
+                {optimizing ? "Optimizing..." : "Run AI Optimization"}
+              </Button>
+            </div>
+          ) : (
             <>
-              <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden mb-4">
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden mb-4">
                 <table className="w-full border-collapse">
                   <thead>
-                    <tr className="bg-[#f8fafc] border-b border-[#e2e8f0]">
-                      {["ID", "Title", "Papers", "Confidence"].map((h) => (
-                        <th
-                          key={h}
-                          className="p-3 text-left text-[13px] font-semibold text-[#64748b] uppercase tracking-wide"
-                        >
-                          {h}
-                        </th>
-                      ))}
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                        ID
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                        Title
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                        Papers
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                        Confidence
+                      </th>
                     </tr>
                   </thead>
-
                   <tbody>
-                    {aiSessions.map((s, i) => (
+                    {aiSessions.map((session, i) => (
                       <tr
-                        key={s.id}
-                        className={`border-b border-[#e2e8f0] hover:bg-[#f8fafc] transition-colors ${
+                        key={session.id}
+                        className={`border-b border-slate-200 hover:bg-slate-50 transition-colors ${
                           i === aiSessions.length - 1 ? "border-b-0" : ""
                         }`}
                       >
-                        <td className="p-3 text-[14px] font-semibold text-[#2563eb]">
-                          {s.id}
+                        <td className="px-4 py-3 text-sm font-semibold text-blue-600">
+                          {session.id}
                         </td>
-                        <td className="p-3 text-[14px] text-[#334155]">{s.title}</td>
-                        <td className="p-3 text-[14px] text-[#64748b]">
-                          {s.papers} papers
+                        <td className="px-4 py-3 text-sm text-slate-900">
+                          {session.title}
                         </td>
-                        <td className="p-3">
-                          <ConfidenceBadge confidence={s.confidence} />
+                        <td className="px-4 py-3 text-sm text-slate-600">
+                          {session.papers} papers
+                        </td>
+                        <td className="px-4 py-3">
+                          <ConfidenceBadge confidence={session.confidence} />
                         </td>
                       </tr>
                     ))}
@@ -223,18 +291,15 @@ const AISessionBuilder = () => {
               </div>
 
               <div className="flex justify-end">
-                <Button variant="success" icon={CheckCircle}>
+                <Button
+                  variant="success"
+                  icon={CheckCircle}
+                  onClick={handleAcceptAll}
+                >
                   Accept All Proposals
                 </Button>
               </div>
             </>
-          ) : (
-            <div className="text-center py-12">
-              <Zap size={48} className="text-[#cbd5e1] mx-auto mb-4" />
-              <p className="text-[14px] text-[#64748b]">
-                Click "Run AI Optimization" to generate session proposals
-              </p>
-            </div>
           )}
         </div>
       </div>

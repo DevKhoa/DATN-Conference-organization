@@ -1,15 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Button from "../../../../ui/Button";
+import Modal from "../../../../ui/Modal";
 import { Upload, Eye, CheckCircle, XCircle, Loader, AlertCircle, Download } from "lucide-react";
+import { usePapers } from "../../../../hooks/secretariat/usePapers";
 
-/* ===== STATUS BADGE ===== */
 const StatusBadge = ({ status }) => {
   const config = {
-    Pending: { bg: "bg-[#fef3c7]", text: "text-[#d97706]", icon: Loader },
-    Approved: { bg: "bg-[#d1fae5]", text: "text-[#059669]", icon: CheckCircle },
-    Rejected: { bg: "bg-[#fee2e2]", text: "text-[#dc2626]", icon: XCircle },
+    Pending: { bg: "bg-amber-50", text: "text-amber-700", icon: Loader },
+    Approved: { bg: "bg-green-50", text: "text-green-700", icon: CheckCircle },
+    Rejected: { bg: "bg-red-50", text: "text-red-700", icon: XCircle },
   };
-
   const style = config[status] || config.Pending;
   const Icon = style.icon;
 
@@ -21,206 +21,257 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-/* ===== LOADING STATE ===== */
 const LoadingState = () => (
   <div className="flex flex-col items-center justify-center h-64">
-    <Loader className="animate-spin text-[#2563eb]" size={40} />
-    <div className="text-[14px] text-[#64748b] mt-4">Loading submissions...</div>
+    <Loader className="animate-spin text-blue-600" size={40} />
+    <div className="text-sm text-slate-600 mt-4">Loading submissions...</div>
   </div>
 );
 
-/* ===== ERROR STATE ===== */
 const ErrorState = ({ error, onRetry }) => (
-  <div className="bg-[#fee2e2] border border-[#fca5a5] rounded-xl p-6">
-    <div className="flex items-center gap-2 text-[#991b1b] mb-2">
+  <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+    <div className="flex items-center gap-2 text-red-900 mb-2">
       <AlertCircle size={20} />
-      <strong className="text-[16px] font-semibold">Error loading submissions</strong>
+      <strong className="text-base font-semibold">Error loading submissions</strong>
     </div>
-    <p className="text-[14px] text-[#dc2626] mb-4">{error}</p>
+    <p className="text-sm text-red-700 mb-4">{error}</p>
     <Button variant="secondary" onClick={onRetry}>Try Again</Button>
   </div>
 );
 
-/* ===== EMPTY STATE ===== */
 const EmptyState = () => (
-  <div className="bg-white border border-[#e2e8f0] rounded-xl p-12 text-center">
-    <Upload size={48} className="text-[#cbd5e1] mx-auto mb-4" />
-    <h3 className="text-[16px] font-semibold text-[#475569] mb-2">No submissions yet</h3>
-    <p className="text-[14px] text-[#94a3b8]">Final submissions will appear here once uploaded</p>
+  <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
+    <Upload size={48} className="text-slate-300 mx-auto mb-4" />
+    <h3 className="text-base font-semibold text-slate-700 mb-2">No submissions yet</h3>
+    <p className="text-sm text-slate-500">Final submissions will appear here once uploaded</p>
   </div>
 );
 
-/* ===== STAT CARD ===== */
 const StatCard = ({ label, value, color }) => (
-  <div className="bg-white border border-[#e2e8f0] rounded-xl p-4 text-center">
-    <div className="text-[13px] text-[#64748b] mb-1 uppercase tracking-wide font-medium">{label}</div>
-    <div className="text-[24px] font-bold" style={{ color }}>{value}</div>
+  <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
+    <div className="text-xs text-slate-600 mb-1 uppercase tracking-wide font-medium">{label}</div>
+    <div className="text-2xl font-bold" style={{ color }}>{value}</div>
   </div>
 );
 
-/* ===== PREVIEW MODAL ===== */
 const PreviewModal = ({ submission, onClose, onApprove, onReject }) => {
+  const [rejectReason, setRejectReason] = useState("");
+  const [showRejectForm, setShowRejectForm] = useState(false);
+
   if (!submission) return null;
 
+  const handleReject = () => {
+    if (!rejectReason.trim()) {
+      alert("⚠️ Please enter a rejection reason");
+      return;
+    }
+    onReject(submission.id, rejectReason);
+    onClose();
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-xl p-6 max-w-lg w-full m-4" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-[18px] font-semibold text-[#1e293b] mb-4">
-          Final Submission Preview
-        </h3>
+    <Modal isOpen={!!submission} onClose={onClose} title="Final Submission Preview">
+      <div className="space-y-4">
+        <div>
+          <label className="text-xs font-medium text-slate-600">Paper ID</label>
+          <p className="text-slate-900 font-semibold">{submission.id}</p>
+        </div>
 
-        <div className="space-y-3 text-[14px]">
-          <div>
-            <label className="text-[13px] font-medium text-[#64748b]">Paper ID</label>
-            <p className="text-[#1e293b] font-semibold">{submission.id}</p>
-          </div>
+        <div>
+          <label className="text-xs font-medium text-slate-600">Title</label>
+          <p className="text-slate-900">{submission.title}</p>
+        </div>
 
-          <div>
-            <label className="text-[13px] font-medium text-[#64748b]">Title</label>
-            <p className="text-[#1e293b]">{submission.title}</p>
-          </div>
+        <div>
+          <label className="text-xs font-medium text-slate-600">Author</label>
+          <p className="text-slate-900">{submission.author}</p>
+        </div>
 
-          <div>
-            <label className="text-[13px] font-medium text-[#64748b]">Author</label>
-            <p className="text-[#1e293b]">{submission.author}</p>
-          </div>
-
-          <div>
-            <label className="text-[13px] font-medium text-[#64748b]">File</label>
-            <div className="flex items-center gap-2 mt-1">
-              <p className="text-[#1e293b]">{submission.file}</p>
-              <button className="text-[#2563eb] hover:text-[#1e40af]">
-                <Download size={14} />
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[13px] font-medium text-[#64748b]">Current Status</label>
-            <div className="mt-1">
-              <StatusBadge status={submission.status} />
-            </div>
+        <div>
+          <label className="text-xs font-medium text-slate-600">File</label>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-slate-900 flex-1">{submission.file}</p>
+            <button
+              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+              onClick={() => window.open(submission.fileUrl, '_blank')}
+            >
+              <Download size={14} />
+            </button>
           </div>
         </div>
 
-        <div className="mt-6 flex gap-2">
-          <Button icon={CheckCircle} variant="success" onClick={onApprove} className="flex-1">
-            Approve
-          </Button>
-          <Button icon={XCircle} variant="danger" onClick={onReject} className="flex-1">
-            Reject
-          </Button>
+        <div>
+          <label className="text-xs font-medium text-slate-600">Submitted Date</label>
+          <p className="text-slate-900">{submission.submittedAt}</p>
         </div>
+
+        <div>
+          <label className="text-xs font-medium text-slate-600">Current Status</label>
+          <div className="mt-1">
+            <StatusBadge status={submission.status} />
+          </div>
+        </div>
+
+        {showRejectForm && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              Rejection Reason
+            </label>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Please provide a detailed reason for rejection..."
+              rows={4}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        )}
       </div>
-    </div>
+
+      <div className="flex justify-end gap-2 mt-6">
+        {!showRejectForm ? (
+          <>
+            <Button
+              icon={CheckCircle}
+              variant="success"
+              onClick={() => {
+                onApprove(submission.id);
+                onClose();
+              }}
+            >
+              Approve
+            </Button>
+            <Button
+              icon={XCircle}
+              variant="danger"
+              onClick={() => setShowRejectForm(true)}
+            >
+              Reject
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="secondary" onClick={() => setShowRejectForm(false)}>
+              Cancel
+            </Button>
+            <Button icon={XCircle} variant="danger" onClick={handleReject}>
+              Confirm Rejection
+            </Button>
+          </>
+        )}
+      </div>
+    </Modal>
   );
 };
 
-/* ===== MAIN COMPONENT ===== */
-const FinalSubmissionView = () => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+const FinalSubmission = () => {
+  const {
+    finalSubmissions,
+    submissionStats,
+    loading,
+    error,
+    fetchFinalSubmissions,
+    fetchSubmissionStats,
+    approveFinalSubmission,
+    rejectFinalSubmission,
+  } = usePapers();
+
   const [selected, setSelected] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  const submissions = [
-    { id: "P001", title: "Deep Learning for Imaging", author: "Smith J.", status: "Pending", file: "P001_final.pdf" },
-    { id: "P002", title: "Blockchain Transparency", author: "Park S.", status: "Approved", file: "P002_final.pdf" },
-    { id: "P003", title: "Quantum Optimization", author: "Chen W.", status: "Rejected", file: "P003_final.pdf" },
-    { id: "P004", title: "Federated Learning", author: "Lee K.", status: "Approved", file: "P004_final.pdf" },
-  ];
-
-  const stats = {
-    total: submissions.length,
-    pending: submissions.filter(s => s.status === "Pending").length,
-    approved: submissions.filter(s => s.status === "Approved").length,
-    rejected: submissions.filter(s => s.status === "Rejected").length,
-  };
+  useEffect(() => {
+    fetchFinalSubmissions();
+    fetchSubmissionStats();
+  }, [fetchFinalSubmissions, fetchSubmissionStats]);
 
   const handleView = (submission) => {
     setSelected(submission);
     setShowPreview(true);
   };
 
-  const handleApprove = () => {
-    alert(`✅ ${selected.id} approved!`);
-    setShowPreview(false);
-    setSelected(null);
+  const handleApprove = async (id) => {
+    const result = await approveFinalSubmission(id);
+    if (result.success) {
+      alert(`✅ ${result.message}`);
+      fetchFinalSubmissions();
+      fetchSubmissionStats();
+    }
   };
 
-  const handleReject = () => {
-    alert(`❌ ${selected.id} rejected!`);
-    setShowPreview(false);
-    setSelected(null);
+  const handleReject = async (id, reason) => {
+    const result = await rejectFinalSubmission(id, reason);
+    if (result.success) {
+      alert(`✅ ${result.message}`);
+      fetchFinalSubmissions();
+      fetchSubmissionStats();
+    }
   };
 
   if (loading) return <LoadingState />;
-  if (error) return <ErrorState error={error} onRetry={() => setError(null)} />;
+  if (error) return <ErrorState error={error} onRetry={fetchFinalSubmissions} />;
 
   return (
-    <div>
-      {/* HEADER */}
-      <div className="flex justify-between items-start mb-6">
+    <div className="p-6 space-y-6">
+      <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-[28px] font-semibold text-[#1e293b] leading-tight mb-2">
+          <h1 className="text-2xl font-semibold text-slate-900 mb-2">
             Final Submissions 📄
           </h1>
-          <p className="text-[14px] text-[#64748b] leading-relaxed">
+          <p className="text-sm text-slate-600">
             Manage final uploaded papers
           </p>
         </div>
-
         <Button icon={Upload}>Upload Final Version</Button>
       </div>
 
-      {/* STATS */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <StatCard label="Total" value={stats.total} color="#64748b" />
-        <StatCard label="Pending" value={stats.pending} color="#f59e0b" />
-        <StatCard label="Approved" value={stats.approved} color="#10b981" />
-        <StatCard label="Rejected" value={stats.rejected} color="#ef4444" />
-      </div>
+      {submissionStats && (
+        <div className="grid grid-cols-4 gap-4">
+          <StatCard label="Total" value={submissionStats.total} color="#64748b" />
+          <StatCard label="Pending" value={submissionStats.pending} color="#f59e0b" />
+          <StatCard label="Approved" value={submissionStats.approved} color="#10b981" />
+          <StatCard label="Rejected" value={submissionStats.rejected} color="#ef4444" />
+        </div>
+      )}
 
-      {/* TABLE OR EMPTY */}
-      {submissions.length === 0 ? (
+      {!finalSubmissions || finalSubmissions.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="bg-white border border-[#e2e8f0] rounded-xl overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
           <table className="w-full border-collapse">
             <thead>
-              <tr className="bg-[#f8fafc] border-b border-[#e2e8f0]">
-                {["ID", "Title", "Author", "File", "Status", "Actions"].map((h) => (
+              <tr className="bg-slate-50 border-b border-slate-200">
+                {["ID", "Title", "Author", "File", "Submitted", "Status", "Actions"].map((h) => (
                   <th
                     key={h}
-                    className="p-4 text-left text-[13px] font-semibold text-[#64748b] uppercase tracking-wide"
+                    className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide"
                   >
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
-
             <tbody>
-              {submissions.map((s, i) => (
+              {finalSubmissions.map((s, i) => (
                 <tr
                   key={s.id}
-                  className={`border-b border-[#e2e8f0] hover:bg-[#f8fafc] transition-colors ${
-                    i === submissions.length - 1 ? "border-b-0" : ""
+                  className={`border-b border-slate-200 hover:bg-slate-50 transition-colors ${
+                    i === finalSubmissions.length - 1 ? "border-b-0" : ""
                   }`}
                 >
-                  <td className="p-4 text-[14px] font-semibold text-[#2563eb]">{s.id}</td>
-                  <td className="p-4 text-[14px] text-[#334155]">{s.title}</td>
-                  <td className="p-4 text-[14px] text-[#64748b]">{s.author}</td>
-                  <td className="p-4 text-[13px] text-[#64748b]">{s.file}</td>
-                  <td className="p-4">
+                  <td className="px-4 py-3 text-sm font-semibold text-blue-600">{s.id}</td>
+                  <td className="px-4 py-3 text-sm text-slate-900">{s.title}</td>
+                  <td className="px-4 py-3 text-sm text-slate-600">{s.author}</td>
+                  <td className="px-4 py-3 text-xs text-slate-600">{s.file}</td>
+                  <td className="px-4 py-3 text-xs text-slate-600">{s.submittedAt}</td>
+                  <td className="px-4 py-3">
                     <StatusBadge status={s.status} />
                   </td>
-                  <td className="p-4">
+                  <td className="px-4 py-3">
                     <button
-                      className="p-2 border border-[#e2e8f0] rounded-lg hover:bg-[#f8fafc] transition-colors"
+                      className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
                       onClick={() => handleView(s)}
                     >
-                      <Eye size={16} className="text-[#64748b]" />
+                      <Eye size={16} className="text-slate-600" />
                     </button>
                   </td>
                 </tr>
@@ -230,7 +281,6 @@ const FinalSubmissionView = () => {
         </div>
       )}
 
-      {/* PREVIEW MODAL */}
       {showPreview && (
         <PreviewModal
           submission={selected}
@@ -246,4 +296,4 @@ const FinalSubmissionView = () => {
   );
 };
 
-export default FinalSubmissionView;
+export default FinalSubmission;

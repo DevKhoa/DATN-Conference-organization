@@ -8,14 +8,14 @@ import {
   Users,
   Clock,
 } from "lucide-react";
-import Button from "../../../ui/Button";
 import { useCMS } from "../../../hooks/secretariat/useCMS";
+import Button from "../../../ui/Button"
 
 /* ===== LOADING STATE ===== */
 const LoadingState = () => (
   <div className="flex flex-col items-center justify-center h-64">
-    <Loader className="animate-spin text-[#2563eb]" size={40} />
-    <div className="text-[14px] text-[#64748b] mt-4">
+    <Loader className="animate-spin text-blue-600" size={40} />
+    <div className="text-[14px] text-slate-600 mt-4">
       Loading communication settings...
     </div>
   </div>
@@ -23,14 +23,14 @@ const LoadingState = () => (
 
 /* ===== ERROR STATE ===== */
 const ErrorState = ({ error, onRetry }) => (
-  <div className="bg-[#fee2e2] border border-[#fca5a5] rounded-xl p-6">
+  <div className="bg-red-50 border border-[#fca5a5] rounded-xl p-6">
     <div className="flex items-center gap-2 text-[#991b1b] mb-2">
       <AlertCircle size={20} />
       <strong className="text-[16px] font-semibold">
         Error loading settings
       </strong>
     </div>
-    <p className="text-[14px] text-[#dc2626] mb-4">{error}</p>
+    <p className="text-[14px] text-red-700 mb-4">{error}</p>
     <Button variant="secondary" onClick={onRetry}>
       Try Again
     </Button>
@@ -55,8 +55,8 @@ const StatCard = ({ icon: Icon, label, value, color }) => (
         <Icon size={20} color={color} />
       </div>
       <div>
-        <div className="text-[13px] text-[#64748b] font-medium">{label}</div>
-        <div className="text-[20px] font-bold text-[#1e293b]">{value}</div>
+        <div className="text-[13px] text-slate-600 font-medium">{label}</div>
+        <div className="text-[20px] font-bold text-slate-900">{value}</div>
       </div>
     </div>
   </div>
@@ -112,10 +112,10 @@ const PostEventComm = () => {
     <div>
       {/* HEADER */}
       <div className="mb-6">
-        <h1 className="text-[28px] font-semibold text-[#1e293b] mb-2">
+        <h1 className="text-[28px] font-semibold text-slate-900 mb-2">
           Post-Event Communication 📢
         </h1>
-        <p className="text-[14px] text-[#64748b]">
+        <p className="text-[14px] text-slate-600">
           Send thank-you emails, proceedings links, and feedback forms
         </p>
       </div>
@@ -146,12 +146,12 @@ const PostEventComm = () => {
 
       {/* EMAIL COMPOSER */}
       <div className="bg-white border border-[#e2e8f0] rounded-xl p-6 mb-6">
-        <h3 className="text-[18px] font-semibold text-[#1e293b] mb-4">
+        <h3 className="text-[18px] font-semibold text-slate-900 mb-4">
           Compose Thank You Email
         </h3>
 
         <div className="mb-4">
-          <label className="block text-[13px] font-medium text-[#475569] mb-1.5">
+          <label className="block text-[13px] font-medium text-slate-700 mb-1.5">
             Subject
           </label>
           <input
@@ -171,7 +171,7 @@ const PostEventComm = () => {
         </div>
 
         <div className="mb-4">
-          <label className="block text-[13px] font-medium text-[#475569] mb-1.5">
+          <label className="block text-[13px] font-medium text-slate-700 mb-1.5">
             Email Content
           </label>
           <textarea
@@ -184,7 +184,7 @@ const PostEventComm = () => {
 
         <div className="border-t border-[#e2e8f0] pt-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <Clock size={18} className="text-[#64748b]" />
+            <Clock size={18} className="text-slate-600" />
             <select
               value={schedule}
               onChange={(e) => setSchedule(e.target.value)}

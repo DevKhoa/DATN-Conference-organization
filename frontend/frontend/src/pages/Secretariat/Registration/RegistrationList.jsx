@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Calendar, CheckCircle, Loader, XCircle, Eye, Search } from "lucide-react";
 import { useRegistration } from "../../../hooks/secretariat/useRegistration";
+import Button from "../../../ui/Button"
 
 // Reusable Components
 const LoadingState = () => (
