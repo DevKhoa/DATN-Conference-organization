@@ -1,28 +1,26 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+
 //----------------
 // Swagger Imports
 const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('./docs/swagger'); 
+const swaggerSpec = require('./docs/swagger');
 
 // ----------------
 // Middlewares
 const errorMiddleware = require('./middlewares/error.middleware');
+
 // ----------------
-// Conference 
+// Route Imports
 const conferenceRoutes = require('./routes/conference.routes');
-// Review
+// Review (From Main)
 const reviewRoutes = require('./routes/review.routes');
 // Auth
 const authRoutes = require('./routes/auth.routes');
-// User
 const userRoutes = require('./routes/user.routes');
-// Ticket
 const ticketRoutes = require('./routes/ticket.routes');
-// Registration
 const registrationRoutes = require('./routes/registration.routes');
-// Check-in
 const checkinRoutes = require('./routes/checkin.routes');
 // Location
 const locationRoutes = require('./routes/locationRoutes');
@@ -45,15 +43,19 @@ const statRoutes = require('./routes/statsRoutes');
 // ----------------
 const app = express();
 
-// Middlewares
+// 1. Global Middlewares
 app.use(express.json());
 
-// Static files
-app.use(express.static(require('path').join(__dirname, '../public')));
+// Cấu hình Static Folder cho thư mục public
+app.use(express.static(path.join(__dirname, '../public')));
 
-// Swagger UI
+// 2. Swagger UI
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+// ----------------
+// 3. Application Routes
+
+// Routes từ Main (Giữ lại Review và Proceedings)
 app.use('/conferences', conferenceRoutes);
 app.use('/', reviewRoutes);
 app.use('/', proceedingRoutes);
@@ -64,6 +66,22 @@ app.use('/cms', cmsRoutes);
 app.use('/emails', emailRoutes);
 app.use('/notifications', notificationRoutes);
 app.use('/stats', statRoutes);
+
+// Routes từ nhánh của bạn (Yen/Finance_User)
+app.use('/auth', authRoutes);
+app.use('/users', userRoutes);
+app.use('/tickets', ticketRoutes);
+app.use('/registrations', registrationRoutes);
+app.use('/checkin', checkinRoutes);
+
+// ----------------
+// 4. Base Route & Error Handling
+// Test Route
+app.get('/', (req, res) => {
+    res.send('Conference API System is running...');
+});
+
+// Global Error Handler
 app.use(errorMiddleware);
 
 // ----------------

@@ -1,5 +1,6 @@
 import React from "react";
-import { Menu, User, ChevronDown } from "lucide-react";
+import { Menu } from "lucide-react";
+import RoleSelector from "../../components/RoleSelector";
 
 const OCTopBar = ({ sidebarOpen, setSidebarOpen }) => {
   return (
@@ -22,13 +23,7 @@ const OCTopBar = ({ sidebarOpen, setSidebarOpen }) => {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 border border-slate-200 rounded-lg px-3 py-2 cursor-pointer">
-        <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white">
-          <User size={16} />
-        </div>
-        <span className="text-sm font-medium">OC Member</span>
-        <ChevronDown size={14} />
-      </div>
+      <RoleSelector />
     </div>
   );
 };
