@@ -60,6 +60,40 @@ class RegistrationService {
     }
   }
 
+  // Hủy đăng ký
+  async cancelRegistration(registrationId) {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // Lấy thông tin registration
+        const registration = await registrationRepository.getRegistrationById(registrationId, client);
+        if (!registration) throw new Error('Không tìm thấy thông tin đăng ký');
+
+        // Kiểm tra nếu đã hủy rồi thì không làm gì hoặc báo lỗi
+        if (registration.registration_status === 'CANCELLED') {
+            throw new Error('Đăng ký này đã bị hủy trước đó');
+        }
+
+        // Cập nhật trạng thái đăng ký sang CANCELLED
+        const updatedReg = await registrationRepository.updateStatus(registrationId, 'CANCELLED', client);
+
+        // Giảm số lượng vé đã bán trong bảng Ticket_Configs
+        await ticketRepository.decrementSoldQuantity(registration.ticket_id, client);
+
+        await client.query('COMMIT');
+        
+        return updatedReg;
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+  }
+
   // Lấy danh sách đăng ký theo hội nghị (và trạng thái nếu có)
   async getRegistrationList(conferenceId, paymentStatus) {
     if (!conferenceId) {

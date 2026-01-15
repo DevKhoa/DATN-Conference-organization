@@ -22,8 +22,10 @@ class RegistrationRepository {
   }
 
   // Lấy thông tin đăng ký theo ID
-  async getRegistrationById(regId) {
-      const result = await pool.query('SELECT * FROM Registrations WHERE registration_id = $1', [regId]);
+  async getRegistrationById(regId, client = null) {
+      const query = 'SELECT * FROM Registrations WHERE registration_id = $1';
+      const executor = client || pool;
+      const result = await executor.query(query, [regId]);
       return result.rows[0];
   }
 
@@ -115,6 +117,19 @@ class RegistrationRepository {
       const query = 'SELECT checkin_status, checked_in_at FROM Registrations WHERE registration_id = $1';
       const result = await pool.query(query, [registrationId]);
       return result.rows[0];
+  }
+
+  // Cập nhật trạng thái Registration (Dùng để Cancel)
+  async updateStatus(registrationId, newStatus, client = null) {
+    const query = `
+      UPDATE Registrations
+      SET registration_status = $1
+      WHERE registration_id = $2
+      RETURNING registration_id, registration_status;
+    `;
+    const executor = client || pool;
+    const result = await executor.query(query, [newStatus, registrationId]);
+    return result.rows[0];
   }
 }
 

@@ -238,9 +238,9 @@ INSERT INTO Session_Papers (session_id, paper_id, presentation_order) VALUES
 (1, 1, 1);
 
 -- Ticket_Configs
-INSERT INTO Ticket_Configs (ticket_id, conference_id, ticket_name, price_vnd, price_usd, quantity_limit, open_time, close_time) VALUES 
-(1, 1, 'Early Bird Author', 1500000, 60.00, 100, '2024-01-01', '2024-11-01'),
-(2, 1, 'Regular Attendee', 2000000, 80.00, 200, '2024-06-01', '2024-11-20');
+INSERT INTO Ticket_Configs (ticket_id, conference_id, ticket_name, price_vnd, price_usd, quantity_limit, sold_quantity, open_time, close_time, is_active, is_deleted, description) VALUES 
+(1, 1, 'Early Bird Author', 1500000, 60.00, 100, 1, '2024-01-01 00:00:00', '2024-11-01 23:59:59', TRUE, FALSE, 'Vé ưu đãi dành cho tác giả đăng ký sớm (Giảm giá 25%).'),
+(2, 1, 'Regular Attendee', 2000000, 80.00, 200, 1, '2024-06-01 00:00:00', '2024-11-20 23:59:59', TRUE, FALSE, 'Vé tham dự tiêu chuẩn bao gồm tài liệu và tiệc trà.');
 
 -- Registrations
 -- ID 1: Đã thanh toán, đã có QR và ĐÃ CHECK-IN vào cửa.
