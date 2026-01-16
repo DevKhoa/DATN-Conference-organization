@@ -36,9 +36,10 @@ const cmsRoutes = require('./routes/cmsRoutes');
 const emailRoutes = require('./routes/emailRoutes');
 // Notification
 const notificationRoutes = require('./routes/notificationRoutes');
-
 //Stat
 const statRoutes = require('./routes/statsRoutes');
+// Payment
+const paymentRoutes = require('./routes/payment.routes');
 
 // ----------------
 const app = express();
@@ -66,6 +67,7 @@ app.use('/cms', cmsRoutes);
 app.use('/emails', emailRoutes);
 app.use('/notifications', notificationRoutes);
 app.use('/stats', statRoutes);
+app.use('/payments', paymentRoutes);
 
 // Routes từ nhánh của bạn (Yen/Finance_User)
 app.use('/auth', authRoutes);
