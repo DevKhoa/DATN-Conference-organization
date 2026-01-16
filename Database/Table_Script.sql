@@ -165,7 +165,7 @@ CREATE TABLE Ticket_Configs (
     ticket_id SERIAL PRIMARY KEY,
     conference_id INT REFERENCES Conferences(conf_id),
     ticket_name VARCHAR(100) NOT NULL,
-    price_vnd DECIMAL(15, 2) NOT NULL DEFAULT 0, -- Giá vé VND
+    price_vnd BIGINT NOT NULL DEFAULT 0, -- Giá vé VND
     price_usd DECIMAL(10, 2) NOT NULL DEFAULT 0, -- Giá vé USD
     quantity_limit INT,
     sold_quantity INT DEFAULT 0,
@@ -244,7 +244,7 @@ CREATE TABLE Transactions (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- CMS & Truyền thông [cite: 13, 15]
+-- CMS & Truyền thông
 CREATE TABLE CMS_Contents (
     content_id SERIAL PRIMARY KEY,
     title VARCHAR(255),
@@ -256,7 +256,7 @@ CREATE TABLE CMS_Contents (
     created_by INT REFERENCES Users(user_id)
 );
 
--- Log gửi Email (Để theo dõi việc gửi mail cảm ơn/xác nhận) [cite: 15]
+-- Log gửi Email (Để theo dõi việc gửi mail cảm ơn/xác nhận)
 CREATE TABLE Email_Logs (
     email_log_id SERIAL PRIMARY KEY,
     recipient_email VARCHAR(255),
