@@ -1,7 +1,7 @@
 const ticketRepository = require('../repositories/ticket.repo');
 
 // Tỷ giá tạm thời
-const EXCHANGE_RATE = 26287.43; 
+const EXCHANGE_RATE = 26275.00; // giá tại ngày 16/1/2026
 
 class TicketService {
   
@@ -12,6 +12,13 @@ class TicketService {
         throw new Error('Phải cung cấp ít nhất một loại giá (VND hoặc USD)');
     }
 
+    // Nếu có nhập giá VND thì bắt buộc phải là số nguyên
+    if (vnd !== undefined) {
+        if (!Number.isInteger(Number(vnd))) {
+            throw new Error('Giá vé VND phải là số nguyên (Integer), không được chứa số thập phân.');
+        }
+    }
+
     let finalVnd = vnd;
     let finalUsd = usd;
 
@@ -20,21 +27,26 @@ class TicketService {
         throw new Error('Giá vé không được nhỏ hơn 0');
     }
 
-    // Nếu có cả 2 giá tiền cho 2 mệnh giá -> Giữ nguyên 
+    // Nếu có cả 2 giá tiền -> Giữ nguyên nhưng format lại cho đúng chuẩn
     if (finalVnd !== undefined && finalUsd !== undefined) {
-        return { price_vnd: finalVnd, price_usd: finalUsd };
+        // Không thực hiện gì thêm
     }
-
     // Nếu chỉ có VND -> Tính USD
-    if (finalVnd !== undefined) {
-        finalUsd = parseFloat((finalVnd / EXCHANGE_RATE).toFixed(2));
+    else if (finalVnd !== undefined) {
+        finalUsd = (finalVnd / EXCHANGE_RATE);
     } 
     // Nếu chỉ có USD -> Tính VND
     else {
-        finalVnd = Math.round(finalUsd * EXCHANGE_RATE);
+        finalVnd = (finalUsd * EXCHANGE_RATE);
     }
 
-    return { price_vnd: finalVnd, price_usd: finalUsd };
+    // Format:
+    // VND: Làm tròn về số nguyên
+    // USD: Lấy 2 chữ số thập phân
+    return { 
+        price_vnd: Math.round(Number(finalVnd)), 
+        price_usd: parseFloat(Number(finalUsd).toFixed(2)) 
+    };
   }
 
   validateTimeSettings(openTime, closeTime) {
@@ -49,10 +61,10 @@ class TicketService {
   async createTicketType(data) {
     if (data.quantity_limit <= 0) throw new Error('Số lượng giới hạn phải lớn hơn 0');
     
-    // [UPDATED] Xử lý logic giá tiền
+    // Xử lý logic giá tiền (bao gồm validation Integer/Float)
     const prices = this.calculatePrices(data.price_vnd, data.price_usd);
     
-    // Gán lại giá đã tính toán vào data để lưu xuống DB
+    // Gán lại giá đã tính toán/format vào data để lưu xuống DB
     data.price_vnd = prices.price_vnd;
     data.price_usd = prices.price_usd;
 
@@ -84,7 +96,7 @@ class TicketService {
 
     /* Xử lý giá tiền khi update
       Nếu người dùng gửi lên giá mới thì dùng, nếu không thì lấy giá cũ
-      Nếu người dùng chỉ gửi 1 trong 2 giá mới thì cần tính lại giá kia dựa trên giá mới đó (để đảm bảo tính nhất quán)
+      Nếu người dùng chỉ gửi 1 trong 2 giá mới thì cần tính lại giá kia dựa trên giá mới đó
     */
     let inputVnd = settings.price_vnd;
     let inputUsd = settings.price_usd;
@@ -98,7 +110,7 @@ class TicketService {
             price_usd: currentTicket.price_usd 
         };
     } else {
-        // Nếu có gửi ít nhất 1 giá -> Tính toán lại
+        // Nếu có input mới, chạy qua hàm tính toán (đã có validation Integer/Float)
         finalPrices = this.calculatePrices(inputVnd, inputUsd);
     }
 
