@@ -165,7 +165,7 @@ CREATE TABLE Ticket_Configs (
     ticket_id SERIAL PRIMARY KEY,
     conference_id INT REFERENCES Conferences(conf_id),
     ticket_name VARCHAR(100) NOT NULL,
-    price_vnd DECIMAL(15, 2) NOT NULL DEFAULT 0, -- Giá vé VND
+    price_vnd BIGINT NOT NULL DEFAULT 0, -- Giá vé VND
     price_usd DECIMAL(10, 2) NOT NULL DEFAULT 0, -- Giá vé USD
     quantity_limit INT,
     sold_quantity INT DEFAULT 0,
@@ -244,7 +244,7 @@ CREATE TABLE Transactions (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- CMS & Truyền thông [cite: 13, 15]
+-- CMS & Truyền thông
 CREATE TABLE CMS_Contents (
     content_id SERIAL PRIMARY KEY,
     title VARCHAR(255),
@@ -256,11 +256,31 @@ CREATE TABLE CMS_Contents (
     created_by INT REFERENCES Users(user_id)
 );
 
--- Log gửi Email (Để theo dõi việc gửi mail cảm ơn/xác nhận) [cite: 15]
+-- Log gửi Email (Để theo dõi việc gửi mail cảm ơn/xác nhận)
 CREATE TABLE Email_Logs (
     email_log_id SERIAL PRIMARY KEY,
     recipient_email VARCHAR(255),
     email_type VARCHAR(50), -- Vd: PAYMENT_CONFIRM, THANK_YOU
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(20) CHECK (status IN ('SENT', 'FAILED'))
+);
+
+-- Bảng quản lý Hóa đơn VAT
+CREATE TABLE Invoices (
+    invoice_id SERIAL PRIMARY KEY,
+    registration_id INT REFERENCES Registrations(registration_id),
+    user_id INT REFERENCES Users(user_id), -- Người yêu cầu
+    
+    -- Thông tin xuất hóa đơn
+    company_name VARCHAR(255) NOT NULL,
+    tax_code VARCHAR(50) NOT NULL,
+    address TEXT NOT NULL,
+    email_receive VARCHAR(255) NOT NULL, -- Email nhận hóa đơn
+    
+    status VARCHAR(20) DEFAULT 'REQUESTED' 
+        CHECK (status IN ('REQUESTED', 'SENT')),
+    
+    invoice_url TEXT, -- Link file hóa đơn (PDF) nếu có sau khi xuất
+    requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    sent_at TIMESTAMP
 );

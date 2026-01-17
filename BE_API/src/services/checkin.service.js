@@ -2,6 +2,7 @@ const registrationRepository = require('../repositories/registration.repo');
 const emailSender = require('../utils/emailService');
 const { v4: uuidv4 } = require('uuid'); 
 const QRCode = require('qrcode');
+const db = require('../config/db');
 
 class CheckinService {
     // Sinh mã QR cho vé đã thanh toán
@@ -18,12 +19,29 @@ class CheckinService {
     // Nếu đã có token rồi thì dùng (sinh mới làm mã cũ vô hiệu lực khi user đang giữ mã cũ)
     let qrToken = registration.qr_code_token;
     if (!qrToken) {
-        qrToken = uuidv4(); // Tạo chuỗi unique
+        qrToken = uuidv4(); // Tạo chuỗi unique (UUID)
         await registrationRepository.updateQrToken(registrationId, qrToken);
     }
 
     // Lấy thông tin chi tiết để gửi mail
     const fullInfo = await registrationRepository.getRegistrationWithConferenceDetails(registrationId);
+
+    // Lấy thông tin thanh toán thành công gần nhất để hiển thị trong mail
+    const transQuery = await db.query(
+        `SELECT payment_gateway, updated_at 
+         FROM Transactions 
+         WHERE registration_id = $1 AND status = 'SUCCESS' AND transaction_type = 'PAYMENT'
+         ORDER BY updated_at DESC LIMIT 1`,
+        [registrationId]
+    );
+    
+    let paymentInfo = null;
+    if (transQuery.rows.length > 0) {
+        paymentInfo = {
+            gateway: transQuery.rows[0].payment_gateway,
+            paid_at: transQuery.rows[0].updated_at
+        };
+    }
 
     // Tạo buffer ảnh QR
     const qrImageBuffer = await QRCode.toBuffer(qrToken, {
@@ -37,7 +55,8 @@ class CheckinService {
     if (fullInfo && fullInfo.email) {
         // try-catch để nếu gửi mail lỗi thì vẫn trả về token cho API
         try {
-            await emailSender.sendTicketEmail(fullInfo, qrImageBuffer);
+            // Truyền thêm paymentInfo
+            await emailSender.sendTicketEmail(fullInfo, qrImageBuffer, paymentInfo);
         } catch (mailError) {
             console.error("Lỗi gửi email vé:", mailError);
         }
