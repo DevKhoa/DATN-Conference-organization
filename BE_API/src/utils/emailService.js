@@ -181,10 +181,31 @@ async function sendCheckinSuccessEmail(email, fullName, confName, checkinTime) {
     await transporter.sendMail(mailOptions);
 }
 
+// Gửi email reset password
+async function sendResetPasswordEmail(email, token) {
+  const resetUrl = `${process.env.BASE_URL}/auth/reset-password?token=${token}`; // Đường dẫn frontend để nhập pass mới
+  const mailOptions = {
+    from: `"DATN_COFERENCES" <${process.env.SMTP_USER}>`,
+    to: email,
+    subject: 'Yêu cầu Đặt lại Mật khẩu',
+    html: `
+      <div style="font-family: Arial, sans-serif; padding: 20px;">
+        <h3>Yêu cầu đặt lại mật khẩu</h3>
+        <p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản ${email}.</p>
+        <p>Nếu bạn thực hiện yêu cầu này, vui lòng nhấn vào nút bên dưới để đặt lại mật khẩu (Link có hiệu lực trong 1 giờ):</p>
+        <a href="${resetUrl}" style="padding: 10px 20px; background-color: #dc3545; color: white; text-decoration: none; border-radius: 5px;">Đặt lại mật khẩu</a>
+        <p style="margin-top: 20px; color: #666; font-size: 12px;">Nếu bạn không yêu cầu, vui lòng bỏ qua email này.</p>
+      </div>
+    `,
+  };
+  await transporter.sendMail(mailOptions);
+}
+
 module.exports = {
   sendVerificationEmail,
   sendTicketEmail,
   sendInvoiceEmail,
   sendRefundEmail,
-  sendCheckinSuccessEmail
+  sendCheckinSuccessEmail,
+  sendResetPasswordEmail
 };

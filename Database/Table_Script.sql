@@ -45,7 +45,10 @@ CREATE TABLE Users (
     password_hash VARCHAR(255) NOT NULL,
     organization VARCHAR(255), -- Đơn vị công tác
     is_active BOOLEAN DEFAULT TRUE, -- Tài khoản có hoạt động không
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    refresh_token TEXT,
+    reset_password_token VARCHAR(255),
+    reset_password_expires TIMESTAMP;
 );
 -- =============================================
 -- Bảng Danh mục Quyền
