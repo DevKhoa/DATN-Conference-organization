@@ -264,3 +264,23 @@ CREATE TABLE Email_Logs (
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(20) CHECK (status IN ('SENT', 'FAILED'))
 );
+
+-- Bảng quản lý Hóa đơn VAT
+CREATE TABLE Invoices (
+    invoice_id SERIAL PRIMARY KEY,
+    registration_id INT REFERENCES Registrations(registration_id),
+    user_id INT REFERENCES Users(user_id), -- Người yêu cầu
+    
+    -- Thông tin xuất hóa đơn
+    company_name VARCHAR(255) NOT NULL,
+    tax_code VARCHAR(50) NOT NULL,
+    address TEXT NOT NULL,
+    email_receive VARCHAR(255) NOT NULL, -- Email nhận hóa đơn
+    
+    status VARCHAR(20) DEFAULT 'REQUESTED' 
+        CHECK (status IN ('REQUESTED', 'SENT')),
+    
+    invoice_url TEXT, -- Link file hóa đơn (PDF) nếu có sau khi xuất
+    requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    sent_at TIMESTAMP
+);
