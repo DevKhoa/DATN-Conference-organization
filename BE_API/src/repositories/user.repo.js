@@ -165,7 +165,6 @@ class UserRepository {
   }
 
   // Xóa roles của user. Nếu xóa hết thì gán mặc định 'ATTENDEE'
-   
   async removeRolesFromUser(userId, roleNamesToRemove) {
     const client = await pool.connect();
     try {
@@ -221,6 +220,46 @@ class UserRepository {
     } finally {
         client.release();
     }
+  }
+
+  // Lưu Refresh Token cho user
+  async saveRefreshToken(userId, token) {
+      await pool.query(
+          'UPDATE Users SET refresh_token = $1 WHERE user_id = $2', 
+          [token, userId]
+      );
+  }
+
+  // Tìm user theo Refresh Token
+  async findUserByRefreshToken(token) {
+      const result = await pool.query('SELECT * FROM Users WHERE refresh_token = $1', [token]);
+      return result.rows[0];
+  }
+
+  // Lưu token đặt lại mật khẩu
+  async saveResetToken(email, token, expiresAt) {
+      const result = await pool.query(
+          'UPDATE Users SET reset_password_token = $1, reset_password_expires = $2 WHERE email = $3 RETURNING *',
+          [token, expiresAt, email]
+      );
+      return result.rows[0];
+  }
+
+  // Tìm user theo token đặt lại mật khẩu
+  async findUserByResetToken(token) {
+      const result = await pool.query(
+          'SELECT * FROM Users WHERE reset_password_token = $1 AND reset_password_expires > NOW()',
+          [token]
+      );
+      return result.rows[0];
+  }
+
+  // Cập nhật mật khẩu mới cho user
+  async updatePassword(userId, passwordHash) {
+      await pool.query(
+          'UPDATE Users SET password_hash = $1, reset_password_token = NULL, reset_password_expires = NULL WHERE user_id = $2',
+          [passwordHash, userId]
+      );
   }
 }
 

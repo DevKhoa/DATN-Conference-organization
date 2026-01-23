@@ -53,3 +53,52 @@ exports.verifyEmail = async (req, res) => {
         });
     }
 };
+
+// Refresh Token
+exports.refreshToken = async (req, res) => {
+    try {
+        const { refresh_token } = req.body;
+        if (!refresh_token) {
+            return res.status(400).json({ message: "Vui lòng cung cấp refresh token" });
+        }
+        
+        const result = await authService.refreshToken(refresh_token);
+        res.status(200).json(result);
+    } catch (error) {
+        // 403 Forbidden hoặc 401 Unauthorized tùy ngữ cảnh, ở đây dùng 403 cho token không hợp lệ
+        res.status(403).json({ message: error.message });
+    }
+};
+
+// Quên mật khẩu
+exports.forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ message: "Vui lòng cung cấp email" });
+        }
+
+        await authService.forgotPassword(email);
+        
+        res.status(200).json({ 
+            message: "Nếu email tồn tại trong hệ thống, chúng tôi đã gửi hướng dẫn đặt lại mật khẩu." 
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Đã xảy ra lỗi khi xử lý yêu cầu." });
+    }
+};
+
+// Đặt lại mật khẩu
+exports.resetPassword = async (req, res) => {
+    try {
+        const { token, new_password } = req.body;
+        if (!token || !new_password) {
+            return res.status(400).json({ message: "Thiếu thông tin token hoặc mật khẩu mới" });
+        }
+
+        await authService.resetPassword(token, new_password);
+        res.status(200).json({ message: "Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại." });
+    } catch (error) {
+        res.status(400).json({ message: error.message });
+    }
+};

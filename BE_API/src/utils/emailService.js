@@ -27,13 +27,23 @@ async function sendVerificationEmail(user, token) {
 
 // Gửi vé kèm ảnh QR và thông tin hội nghị
 async function sendTicketEmail(info, qrImageBuffer, paymentInfo) {
-  // Format ngày tháng
   const startDate = new Date(info.start_date).toLocaleDateString('vi-VN');
   const endDate = new Date(info.end_date).toLocaleDateString('vi-VN');
   
   // Format thông tin thanh toán (nếu có)
   let paymentDetailsHtml = '';
-  if (paymentInfo) {
+  
+  // Nếu trạng thái là FREE thì hiển thị khác, nếu PAID thì hiển thị info
+  if (info.payment_status === 'FREE') {
+      paymentDetailsHtml = `
+      <div style="background-color: #e3f2fd; padding: 10px; margin: 10px 0; border: 1px solid #90caf9; border-radius: 4px;">
+        <p style="margin: 0; color: #1565c0;"><strong>✔ Vé miễn phí (Free Ticket)</strong></p>
+        <p style="margin: 5px 0 0 0; font-size: 13px;">
+           Bạn đã đăng ký thành công vé tham dự miễn phí.
+        </p>
+      </div>
+    `;
+  } else if (paymentInfo) {
     const payTime = paymentInfo.paid_at ? new Date(paymentInfo.paid_at).toLocaleString('vi-VN') : 'N/A';
     paymentDetailsHtml = `
       <div style="background-color: #e8f5e9; padding: 10px; margin: 10px 0; border: 1px solid #c8e6c9; border-radius: 4px;">
@@ -54,7 +64,7 @@ async function sendTicketEmail(info, qrImageBuffer, paymentInfo) {
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; padding: 20px;">
         <h2 style="color: #2c3e50; text-align: center;">VÉ THAM DỰ HỘI NGHỊ</h2>
         <p>Xin chào <strong>${info.full_name}</strong>,</p>
-        <p>Bạn đã đăng ký và thanh toán thành công vé tham dự hội nghị. Dưới đây là thông tin chi tiết:</p>
+        <p>Bạn đã đăng ký thành công vé tham dự hội nghị. Dưới đây là thông tin chi tiết:</p>
         
         ${paymentDetailsHtml}
 
@@ -119,7 +129,7 @@ async function sendRefundEmail(refundInfo) {
     const mailOptions = {
         from: `"DATN_COFERENCES" <${process.env.SMTP_USER}>`,
         to: refundInfo.email,
-        subject: 'Thông báo Hoàn tiền (Refund Success) - DATN Conferences',
+        subject: 'Hoàn tiền thành công (Refund Success) - DATN Conferences',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; padding: 20px;">
             <h2 style="color: #d32f2f; text-align: center;">XÁC NHẬN HOÀN TIỀN</h2>
@@ -146,9 +156,56 @@ async function sendRefundEmail(refundInfo) {
     await transporter.sendMail(mailOptions);
 }
 
+// Gửi email xác nhận check-in thành công
+async function sendCheckinSuccessEmail(email, fullName, confName, checkinTime) {
+    const timeString = new Date(checkinTime).toLocaleString('vi-VN');
+    const mailOptions = {
+        from: `"DATN_COFERENCES" <${process.env.SMTP_USER}>`,
+        to: email,
+        subject: `Check-in thành công: ${confName}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #4caf50; padding: 20px; border-radius: 8px;">
+            <h2 style="color: #2e7d32; text-align: center;">CHECK-IN THÀNH CÔNG</h2>
+            <p>Xin chào <strong>${fullName}</strong>,</p>
+            <p>Bạn đã hoàn tất thủ tục điểm danh tại hội nghị:</p>
+            <h3 style="text-align: center; color: #333;">${confName}</h3>
+            <p style="text-align: center; font-size: 16px;">Thời gian: <strong>${timeString}</strong></p>
+            <p>Chào mừng bạn tham dự hội nghị. Chúc bạn có những trải nghiệm tuyệt vời!</p>
+            <hr style="border: 0; border-top: 1px solid #eee;">
+            <p style="font-size: 12px; text-align: center; color: #999;">
+              Đây là email tự động từ hệ thống check-in.
+            </p>
+          </div>
+        `
+    };
+    await transporter.sendMail(mailOptions);
+}
+
+// Gửi email reset password
+async function sendResetPasswordEmail(email, token) {
+  const resetUrl = `${process.env.BASE_URL}/auth/reset-password?token=${token}`; // Đường dẫn frontend để nhập pass mới
+  const mailOptions = {
+    from: `"DATN_COFERENCES" <${process.env.SMTP_USER}>`,
+    to: email,
+    subject: 'Yêu cầu Đặt lại Mật khẩu',
+    html: `
+      <div style="font-family: Arial, sans-serif; padding: 20px;">
+        <h3>Yêu cầu đặt lại mật khẩu</h3>
+        <p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản ${email}.</p>
+        <p>Nếu bạn thực hiện yêu cầu này, vui lòng nhấn vào nút bên dưới để đặt lại mật khẩu (Link có hiệu lực trong 1 giờ):</p>
+        <a href="${resetUrl}" style="padding: 10px 20px; background-color: #dc3545; color: white; text-decoration: none; border-radius: 5px;">Đặt lại mật khẩu</a>
+        <p style="margin-top: 20px; color: #666; font-size: 12px;">Nếu bạn không yêu cầu, vui lòng bỏ qua email này.</p>
+      </div>
+    `,
+  };
+  await transporter.sendMail(mailOptions);
+}
+
 module.exports = {
   sendVerificationEmail,
   sendTicketEmail,
   sendInvoiceEmail,
-  sendRefundEmail 
+  sendRefundEmail,
+  sendCheckinSuccessEmail,
+  sendResetPasswordEmail
 };

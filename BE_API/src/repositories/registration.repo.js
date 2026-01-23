@@ -2,23 +2,28 @@ const pool = require('../config/db');
 
 class RegistrationRepository {
   // Tạo đăng ký mới
-  async createRegistration(userId, ticketId, paperId = null, client = null) {
-    const query = `
-      INSERT INTO Registrations (user_id, ticket_id, paper_id, registration_status, payment_status)
-      VALUES ($1, $2, $3, 'PENDING', 'UNPAID')
-      RETURNING registration_id, user_id, ticket_id, registration_status, payment_status, created_at;
-    `;
-    // Nếu có client (transaction) thì dùng client, không thì dùng pool thường
-    const executor = client || pool; 
-    const result = await executor.query(query, [userId, ticketId, paperId]);
-    return result.rows[0];
+  async createRegistration(userId, ticketId, paperId = null, client = null, regStatus = 'PENDING', payStatus = 'UNPAID') {
+      const query = `
+        INSERT INTO Registrations (user_id, ticket_id, paper_id, registration_status, payment_status)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING registration_id, user_id, ticket_id, registration_status, payment_status, created_at;
+      `;
+      
+      const executor = client || pool; 
+      const result = await executor.query(query, [userId, ticketId, paperId, regStatus, payStatus]);
+      return result.rows[0];
   }
 
   // Kiểm tra người dùng đã có vé chưa
   async checkUserHasTicket(userId, ticketId) {
-      const query = `SELECT registration_id FROM Registrations WHERE user_id = $1 AND ticket_id = $2`;
-      const result = await pool.query(query, [userId, ticketId]);
-      return result.rows.length > 0;
+    const query = `
+      SELECT registration_id FROM Registrations 
+      WHERE user_id = $1 
+      AND ticket_id = $2 
+      AND registration_status NOT IN ('CANCELLED', 'REJECTED')
+    `;
+    const result = await pool.query(query, [userId, ticketId]);
+    return result.rows.length > 0;
   }
 
   // Lấy thông tin đăng ký theo ID
@@ -29,7 +34,7 @@ class RegistrationRepository {
       return result.rows[0];
   }
 
-  // Lấy danh sách đăng ký theo hội nghị và trạng thái thanh toán
+  // Lấy danh sách đăng ký theo hội nghị và trạng thái thanh toán 
   async getRegistrationsByConference(conferenceId, paymentStatus = null) {
     let query = `
       SELECT 
@@ -61,7 +66,7 @@ class RegistrationRepository {
     return result.rows;
   }
 
-  // Cập nhật mã QR cho đăng ký
+  // Cập nhật mã QR cho đăng ký 
   async updateQrToken(registrationId, token) {
     const query = `
       UPDATE Registrations
@@ -73,14 +78,14 @@ class RegistrationRepository {
     return result.rows[0];
   }
   
-  // Tìm đăng ký theo mã QR
+  // Tìm đăng ký theo mã QR 
   async findByQrToken(token) {
       const query = `SELECT * FROM Registrations WHERE qr_code_token = $1`;
       const result = await pool.query(query, [token]);
       return result.rows[0];
   }
 
-  // Lấy thông tin đăng ký kèm chi tiết hội nghị
+  // Lấy thông tin đăng ký kèm chi tiết hội nghị 
   async getRegistrationWithConferenceDetails(registrationId) {
     const query = `
       SELECT 
@@ -98,9 +103,9 @@ class RegistrationRepository {
     return result.rows[0];
   }
   
-  // Các hàm phục vụ cho check-in
+  // Các hàm phục vụ cho check-in 
 
-  // Cập nhật trạng thái check-in
+  // Cập nhật trạng thái check-in 
   async updateCheckinStatus(registrationId) {
     const query = `
       UPDATE Registrations
@@ -112,14 +117,14 @@ class RegistrationRepository {
     return result.rows[0];
   }
 
-  // Lấy trạng thái check-in
+  // Lấy trạng thái check-in 
   async getCheckinStatus(registrationId) {
       const query = 'SELECT checkin_status, checked_in_at FROM Registrations WHERE registration_id = $1';
       const result = await pool.query(query, [registrationId]);
       return result.rows[0];
   }
 
-  // Cập nhật trạng thái Registration (Dùng để Cancel)
+  // Cập nhật trạng thái Registration (Dùng để Cancel) 
   async updateStatus(registrationId, newStatus, client = null) {
     const query = `
       UPDATE Registrations

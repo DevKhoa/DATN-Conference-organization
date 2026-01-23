@@ -45,7 +45,10 @@ CREATE TABLE Users (
     password_hash VARCHAR(255) NOT NULL,
     organization VARCHAR(255), -- Đơn vị công tác
     is_active BOOLEAN DEFAULT TRUE, -- Tài khoản có hoạt động không
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    refresh_token TEXT,
+    reset_password_token VARCHAR(255),
+    reset_password_expires TIMESTAMP;
 );
 -- =============================================
 -- Bảng Danh mục Quyền
@@ -188,7 +191,7 @@ CREATE TABLE Registrations (
     registration_status VARCHAR(50) DEFAULT 'PENDING' 
         CHECK (registration_status IN ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')),
     payment_status VARCHAR(50) DEFAULT 'UNPAID'
-        CHECK (payment_status IN ('UNPAID', 'PAID', 'PAYMENT_ERROR', 'REFUNDED')),
+        CHECK (payment_status IN ('UNPAID', 'PAID', 'PAYMENT_ERROR', 'REFUNDED', 'FREE')),
     
     -- Mã QR check-in (sinh ra khi PAID)
     qr_code_token VARCHAR(255) UNIQUE, 
@@ -201,10 +204,12 @@ CREATE TABLE Registrations (
     checked_in_at TIMESTAMP,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    -- Một user không được mua trùng cùng 1 loại vé
-    UNIQUE (user_id, ticket_id) 
 );
+-- Một user không được mua trùng cùng 1 loại vé. Chỉ bắt trùng NẾU trạng thái vé KHÔNG PHẢI là đã hủy/từ chối
+-- Nghĩa là 1 user có thể có 10 dòng 'CANCELLED', nhưng chỉ được phép có 1 dòng 'PENDING'/'APPROVED'/'PAID'
+CREATE UNIQUE INDEX unique_active_registration 
+ON Registrations (user_id, ticket_id) 
+WHERE registration_status NOT IN ('CANCELLED', 'REJECTED');
 
 -- Giao dịch & Đối soát 
 CREATE TABLE Transactions (
