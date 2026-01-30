@@ -98,7 +98,7 @@ CREATE TABLE Paper_Versions (
     upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     upload_by INT REFERENCES Users(user_id),
     
-    -- [NEĐảm bảo mỗi bài chỉ có 1 bản v1, 1 bản v2...
+    -- Đảm bảo mỗi bài chỉ có 1 bản v1, 1 bản v2...
     UNIQUE (paper_id, version_number) 
 );
 
