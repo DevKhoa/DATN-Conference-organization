@@ -65,3 +65,14 @@ SET country = (
         'Thailand', 'Germany', 'France', 'United Kingdom', 'Australia'
     ]
 )[floor(random() * 10) + 1];
+
+-------------- Update 30/01 ------------------------
+-- Xác định tiêu chí 1 người có thể review
+CREATE TABLE Reviewer_Reputation (
+    user_id INT PRIMARY KEY REFERENCES Users(user_id) ON DELETE CASCADE,
+    current_workload INT DEFAULT 0, -- Số bài đang review < 5
+    late_submission_count INT DEFAULT 0, -- Số lần nộp review trễ deadline  < 4
+    avg_review_length INT DEFAULT 0, -- Độ dài trung bình của các comments (số từ) >= 50
+    total_rejected_reviews INT DEFAULT 0, -- Số lần review bị Admin đánh giá là kém chất lượng
+    last_active_at TIMESTAMP
+);
