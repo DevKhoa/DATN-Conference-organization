@@ -58,3 +58,79 @@ exports.updateProfile = async (req, res) => {
         res.status(400).json({ message: error.message });
     }
 };
+
+// Lấy danh sách users (có lọc theo Role)
+exports.getAllUsers = async (req, res) => {
+    try {
+        // Lấy query params: ?roles=ADMIN,REVIEWER&logic=AND
+        const { roles, logic } = req.query;
+        
+        let rolesFilter = [];
+        if (roles) {
+            // Nếu roles là string (vd: "ADMIN,REVIEWER") thì split, nếu là array thì giữ nguyên
+            rolesFilter = Array.isArray(roles) ? roles : roles.split(',').map(r => r.trim());
+        }
+
+        const logicFilter = logic ? logic.toUpperCase() : 'OR'; // Mặc định là OR
+
+        const users = await userRepository.getAllUsersWithRoles(rolesFilter, logicFilter);
+
+        res.status(200).json({
+            count: users.length,
+            filters: {
+                roles: rolesFilter,
+                logic: logicFilter
+            },
+            data: users
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Lỗi server khi lấy danh sách user' });
+    }
+};
+
+// Phân quyền (Thêm quyền)
+exports.addRoles = async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const { roles } = req.body; // Expect body: { "roles": ["CHAIR", "REVIEWER"] }
+
+        if (!roles || !Array.isArray(roles) || roles.length === 0) {
+            return res.status(400).json({ message: 'Vui lòng cung cấp danh sách roles (mảng string)' });
+        }
+
+        const result = await userRepository.addRolesToUser(userId, roles);
+
+        res.status(200).json({
+            message: 'Phân quyền hoàn tất',
+            user_id: userId,
+            details: result // { added: [], existing: [], notFoundRoles: [] }
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// Xóa quyền
+exports.removeRoles = async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const { roles } = req.body; // Expect body: { "roles": ["REVIEWER"] }
+
+        if (!roles || !Array.isArray(roles) || roles.length === 0) {
+            return res.status(400).json({ message: 'Vui lòng cung cấp danh sách roles cần xóa' });
+        }
+
+        const result = await userRepository.removeRolesFromUser(userId, roles);
+
+        res.status(200).json({
+            message: 'Xóa quyền hoàn tất',
+            user_id: userId,
+            result: result
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: error.message });
+    }
+};

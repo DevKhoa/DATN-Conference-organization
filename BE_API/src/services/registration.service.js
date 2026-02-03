@@ -1,5 +1,6 @@
 const registrationRepository = require('../repositories/registration.repo');
 const ticketRepository = require('../repositories/ticket.repo');
+const checkinService = require('./checkin.service');
 const pool = require('../config/db'); 
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit-table');
@@ -9,19 +10,20 @@ const fs = require('fs');
 class RegistrationService {
   // Tạo đăng ký mới với transaction và xử lý đồng thời
   async createRegistration(userId, ticketId) {
-    // Check trùng lặp (User không được mua 2 lần cùng 1 loại vé)
+    // Check trùng lặp
     const existingReg = await registrationRepository.checkUserHasTicket(userId, ticketId);
     if (existingReg) {
-        throw new Error('Bạn đã đăng ký loại vé này rồi. Vui lòng kiểm tra lại.');
+        throw new Error('Bạn đã đăng ký loại vé này rồi (hoặc đang chờ thanh toán). Vui lòng kiểm tra lại.');
     }
 
     const client = await pool.connect(); // Bắt đầu kết nối transaction
-    
+    let newRegistration = null; // Lưu kết quả trả về
+    let isFreeTicket = false;   // Cờ đánh dấu vé free
+
     try {
         await client.query('BEGIN'); // Bắt đầu Transaction
 
         // Lấy thông tin vé và KHÓA (Lock) để tránh Race Condition
-        // Lúc này, không ai khác có thể mua vé này cho đến khi xong việc
         const ticket = await ticketRepository.getTicketByIdForUpdate(ticketId, client);
         
         if (!ticket) throw new Error('Vé không tồn tại');
@@ -43,24 +45,92 @@ class RegistrationService {
             throw new Error('Đã hết vé');
         }
 
-        // Tạo đăng ký (truyền client vào để chung transaction)
-        const registration = await registrationRepository.createRegistration(userId, ticketId, null, client);
+        // Logic xác định vé Free
+        // Chuyển về số để so sánh cho chắc chắn
+        const priceVnd = Number(ticket.price_vnd);
+        const priceUsd = Number(ticket.price_usd);
+        
+        let regStatus = 'PENDING';
+        let payStatus = 'UNPAID';
+
+        if (priceVnd === 0 && priceUsd === 0) {
+            isFreeTicket = true;
+            regStatus = 'APPROVED';
+            payStatus = 'FREE';
+        }
+
+        // Tạo đăng ký
+        newRegistration = await registrationRepository.createRegistration(
+            userId, 
+            ticketId, 
+            null, 
+            client,
+            regStatus, // APPROVED nếu free, PENDING nếu mất phí
+            payStatus  // FREE nếu free, UNPAID nếu mất phí
+        );
         
         // Cập nhật số lượng vé đã bán (truyền client vào)
         await ticketRepository.incrementSoldQuantity(ticketId, client);
 
-        await client.query('COMMIT'); // Xác nhận thành công
-        return registration;
-
+        await client.query('COMMIT'); // Xác nhận thành công Transaction DB
+        
     } catch (error) {
         await client.query('ROLLBACK'); // Hoàn tác nếu có lỗi bất kỳ
-        throw error; // Ném lỗi ra cho Controller bắt
+        throw error; 
     } finally {
         client.release(); // Trả kết nối về pool
     }
+
+    // Nếu là vé FREE -> sinh QR và gửi mail
+    if (isFreeTicket && newRegistration) {
+        try {
+            console.log(`[FREE TICKET] Auto generating QR for RegID: ${newRegistration.registration_id}`);
+            // Gọi trực tiếp function service (tương đương việc gọi API /generate-qr)
+            await checkinService.generateQrCode(newRegistration.registration_id);
+        } catch (qrError) {
+            console.error("Lỗi sinh QR cho vé Free (nhưng đăng ký đã thành công):", qrError);
+            // Không throw error ở đây để tránh báo lỗi cho Client (vì vé đã mua thành công)
+        }
+    }
+
+    return newRegistration;
   }
 
-  // Lấy danh sách đăng ký theo hội nghị (và trạng thái nếu có)
+  // Hủy đăng ký 
+  async cancelRegistration(registrationId) {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // Lấy thông tin registration
+        const registration = await registrationRepository.getRegistrationById(registrationId, client);
+        if (!registration) throw new Error('Không tìm thấy thông tin đăng ký');
+
+        // Kiểm tra nếu đã hủy rồi thì không làm gì hoặc báo lỗi
+        if (registration.registration_status === 'CANCELLED') {
+            throw new Error('Đăng ký này đã bị hủy trước đó');
+        }
+
+        // Cập nhật trạng thái đăng ký sang CANCELLED
+        const updatedReg = await registrationRepository.updateStatus(registrationId, 'CANCELLED', client);
+
+        // Giảm số lượng vé đã bán trong bảng Ticket_Configs
+        await ticketRepository.decrementSoldQuantity(registration.ticket_id, client);
+
+        await client.query('COMMIT');
+        
+        return updatedReg;
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+  }
+
+  // Lấy danh sách đăng ký theo hội nghị (và trạng thái nếu có) 
   async getRegistrationList(conferenceId, paymentStatus) {
     if (!conferenceId) {
         throw new Error('Cần cung cấp Conference ID');
@@ -77,7 +147,7 @@ class RegistrationService {
     };
   }
 
-  // Hàm xuất file và lưu xuống đĩa cứng
+  // Hàm xuất file và lưu xuống đĩa cứng 
   async exportRegistrations(conferenceId, fileType, paymentStatus) {
     // Lấy dữ liệu
     const registrations = await registrationRepository.getRegistrationsByConference(conferenceId, paymentStatus);
@@ -92,7 +162,7 @@ class RegistrationService {
       full_name: reg.full_name,
       email: reg.email,
       ticket_name: reg.ticket_name,
-      payment_status: reg.payment_status === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán',
+      payment_status: reg.payment_status === 'PAID' ? 'Đã thanh toán' : (reg.payment_status === 'FREE' ? 'Miễn phí' : 'Chưa thanh toán'), // Cập nhật hiển thị text cho FREE
       registration_status: reg.registration_status,
       created_at: new Date(reg.created_at).toLocaleString('vi-VN')
     }));
@@ -126,7 +196,7 @@ class RegistrationService {
     return `/registration_exports/${subFolder}/${fileName}`;
   }
 
-  // Helper: Tạo và lưu file Excel
+  // Helper: Tạo và lưu file Excel 
   async generateExcelFile(data, filePath) {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Danh sách đăng ký');
@@ -147,7 +217,7 @@ class RegistrationService {
     await workbook.xlsx.writeFile(filePath);
   }
 
-  // Helper: Tạo và lưu file PDF
+  // Helper: Tạo và lưu file PDF 
   async generatePDFFile(data, filePath) {
     return new Promise((resolve, reject) => {
         try {
@@ -159,12 +229,7 @@ class RegistrationService {
             // CẤU HÌNH FONT TIẾNG VIỆT
             // ============================================================
             // Đường dẫn đến file font. 
-            // Lưu ý: path.join(__dirname, '../..') tùy thuộc vào cấu trúc thư mục thực tế của bạn.
-            // Ví dụ này giả định: src/services/registration.service.js -> font nằm ở fonts/Roboto-Regular.ttf
             const fontPath = path.join(__dirname, '../../fonts/Roboto-Regular.ttf'); 
-            
-            // Nếu bạn để thư mục fonts ngang hàng file service thì dùng: path.join(__dirname, 'fonts/Roboto-Regular.ttf');
-            // Hãy kiểm tra kỹ đường dẫn này nhé!
 
             if (fs.existsSync(fontPath)) {
                 // Đăng ký font và set làm mặc định

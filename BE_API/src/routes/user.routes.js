@@ -11,4 +11,12 @@ router.get('/profile', userController.getProfile);
 router.put('/profile', userController.updateProfile);
 //router.put('/profile', authMiddleware, userController.updateProfile);
 
+//Xem danh sách user (có filter role AND/OR)
+router.get('/', userController.getAllUsers);
+
+// Phân quyền cho user
+router.patch('/:id/role', userController.addRoles);
+
+// Xóa quyền của user
+router.delete('/:id/role', userController.removeRoles);
 module.exports = router;

@@ -44,7 +44,11 @@ CREATE TABLE Users (
     is_verified BOOLEAN DEFAULT FALSE,
     password_hash VARCHAR(255) NOT NULL,
     organization VARCHAR(255), -- Đơn vị công tác
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    is_active BOOLEAN DEFAULT TRUE, -- Tài khoản có hoạt động không
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    refresh_token TEXT,
+    reset_password_token VARCHAR(255),
+    reset_password_expires TIMESTAMP;
 );
 -- =============================================
 -- Bảng Danh mục Quyền
@@ -94,7 +98,7 @@ CREATE TABLE Paper_Versions (
     upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     upload_by INT REFERENCES Users(user_id),
     
-    -- [NEĐảm bảo mỗi bài chỉ có 1 bản v1, 1 bản v2...
+    -- Đảm bảo mỗi bài chỉ có 1 bản v1, 1 bản v2...
     UNIQUE (paper_id, version_number) 
 );
 
@@ -162,17 +166,16 @@ CREATE TABLE Session_Papers (
 -- Cấu hình vé (Mở/đóng cổng) 
 CREATE TABLE Ticket_Configs (
     ticket_id SERIAL PRIMARY KEY,
-    conference_id INT REFERENCES Conferences(conf_id), -- Vé của hội nghị nào
+    conference_id INT REFERENCES Conferences(conf_id),
     ticket_name VARCHAR(100) NOT NULL,
-    price DECIMAL(10, 2) NOT NULL,
-    currency VARCHAR(10) DEFAULT 'VND',
+    price_vnd BIGINT NOT NULL DEFAULT 0, -- Giá vé VND
+    price_usd DECIMAL(10, 2) NOT NULL DEFAULT 0, -- Giá vé USD
     quantity_limit INT,
     sold_quantity INT DEFAULT 0,
     open_time TIMESTAMP NOT NULL,
     close_time TIMESTAMP NOT NULL,
-    
-    -- Ẩn/Hiện vé nhanh
-    is_active BOOLEAN DEFAULT TRUE, 
+    is_active BOOLEAN DEFAULT TRUE, -- đóng / mở bán
+    is_deleted BOOLEAN DEFAULT FALSE, -- Soft delete
     description TEXT
 );
 
@@ -188,7 +191,7 @@ CREATE TABLE Registrations (
     registration_status VARCHAR(50) DEFAULT 'PENDING' 
         CHECK (registration_status IN ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED')),
     payment_status VARCHAR(50) DEFAULT 'UNPAID'
-        CHECK (payment_status IN ('UNPAID', 'PAID', 'PAYMENT_ERROR', 'REFUNDED')),
+        CHECK (payment_status IN ('UNPAID', 'PAID', 'PAYMENT_ERROR', 'REFUNDED', 'FREE')),
     
     -- Mã QR check-in (sinh ra khi PAID)
     qr_code_token VARCHAR(255) UNIQUE, 
@@ -201,27 +204,52 @@ CREATE TABLE Registrations (
     checked_in_at TIMESTAMP,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    -- Một user không được mua trùng cùng 1 loại vé
-    UNIQUE (user_id, ticket_id) 
 );
+-- Một user không được mua trùng cùng 1 loại vé. Chỉ bắt trùng NẾU trạng thái vé KHÔNG PHẢI là đã hủy/từ chối
+-- Nghĩa là 1 user có thể có 10 dòng 'CANCELLED', nhưng chỉ được phép có 1 dòng 'PENDING'/'APPROVED'/'PAID'
+CREATE UNIQUE INDEX unique_active_registration 
+ON Registrations (user_id, ticket_id) 
+WHERE registration_status NOT IN ('CANCELLED', 'REJECTED');
 
 -- Giao dịch & Đối soát 
 CREATE TABLE Transactions (
     trans_id SERIAL PRIMARY KEY,
-    registration_id INT REFERENCES Registrations(registration_id),
+    registration_id INT REFERENCES Registrations(registration_id) ON DELETE CASCADE,
     
-    -- Cổng thanh toán
-    payment_gateway VARCHAR(50) CHECK (payment_gateway IN ('MOMO', 'VNPAY', 'STRIPE', 'BANK_TRANSFER')), 
-    gateway_trans_code VARCHAR(100),
-    
-    amount DECIMAL(10, 2),
-    status VARCHAR(50), 
-    error_log TEXT,
-    transaction_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    -- Phân loại giao dịch: Thanh toán / Hoàn tiền
+    transaction_type VARCHAR(20) DEFAULT 'PAYMENT' 
+        CHECK (transaction_type IN ('PAYMENT', 'REFUND')),
+
+    -- Cổng thanh toán: MOMO / PAYPAL
+    payment_gateway VARCHAR(20) NOT NULL 
+        CHECK (payment_gateway IN ('MOMO', 'PAYPAL')),
+
+    -- Mã đơn hàng do hệ thống hội nghị sinh ra (gửi sang cổng thanh toán)
+    merchant_order_id VARCHAR(100) UNIQUE NOT NULL,
+
+    -- Mã giao dịch do cổng thanh toán trả về (dùng để đối soát)
+    gateway_transaction_id VARCHAR(100),
+
+    -- Số tiền và loại tiền thực tế của giao dịch này
+    amount DECIMAL(15, 2) NOT NULL,
+    currency VARCHAR(5) NOT NULL CHECK (currency IN ('VND', 'USD')),
+
+    -- Trạng thái giao dịch
+    status VARCHAR(20) DEFAULT 'PENDING'
+        CHECK (status IN ('PENDING', 'SUCCESS', 'FAILED', 'REFUNDED', 'CANCELLED')),
+
+    -- JSONB lưu toàn bộ phản hồi từ cổng thanh toán (PayerID (PayPal), số ví/thẻ (MoMo), signature, token,...)
+    gateway_raw_response JSONB,
+
+    -- Ghi lại lỗi nếu thanh toán thất bại
+    error_message TEXT,
+
+    -- Thời gian tạo và cập nhật
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- CMS & Truyền thông [cite: 13, 15]
+-- CMS & Truyền thông
 CREATE TABLE CMS_Contents (
     content_id SERIAL PRIMARY KEY,
     title VARCHAR(255),
@@ -233,11 +261,31 @@ CREATE TABLE CMS_Contents (
     created_by INT REFERENCES Users(user_id)
 );
 
--- Log gửi Email (Để theo dõi việc gửi mail cảm ơn/xác nhận) [cite: 15]
+-- Log gửi Email (Để theo dõi việc gửi mail cảm ơn/xác nhận)
 CREATE TABLE Email_Logs (
     email_log_id SERIAL PRIMARY KEY,
     recipient_email VARCHAR(255),
     email_type VARCHAR(50), -- Vd: PAYMENT_CONFIRM, THANK_YOU
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(20) CHECK (status IN ('SENT', 'FAILED'))
+);
+
+-- Bảng quản lý Hóa đơn VAT
+CREATE TABLE Invoices (
+    invoice_id SERIAL PRIMARY KEY,
+    registration_id INT REFERENCES Registrations(registration_id),
+    user_id INT REFERENCES Users(user_id), -- Người yêu cầu
+    
+    -- Thông tin xuất hóa đơn
+    company_name VARCHAR(255) NOT NULL,
+    tax_code VARCHAR(50) NOT NULL,
+    address TEXT NOT NULL,
+    email_receive VARCHAR(255) NOT NULL, -- Email nhận hóa đơn
+    
+    status VARCHAR(20) DEFAULT 'REQUESTED' 
+        CHECK (status IN ('REQUESTED', 'SENT')),
+    
+    invoice_url TEXT, -- Link file hóa đơn (PDF) nếu có sau khi xuất
+    requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    sent_at TIMESTAMP
 );
