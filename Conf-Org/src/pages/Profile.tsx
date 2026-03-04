@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   User, Mail, Building, FileText, Calendar, Edit2, Save, X, 
   Loader2, ArrowLeft, CheckCircle, AlertCircle, Shield, Camera, 
-  Upload, Link as LinkIcon, PenTool, BookOpen
+  Upload, Link as LinkIcon, PenTool, BookOpen, RefreshCw
 } from 'lucide-react';
 import Button from '../components/ui/Button'; 
 import { supabase } from '../lib/supabase'; 
@@ -20,6 +20,7 @@ interface UserProfile {
   email: string;
   organization: string | null;
   description: string | null;
+  description_reformat: string | null;
   created_at: string;
   role_name?: string; 
   role_id?: number; // Added
@@ -66,6 +67,83 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
     }
   }, [userEmail]);
 
+  const formatBioDirectly = (text: string): string => {
+    if (!text) return "";
+
+    let formatted = text;
+
+    // 1. Chuẩn hóa whitespace
+    formatted = formatted
+      .replace(/\r/g, "")
+      .replace(/\t+/g, " ")
+      .replace(/ {2,}/g, " ")
+      .trim();
+
+    // 2. Chuẩn hóa bullet (PDF hay dùng • ◦)
+    formatted = formatted
+      .replace(/•/g, "\n• ")
+      .replace(/◦/g, "\n  ◦ ");
+
+    // 3. Tách SECTION rõ ràng
+    const sections = [
+      "Objective",
+      "Education",
+      "Experience",
+      "Projects",
+      "Research",
+      "Skills",
+    ];
+
+    sections.forEach(section => {
+      const regex = new RegExp(`\\b(${section})\\b`, "gi");
+      formatted = formatted.replace(regex, `\n\n**$1**\n`);
+    });
+
+    // 4. Fix các chỗ bullet bị dính sau dấu :
+    formatted = formatted.replace(/:\s*(?=[A-Z])/g, ":\n");
+
+    // 5. Ngắt dòng an toàn cho mô tả dài (chỉ khi có dấu . + space + chữ hoa + >= 80 ký tự phía trước)
+    formatted = formatted.replace(
+      /(.{80,}?[.!?])\s+(?=[A-Z])/g,
+      "$1\n"
+    );
+
+    // 6. Dọn dẹp dòng trống
+    formatted = formatted
+      .replace(/\n{3,}/g, "\n\n")
+      .replace(/[ \t]+\n/g, "\n");
+
+    return formatted.trim();
+  };
+
+  const handleRefreshBio = async () => {
+    if (!profile || !profile.description) return;
+
+    setBioSaving(true);
+    try {
+      // XỬ LÝ TRỰC TIẾP TẠI ĐÂY
+      const newFormattedBio = formatBioDirectly(profile.description);
+
+      // Lưu thẳng vào cột description_reformat trong Supabase [cite: 575]
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ description_reformat: newFormattedBio })
+        .eq('user_id', profile.user_id);
+
+      if (updateError) throw updateError;
+
+      // Cập nhật State để UI hiển thị nội dung mới ngay lập tức
+      setProfile({ ...profile, description_reformat: newFormattedBio });
+      setSuccessMsg('Profile reformatted successfully!');
+
+    } catch (err: any) {
+      setError('Failed to reformat bio.');
+    } finally {
+      setBioSaving(false);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    }
+  };
+  
   // --- DATA FETCHING ---
 
   const fetchProfile = async () => {
@@ -76,7 +154,7 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
       const { data, error } = await supabase
         .from('users')
         .select(`
-          user_id, full_name, email, organization, description, created_at, avatar_url,
+          user_id, full_name, email, organization, description, description_reformat,created_at, avatar_url,
           user_roles ( role_id, roles ( role_name ) )
         `)
         .eq('email', userEmail)
@@ -87,13 +165,24 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
       if (data) {
         let roleName = 'Participant';
         let roleId = 5;
-        // @ts-ignore
-        const rawRoles = data.user_roles;
+
+        // Sử dụng Type Assertion (as any[]) để thoát khỏi lỗi 'never'
+        const rawRoles = data.user_roles as any[]; 
+        
         if (rawRoles && rawRoles.length > 0) {
-           roleId = rawRoles[0].role_id;
-           if (rawRoles[0].roles) {
-             roleName = rawRoles[0].roles.role_name;
-           }
+          const firstRoleEntry = rawRoles[0];
+          roleId = firstRoleEntry.role_id;
+
+          if (firstRoleEntry.roles) {
+            // Ép kiểu cho rolesData để TypeScript biết nó chứa role_name
+            const rolesData = firstRoleEntry.roles;
+            
+            if (Array.isArray(rolesData)) {
+              roleName = rolesData[0]?.role_name || 'Participant';
+            } else {
+              roleName = (rolesData as any).role_name || 'Participant';
+            }
+          }
         }
 
         const userProfile: UserProfile = {
@@ -102,6 +191,7 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
           email: data.email,
           organization: data.organization,
           description: data.description,
+          description_reformat: data.description_reformat,
           created_at: data.created_at,
           role_name: roleName,
           role_id: roleId,
@@ -518,18 +608,21 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
             {/* SECTION 2: PROFESSIONAL BIO */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                <h3 className="text-lg font-semibold text-slate-900">Professional Bio</h3>
-                <p className="text-xs text-slate-500">Update your bio to improve networking & AI matching.</p>
+                <h3 className="text-lg font-semibold text-slate-900">Professional Profile</h3>
               </div>
+
+            
               
               <div className="p-6">
-                {/* Mode Selector */}
                 {bioMode === 'VIEW' && (
                   <div className="space-y-4">
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-slate-700 text-sm leading-relaxed whitespace-pre-wrap min-h-[100px]">
-                      {profile?.description || <span className="text-slate-400 italic">No bio added yet.</span>}
+                    {/* Ưu tiên hiển thị description_reformat */}
+                    <div className="prose prose-slate max-w-none text-slate-700 leading-relaxed whitespace-pre-line text-sm italic">
+                      {profile?.description_reformat || profile?.description || "No professional summary available yet."}
                     </div>
-                    <div className="flex flex-wrap gap-3">
+                    
+                    {/* Các nút hành động */}
+                    <div className="flex flex-wrap gap-3 pt-4 border-t border-slate-50">
                       <Button variant="outline" size="sm" onClick={() => setBioMode('MANUAL')}>
                         <PenTool className="w-4 h-4 mr-2" /> Edit Text
                       </Button>
@@ -539,6 +632,16 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                       <Button variant="outline" size="sm" onClick={() => setBioMode('SCHOLAR')}>
                         <LinkIcon className="w-4 h-4 mr-2" /> Import Scholar
                       </Button>
+                      {bioMode === 'VIEW' && profile?.description && (
+                        <button 
+                          onClick={handleRefreshBio}
+                          disabled={bioSaving}
+                          className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-full transition-all group"
+                          title="Reformat existing bio using AI"
+                        >
+                          <RefreshCw className={`w-5 h-5 ${bioSaving ? 'animate-spin text-brand-600' : 'group-hover:rotate-180 duration-500'}`} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
