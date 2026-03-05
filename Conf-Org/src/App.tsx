@@ -41,6 +41,7 @@ const App: React.FC = () => {
   const [userRole, setUserRole] = useState('');
   const [userRoleId, setUserRoleId] = useState<number>(0);
   const [userAvatar, setUserAvatar] = useState('');
+  const [viewingUserEmail, setViewingUserEmail] = useState<string | null>(null);
   
   // New State for Detail Page
   const [selectedConferenceId, setSelectedConferenceId] = useState<number>(0);
@@ -239,6 +240,12 @@ const App: React.FC = () => {
     navigateToHome();
   };
 
+  const navigateToUserProfile = (email: string) => {
+    setViewingUserEmail(email);
+    window.scrollTo(0, 0);
+    setCurrentPage('profile');
+  };
+
   // Render Register Page
   if (currentPage === 'register') {
     return (
@@ -265,11 +272,15 @@ const App: React.FC = () => {
   if (currentPage === 'profile') {
     return (
       <Profile 
-        userEmail={userEmail}
-        onNavigateHome={navigateToHome}
-        onNavigateMyPapers={navigateToMyPapers} // Pass navigator
+        // Ưu tiên email đang được xem, nếu null thì hiện profile cá nhân
+        userEmail={viewingUserEmail || userEmail} 
+        onNavigateHome={() => {
+          setViewingUserEmail(null); // Reset khi quay lại
+          navigateToHome();
+        }}
+        onNavigateMyPapers={navigateToMyPapers}
       />
-    );
+  );
   }
 
   // Render Create Conference Page
@@ -603,6 +614,7 @@ const App: React.FC = () => {
           <AttendancesManagement 
             userRoleId={userRoleId} // Truyền quyền để kiểm tra Admin/Secretary [cite: 262, 588]
             onNavigateBack={navigateToHome}
+            onNavigateProfile={navigateToUserProfile}
           />
           <Footer />
         </>
