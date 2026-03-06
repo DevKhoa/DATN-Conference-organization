@@ -103,8 +103,8 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({ userRoleI
       if (regError) throw regError;
 
       const processedData: AttendeeRow[] = (data as any[]).map(reg => {
-        // Vì attendences liên kết với registration_id, ta lấy phần tử đầu tiên của mảng join
-        const att = reg.attendences && reg.attendences.length > 0 ? reg.attendences[0] : null;
+        // Vì đã thêm unique constraint cho registration_id, attendences trả về là OBJECT, không phải array
+        const att = reg.attendences || null;
         
         return {
           registration_id: reg.registration_id,
@@ -113,9 +113,9 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({ userRoleI
           email: reg.user?.email || '',
           organization: reg.user?.organization || '',
           ticket_name: reg.ticket_configs?.ticket_name || 'Standard',
-          is_checkin: att?.is_checkin || false,
+          is_checkin: att?.is_checkin ?? false, 
           checkin_time: att?.checkin_time || null,
-          at_id: att?.at_id || null
+          at_id: att?.at_id ?? null
         };
       });
 
@@ -132,50 +132,71 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({ userRoleI
     if (selectedConfId) fetchDashboardData(selectedConfId);
   }, [selectedConfId]);
 
+  useEffect(() => {
+    // Đăng ký lắng nghe sự thay đổi trên bảng 'attendences'
+    const channel = supabase
+      .channel('attendences_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'attendences' },
+        (payload: any) => {
+          // Khi có máy khác check-in, cập nhật ngay vào state attendees
+          const newRecord = payload.new;
+          if (newRecord && newRecord.registration_id) {
+            setAttendees(prevAttendees => 
+              prevAttendees.map(attendee => 
+                attendee.registration_id === newRecord.registration_id 
+                  ? { ...attendee, is_checkin: newRecord.is_checkin, checkin_time: newRecord.checkin_time }
+                  : attendee
+              )
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   // 2. TOGGLE CHECK-IN: Sử dụng registration_id để xác định bản ghi
+  
+  // 2. TOGGLE CHECK-IN: Tối ưu với Optimistic Update và Upsert
   const handleToggleCheckIn = async (registrationId: number, currentStatus: boolean) => {
+    const newStatus = !currentStatus;
+    const newTime = newStatus ? new Date().toISOString() : null;
+
+    // A. OPTIMISTIC UPDATE: Đổi UI ngay lập tức cho mượt
+    setAttendees(prevAttendees => 
+      prevAttendees.map(attendee => 
+        attendee.registration_id === registrationId 
+          ? { ...attendee, is_checkin: newStatus, checkin_time: newTime }
+          : attendee
+      )
+    );
+
     try {
-      const newStatus = !currentStatus;
-      const newTime = newStatus ? new Date().toISOString() : null;
-
-      // Kiểm tra xem đã có bản ghi điểm danh cho mã đăng ký này chưa
-      const { data: existingEntry, error: fetchError } = await supabase
+      // B. Gọi API ngầm: Dùng Upsert cực gọn, dựa vào Unique constraint đã tạo ở bước 1
+      const { error: upsertError } = await supabase
         .from('attendences')
-        .select('at_id')
-        .eq('registration_id', registrationId)
-        .maybeSingle();
-
-      if (fetchError) throw fetchError;
-
-      if (existingEntry) {
-        // Nếu có rồi thì UPDATE
-        const { error: updateError } = await supabase
-          .from('attendences')
-          .update({ 
-            is_checkin: newStatus, 
-            checkin_time: newTime 
-          })
-          .eq('at_id', existingEntry.at_id);
-
-        if (updateError) throw updateError;
-      } else {
-        // Nếu chưa có thì INSERT mới kèm registration_id
-        const { error: insertError } = await supabase
-          .from('attendences')
-          .insert({
+        .upsert(
+          { 
             registration_id: registrationId,
             is_checkin: newStatus,
             checkin_time: newTime
-          });
+          },
+          { 
+            onConflict: 'registration_id' // Cực kỳ quan trọng để chặn double click
+          }
+        );
 
-        if (insertError) throw insertError;
-      }
-
-      // Refresh data
-      if (selectedConfId) fetchDashboardData(selectedConfId);
+      if (upsertError) throw upsertError;
 
     } catch (err: any) {
       console.error("Lỗi chi tiết:", err);
+      // C. ROLLBACK: Nếu mạng rớt hoặc lỗi DB, load lại data chuẩn để UI không bị sai
+      if (selectedConfId) fetchDashboardData(selectedConfId);
       alert(`Thao tác thất bại: ${err.message || 'Lỗi cơ sở dữ liệu'}`);
     }
   };
