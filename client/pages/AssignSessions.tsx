@@ -42,7 +42,7 @@ interface ChairCandidate {
   similarity_score?: number;
 }
 
-const BASE_API_URL = "https://conference-backend-api-220969899128.us-central1.run.app";
+const BASE_API_URL = "http://localhost:8080";
 
 const AssignSessions: React.FC<AssignSessionsProps> = ({ conferenceId, userRoleId, onNavigateBack }) => {
   const isAuthorized = userRoleId === 1 || userRoleId === 2; 

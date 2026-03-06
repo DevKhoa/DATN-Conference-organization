@@ -30,7 +30,8 @@ from auto_session import get_batch_embeddings, generate_session_title
 from reviews_analysis import analyze_entities, analyze_sentiment, calculate_depth_score
 from my_email import send_email
 
-HOST = '0.0.0.0'
+// HOST = '0.0.0.0'
+HOST = 'localhost'
 PORT = 8080
 
 app = FastAPI(title="Conference Paper API")

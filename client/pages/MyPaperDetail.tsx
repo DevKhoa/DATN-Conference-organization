@@ -12,7 +12,7 @@ interface MyPaperDetailProps {
   onNavigateBack: () => void;
 }
 
-const BASE_API_URL = "https://conference-backend-api-220969899128.us-central1.run.app";
+const BASE_API_URL = "http://localhost:8080";
 
 const MyPaperDetail: React.FC<MyPaperDetailProps> = ({ paperId, onNavigateBack }) => {
   // --- STATE ---
