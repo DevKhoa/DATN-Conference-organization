@@ -1,0 +1,33 @@
+[project]
+name = "demo-app"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi",
+    "uvicorn", 
+    "pydantic",
+    "pydantic[email]",
+    "python-multipart",
+
+    "pandas",
+    "numpy",
+    "ipykernel",
+    "k-means-constrained",
+
+    "supabase", 
+
+    "google-genai",
+    "google-cloud-language",
+    "google-cloud-storage",
+
+    "pypdf",
+    "langchain",
+    "langchain-text-splitters",
+    "langchain-community",
+    "langchain-google-genai",
+
+    "serpapi"
+
+]
