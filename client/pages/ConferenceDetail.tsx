@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Calendar, MapPin, ArrowLeft, Clock, User, FileText, 
   ChevronDown, ChevronUp, Mic, Mail, Info, Loader2, 
-  Image as ImageIcon, ChevronRight, Settings
+  Image as ImageIcon, ChevronRight, Settings, CheckCircle2
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import { supabase } from '../lib/supabase';
@@ -13,6 +13,7 @@ interface ConferenceDetailProps {
   conferenceId: number;
   onNavigateBack: () => void;
   onNavigateAssignSessions?: () => void; // New Prop
+  onNavigateAttendance?: (confId: number, sessionId: number) => void;
   userRoleId?: number; // New Prop
 }
 
@@ -153,7 +154,7 @@ const ChairSection: React.FC<{ chair: ChairPerson }> = ({ chair }) => {
 
 // --- MAIN COMPONENT ---
 
-const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNavigateBack, onNavigateAssignSessions, userRoleId = 0 }) => {
+const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNavigateBack, onNavigateAssignSessions, onNavigateAttendance, userRoleId = 0 }) => {
   // --- State ---
   const [conference, setConference] = useState<ConferenceData | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -290,17 +291,49 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
             <span className="text-sm font-medium">Back to List</span>
           </button>
 
-          {/* ADMIN ACTION: Assign Sessions */}
-          {canEdit && onNavigateAssignSessions && (
-            <Button 
-              onClick={onNavigateAssignSessions} 
-              variant="white-outline" 
-              icon={Settings} 
-              className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20"
-            >
-              Assign Sessions
-            </Button>
-          )}
+          <div className="flex items-center gap-3">
+            {/* NEW: ATTENDANCE MANAGEMENT DROPDOWN (Admin Only) */}
+            {userRoleId === 1 && sessions.length > 0 && onNavigateAttendance && (
+              <div className="relative group/attendance">
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 text-white/90 cursor-pointer hover:bg-white/20 transition-all">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span className="text-sm font-medium">Attendance management</span>
+                  <ChevronDown className="w-4 h-4" />
+                </div>
+                
+                {/* Dropdown Menu */}
+                <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-2 opacity-0 invisible group-hover/attendance:opacity-100 group-hover/attendance:visible transition-all z-50">
+                  <div className="px-4 py-2 border-b border-slate-100">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Select Session to Manage</p>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto">
+                    {sessions.map(s => (
+                      <button
+                        key={s.session_id}
+                        onClick={() => onNavigateAttendance(conferenceId, s.session_id)}
+                        className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-700 transition-colors flex items-center justify-between group/item"
+                      >
+                        <span className="font-medium truncate mr-2">{s.session_name}</span>
+                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover/item:text-brand-500 transition-colors" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ADMIN ACTION: Assign Sessions */}
+            {canEdit && onNavigateAssignSessions && (
+              <Button 
+                onClick={onNavigateAssignSessions} 
+                variant="white-outline" 
+                icon={Settings} 
+                className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20"
+              >
+                Assign Sessions
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Title Content */}

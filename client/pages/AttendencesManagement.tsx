@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Users, QrCode, Search, ChevronDown, CheckCircle2, Ticket, 
   Loader2, AlertCircle, RefreshCw, Calendar, MapPin, 
-  ChevronLeft, ChevronRight, XCircle, UserCheck
+  ChevronLeft, ChevronRight, XCircle, UserCheck, ArrowLeft
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import { supabase } from '../lib/supabase';
@@ -11,6 +11,15 @@ interface AttendencesManagementProps {
   userRoleId: number;
   onNavigateBack: () => void;
   onNavigateProfile: (email: string) => void;
+  initialConfId?: number;    
+  initialSessionId?: number;
+}
+
+// Interface cho Session
+interface Session {
+  session_id: number;
+  session_name: string;
+  room_location: string;
 }
 
 interface AttendeeRow {
@@ -25,14 +34,24 @@ interface AttendeeRow {
   at_id: number | null; 
 }
 
-const AttendencesManagement: React.FC<AttendencesManagementProps> = ({ userRoleId, onNavigateBack, onNavigateProfile }) => {
+const AttendencesManagement: React.FC<AttendencesManagementProps> = ({ 
+  userRoleId, 
+  onNavigateBack, 
+  onNavigateProfile,
+  initialConfId,
+  initialSessionId
+}) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   
   const [conferences, setConferences] = useState<any[]>([]);
-  const [selectedConfId, setSelectedConfId] = useState<number | null>(null);
+  const [selectedConfId, setSelectedConfId] = useState<number | null>(initialConfId || null);
   
+  // New states for Sessions
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<number | null>(initialSessionId || null);
+
   const [ticketStats, setTicketStats] = useState<any[]>([]);
   const [attendees, setAttendees] = useState<AttendeeRow[]>([]);
 
@@ -43,6 +62,7 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({ userRoleI
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  // 1. Fetch Conferences
   useEffect(() => {
     const fetchConferences = async () => {
       try {
@@ -56,7 +76,7 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({ userRoleI
         if (confError) throw confError;
         if (data && data.length > 0) {
           setConferences(data);
-          setSelectedConfId(data[0].conf_id);
+          if (!selectedConfId) setSelectedConfId(data[0].conf_id);
         }
       } catch (err: any) {
         setError('Không thể tải danh sách hội nghị.');
@@ -67,44 +87,64 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({ userRoleI
     fetchConferences();
   }, []);
 
-  // 1. FETCH DATA: Registrations là gốc, Join User, TicketConfigs và Attendences qua registration_id
-  const fetchDashboardData = async (confId: number, isRefresh = false) => {
+  // 2. Fetch Sessions when Conference changes
+  useEffect(() => {
+    const fetchSessions = async () => {
+      if (!selectedConfId) return;
+      try {
+        const { data, error: sessError } = await supabase
+          .from('sessions')
+          .select('session_id, session_name, room_location')
+          .eq('conf_id', selectedConfId);
+        
+        if (sessError) throw sessError;
+        setSessions(data || []);
+        if (data && data.length > 0) {
+          setSelectedSessionId(data[0].session_id);
+        } else {
+          setSelectedSessionId(null);
+          setAttendees([]);
+        }
+      } catch (err) {
+        setError('Không thể tải danh sách phiên họp.');
+      }
+    };
+    fetchSessions();
+  }, [selectedConfId]);
+
+  // 3. FETCH DATA: Lấy danh sách người đăng ký thuộc về Session đó
+  const fetchDashboardData = async (sessionId: number, isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
       
+      // Lấy thống kê vé chung cho hội nghị
       const { data: ticketsData } = await supabase
         .from('ticket_configs')
         .select('*')
-        .eq('conference_id', confId);
+        .eq('conference_id', selectedConfId);
       setTicketStats(ticketsData || []);
 
+      // Truy vấn Registrations -> TicketSession (filter by sessionId) -> Attendences (filter by sessionId)
       const { data, error: regError } = await supabase
         .from('registrations')
         .select(`
           registration_id,
-          user:user_id (
-            user_id, 
-            full_name, 
-            email, 
-            organization
-          ),
+          user:user_id (user_id, full_name, email, organization),
           ticket_configs!inner (
             ticket_name,
-            conference_id
+            ticket_session!inner (session_id)
           ),
           attendences (
-            at_id,
-            is_checkin,
-            checkin_time
+            at_id, is_checkin, checkin_time, session_id
           )
         `)
-        .eq('ticket_configs.conference_id', confId);
+        .eq('ticket_configs.ticket_session.session_id', sessionId);
 
       if (regError) throw regError;
 
       const processedData: AttendeeRow[] = (data as any[]).map(reg => {
-        // Vì đã thêm unique constraint cho registration_id, attendences trả về là OBJECT, không phải array
-        const att = reg.attendences || null;
+        // Lấy đúng bản ghi điểm danh của session này
+        const att = reg.attendences?.find((a: any) => a.session_id === sessionId) || null;
         
         return {
           registration_id: reg.registration_id,
@@ -129,18 +169,19 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({ userRoleI
   };
 
   useEffect(() => {
-    if (selectedConfId) fetchDashboardData(selectedConfId);
-  }, [selectedConfId]);
+    if (selectedSessionId) fetchDashboardData(selectedSessionId);
+  }, [selectedSessionId]);
 
+  // Realtime Subscription
   useEffect(() => {
-    // Đăng ký lắng nghe sự thay đổi trên bảng 'attendences'
+    if (!selectedSessionId) return;
+
     const channel = supabase
       .channel('attendences_changes')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'attendences' },
+        { event: '*', schema: 'public', table: 'attendences', filter: `session_id=eq.${selectedSessionId}` },
         (payload: any) => {
-          // Khi có máy khác check-in, cập nhật ngay vào state attendees
           const newRecord = payload.new;
           if (newRecord && newRecord.registration_id) {
             setAttendees(prevAttendees => 
@@ -158,16 +199,16 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({ userRoleI
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [selectedSessionId]);
 
-  // 2. TOGGLE CHECK-IN: Sử dụng registration_id để xác định bản ghi
-  
-  // 2. TOGGLE CHECK-IN: Tối ưu với Optimistic Update và Upsert
+  // 4. TOGGLE CHECK-IN: Theo registration_id và session_id
   const handleToggleCheckIn = async (registrationId: number, currentStatus: boolean) => {
+    if (!selectedSessionId) return;
+    
     const newStatus = !currentStatus;
     const newTime = newStatus ? new Date().toISOString() : null;
 
-    // A. OPTIMISTIC UPDATE: Đổi UI ngay lập tức cho mượt
+    // Optimistic Update
     setAttendees(prevAttendees => 
       prevAttendees.map(attendee => 
         attendee.registration_id === registrationId 
@@ -177,17 +218,17 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({ userRoleI
     );
 
     try {
-      // B. Gọi API ngầm: Dùng Upsert cực gọn, dựa vào Unique constraint đã tạo ở bước 1
       const { error: upsertError } = await supabase
         .from('attendences')
         .upsert(
           { 
             registration_id: registrationId,
+            session_id: selectedSessionId,
             is_checkin: newStatus,
             checkin_time: newTime
           },
           { 
-            onConflict: 'registration_id' // Cực kỳ quan trọng để chặn double click
+            onConflict: 'registration_id, session_id' 
           }
         );
 
@@ -195,13 +236,12 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({ userRoleI
 
     } catch (err: any) {
       console.error("Lỗi chi tiết:", err);
-      // C. ROLLBACK: Nếu mạng rớt hoặc lỗi DB, load lại data chuẩn để UI không bị sai
-      if (selectedConfId) fetchDashboardData(selectedConfId);
+      if (selectedSessionId) fetchDashboardData(selectedSessionId);
       alert(`Thao tác thất bại: ${err.message || 'Lỗi cơ sở dữ liệu'}`);
     }
   };
 
-  // --- UI LOGIC (Giữ nguyên) ---
+  // UI LOGIC
   const currentConf = conferences.find(c => c.conf_id === selectedConfId);
   
   const filteredAttendees = useMemo(() => {
@@ -222,44 +262,77 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({ userRoleI
   const ticketTypes = Array.from(new Set(attendees.map(a => a.ticket_name)));
   const organizations = Array.from(new Set(attendees.map(a => a.organization).filter(Boolean)));
 
+  // Reset page when filters change
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, filterTicketType, filterStatus, filterOrg, selectedSessionId]);
+
   if (userRoleId !== 1 && userRoleId !== 2) return <div className="p-20 text-center font-bold">Truy cập bị từ chối.</div>; 
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-20">
-      {/* Header (Giữ nguyên UI của bạn) */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center gap-4">
+            {initialConfId && (
+              <button 
+                onClick={onNavigateBack}
+                className="p-2 -ml-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-full transition-all group"
+                title="Back to Conference Detail"
+              >
+                <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+              </button>
+            )}
+
             <div className="p-3 bg-brand-700 rounded-xl text-white shadow-lg">
                 <Calendar className="w-6 h-6" />
             </div>
             <div>
-                <h1 className="text-xl font-extrabold text-slate-900 leading-tight">{currentConf?.conf_name || "Hội nghị Test"}</h1>
+                <h1 className="text-xl font-extrabold text-slate-900 leading-tight">{currentConf?.conf_name || "Conference Management"}</h1>
                 <div className="flex items-center gap-4 mt-1 text-xs text-slate-500 font-bold">
                   <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {currentConf?.start_date ? new Date(currentConf.start_date).toLocaleDateString('vi-VN') : '--/--/----'}</span>
                   <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {currentConf?.location || 'Chưa xác định'}</span>
                 </div>
             </div>
           </div>
-          <div className="relative w-full md:w-64">
-            <select 
-              className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 appearance-none outline-none focus:ring-2 focus:ring-brand-500"
-              onChange={(e) => setSelectedConfId(Number(e.target.value))}
-              value={selectedConfId || ''}
-            >
-              {conferences.map(c => <option key={c.conf_id} value={c.conf_id}>{c.conf_name}</option>)}
-            </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            {/* Conference Selector */}
+            <div className="relative min-w-[200px]">
+              <select 
+                className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 appearance-none outline-none focus:ring-2 focus:ring-brand-500"
+                onChange={(e) => setSelectedConfId(Number(e.target.value))}
+                value={selectedConfId || ''}
+              >
+                {conferences.map(c => <option key={c.conf_id} value={c.conf_id}>{c.conf_name}</option>)}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            </div>
+
+            {/* Session Selector */}
+            <div className="relative min-w-[200px]">
+              <select 
+                className="w-full pl-4 pr-10 py-2.5 bg-brand-50 border border-brand-200 rounded-xl text-sm font-bold text-brand-700 appearance-none outline-none focus:ring-2 focus:ring-brand-500"
+                onChange={(e) => setSelectedSessionId(Number(e.target.value))}
+                value={selectedSessionId || ''}
+                disabled={sessions.length === 0}
+              >
+                {sessions.length > 0 ? (
+                  sessions.map(s => <option key={s.session_id} value={s.session_id}>{s.session_name}</option>)
+                ) : (
+                  <option>No sessions available</option>
+                )}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-500 pointer-events-none" />
+            </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8">
-        {/* KPI CARDS (Giữ nguyên) */}
+        {/* KPI CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
             <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">TOTAL REGISTRATION</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">SESSION REGISTRATION</p>
               <div className="flex items-baseline gap-2">
                 <span className="text-4xl font-black text-slate-900">{attendees.length.toLocaleString()}</span>
                 <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md">Registrants</span>
@@ -272,7 +345,7 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({ userRoleI
 
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
             <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">TOTAL CHECKED IN</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">SESSION CHECKED IN</p>
               <p className="text-3xl font-black text-slate-900">
                 {attendees.filter(a => a.is_checkin).length} <span className="text-base text-slate-400">/ {attendees.length}</span>
               </p>
@@ -293,7 +366,7 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({ userRoleI
 
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <div className="flex justify-between items-center mb-3">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TICKET CHART</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TICKET DISTRIBUTION</p>
                 <Ticket className="w-4 h-4 text-slate-300" />
             </div>
             <div className="flex h-3 w-full bg-slate-100 rounded-full overflow-hidden mb-3">
@@ -319,7 +392,7 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({ userRoleI
           </div>
         </div>
 
-        {/* Filter Bar (Giữ nguyên) */}
+        {/* Filter Bar */}
         <div className="flex flex-wrap gap-3 mb-6">
           <div className="relative flex-grow min-w-[300px]">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -433,7 +506,7 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({ userRoleI
             </tbody>
           </table>
 
-          {/* Pagination (Giữ nguyên) */}
+          {/* Pagination */}
           <div className="px-8 py-4 border-t border-slate-50 flex justify-between items-center bg-slate-50/20">
             <p className="text-[11px] font-bold text-slate-400 italic">Display {(currentPage-1)*itemsPerPage + 1} - {Math.min(currentPage*itemsPerPage, filteredAttendees.length)} of {filteredAttendees.length.toLocaleString()}</p>
             <div className="flex gap-1.5">

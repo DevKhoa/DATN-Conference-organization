@@ -48,6 +48,8 @@ const App: React.FC = () => {
   // New State for Paper Detail Page
   const [selectedPaperId, setSelectedPaperId] = useState<number>(0);
 
+  const [attendanceContext, setAttendanceContext] = useState<{ confId: number; sessionId: number } | null>(null);
+
   // Persist Login State
   useEffect(() => {
     const storedUser = localStorage.getItem('conf_user');
@@ -205,11 +207,15 @@ const App: React.FC = () => {
     setCurrentPage('ai-assistant');
   };
 
-  const navigateToAttendences = () => {
-  window.scrollTo(0, 0);
-  setCurrentPage('attendences-management'); 
-};
-
+  const navigateToAttendences = (confId?: number, sessionId?: number) => {
+    if (confId && sessionId) {
+      setAttendanceContext({ confId, sessionId });
+    } else {
+      setAttendanceContext(null);
+    }
+    window.scrollTo(0, 0);
+    setCurrentPage('attendences-management'); 
+  };
   const handleAuthSuccess = (data: { name: string; email: string; role: string; roleId: number; avatar: string }) => {
     setIsLoggedIn(true);
     setUserName(data.name);
@@ -371,6 +377,7 @@ const App: React.FC = () => {
           onNavigateBack={navigateToConferences}
           // Pass navigation prop for Assign Sessions
           onNavigateAssignSessions={navigateToAssignSessions}
+          onNavigateAttendance={navigateToAttendences}
           userRoleId={userRoleId} // Pass role to check permissions
         />
         <Footer />
@@ -613,8 +620,18 @@ const App: React.FC = () => {
           />
           <AttendancesManagement 
             userRoleId={userRoleId} // Truyền quyền để kiểm tra Admin/Secretary [cite: 262, 588]
-            onNavigateBack={navigateToHome}
+            onNavigateBack={() => {
+              if (attendanceContext) {
+                setSelectedConferenceId(attendanceContext.confId);
+                setCurrentPage('conference-detail');
+                // setAttendanceContext(null); // Tùy chọn: Xóa context sau khi quay về
+              } else {
+                navigateToHome();
+              }
+            }}
             onNavigateProfile={navigateToUserProfile}
+            initialConfId={attendanceContext?.confId}     
+            initialSessionId={attendanceContext?.sessionId}
           />
           <Footer />
         </>
