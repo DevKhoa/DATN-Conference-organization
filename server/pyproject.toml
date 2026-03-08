@@ -28,6 +28,11 @@ dependencies = [
     "langchain-community",
     "langchain-google-genai",
 
-    "serpapi"
+    "serpapi",
+
+    "qrcode[pil]",
+    "opencv-python",
+
+    "requests"
 
 ]

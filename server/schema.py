@@ -111,3 +111,7 @@ class ScholarAuthor(BaseModel):
     research_fields: List[str] = Field(description="List of author research fields")
     research_directions: List[str] = Field(description="List of author research directions")
     research_themes: List[str] = Field(description="List of author research themes")
+
+class CheckinRequest(BaseModel):
+    registration_id: int
+    session_ids: List[int]

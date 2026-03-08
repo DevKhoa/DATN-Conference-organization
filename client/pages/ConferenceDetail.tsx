@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Calendar, MapPin, ArrowLeft, Clock, User, FileText, 
-  ChevronDown, ChevronUp, Mic, Mail, Info, Loader2, 
-  Image as ImageIcon, ChevronRight, Settings, CheckCircle2
+import {
+  Calendar, MapPin, ArrowLeft, Clock, User, FileText,
+  ChevronDown, ChevronUp, Mic, Mail, Info, Loader2,
+  Image as ImageIcon, ChevronRight, Settings, CheckCircle2, QrCode, X
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import { supabase } from '../lib/supabase';
@@ -12,9 +12,10 @@ import { supabase } from '../lib/supabase';
 interface ConferenceDetailProps {
   conferenceId: number;
   onNavigateBack: () => void;
-  onNavigateAssignSessions?: () => void; // New Prop
+  onNavigateAssignSessions?: () => void;
   onNavigateAttendance?: (confId: number, sessionId: number) => void;
-  userRoleId?: number; // New Prop
+  onNavigateCheckinScanner?: (sessionIds: number[]) => void;
+  userRoleId?: number;
 }
 
 interface Author {
@@ -25,7 +26,7 @@ interface Paper {
   paper_id: number;
   title: string;
   abstract: string;
-  author?: Author; 
+  author?: Author;
 }
 
 interface SessionPaper {
@@ -48,7 +49,7 @@ interface Session {
   end_time: string;
   room_location: string;
   is_ai_generated: boolean;
-  chair?: ChairPerson; 
+  chair?: ChairPerson;
   session_papers: SessionPaper[];
 }
 
@@ -125,7 +126,7 @@ const ChairSection: React.FC<{ chair: ChairPerson }> = ({ chair }) => {
           </span>
         </div>
         <h4 className="text-lg font-bold text-slate-900">{chair.full_name}</h4>
-        
+
         <div className="mt-1 flex items-center text-sm text-slate-500 hover:text-brand-600 transition-colors w-fit">
           <Mail className="w-3.5 h-3.5 mr-1.5" />
           <a href={`mailto:${chair.email}`}>{chair.email}</a>
@@ -137,7 +138,7 @@ const ChairSection: React.FC<{ chair: ChairPerson }> = ({ chair }) => {
               {chair.description}
             </p>
             {isLongDescription && (
-              <button 
+              <button
                 onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
                 className="mt-1 text-brand-600 font-medium text-xs flex items-center hover:underline focus:outline-none"
               >
@@ -154,16 +155,20 @@ const ChairSection: React.FC<{ chair: ChairPerson }> = ({ chair }) => {
 
 // --- MAIN COMPONENT ---
 
-const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNavigateBack, onNavigateAssignSessions, onNavigateAttendance, userRoleId = 0 }) => {
+const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNavigateBack, onNavigateAssignSessions, onNavigateAttendance, onNavigateCheckinScanner, userRoleId = 0 }) => {
   // --- State ---
   const [conference, setConference] = useState<ConferenceData | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   // UI State
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set());
+
+  // Checkin Scanner Modal State
+  const [isCheckinModalOpen, setIsCheckinModalOpen] = useState(false);
+  const [selectedSessionsForCheckin, setSelectedSessionsForCheckin] = useState<number[]>([]);
 
   const canEdit = userRoleId === 1 || userRoleId === 2;
 
@@ -247,6 +252,13 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
     return "https://images.unsplash.com/photo-1544531586-fde5298cdd40?q=80&w=2070&auto=format&fit=crop";
   };
 
+  const handleOpenCheckinScanner = () => {
+    if (selectedSessionsForCheckin.length === 0 || !onNavigateCheckinScanner) return;
+    
+    setIsCheckinModalOpen(false);
+    onNavigateCheckinScanner(selectedSessionsForCheckin);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
@@ -271,19 +283,19 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans pb-24">
-      
+
       {/* 1. HERO / BANNER SECTION */}
       <div className="relative h-[400px] lg:h-[480px] bg-slate-900 overflow-hidden group">
-        <img 
-          src={getBannerImage()} 
-          alt={conference.conf_name} 
+        <img
+          src={getBannerImage()}
+          alt={conference.conf_name}
           className="w-full h-full object-cover opacity-90 transition-transform duration-[2000ms] ease-in-out hover:scale-105"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/40 to-transparent" />
-        
+
         {/* Navigation */}
         <div className="absolute top-6 left-4 lg:left-8 z-20 w-[95%] flex justify-between items-center">
-          <button 
+          <button
             onClick={onNavigateBack}
             className="flex items-center gap-2 text-white/90 hover:text-white bg-white/10 hover:bg-white/20 backdrop-blur-md px-4 py-2 rounded-full transition-all border border-white/10"
           >
@@ -292,6 +304,18 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
           </button>
 
           <div className="flex items-center gap-3">
+            {/* NEW: OPEN CHECKIN SCANNER (Admin/Secretariat) */}
+            {canEdit && sessions.length > 0 && onNavigateCheckinScanner && (
+              <Button
+                onClick={() => setIsCheckinModalOpen(true)}
+                variant="white-outline"
+                icon={QrCode}
+                className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-brand-50 hover:text-brand-700 hover:border-brand-200 transition-all font-bold"
+              >
+                Scan QR
+              </Button>
+            )}
+
             {/* NEW: ATTENDANCE MANAGEMENT DROPDOWN (Admin Only) */}
             {userRoleId === 1 && sessions.length > 0 && onNavigateAttendance && (
               <div className="relative group/attendance">
@@ -300,7 +324,7 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
                   <span className="text-sm font-medium">Attendance management</span>
                   <ChevronDown className="w-4 h-4" />
                 </div>
-                
+
                 {/* Dropdown Menu */}
                 <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-2 opacity-0 invisible group-hover/attendance:opacity-100 group-hover/attendance:visible transition-all z-50">
                   <div className="px-4 py-2 border-b border-slate-100">
@@ -324,10 +348,10 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
 
             {/* ADMIN ACTION: Assign Sessions */}
             {canEdit && onNavigateAssignSessions && (
-              <Button 
-                onClick={onNavigateAssignSessions} 
-                variant="white-outline" 
-                icon={Settings} 
+              <Button
+                onClick={onNavigateAssignSessions}
+                variant="white-outline"
+                icon={Settings}
                 className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20"
               >
                 Assign Sessions
@@ -340,7 +364,7 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
         <div className="absolute bottom-0 left-0 right-0 p-6 lg:p-12 z-10 max-w-7xl mx-auto">
           <div className="animate-in slide-in-from-bottom-4 duration-700">
             <div className="inline-flex items-center px-3 py-1 rounded-full bg-brand-500 text-white text-xs font-bold uppercase tracking-wide mb-4 shadow-lg shadow-brand-500/30">
-               {conference.status} Conference
+              {conference.status} Conference
             </div>
             <h1 className="text-3xl md:text-5xl font-extrabold text-white mb-4 leading-tight drop-shadow-xl tracking-tight">
               {conference.conf_name}
@@ -361,40 +385,39 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12 relative z-20">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
+
           {/* LEFT COLUMN: Main Content */}
           <div className="lg:col-span-2 space-y-8">
-            
+
             {/* Submission Status Banner */}
-            <div className={`rounded-2xl border p-5 flex items-start sm:items-center gap-4 shadow-sm ${
-               conference.open_for_papers
-                 ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-100' 
-                 : 'bg-slate-50 border-slate-200'
-            }`}>
-               <div className={`p-3 rounded-xl shrink-0 ${conference.open_for_papers ? 'bg-white text-emerald-600 shadow-sm' : 'bg-white text-slate-400 shadow-sm'}`}>
-                  {conference.open_for_papers ? <FileText className="w-6 h-6" /> : <Info className="w-6 h-6" />}
-               </div>
-               <div className="flex-grow">
-                  <h3 className={`font-bold text-base mb-1 ${conference.open_for_papers ? 'text-emerald-900' : 'text-slate-700'}`}>
-                     {conference.open_for_papers ? 'Call for Papers is Active' : 'Submissions Closed'}
-                  </h3>
-                  <p className={`text-sm ${conference.open_for_papers ? 'text-emerald-800' : 'text-slate-500'}`}>
-                     {conference.open_for_papers 
-                        ? "This conference is still open for paper submissions." 
-                        : "This conference is no longer accepting paper submissions."}
-                  </p>
-               </div>
+            <div className={`rounded-2xl border p-5 flex items-start sm:items-center gap-4 shadow-sm ${conference.open_for_papers
+                ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-100'
+                : 'bg-slate-50 border-slate-200'
+              }`}>
+              <div className={`p-3 rounded-xl shrink-0 ${conference.open_for_papers ? 'bg-white text-emerald-600 shadow-sm' : 'bg-white text-slate-400 shadow-sm'}`}>
+                {conference.open_for_papers ? <FileText className="w-6 h-6" /> : <Info className="w-6 h-6" />}
+              </div>
+              <div className="flex-grow">
+                <h3 className={`font-bold text-base mb-1 ${conference.open_for_papers ? 'text-emerald-900' : 'text-slate-700'}`}>
+                  {conference.open_for_papers ? 'Call for Papers is Active' : 'Submissions Closed'}
+                </h3>
+                <p className={`text-sm ${conference.open_for_papers ? 'text-emerald-800' : 'text-slate-500'}`}>
+                  {conference.open_for_papers
+                    ? "This conference is still open for paper submissions."
+                    : "This conference is no longer accepting paper submissions."}
+                </p>
+              </div>
             </div>
 
             {/* 2. DESCRIPTION & GALLERY */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 md:p-8">
               <div className="flex items-center gap-3 mb-6">
-                 <div className="p-2 bg-brand-50 rounded-lg">
-                    <FileText className="w-6 h-6 text-brand-600" />
-                 </div>
-                 <h2 className="text-2xl font-bold text-slate-900">About the Conference</h2>
+                <div className="p-2 bg-brand-50 rounded-lg">
+                  <FileText className="w-6 h-6 text-brand-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900">About the Conference</h2>
               </div>
-              
+
               <div className="prose prose-slate max-w-none text-slate-600 leading-relaxed mb-8">
                 {conference.description.split('\n').map((paragraph, idx) => (
                   <p key={idx} className="mb-4">{paragraph}</p>
@@ -405,16 +428,16 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
               {conference.banner_urls && conference.banner_urls.length > 0 && (
                 <div className="mt-8 pt-8 border-t border-slate-100">
                   <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-4 flex items-center">
-                    <ImageIcon className="w-4 h-4 mr-2 text-brand-500" /> 
+                    <ImageIcon className="w-4 h-4 mr-2 text-brand-500" />
                     Event Gallery
                   </h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {conference.banner_urls.map((url, index) => (
                       <div key={index} className="group relative aspect-video rounded-xl overflow-hidden bg-slate-100 cursor-pointer shadow-sm hover:shadow-md transition-all">
-                        <img 
-                          src={url} 
-                          alt={`Gallery ${index}`} 
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                        <img
+                          src={url}
+                          alt={`Gallery ${index}`}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                         />
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                       </div>
@@ -428,10 +451,10 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
             <div>
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-3">
-                   <div className="p-2 bg-brand-50 rounded-lg">
-                      <Clock className="w-6 h-6 text-brand-600" />
-                   </div>
-                   <h2 className="text-2xl font-bold text-slate-900">Agenda & Sessions</h2>
+                  <div className="p-2 bg-brand-50 rounded-lg">
+                    <Clock className="w-6 h-6 text-brand-600" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-slate-900">Agenda & Sessions</h2>
                 </div>
                 <div className="text-sm text-slate-500 font-medium bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
                   {sessions.length} Sessions
@@ -442,7 +465,7 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
                 {sessions.length === 0 ? (
                   <div className="bg-white p-12 text-center rounded-2xl border-2 border-dashed border-slate-200">
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-50 mb-4">
-                        <Calendar className="w-8 h-8 text-slate-300" />
+                      <Calendar className="w-8 h-8 text-slate-300" />
                     </div>
                     <p className="text-slate-500 font-medium">No sessions scheduled yet.</p>
                   </div>
@@ -451,7 +474,7 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
                     const isExpanded = expandedSessions.has(session.session_id);
                     const startTime = formatTimeOnly(session.start_time);
                     const endTime = formatTimeOnly(session.end_time);
-                    
+
                     // Logic for Date Headers
                     const prevSession = index > 0 ? sessions[index - 1] : null;
                     const isNewDay = !prevSession || !isSameDay(session.start_time, prevSession.start_time);
@@ -459,43 +482,42 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
 
                     return (
                       <React.Fragment key={session.session_id}>
-                        
+
                         {/* --- DATE HEADER --- */}
                         {isNewDay && (
                           <div className="relative pt-4 pb-8">
-                             {/* Date Badge */}
-                             <div className="flex items-center gap-4 relative z-10">
-                                <div className="flex flex-col items-center justify-center bg-brand-600 text-white rounded-xl shadow-lg shadow-brand-200 w-16 h-16 shrink-0 border-4 border-slate-50">
-                                   <span className="text-xs font-bold uppercase tracking-wider opacity-80">{dateInfo.weekday.substring(0, 3)}</span>
-                                   <span className="text-xl font-extrabold">{dateInfo.day}</span>
-                                </div>
-                                <div>
-                                   <h3 className="text-xl font-bold text-slate-800">{dateInfo.weekday}</h3>
-                                   <p className="text-slate-500 font-medium">{dateInfo.monthYear}</p>
-                                </div>
-                                <div className="flex-grow h-px bg-gradient-to-r from-slate-200 to-transparent ml-4"></div>
-                             </div>
-                             {/* Connecting Line Start */}
-                             <div className="absolute left-8 top-16 bottom-0 w-0.5 bg-slate-200 -z-0"></div>
+                            {/* Date Badge */}
+                            <div className="flex items-center gap-4 relative z-10">
+                              <div className="flex flex-col items-center justify-center bg-brand-600 text-white rounded-xl shadow-lg shadow-brand-200 w-16 h-16 shrink-0 border-4 border-slate-50">
+                                <span className="text-xs font-bold uppercase tracking-wider opacity-80">{dateInfo.weekday.substring(0, 3)}</span>
+                                <span className="text-xl font-extrabold">{dateInfo.day}</span>
+                              </div>
+                              <div>
+                                <h3 className="text-xl font-bold text-slate-800">{dateInfo.weekday}</h3>
+                                <p className="text-slate-500 font-medium">{dateInfo.monthYear}</p>
+                              </div>
+                              <div className="flex-grow h-px bg-gradient-to-r from-slate-200 to-transparent ml-4"></div>
+                            </div>
+                            {/* Connecting Line Start */}
+                            <div className="absolute left-8 top-16 bottom-0 w-0.5 bg-slate-200 -z-0"></div>
                           </div>
                         )}
 
                         {/* --- SESSION ITEM --- */}
                         <div className="group flex gap-4 md:gap-6 relative mb-6">
-                          
+
                           {/* Timeline Left Column */}
                           <div className="flex flex-col items-center flex-shrink-0 w-16 md:w-16 pt-2 z-10 bg-slate-50">
                             <span className={`text-sm font-bold font-mono tracking-tight ${isExpanded ? 'text-brand-600' : 'text-slate-500'}`}>
                               {startTime}
                             </span>
                             <span className="text-[10px] text-slate-400 font-medium">{endTime}</span>
-                            
+
                             {/* Dot */}
-                            <div className={`mt-2 w-3 h-3 rounded-full border-2 transition-all duration-300 ${
-                                isExpanded 
-                                  ? 'bg-brand-600 border-brand-200 shadow-[0_0_0_4px_rgba(37,99,235,0.1)] scale-110' 
-                                  : 'bg-white border-slate-300 group-hover:border-brand-400'
-                              }`} 
+                            <div className={`mt-2 w-3 h-3 rounded-full border-2 transition-all duration-300 ${isExpanded
+                                ? 'bg-brand-600 border-brand-200 shadow-[0_0_0_4px_rgba(37,99,235,0.1)] scale-110'
+                                : 'bg-white border-slate-300 group-hover:border-brand-400'
+                              }`}
                             />
                           </div>
 
@@ -503,14 +525,13 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
                           <div className="absolute left-8 top-0 bottom-[-24px] w-0.5 bg-slate-200 group-hover:bg-slate-300 transition-colors -z-0 ml-[1px]"></div>
 
                           {/* Content Card */}
-                          <div className={`flex-grow bg-white rounded-2xl transition-all duration-300 border relative z-10 ${
-                              isExpanded 
-                                ? 'shadow-lg border-brand-200 ring-1 ring-brand-100 translate-x-1' 
-                                : 'shadow-sm border-slate-200 hover:shadow-md hover:border-slate-300'
+                          <div className={`flex-grow bg-white rounded-2xl transition-all duration-300 border relative z-10 ${isExpanded
+                              ? 'shadow-lg border-brand-200 ring-1 ring-brand-100 translate-x-1'
+                              : 'shadow-sm border-slate-200 hover:shadow-md hover:border-slate-300'
                             }`}>
-                            
+
                             {/* Header (Clickable) */}
-                            <div 
+                            <div
                               onClick={() => toggleSession(session.session_id)}
                               className="p-5 md:p-6 cursor-pointer"
                             >
@@ -522,7 +543,7 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
                                       <MapPin className="w-3 h-3 mr-1" /> {session.room_location}
                                     </span>
                                   </div>
-                                  
+
                                   <h3 className={`text-lg md:text-xl font-bold transition-colors ${isExpanded ? 'text-brand-700' : 'text-slate-900 group-hover:text-brand-600'}`}>
                                     {session.session_name}
                                   </h3>
@@ -538,14 +559,14 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
                                 <div className="mt-3 flex items-center gap-2 text-sm text-slate-500 animate-in fade-in duration-300">
                                   <span className="text-xs font-semibold uppercase text-slate-400">Chair:</span>
                                   <div className="flex items-center gap-2">
-                                     {session.chair.avatar_url ? (
-                                       <img src={session.chair.avatar_url} className="w-5 h-5 rounded-full object-cover" alt="" />
-                                     ) : (
-                                       <div className="w-5 h-5 rounded-full bg-brand-100 text-brand-600 text-[10px] flex items-center justify-center font-bold">
-                                          {session.chair.full_name.charAt(0)}
-                                       </div>
-                                     )}
-                                     <span className="font-medium text-slate-700">{session.chair.full_name}</span>
+                                    {session.chair.avatar_url ? (
+                                      <img src={session.chair.avatar_url} className="w-5 h-5 rounded-full object-cover" alt="" />
+                                    ) : (
+                                      <div className="w-5 h-5 rounded-full bg-brand-100 text-brand-600 text-[10px] flex items-center justify-center font-bold">
+                                        {session.chair.full_name.charAt(0)}
+                                      </div>
+                                    )}
+                                    <span className="font-medium text-slate-700">{session.chair.full_name}</span>
                                   </div>
                                 </div>
                               )}
@@ -555,7 +576,7 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
                             {isExpanded && (
                               <div className="px-5 md:px-6 pb-6 animate-in slide-in-from-top-2 duration-300">
                                 <hr className="border-slate-100 mb-6" />
-                                
+
                                 {session.chair && <ChairSection chair={session.chair} />}
 
                                 {/* Papers List */}
@@ -564,7 +585,7 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
                                     <FileText className="w-4 h-4 mr-2 text-brand-500" />
                                     Presentations
                                   </h4>
-                                  
+
                                   <div className="space-y-4">
                                     {session.session_papers && session.session_papers.length > 0 ? (
                                       session.session_papers.map((sp, idx) => (
@@ -610,17 +631,17 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
           {/* RIGHT COLUMN: Sidebar (Sticky) */}
           <div className="lg:col-span-1">
             <div className="sticky top-8 space-y-6">
-              
+
               {/* Registration Card */}
               <div className="bg-gradient-to-br from-brand-600 to-brand-800 rounded-2xl shadow-xl p-6 text-center text-white relative overflow-hidden">
-                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none"></div>
-                 
-                 <h3 className="text-xl font-bold mb-2 relative z-10">Registration Open</h3>
-                 <p className="text-brand-100 text-sm mb-6 relative z-10">Secure your spot today. Early bird discounts available until {new Date(conference.start_date).toLocaleDateString()}.</p>
-                 
-                 <Button className="w-full justify-center bg-white text-brand-700 hover:bg-brand-50 border-none shadow-none font-bold">
-                   Register Now <ChevronRight className="w-4 h-4 ml-1" />
-                 </Button>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none"></div>
+
+                <h3 className="text-xl font-bold mb-2 relative z-10">Registration Open</h3>
+                <p className="text-brand-100 text-sm mb-6 relative z-10">Secure your spot today. Early bird discounts available until {new Date(conference.start_date).toLocaleDateString()}.</p>
+
+                <Button className="w-full justify-center bg-white text-brand-700 hover:bg-brand-50 border-none shadow-none font-bold">
+                  Register Now <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
               </div>
 
               {/* Quick Info */}
@@ -634,10 +655,10 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
                     <span className="text-slate-600 pt-0.5">Hybrid event supporting both in-person and virtual attendance.</span>
                   </li>
                   <li className="flex items-start">
-                     <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-md mr-3 shrink-0">
-                       <FileText className="w-4 h-4" />
-                     </div>
-                     <span className="text-slate-600 pt-0.5">Proceedings will be indexed in Scopus and Web of Science.</span>
+                    <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-md mr-3 shrink-0">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <span className="text-slate-600 pt-0.5">Proceedings will be indexed in Scopus and Web of Science.</span>
                   </li>
                 </ul>
               </div>
@@ -647,6 +668,71 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
 
         </div>
       </div>
+
+      {/* Check-in Scanner Modal */}
+      {isCheckinModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-slate-900 flex items-center">
+                <QrCode className="w-5 h-5 mr-2 text-brand-600" />
+                Open Check-in Scanner
+              </h3>
+              <button
+                onClick={() => setIsCheckinModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 rounded-full p-1 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <p className="text-sm text-slate-600 mb-4">
+                Select the sessions you want to handle check-in for right now.
+                Attendees scanning their QR code will be marked as attended for these sessions.
+              </p>
+
+              <div className="space-y-2 max-h-60 overflow-y-auto mb-6 pr-2">
+                {sessions.map(s => (
+                  <label key={s.session_id} className="flex items-center p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500 cursor-pointer"
+                      checked={selectedSessionsForCheckin.includes(s.session_id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedSessionsForCheckin([...selectedSessionsForCheckin, s.session_id]);
+                        } else {
+                          setSelectedSessionsForCheckin(selectedSessionsForCheckin.filter(id => id !== s.session_id));
+                        }
+                      }}
+                    />
+                    <span className="ml-3 text-sm font-medium text-slate-700">{s.session_name}</span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => setIsCheckinModalOpen(false)}
+                  variant="outline"
+                  className="w-full justify-center"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleOpenCheckinScanner}
+                  className="w-full justify-center"
+                  disabled={selectedSessionsForCheckin.length === 0}
+                >
+                  Start Scanning
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
