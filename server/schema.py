@@ -114,4 +114,4 @@ class ScholarAuthor(BaseModel):
 
 class CheckinRequest(BaseModel):
     registration_id: int
-    auth_token: str
+    session_ids: List[int]

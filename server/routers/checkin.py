@@ -44,42 +44,58 @@ async def generate_qr(registration_id: int):
     except Exception as e:
         logger.error(f"QR Generation Failed: {e}")
         raise HTTPException(status_code=500, detail="Error generating QR code")
-
+    
 @router.post("/checkin")
 async def process_checkin(payload: CheckinRequest):
     try:
-        logger.info(f"Processing checkin for registration_id: {payload.registration_id}")
+        logger.info(f"Processing checkin for registration_id: {payload.registration_id}, session_ids: {payload.session_ids}")
+
+        if not payload.session_ids:
+            raise HTTPException(status_code=400, detail="The session_ids list cannot be empty")
 
         response = supabase_client.table("attendences") \
             .select("*") \
             .eq("registration_id", payload.registration_id) \
-            .eq("auth_token", payload.auth_token) \
+            .in_("session_id", payload.session_ids) \
             .execute()
         
         records = response.data
         
-        if not records:
-            logger.warning(f"Checkin failed: Invalid checkin code for registration_id {payload.registration_id}")
-            raise HTTPException(status_code=400, detail="Invalid checkin code")
+        found_session_ids = [record["session_id"] for record in records]
+        missing_sessions = set(payload.session_ids) - set(found_session_ids)
         
-        all_checked_in = all(record.get("is_checkin") is True for record in records)
-        if all_checked_in:
-            logger.warning(f"Checkin failed: Already checked in for registration_id {payload.registration_id}")
-            raise HTTPException(status_code=400, detail="Already checked in")
+        if missing_sessions:
+            logger.warning(f"Checkin failed: Records not found for registration_id {payload.registration_id} and missing session_ids: {list(missing_sessions)}")
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Attendance records not found for sessions: {list(missing_sessions)}"
+            )
+        
+        already_checked_in = [record["session_id"] for record in records if record.get("is_checkin") is True]
+        
+        if already_checked_in:
+            logger.warning(f"Checkin failed: Already checked in for registration_id {payload.registration_id}, session_ids: {already_checked_in}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Already checked in for sessions: {already_checked_in}"
+            )
             
         current_time = datetime.now().isoformat()
         
         update_response = supabase_client.table("attendences").update({
             "is_checkin": True,
             "checkin_time": current_time
-        }).eq("registration_id", payload.registration_id).eq("auth_token", payload.auth_token).execute()
+        }).eq("registration_id", payload.registration_id) \
+          .in_("session_id", payload.session_ids) \
+          .execute()
         
         updated_count = len(update_response.data) if update_response.data else 0
         logger.info(f"Checkin successful: Updated {updated_count} attendance record(s) for registration_id {payload.registration_id}")
         
         return {
             "status": "success",
-            "message": "Checkin successful"
+            "message": f"Successfully checked in for {updated_count} session(s)",
+            "checked_in_sessions": payload.session_ids
         }
         
     except HTTPException:

@@ -14,7 +14,7 @@ interface ConferenceDetailProps {
   onNavigateBack: () => void;
   onNavigateAssignSessions?: () => void;
   onNavigateAttendance?: (confId: number, sessionId: number) => void;
-  onNavigateCheckinScanner?: (sessionIds: number[], authToken: string) => void;
+  onNavigateCheckinScanner?: (sessionIds: number[]) => void;
   userRoleId?: number;
 }
 
@@ -169,7 +169,6 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
   // Checkin Scanner Modal State
   const [isCheckinModalOpen, setIsCheckinModalOpen] = useState(false);
   const [selectedSessionsForCheckin, setSelectedSessionsForCheckin] = useState<number[]>([]);
-  const [isGeneratingCheckin, setIsGeneratingCheckin] = useState(false);
 
   const canEdit = userRoleId === 1 || userRoleId === 2;
 
@@ -253,28 +252,11 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
     return "https://images.unsplash.com/photo-1544531586-fde5298cdd40?q=80&w=2070&auto=format&fit=crop";
   };
 
-  const handleOpenCheckinScanner = async () => {
+  const handleOpenCheckinScanner = () => {
     if (selectedSessionsForCheckin.length === 0 || !onNavigateCheckinScanner) return;
-
-    setIsGeneratingCheckin(true);
-    try {
-      const authToken = crypto.randomUUID();
-
-      const { error } = await supabase
-        .from('attendences')
-        .update({ auth_token: authToken })
-        .in('session_id', selectedSessionsForCheckin);
-
-      if (error) throw error;
-
-      setIsCheckinModalOpen(false);
-      onNavigateCheckinScanner(selectedSessionsForCheckin, authToken);
-    } catch (err) {
-      console.error("Error generating check-in token", err);
-      alert("Failed to initialize check-in scanner. Please try again.");
-    } finally {
-      setIsGeneratingCheckin(false);
-    }
+    
+    setIsCheckinModalOpen(false);
+    onNavigateCheckinScanner(selectedSessionsForCheckin);
   };
 
   if (loading) {
@@ -699,7 +681,6 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
               <button
                 onClick={() => setIsCheckinModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 rounded-full p-1 hover:bg-slate-100 transition-colors"
-                disabled={isGeneratingCheckin}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -725,7 +706,6 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
                           setSelectedSessionsForCheckin(selectedSessionsForCheckin.filter(id => id !== s.session_id));
                         }
                       }}
-                      disabled={isGeneratingCheckin}
                     />
                     <span className="ml-3 text-sm font-medium text-slate-700">{s.session_name}</span>
                   </label>
@@ -737,20 +717,15 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
                   onClick={() => setIsCheckinModalOpen(false)}
                   variant="outline"
                   className="w-full justify-center"
-                  disabled={isGeneratingCheckin}
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleOpenCheckinScanner}
                   className="w-full justify-center"
-                  disabled={selectedSessionsForCheckin.length === 0 || isGeneratingCheckin}
+                  disabled={selectedSessionsForCheckin.length === 0}
                 >
-                  {isGeneratingCheckin ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Preparing...</>
-                  ) : (
-                    'Start Scanning'
-                  )}
+                  Start Scanning
                 </Button>
               </div>
             </div>
