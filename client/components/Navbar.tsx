@@ -11,6 +11,7 @@ interface NavbarProps {
   onNavigatePapers?: () => void;
   onNavigateAiAssistant?: () => void; // New Prop
   onNavigateAttendences?: () => void;
+  onNavigateProceedings: () => void;
   onLogout: () => void;
   isLoggedIn?: boolean;
   userName?: string;
@@ -20,8 +21,8 @@ interface NavbarProps {
   userAvatar?: string;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ 
-  onNavigateRegister, 
+const Navbar: React.FC<NavbarProps> = ({
+  onNavigateRegister,
   onNavigateLogin,
   onNavigateProfile,
   onNavigateConferences,
@@ -29,8 +30,9 @@ const Navbar: React.FC<NavbarProps> = ({
   onNavigatePapers,
   onNavigateAiAssistant,
   onNavigateAttendences,
-  onLogout, 
-  isLoggedIn = false, 
+  onNavigateProceedings,
+  onLogout,
+  isLoggedIn = false,
   userName = '',
   userEmail = '',
   userRole = '',
@@ -61,14 +63,14 @@ const Navbar: React.FC<NavbarProps> = ({
     { name: 'Papers', href: '#papers' },
     { name: 'Conferences', href: '#conferences' },
     { name: 'AI Assistant', href: '#ai-assistant', icon: Sparkles }, // Added AI Assistant
-    { name: 'News', href: '#news' },
-    { name: 'Proceedings', href: '#proceedings' },
+    { name: 'News', href: '#news' }
   ];
 
-const adminLinks = [
-  { name: 'Users Management', href: '#users-management' },
-  { name: 'Attendances', href: '#attendances' }
-];
+  const adminLinks = [
+    { name: 'Users Management', href: '#users-management' },
+    { name: 'Attendances', href: '#attendances' },
+    { name: 'Proceedings', href: '#proceedings' }
+  ];
 
   // Determine which links to show based on role_id
   let navLinks = [...baseLinks];
@@ -115,15 +117,20 @@ const adminLinks = [
       if (onNavigateAiAssistant) {
         onNavigateAiAssistant();
       }
-    } else if (linkName === 'Attendances') { 
+    } else if (linkName === 'Attendances') {
       e.preventDefault();
       setIsOpen(false);
       if (onNavigateAttendences) {
-        onNavigateAttendences(); 
+        onNavigateAttendences();
+      }
+    } else if (linkName === 'Proceedings') {
+      e.preventDefault();
+      setIsOpen(false);
+      if (onNavigateProceedings) {
+        onNavigateProceedings();
       }
     }
-    // For other links like #about, let default anchor behavior happen for now
-    
+
   };
 
   const handleLogoClick = () => {
@@ -153,9 +160,8 @@ const adminLinks = [
                 key={link.name}
                 href={link.href}
                 onClick={(e) => handleLinkClick(e, link.name)}
-                className={`text-sm font-medium transition-colors flex items-center gap-1.5 ${
-                  link.name === 'AI Assistant' ? 'text-indigo-600 hover:text-indigo-800' : 'text-slate-600 hover:text-brand-700'
-                }`}
+                className={`text-sm font-medium transition-colors flex items-center gap-1.5 ${link.name === 'AI Assistant' ? 'text-indigo-600 hover:text-indigo-800' : 'text-slate-600 hover:text-brand-700'
+                  }`}
               >
                 {link.icon && <link.icon className="w-4 h-4" />}
                 {link.name}
@@ -167,7 +173,7 @@ const adminLinks = [
           <div className="hidden md:flex items-center space-x-4">
             {isLoggedIn ? (
               <div className="relative" ref={dropdownRef}>
-                <button 
+                <button
                   onClick={toggleProfile}
                   className="flex items-center gap-3 pl-4 border-l border-slate-200 focus:outline-none group"
                 >
@@ -191,7 +197,7 @@ const adminLinks = [
                       <p className="text-sm font-medium text-slate-900">{userName}</p>
                       <p className="text-xs text-slate-500 truncate">{userEmail}</p>
                     </div>
-                    <button 
+                    <button
                       onClick={handleProfileClick}
                       className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-brand-700 transition-colors"
                     >
@@ -246,9 +252,8 @@ const adminLinks = [
                 key={link.name}
                 href={link.href}
                 onClick={(e) => handleLinkClick(e, link.name)}
-                className={`block px-3 py-2 rounded-md text-base font-medium hover:bg-slate-50 flex items-center gap-2 ${
-                  link.name === 'AI Assistant' ? 'text-indigo-600 hover:text-indigo-800' : 'text-slate-700 hover:text-brand-700'
-                }`}
+                className={`block px-3 py-2 rounded-md text-base font-medium hover:bg-slate-50 flex items-center gap-2 ${link.name === 'AI Assistant' ? 'text-indigo-600 hover:text-indigo-800' : 'text-slate-700 hover:text-brand-700'
+                  }`}
               >
                 {link.icon && <link.icon className="w-5 h-5" />}
                 {link.name}
@@ -261,11 +266,11 @@ const adminLinks = [
                 <div className="space-y-3">
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
                     <div className="h-10 w-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold overflow-hidden border border-brand-200">
-                        {userAvatar ? (
-                          <img src={userAvatar} alt={userName} className="w-full h-full object-cover" />
-                        ) : (
-                          getInitials(userName)
-                        )}
+                      {userAvatar ? (
+                        <img src={userAvatar} alt={userName} className="w-full h-full object-cover" />
+                      ) : (
+                        getInitials(userName)
+                      )}
                     </div>
                     <div className="overflow-hidden">
                       <p className="text-sm font-medium text-slate-900">{userName}</p>
