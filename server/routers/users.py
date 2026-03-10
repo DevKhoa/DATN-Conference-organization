@@ -280,29 +280,29 @@ async def import_scholar_profile(user_id: int, request: ScholarImportRequest):
         research_bio = json.loads(AI_response.text)
 
         author_profile = f"""
-        {author_name.upper()}
-        Affiliations: {author_affiliations}
+            ## {author_name.upper()}
 
-        Research Interests
-        {', '.join(interests).title()}
+            **Affiliations:** {author_affiliations}
 
-        Research Fields:
-        {'\n'.join([f"- {field}" for field in research_bio.get('research_fields', [])])}
+            ### Research Interests
+            {', '.join(interests).title()}
 
-        Research Directions
-        {'\n'.join([f"- {direction}" for direction in research_bio.get('research_directions', [])])}
+            ### Research Fields
+            {'\n'.join([f"- {field}" for field in research_bio.get('research_fields', [])])}
 
-        Research Themes
-        {'\n'.join([f"- {theme}" for theme in research_bio.get('research_themes', [])])}
-        """
-        cleaned_profile = author_profile.replace('-', '').replace('\n', ' ').strip()
-        
-        cleaned_profile = re.sub(r'\s+', ' ', cleaned_profile)
+            ### Research Directions
+            {'\n'.join([f"- {direction}" for direction in research_bio.get('research_directions', [])])}
+
+            ### Research Themes
+            {'\n'.join([f"- {theme}" for theme in research_bio.get('research_themes', [])])}
+            """.strip()
+
+        cleaned_text = '\n'.join([line.strip() for line in author_profile.strip().split('\n')])
 
         logger.info("Generating embedding for the cleaned profile...")
         embed_response = genai_client.models.embed_content(
             model=EMBEDDING_MODEL_NAME, 
-            contents=cleaned_profile,
+            contents=cleaned_text,
             config=types.EmbedContentConfig(
                 task_type="SEMANTIC_SIMILARITY",
                 output_dimensionality=VECTOR_DIMENSION 
@@ -312,7 +312,7 @@ async def import_scholar_profile(user_id: int, request: ScholarImportRequest):
 
         logger.info(f"Updating Supabase for User {user_id}...")
         update_res = supabase_client.table("users").update({
-            "description": author_profile.strip(),
+            "description": cleaned_text.strip(),
             "description_embed": embedding_vector
         }).eq("user_id", user_id).execute()
 
@@ -327,7 +327,7 @@ async def import_scholar_profile(user_id: int, request: ScholarImportRequest):
             "message": "Google Scholar profile analyzed and saved successfully.",
             "user_id": user_id,
             "author_name": author_name,
-            "profile_length": len(author_profile.strip())
+            "profile_length": len(cleaned_text.strip())
         }
 
     except HTTPException as he:

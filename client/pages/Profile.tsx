@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  User, Mail, Building, FileText, Calendar, Edit2, Save, X, 
-  Loader2, ArrowLeft, CheckCircle, AlertCircle, Shield, Camera, 
-  Upload, Link as LinkIcon, PenTool, BookOpen, RefreshCw
+import {
+  User, Mail, Building, FileText, Calendar, Edit2, Save, X,
+  Loader2, ArrowLeft, CheckCircle, AlertCircle, Shield, Camera,
+  Upload, Link as LinkIcon, PenTool, BookOpen
 } from 'lucide-react';
-import Button from '../components/ui/Button'; 
-import { supabase } from '../lib/supabase'; 
+import Button from '../components/ui/Button';
+import { supabase } from '../lib/supabase';
 import ReactMarkdown from 'react-markdown'; // Thêm thư viện render Markdown
 
 // --- INTERFACES ---
@@ -21,10 +21,9 @@ interface UserProfile {
   email: string;
   organization: string | null;
   description: string | null;
-  description_reformat: string | null;
   created_at: string;
-  role_name?: string; 
-  role_id?: number; 
+  role_name?: string;
+  role_id?: number;
   avatar_url: string | null;
 }
 
@@ -34,7 +33,7 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
   // --- STATE ---
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  
+
   // Basic Info State
   const [basicEditMode, setBasicEditMode] = useState(false);
   const [basicSaving, setBasicSaving] = useState(false);
@@ -42,7 +41,7 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
 
   // Avatar State
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  
+
   // Bio/Description State
   const [bioMode, setBioMode] = useState<'VIEW' | 'MANUAL' | 'CV' | 'SCHOLAR'>('VIEW');
   const [bioSaving, setBioSaving] = useState(false);
@@ -67,69 +66,6 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
     }
   }, [userEmail]);
 
-  const formatBioDirectly = (text: string): string => {
-    if (!text) return "";
-
-    let formatted = text;
-
-    formatted = formatted
-      .replace(/\r/g, "")
-      .replace(/\t+/g, " ")
-      .replace(/ {2,}/g, " ")
-      .trim();
-
-    formatted = formatted
-      .replace(/•/g, "\n* ") // Đổi sang dấu * để Markdown nhận diện là danh sách (List)
-      .replace(/◦/g, "\n  * ");
-
-    const sections = [
-      "Objective", "Education", "Experience", "Projects", "Research", "Skills",
-    ];
-
-    sections.forEach(section => {
-      const regex = new RegExp(`\\b(${section})\\b`, "gi");
-      formatted = formatted.replace(regex, `\n\n### $1\n`); // Dùng thẻ Heading của Markdown
-    });
-
-    formatted = formatted.replace(/:\s*(?=[A-Z])/g, ":\n");
-
-    formatted = formatted.replace(
-      /(.{80,}?[.!?])\s+(?=[A-Z])/g,
-      "$1\n\n" // Markdown cần 2 dòng xuống hàng để tạo Paragraph mới
-    );
-
-    formatted = formatted
-      .replace(/\n{3,}/g, "\n\n")
-      .replace(/[ \t]+\n/g, "\n");
-
-    return formatted.trim();
-  };
-
-  const handleRefreshBio = async () => {
-    if (!profile || !profile.description) return;
-
-    setBioSaving(true);
-    try {
-      const newFormattedBio = formatBioDirectly(profile.description);
-
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ description_reformat: newFormattedBio })
-        .eq('user_id', profile.user_id);
-
-      if (updateError) throw updateError;
-
-      setProfile({ ...profile, description_reformat: newFormattedBio });
-      setSuccessMsg('Profile reformatted successfully!');
-
-    } catch (err: any) {
-      setError('Failed to reformat bio.');
-    } finally {
-      setBioSaving(false);
-      setTimeout(() => setSuccessMsg(''), 3000);
-    }
-  };
-  
   // --- DATA FETCHING ---
   const fetchProfile = async () => {
     setLoading(true);
@@ -139,7 +75,7 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
       const { data, error } = await supabase
         .from('users')
         .select(`
-          user_id, full_name, email, organization, description, description_reformat,created_at, avatar_url,
+          user_id, full_name, email, organization, description, created_at, avatar_url,
           user_roles ( role_id, roles ( role_name ) )
         `)
         .eq('email', userEmail)
@@ -151,8 +87,8 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
         let roleName = 'Participant';
         let roleId = 5;
 
-        const rawRoles = data.user_roles as any[]; 
-        
+        const rawRoles = data.user_roles as any[];
+
         if (rawRoles && rawRoles.length > 0) {
           const firstRoleEntry = rawRoles[0];
           roleId = firstRoleEntry.role_id;
@@ -173,7 +109,6 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
           email: data.email,
           organization: data.organization,
           description: data.description,
-          description_reformat: data.description_reformat,
           created_at: data.created_at,
           role_name: roleName,
           role_id: roleId,
@@ -246,7 +181,7 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
 
     setUploadingAvatar(true);
     setError('');
-    
+
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -285,7 +220,7 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ description: manualBio })
       });
-      
+
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || 'Update failed');
 
@@ -387,8 +322,8 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
-             <Loader2 className="w-10 h-10 text-brand-600 animate-spin mx-auto mb-2" />
-             <p className="text-slate-500 text-sm">Loading Profile...</p>
+          <Loader2 className="w-10 h-10 text-brand-600 animate-spin mx-auto mb-2" />
+          <p className="text-slate-500 text-sm">Loading Profile...</p>
         </div>
       </div>
     );
@@ -397,16 +332,16 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
   return (
     <div className="min-h-screen bg-slate-50 pt-20 pb-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-5xl mx-auto">
-        
+
         {/* Header Navigation */}
         <div className="flex items-center justify-between mb-8">
           <div>
-             <h1 className="text-3xl font-bold text-slate-900">My Profile</h1>
-             <p className="text-slate-500 mt-1">Manage your identity and professional information.</p>
+            <h1 className="text-3xl font-bold text-slate-900">My Profile</h1>
+            <p className="text-slate-500 mt-1">Manage your identity and professional information.</p>
           </div>
-          <button 
-             onClick={onNavigateHome}
-             className="flex items-center text-sm font-medium text-slate-600 hover:text-brand-700 transition-colors bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm"
+          <button
+            onClick={onNavigateHome}
+            className="flex items-center text-sm font-medium text-slate-600 hover:text-brand-700 transition-colors bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Dashboard
@@ -428,36 +363,36 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
+
           {/* LEFT COLUMN: Avatar & Summary (4 Cols) */}
           <div className="lg:col-span-4 space-y-6">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-center">
-              
+
               {/* Avatar */}
               <div className="relative group mx-auto mb-4 w-32 h-32">
-                <div 
+                <div
                   onClick={() => avatarInputRef.current?.click()}
                   className="w-full h-full rounded-full border-4 border-white shadow-lg overflow-hidden cursor-pointer relative bg-brand-100 flex items-center justify-center"
                   title="Upload Avatar"
                 >
-                   {profile?.avatar_url ? (
-                     <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
-                   ) : (
-                     <span className="text-4xl font-bold text-brand-700">{getInitials(profile?.full_name || '')}</span>
-                   )}
-                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Camera className="w-8 h-8 text-white" />
-                   </div>
-                   {uploadingAvatar && (
-                     <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
-                       <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
-                     </div>
-                   )}
+                  {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-4xl font-bold text-brand-700">{getInitials(profile?.full_name || '')}</span>
+                  )}
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Camera className="w-8 h-8 text-white" />
+                  </div>
+                  {uploadingAvatar && (
+                    <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+                      <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
+                    </div>
+                  )}
                 </div>
-                <input 
-                  type="file" 
-                  ref={avatarInputRef} 
-                  className="hidden" 
+                <input
+                  type="file"
+                  ref={avatarInputRef}
+                  className="hidden"
                   accept="image/*"
                   onChange={handleAvatarFileChange}
                 />
@@ -465,7 +400,7 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
 
               <h2 className="text-xl font-bold text-slate-900">{profile?.full_name}</h2>
               <p className="text-slate-500 text-sm mb-4">{profile?.email}</p>
-              
+
               <div className="inline-flex items-center px-3 py-1 rounded-full bg-brand-50 text-brand-700 text-xs font-semibold uppercase tracking-wide">
                 <Shield className="w-3 h-3 mr-1.5" />
                 {profile?.role_name || 'User'}
@@ -473,21 +408,21 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
 
               <div className="mt-8 pt-6 border-t border-slate-100 text-left space-y-3">
                 <div className="flex items-center text-sm text-slate-600">
-                   <Calendar className="w-4 h-4 mr-3 text-slate-400" />
-                   <span>Joined {profile?.created_at ? formatDate(profile.created_at) : 'N/A'}</span>
+                  <Calendar className="w-4 h-4 mr-3 text-slate-400" />
+                  <span>Joined {profile?.created_at ? formatDate(profile.created_at) : 'N/A'}</span>
                 </div>
                 <div className="flex items-center text-sm text-slate-600">
-                   <CheckCircle className="w-4 h-4 mr-3 text-green-500" />
-                   <span>Account Verified</span>
+                  <CheckCircle className="w-4 h-4 mr-3 text-green-500" />
+                  <span>Account Verified</span>
                 </div>
               </div>
             </div>
 
             {/* AUTHOR ACTION BUTTON */}
             {isAuthor && onNavigateMyPapers && (
-              <Button 
-                onClick={onNavigateMyPapers} 
-                className="w-full justify-center shadow-md bg-indigo-600 hover:bg-indigo-700" 
+              <Button
+                onClick={onNavigateMyPapers}
+                className="w-full justify-center shadow-md bg-indigo-600 hover:bg-indigo-700"
                 size="lg"
                 icon={BookOpen}
               >
@@ -498,7 +433,7 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
 
           {/* RIGHT COLUMN: Details (8 Cols) */}
           <div className="lg:col-span-8 space-y-8">
-            
+
             {/* SECTION 1: BASIC INFORMATION */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
@@ -516,16 +451,15 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Full Name</label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         disabled={!basicEditMode}
                         value={basicData.full_name}
-                        onChange={(e) => setBasicData({...basicData, full_name: e.target.value})}
-                        className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${
-                          basicEditMode 
-                            ? 'border-slate-300 focus:ring-2 focus:ring-brand-500 bg-white' 
+                        onChange={(e) => setBasicData({ ...basicData, full_name: e.target.value })}
+                        className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${basicEditMode
+                            ? 'border-slate-300 focus:ring-2 focus:ring-brand-500 bg-white'
                             : 'border-slate-200 bg-slate-50 text-slate-600'
-                        }`}
+                          }`}
                       />
                     </div>
                   </div>
@@ -534,33 +468,32 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Organization</label>
                     <div className="relative">
                       <Building className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         disabled={!basicEditMode}
                         value={basicData.organization}
-                        onChange={(e) => setBasicData({...basicData, organization: e.target.value})}
+                        onChange={(e) => setBasicData({ ...basicData, organization: e.target.value })}
                         placeholder="University / Institute"
-                        className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${
-                          basicEditMode 
-                            ? 'border-slate-300 focus:ring-2 focus:ring-brand-500 bg-white' 
+                        className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${basicEditMode
+                            ? 'border-slate-300 focus:ring-2 focus:ring-brand-500 bg-white'
                             : 'border-slate-200 bg-slate-50 text-slate-600'
-                        }`}
+                          }`}
                       />
                     </div>
                   </div>
                 </div>
                 {/* Email (Read Only) */}
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Email Address <span className="text-xs text-slate-400 font-normal">(Cannot be changed)</span></label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-                      <input 
-                        type="email" 
-                        disabled
-                        value={profile?.email || ''}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed"
-                      />
-                    </div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Email Address <span className="text-xs text-slate-400 font-normal">(Cannot be changed)</span></label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                    <input
+                      type="email"
+                      disabled
+                      value={profile?.email || ''}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed"
+                    />
+                  </div>
                 </div>
 
                 {basicEditMode && (
@@ -580,31 +513,31 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
               <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
                 <h3 className="text-lg font-semibold text-slate-900">Professional Profile</h3>
               </div>
-              
+
               <div className="p-6">
                 {bioMode === 'VIEW' && (
                   <div className="space-y-4">
                     {/* KHU VỰC ĐÃ CẬP NHẬT RENDER MARKDOWN */}
                     <div className="text-slate-700 leading-relaxed text-sm"> {/* Bỏ class prose đi nếu không dùng */}
-                      {profile?.description_reformat || profile?.description ? (
+                      {profile?.description ? (
                         <ReactMarkdown
                           components={{
                             // Custom style cho thẻ h3 (###)
-                            h3: ({node, ...props}) => <h3 className="text-lg font-bold text-slate-900 mt-6 mb-2" {...props} />,
+                            h3: ({ node, ...props }) => <h3 className="text-lg font-bold text-slate-900 mt-6 mb-2" {...props} />,
                             // Bạn có thể custom thêm thẻ h1 (#), h2 (##), p, ul, li nếu cần
-                            h1: ({node, ...props}) => <h1 className="text-2xl font-bold text-slate-900 mt-6 mb-4" {...props} />,
-                            h2: ({node, ...props}) => <h2 className="text-xl font-bold text-slate-900 mt-6 mb-3" {...props} />,
-                            p: ({node, ...props}) => <p className="mb-4" {...props} />,
-                            ul: ({node, ...props}) => <ul className="list-disc pl-5 mb-4 space-y-1" {...props} />,
+                            h1: ({ node, ...props }) => <h1 className="text-2xl font-bold text-slate-900 mt-6 mb-4" {...props} />,
+                            h2: ({ node, ...props }) => <h2 className="text-xl font-bold text-slate-900 mt-6 mb-3" {...props} />,
+                            p: ({ node, ...props }) => <p className="mb-4" {...props} />,
+                            ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-4 space-y-1" {...props} />,
                           }}
                         >
-                          {profile?.description_reformat || profile?.description}
+                          {profile?.description}
                         </ReactMarkdown>
                       ) : (
                         <span className="italic text-slate-500">No professional summary available yet.</span>
                       )}
                     </div>
-                    
+
                     {/* Các nút hành động */}
                     <div className="flex flex-wrap gap-3 pt-4 border-t border-slate-50">
                       <Button variant="outline" size="sm" onClick={() => setBioMode('MANUAL')}>
@@ -616,16 +549,6 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                       <Button variant="outline" size="sm" onClick={() => setBioMode('SCHOLAR')}>
                         <LinkIcon className="w-4 h-4 mr-2" /> Import Scholar
                       </Button>
-                      {bioMode === 'VIEW' && profile?.description && (
-                        <button 
-                          onClick={handleRefreshBio}
-                          disabled={bioSaving}
-                          className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-full transition-all group"
-                          title="Reformat existing bio using AI"
-                        >
-                          <RefreshCw className={`w-5 h-5 ${bioSaving ? 'animate-spin text-brand-600' : 'group-hover:rotate-180 duration-500'}`} />
-                        </button>
-                      )}
                     </div>
                   </div>
                 )}
@@ -635,7 +558,7 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                   <div className="space-y-4 animate-in fade-in">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1.5">Edit Bio (Markdown Supported)</label>
-                      <textarea 
+                      <textarea
                         rows={10}
                         value={manualBio}
                         onChange={(e) => setManualBio(e.target.value)}
@@ -646,7 +569,7 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                     <div className="flex justify-end gap-3">
                       <Button variant="ghost" onClick={() => setBioMode('VIEW')} disabled={bioSaving}>Cancel</Button>
                       <Button onClick={handleSaveManualBio} disabled={bioSaving}>
-                        {bioSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : "Update Bio"}
+                        {bioSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Update Bio"}
                       </Button>
                     </div>
                   </div>
@@ -655,7 +578,7 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                 {/* MODE: CV */}
                 {bioMode === 'CV' && (
                   <div className="space-y-4 animate-in fade-in max-w-lg mx-auto text-center py-6">
-                    <div 
+                    <div
                       onClick={() => cvInputRef.current?.click()}
                       className="border-2 border-dashed border-slate-300 rounded-xl p-8 hover:bg-slate-50 cursor-pointer transition-colors"
                     >
@@ -664,18 +587,18 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                         {cvFile ? cvFile.name : "Click to Upload CV"}
                       </p>
                       <p className="text-xs text-slate-500 mt-1">PDF format only. We'll extract your bio automatically.</p>
-                      <input 
-                        type="file" 
-                        ref={cvInputRef} 
-                        accept="application/pdf" 
-                        className="hidden" 
-                        onChange={(e) => setCvFile(e.target.files?.[0] || null)} 
+                      <input
+                        type="file"
+                        ref={cvInputRef}
+                        accept="application/pdf"
+                        className="hidden"
+                        onChange={(e) => setCvFile(e.target.files?.[0] || null)}
                       />
                     </div>
                     <div className="flex justify-center gap-3">
                       <Button variant="ghost" onClick={() => { setBioMode('VIEW'); setCvFile(null); }} disabled={bioSaving}>Cancel</Button>
                       <Button onClick={handleUploadCV} disabled={bioSaving || !cvFile}>
-                        {bioSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : "Process & Save"}
+                        {bioSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Process & Save"}
                       </Button>
                     </div>
                   </div>
@@ -688,8 +611,8 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                       <label className="block text-sm font-medium text-slate-700 mb-1.5">Google Scholar Profile URL</label>
                       <div className="relative">
                         <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           value={scholarUrl}
                           onChange={(e) => setScholarUrl(e.target.value)}
                           className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
@@ -701,7 +624,7 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                     <div className="flex justify-end gap-3">
                       <Button variant="ghost" onClick={() => { setBioMode('VIEW'); setScholarUrl(''); }} disabled={bioSaving}>Cancel</Button>
                       <Button onClick={handleImportScholar} disabled={bioSaving || !scholarUrl}>
-                        {bioSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : "Import"}
+                        {bioSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Import"}
                       </Button>
                     </div>
                   </div>
@@ -711,7 +634,7 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
             </div>
 
           </div>
-        </div> 
+        </div>
       </div>
     </div>
   );
