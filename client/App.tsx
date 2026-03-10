@@ -83,7 +83,6 @@ const App: React.FC = () => {
           email,
           avatar_url,
           description,
-          description_reformat,
           user_roles (
             role_id,
             roles (
