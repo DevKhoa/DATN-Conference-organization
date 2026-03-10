@@ -100,7 +100,11 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({
         if (sessError) throw sessError;
         setSessions(data || []);
         if (data && data.length > 0) {
-          setSelectedSessionId(data[0].session_id);
+          const isCurrentValid = (data as any[]).some(s => s.session_id === selectedSessionId);
+          
+          if (!selectedSessionId || !isCurrentValid) {
+            setSelectedSessionId(data[0].session_id);
+          }
         } else {
           setSelectedSessionId(null);
           setAttendees([]);

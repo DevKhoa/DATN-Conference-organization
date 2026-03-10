@@ -338,7 +338,6 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
                         className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-700 transition-colors flex items-center justify-between group/item"
                       >
                         <span className="font-medium truncate mr-2">{s.session_name}</span>
-                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover/item:text-brand-500 transition-colors" />
                       </button>
                     ))}
                   </div>
