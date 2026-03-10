@@ -6,12 +6,13 @@ import {
 } from 'lucide-react';
 import Button from '../components/ui/Button'; 
 import { supabase } from '../lib/supabase'; 
+import ReactMarkdown from 'react-markdown'; // Thêm thư viện render Markdown
 
 // --- INTERFACES ---
 interface ProfileProps {
   userEmail: string;
   onNavigateHome: () => void;
-  onNavigateMyPapers?: () => void; // New Prop
+  onNavigateMyPapers?: () => void;
 }
 
 interface UserProfile {
@@ -23,7 +24,7 @@ interface UserProfile {
   description_reformat: string | null;
   created_at: string;
   role_name?: string; 
-  role_id?: number; // Added
+  role_id?: number; 
   avatar_url: string | null;
 }
 
@@ -58,7 +59,6 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
   const cvInputRef = useRef<HTMLInputElement>(null);
 
   // --- EFFECTS ---
-
   useEffect(() => {
     if (userEmail) {
       fetchProfile();
@@ -72,43 +72,32 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
 
     let formatted = text;
 
-    // 1. Chuẩn hóa whitespace
     formatted = formatted
       .replace(/\r/g, "")
       .replace(/\t+/g, " ")
       .replace(/ {2,}/g, " ")
       .trim();
 
-    // 2. Chuẩn hóa bullet (PDF hay dùng • ◦)
     formatted = formatted
-      .replace(/•/g, "\n• ")
-      .replace(/◦/g, "\n  ◦ ");
+      .replace(/•/g, "\n* ") // Đổi sang dấu * để Markdown nhận diện là danh sách (List)
+      .replace(/◦/g, "\n  * ");
 
-    // 3. Tách SECTION rõ ràng
     const sections = [
-      "Objective",
-      "Education",
-      "Experience",
-      "Projects",
-      "Research",
-      "Skills",
+      "Objective", "Education", "Experience", "Projects", "Research", "Skills",
     ];
 
     sections.forEach(section => {
       const regex = new RegExp(`\\b(${section})\\b`, "gi");
-      formatted = formatted.replace(regex, `\n\n**$1**\n`);
+      formatted = formatted.replace(regex, `\n\n### $1\n`); // Dùng thẻ Heading của Markdown
     });
 
-    // 4. Fix các chỗ bullet bị dính sau dấu :
     formatted = formatted.replace(/:\s*(?=[A-Z])/g, ":\n");
 
-    // 5. Ngắt dòng an toàn cho mô tả dài (chỉ khi có dấu . + space + chữ hoa + >= 80 ký tự phía trước)
     formatted = formatted.replace(
       /(.{80,}?[.!?])\s+(?=[A-Z])/g,
-      "$1\n"
+      "$1\n\n" // Markdown cần 2 dòng xuống hàng để tạo Paragraph mới
     );
 
-    // 6. Dọn dẹp dòng trống
     formatted = formatted
       .replace(/\n{3,}/g, "\n\n")
       .replace(/[ \t]+\n/g, "\n");
@@ -121,10 +110,8 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
 
     setBioSaving(true);
     try {
-      // XỬ LÝ TRỰC TIẾP TẠI ĐÂY
       const newFormattedBio = formatBioDirectly(profile.description);
 
-      // Lưu thẳng vào cột description_reformat trong Supabase [cite: 575]
       const { error: updateError } = await supabase
         .from('users')
         .update({ description_reformat: newFormattedBio })
@@ -132,7 +119,6 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
 
       if (updateError) throw updateError;
 
-      // Cập nhật State để UI hiển thị nội dung mới ngay lập tức
       setProfile({ ...profile, description_reformat: newFormattedBio });
       setSuccessMsg('Profile reformatted successfully!');
 
@@ -145,7 +131,6 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
   };
   
   // --- DATA FETCHING ---
-
   const fetchProfile = async () => {
     setLoading(true);
     setError('');
@@ -166,7 +151,6 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
         let roleName = 'Participant';
         let roleId = 5;
 
-        // Sử dụng Type Assertion (as any[]) để thoát khỏi lỗi 'never'
         const rawRoles = data.user_roles as any[]; 
         
         if (rawRoles && rawRoles.length > 0) {
@@ -174,9 +158,7 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
           roleId = firstRoleEntry.role_id;
 
           if (firstRoleEntry.roles) {
-            // Ép kiểu cho rolesData để TypeScript biết nó chứa role_name
             const rolesData = firstRoleEntry.roles;
-            
             if (Array.isArray(rolesData)) {
               roleName = rolesData[0]?.role_name || 'Participant';
             } else {
@@ -214,7 +196,6 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
   };
 
   // --- BASIC INFO HANDLERS ---
-
   const handleSaveBasicInfo = async () => {
     if (!profile) return;
     setBasicSaving(true);
@@ -259,7 +240,6 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
   };
 
   // --- AVATAR HANDLERS ---
-
   const handleAvatarFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !profile) return;
@@ -293,15 +273,12 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
   };
 
   // --- BIO UPDATE HANDLERS ---
-
-  // Method 1: Manual Input
   const handleSaveManualBio = async () => {
     if (!profile) return;
     setBioSaving(true);
     setError('');
 
     try {
-      // API: POST /users/{USER_ID}/description
       const url = `${BASE_API_URL}/users/${profile.user_id}/description`;
       const response = await fetch(url, {
         method: 'POST',
@@ -323,7 +300,6 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
     }
   };
 
-  // Method 2: Upload CV
   const handleUploadCV = async () => {
     if (!profile || !cvFile) {
       setError('Please select a PDF file.');
@@ -333,7 +309,6 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
     setError('');
 
     try {
-      // API: POST /users/{USER_ID}/upload-cv
       const formData = new FormData();
       formData.append('file', cvFile);
 
@@ -347,7 +322,6 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
       if (!response.ok) throw new Error(result.message || 'Upload failed');
 
       setSuccessMsg('CV uploaded & bio extracted successfully.');
-      // Refresh profile to get the extracted description
       await fetchProfile();
       setBioMode('VIEW');
       setCvFile(null);
@@ -359,7 +333,6 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
     }
   };
 
-  // Method 3: Import Scholar
   const handleImportScholar = async () => {
     if (!profile || !scholarUrl) {
       setError('Please enter a Google Scholar URL.');
@@ -373,7 +346,6 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
     setError('');
 
     try {
-      // API: POST /users/{USER_ID}/import-scholar
       const url = `${BASE_API_URL}/users/${profile.user_id}/import-scholar`;
       const response = await fetch(url, {
         method: 'POST',
@@ -385,7 +357,6 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
       if (!response.ok) throw new Error(result.message || 'Import failed');
 
       setSuccessMsg('Scholar profile imported successfully.');
-      // Refresh profile to get the extracted description
       await fetchProfile();
       setBioMode('VIEW');
       setScholarUrl('');
@@ -410,7 +381,6 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
     return name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U';
   };
 
-  // Check if user is Author (Role 3 or Name 'Author')
   const isAuthor = profile?.role_id === 3 || profile?.role_name === 'Author';
 
   if (loading) {
@@ -610,15 +580,29 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
               <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
                 <h3 className="text-lg font-semibold text-slate-900">Professional Profile</h3>
               </div>
-
-            
               
               <div className="p-6">
                 {bioMode === 'VIEW' && (
                   <div className="space-y-4">
-                    {/* Ưu tiên hiển thị description_reformat */}
-                    <div className="prose prose-slate max-w-none text-slate-700 leading-relaxed whitespace-pre-line text-sm italic">
-                      {profile?.description_reformat || profile?.description || "No professional summary available yet."}
+                    {/* KHU VỰC ĐÃ CẬP NHẬT RENDER MARKDOWN */}
+                    <div className="text-slate-700 leading-relaxed text-sm"> {/* Bỏ class prose đi nếu không dùng */}
+                      {profile?.description_reformat || profile?.description ? (
+                        <ReactMarkdown
+                          components={{
+                            // Custom style cho thẻ h3 (###)
+                            h3: ({node, ...props}) => <h3 className="text-lg font-bold text-slate-900 mt-6 mb-2" {...props} />,
+                            // Bạn có thể custom thêm thẻ h1 (#), h2 (##), p, ul, li nếu cần
+                            h1: ({node, ...props}) => <h1 className="text-2xl font-bold text-slate-900 mt-6 mb-4" {...props} />,
+                            h2: ({node, ...props}) => <h2 className="text-xl font-bold text-slate-900 mt-6 mb-3" {...props} />,
+                            p: ({node, ...props}) => <p className="mb-4" {...props} />,
+                            ul: ({node, ...props}) => <ul className="list-disc pl-5 mb-4 space-y-1" {...props} />,
+                          }}
+                        >
+                          {profile?.description_reformat || profile?.description}
+                        </ReactMarkdown>
+                      ) : (
+                        <span className="italic text-slate-500">No professional summary available yet.</span>
+                      )}
                     </div>
                     
                     {/* Các nút hành động */}
@@ -650,13 +634,13 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                 {bioMode === 'MANUAL' && (
                   <div className="space-y-4 animate-in fade-in">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1.5">Edit Bio</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1.5">Edit Bio (Markdown Supported)</label>
                       <textarea 
-                        rows={6}
+                        rows={10}
                         value={manualBio}
                         onChange={(e) => setManualBio(e.target.value)}
-                        className="w-full p-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none resize-y text-sm"
-                        placeholder="Write a short professional biography..."
+                        className="w-full p-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none resize-y text-sm font-mono"
+                        placeholder="Write a short professional biography using markdown (*, #, etc)..."
                       />
                     </div>
                     <div className="flex justify-end gap-3">
