@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Book, FileText, Users, Clock, Map as MapIcon, Download, Globe, Plus,
-    Trash2, Loader2, AlertCircle, ChevronRight, Image as ImageIcon,
-    ArrowLeft, Save, Mic, Info, CalendarDays, Eye, List
+    Trash2, Loader2, AlertCircle, ChevronRight, Image as ImageLucide,
+    ArrowLeft, Save, Mic, Info, CalendarDays, Eye, List,
+    PenLine, Type, Crop, FilePlus, GripVertical, AlignLeft, AlignCenter,
+    AlignRight, Move, Settings2, X, Check, ImagePlus, RefreshCw, LayoutTemplate,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
-import { Document, Page, Text, View, StyleSheet, Image, PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Image, PDFViewer, PDFDownloadLink, pdf } from '@react-pdf/renderer';
 import { v4 as uuidv4 } from 'uuid';
 
 
@@ -125,13 +127,14 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
         scheduleByDate[key].push(s);
     });
 
+    // Trong ProceedingsDocument
     const tocItems = [
-        { label: 'Foreword', page: 3 },
-        { label: 'Organizing Committee', page: 4 },
-        { label: 'General Information', page: 5 },
-        { label: 'Program at a Glance', page: 6 },
-        ...(data.keynotes?.length > 0 ? [{ label: 'Keynote Speakers', page: 7 }] : []),
-        { label: 'Detailed Program with Abstracts', page: data.keynotes?.length > 0 ? 8 : 7 },
+        { label: 'Foreword', page: 1 },
+        { label: 'Organizing Committee', page: 2 },
+        { label: 'General Information', page: 3 },
+        { label: 'Program at a Glance', page: 4 },
+        ...(data.keynotes?.length > 0 ? [{ label: 'Keynote Speakers', page: 5 }] : []),
+        { label: 'Detailed Program with Abstracts', page: data.keynotes?.length > 0 ? 6 : 5 },
     ];
 
     const formatAbstract = (text?: string) => {
@@ -158,7 +161,7 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                         <Text style={pdfStyles.coverSponsorLabel}>Sponsors &amp; Partners</Text>
                         <View style={pdfStyles.coverLogos}>
                             {data.cover.sponsorLogos.map((logo: string, i: number) => (
-                                <ImageIcon key={i} src={logo} style={{ width: 80, height: 60, objectFit: 'contain' }} />
+                                <Image key={i} src={logo} style={{ width: 80, height: 60, objectFit: 'contain' }} />
                             ))}
                         </View>
                     </>
@@ -254,7 +257,7 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                 {data.generalInfo?.floorPlan && (
                     <View style={{ marginTop: 10 }}>
                         <Text style={pdfStyles.infoLabel}>Venue Layout</Text>
-                        <ImageIcon src={data.generalInfo.floorPlan} style={{ width: '100%', maxHeight: 220, objectFit: 'contain', marginTop: 6 }} />
+                        <Image src={data.generalInfo.floorPlan} style={{ width: '100%', maxHeight: 220, objectFit: 'contain', marginTop: 6 }} />
                     </View>
                 )}
 
@@ -418,9 +421,114 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
     );
 };
 
+// ─── PDF Editor — types ───────────────────────────────────────────────────────
+interface EditorEl {
+    id: string; type: 'text' | 'image';
+    x: number; y: number; w: number; h: number;
+    // text
+    text?: string; fontSize?: number; bold?: boolean; italic?: boolean;
+    color?: string; align?: 'left' | 'center' | 'right';
+    // image
+    src?: string;
+    zIndex?: number;
+}
+interface EditorPage { id: string; bg: string; els: EditorEl[]; }
+interface HFConfig {
+    headerText: string; footerText: string;
+    showPageNum: boolean; pageNumPos: 'left' | 'center' | 'right'; startFrom: number;
+}
+
+/** A4 canvas size in display-pixels (matches 595×842 pt at ~1.24× scale) */
+const CANVAS_W = 744;
+const CANVAS_H = Math.round(CANVAS_W * 842 / 595); // ≈ 1052
+const THUMB_W = 106;
+const THUMB_H = Math.round(THUMB_W * 842 / 595);   // ≈ 150
+
+/** Convert display-px → PDF points for export */
+const px2pt = (v: number, axis: 'x' | 'y') =>
+    axis === 'x' ? (v / CANVAS_W) * 595 : (v / CANVAS_H) * 842;
+
+// ─── Editor export document ──────────────────────────────────────────────────
+const EditorExportDoc = ({ pages, hf }: { pages: EditorPage[]; hf: HFConfig }) => (
+    <Document>
+        {pages.map((pg, pi) => (
+            // Add wrap={false} to the page and set minHeight to force container size
+            <Page key={pg.id} size="A4" wrap={false} style={{ padding: 0, position: 'relative', minHeight: 842 }}>
+                {/* overlay elements */}
+                {[...pg.els]
+                    .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
+                    .map(el => el.type === 'text' ? (
+                        <Text key={el.id} style={{
+                            position: 'absolute',
+                            left: px2pt(el.x, 'x'), top: px2pt(el.y, 'y'),
+                            width: px2pt(el.w, 'x'),
+                            fontSize: el.fontSize ?? 12,
+                            fontFamily: el.bold ? 'Helvetica-Bold'
+                                : el.italic ? 'Helvetica-Oblique' : 'Helvetica',
+                            color: el.color ?? '#000000',
+                            textAlign: (el.align ?? 'left') as any,
+                        }}>{el.text ?? ''}</Text>
+                    ) : el.src ? (
+                        <Image key={el.id} src={el.src} style={{
+                            position: 'absolute',
+                            left: px2pt(el.x, 'x'), top: px2pt(el.y, 'y'),
+                            width: px2pt(el.w, 'x'), height: px2pt(el.h, 'y'),
+                        }} />
+                    ) : null)
+                }
+
+                {/* global header */}
+                {hf.headerText.trim() && (
+                    <Text style={{
+                        position: 'absolute', top: 14, left: 42, right: 42,
+                        fontSize: 8, color: '#888', textAlign: 'center', fontFamily: 'Helvetica',
+                    }}>{hf.headerText}</Text>
+                )}
+                {/* global footer */}
+                {(hf.footerText.trim() || hf.showPageNum) && (
+                    <View style={{
+                        position: 'absolute', bottom: 14, left: 42, right: 42,
+                        flexDirection: 'row',
+                        justifyContent: hf.pageNumPos === 'left' ? 'flex-start'
+                            : hf.pageNumPos === 'right' ? 'flex-end' : 'center',
+                        borderTopWidth: 0.5, borderTopColor: '#ccc', paddingTop: 4,
+                        alignItems: 'center',
+                    }}>
+                        {hf.footerText.trim() && (
+                            <Text style={{ fontSize: 8, color: '#888', fontFamily: 'Helvetica', flex: 1 }}>
+                                {hf.footerText}
+                            </Text>
+                        )}
+                        {hf.showPageNum && pi > 1 && ( // Skip first 2 pages (Cover and TOC)
+                            <Text style={{ fontSize: 8, color: '#888', fontFamily: 'Helvetica' }}>
+                                {hf.startFrom + (pi - 2)}
+                            </Text>
+                        )}
+                    </View>
+                )}
+            </Page>
+        ))}
+    </Document>
+);
+
+// ─── Resize handle helpers (used by editor canvas & crop modal) ───────────────
+const DIRS = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as const;
+const DIR_CURSOR: Record<string, string> = {
+    n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize',
+    ne: 'ne-resize', nw: 'nw-resize', se: 'se-resize', sw: 'sw-resize',
+};
+const handlePos = (dir: string): React.CSSProperties => ({
+    position: 'absolute', width: 9, height: 9,
+    background: '#4f46e5', border: '1.5px solid white', borderRadius: 2,
+    cursor: DIR_CURSOR[dir],
+    top: dir.includes('n') ? -5 : dir.includes('s') ? 'calc(100% - 4px)' : 'calc(50% - 4px)',
+    left: dir.includes('w') ? -5 : dir.includes('e') ? 'calc(100% - 4px)' : 'calc(50% - 4px)',
+    zIndex: 20,
+});
+
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 const TABS = [
-    { key: 'cover', label: 'Cover', icon: ImageIcon },
+    { key: 'cover', label: 'Cover', icon: ImageLucide },
     { key: 'foreword', label: 'Foreword', icon: FileText },
     { key: 'committee', label: 'Committee', icon: Users },
     { key: 'generalInfo', label: 'Venue & Info', icon: Info },
@@ -428,6 +536,7 @@ const TABS = [
     { key: 'keynotes', label: 'Keynotes', icon: Mic },
     { key: 'papers', label: 'Papers', icon: List },
     { key: 'preview', label: 'PDF Preview', icon: Eye },
+    { key: 'editor', label: 'PDF Editor', icon: PenLine },
 ];
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -438,6 +547,39 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState('cover');
+
+    // ── PDF Editor state ──────────────────────────────────────────────────────
+    const [edPages, setEdPages] = useState<EditorPage[]>([]);
+    const [edReady, setEdReady] = useState(false);
+    const [edLoading, setEdLoading] = useState(false);
+    const [selPage, setSelPage] = useState(0);
+    const scrollAreaRef = useRef<HTMLDivElement>(null); // Thêm ref này
+
+    // Hàm để cuộn đến trang cụ thể khi click thumbnail
+    const jumpToPage = (idx: number) => {
+        setSelPage(idx);
+        const el = document.getElementById(`editor-page-${idx}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    const [selElId, setSelElId] = useState<string | null>(null);
+    const [editingTxtId, setEditingTxtId] = useState<string | null>(null);
+    const [hf, setHF] = useState<HFConfig>({
+        headerText: '', footerText: '', showPageNum: true, pageNumPos: 'right', startFrom: 1,
+    });
+    const [showHFPanel, setShowHFPanel] = useState(false);
+    const [cropState, setCropState] = useState<{
+        elId: string; src: string; natW: number; natH: number;
+        cx: number; cy: number; cw: number; ch: number;
+    } | null>(null);
+    const [dragFromIdx, setDragFromIdx] = useState<number | null>(null);
+    const dragRef = useRef<{
+        type: 'move' | 'resize'; elId: string; dir: string;
+        sx: number; sy: number; orig: EditorEl;
+    } | null>(null);
+    const cropDragRef = useRef<{
+        active: boolean; mode: string; sx: number; sy: number;
+        origCx: number; origCy: number; origCw: number; origCh: number;
+    }>({ active: false, mode: '', sx: 0, sy: 0, origCx: 0, origCy: 0, origCw: 0, origCh: 0 });
 
     const [procData, setProcData] = useState({
         cover: {
@@ -473,6 +615,27 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
     useEffect(() => {
         if (selectedConfId) loadFullConferenceData(selectedConfId);
     }, [selectedConfId]);
+
+    useEffect(() => {
+        if (!edReady || !scrollAreaRef.current) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        const index = parseInt(entry.target.getAttribute('data-page-index') || '0');
+                        setSelPage(index); // Cập nhật sidebar khi cuộn
+                    }
+                });
+            },
+            { threshold: 0.5, root: scrollAreaRef.current } // Kích hoạt khi thấy 50% trang
+        );
+
+        const pageElements = document.querySelectorAll('.editor-page-container');
+        pageElements.forEach((el) => observer.observe(el));
+
+        return () => observer.disconnect();
+    }, [edReady, edPages.length]);
 
     const loadFullConferenceData = async (confId: number) => {
         setLoading(true);
@@ -621,6 +784,179 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
         }
     };
 
+    // ── Editor helpers ────────────────────────────────────────────────────────
+
+    /** Lazily load PDF.js from CDN */
+    const loadPdfJs = (): Promise<any> => new Promise(res => {
+        const w = window as any;
+        if (w.pdfjsLib) { res(w.pdfjsLib); return; }
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+        s.onload = () => {
+            w.pdfjsLib.GlobalWorkerOptions.workerSrc =
+                'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            res(w.pdfjsLib);
+        };
+        document.head.appendChild(s);
+    });
+
+    /** Render the current ProceedingsDocument into canvas images then open editor */
+    const initEditor = async () => {
+        if (edReady || edLoading) return;
+        setEdLoading(true);
+        try {
+            const blob = await pdf(<ProceedingsDocument data={procData} />).toBlob();
+            const pdfjs = await loadPdfJs();
+            const url = URL.createObjectURL(blob);
+            const doc = await pdfjs.getDocument(url).promise;
+            const pages: EditorPage[] = [];
+            for (let i = 1; i <= doc.numPages; i++) {
+                const pg = await doc.getPage(i);
+                const vp = pg.getViewport({ scale: 2.2 });
+                const cnv = document.createElement('canvas');
+                cnv.width = vp.width; cnv.height = vp.height;
+                const ctx = cnv.getContext('2d')!;
+                await pg.render({ canvasContext: cnv.getContext('2d')!, viewport: vp }).promise;
+                // Đưa ảnh nền vào danh sách phần tử để có thể di chuyển layer
+                const bgDataUrl = cnv.toDataURL('image/jpeg', 0.9);
+                pages.push({
+                    id: uuidv4(),
+                    bg: bgDataUrl,
+                    els: [{
+                        id: 'original-pdf-content-' + i,
+                        type: 'image',
+                        x: 0, y: 0, w: CANVAS_W, h: CANVAS_H,
+                        src: bgDataUrl,
+                        zIndex: 5
+                    }]
+                });
+            }
+            URL.revokeObjectURL(url);
+            setEdPages(pages); setSelPage(0); setEdReady(true);
+        } catch (e) { console.error('Editor init failed', e); }
+        finally { setEdLoading(false); }
+    };
+
+    /** Patch the currently selected page */
+    const patchPage = (fn: (p: EditorPage) => EditorPage) =>
+        setEdPages(ps => ps.map((p, i) => i === selPage ? fn(p) : p));
+
+    /** Patch a specific element on the current page */
+    const patchEl = (id: string, fn: (e: EditorEl) => EditorEl) =>
+        patchPage(p => ({ ...p, els: p.els.map(e => e.id === id ? fn(e) : e) }));
+
+    const curPg = edPages[selPage];
+    const selEl = curPg?.els.find(e => e.id === selElId) ?? null;
+
+    const addText = () => {
+        const id = uuidv4();
+        patchPage(p => ({
+            ...p, els: [...p.els, {
+                id, type: 'text', x: 60, y: 80, w: 320, h: 44,
+                text: 'New Text', fontSize: 14, bold: false, italic: false,
+                color: '#000000', align: 'left', zIndex: 10 + curPg.els.length,
+            }],
+        }));
+        setSelElId(id); setEditingTxtId(id);
+    };
+
+    const addImage = (src: string) => {
+        const img = new window.Image();
+        img.onload = () => {
+            const id = uuidv4();
+            const aspect = img.naturalHeight / img.naturalWidth;
+            const w = 200;
+            patchPage(p => ({
+                ...p, els: [...p.els, {
+                    id, type: 'image', x: 60, y: 80, w, h: Math.round(w * aspect), src, zIndex: 10 + curPg.els.length,
+                }],
+            }));
+            setSelElId(id);
+        };
+        img.src = src;
+    };
+
+    const deleteEl = (id: string) => {
+        patchPage(p => ({ ...p, els: p.els.filter(e => e.id !== id) }));
+        if (selElId === id) setSelElId(null);
+    };
+
+    /** Pointer move/resize on canvas */
+    const onCanvasPointerMove = (e: React.PointerEvent) => {
+        const d = dragRef.current; if (!d) return;
+        const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+        patchEl(d.elId, el => {
+            if (d.type === 'move')
+                return { ...el, x: Math.max(0, d.orig.x + dx), y: Math.max(0, d.orig.y + dy) };
+            let { x, y, w, h } = d.orig;
+            if (d.dir.includes('e')) w = Math.max(30, d.orig.w + dx);
+            if (d.dir.includes('s')) h = Math.max(20, d.orig.h + dy);
+            if (d.dir.includes('w')) { x = d.orig.x + dx; w = Math.max(30, d.orig.w - dx); }
+            if (d.dir.includes('n')) { y = d.orig.y + dy; h = Math.max(20, d.orig.h - dy); }
+            return { ...el, x, y, w, h };
+        });
+    };
+
+    const onElPointerDown = (
+        e: React.PointerEvent, el: EditorEl, type: 'move' | 'resize', dir = '',
+    ) => {
+        e.stopPropagation();
+        (e.currentTarget as Element).setPointerCapture(e.pointerId);
+        dragRef.current = { type, elId: el.id, dir, sx: e.clientX, sy: e.clientY, orig: { ...el } };
+        setSelElId(el.id); setEditingTxtId(null);
+    };
+
+    /** Page reorder by drag */
+    const reorderPage = (from: number, to: number) => {
+        if (from === to) return;
+        setEdPages(ps => {
+            const a = [...ps]; const [item] = a.splice(from, 1); a.splice(to, 0, item); return a;
+        });
+        setSelPage(to);
+    };
+
+    /** Insert a blank page after afterIdx */
+    const insertPage = (afterIdx: number) => {
+        const blank: EditorPage = { id: uuidv4(), bg: '', els: [] };
+        setEdPages(ps => {
+            const a = [...ps]; a.splice(afterIdx + 1, 0, blank); return a;
+        });
+        setSelPage(afterIdx + 1);
+    };
+
+    /** Open crop modal for an image element */
+    const openCrop = (el: EditorEl) => {
+        if (!el.src) return;
+        const img = new window.Image();
+        img.onload = () => setCropState({
+            elId: el.id, src: el.src!,
+            natW: img.naturalWidth, natH: img.naturalHeight,
+            cx: 0, cy: 0, cw: img.naturalWidth, ch: img.naturalHeight,
+        });
+        img.src = el.src;
+    };
+
+    /** Apply crop: draw sub-rect onto canvas then swap src */
+    const applyCrop = () => {
+        if (!cropState) return;
+        const { elId, src, cx, cy, cw, ch } = cropState;
+        const cnv = document.createElement('canvas');
+        cnv.width = cw; cnv.height = ch;
+        const ctx = cnv.getContext('2d')!;
+        const img = new window.Image();
+        img.onload = () => {
+            ctx.drawImage(img, cx, cy, cw, ch, 0, 0, cw, ch);
+            const cropped = cnv.toDataURL('image/png');
+            patchEl(elId, el => ({
+                ...el, src: cropped,
+                h: Math.round(el.h * (ch / (cropState.natH || 1))),
+                w: Math.round(el.w * (cw / (cropState.natW || 1))),
+            }));
+            setCropState(null);
+        };
+        img.src = src;
+    };
+
     if (userRoleId !== 1 && userRoleId !== 2)
         return <div className="p-20 text-center font-bold text-slate-500">Access Denied. Chairs only.</div>;
 
@@ -690,16 +1026,6 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                         <Button variant="outline" onClick={handleSaveConfig} icon={Save} disabled={!selectedConfId || saving} className="rounded-lg text-sm">
                             {saving ? 'Saving…' : 'Save'}
                         </Button>
-                        <PDFDownloadLink
-                            document={<ProceedingsDocument data={procData} />}
-                            fileName={`${procData.cover.conferenceName || 'proceedings'}.pdf`}
-                        >
-                            {({ loading: pdfLoading }) => (
-                                <Button variant="primary" icon={Download} disabled={!selectedConfId || pdfLoading} className="rounded-lg text-sm">
-                                    {pdfLoading ? 'Generating…' : 'Export PDF'}
-                                </Button>
-                            )}
-                        </PDFDownloadLink>
                     </div>
                 </div>
             </div>
@@ -788,6 +1114,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                     {activeTab === 'keynotes' && 'Invited keynote speakers with abstract and biography.'}
                                     {activeTab === 'papers' && 'Accepted papers auto-loaded from the database. Edit DOI codes here.'}
                                     {activeTab === 'preview' && 'Live PDF preview. Use "Export PDF" in the top bar to download.'}
+                                    {activeTab === 'editor' && 'Visual editor: add text & images, move/resize/crop, reorder pages, set header & footer, then export.'}
                                 </p>
                             </div>
 
@@ -1082,6 +1409,540 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                         <PDFViewer width="100%" height="100%" className="border-none">
                                             <ProceedingsDocument data={procData} />
                                         </PDFViewer>
+                                    </div>
+                                )}
+
+                                {/* ─── PDF EDITOR ─── */}
+                                {activeTab === 'editor' && (
+                                    <div className="-mx-7 -mb-7">
+
+                                        {/* ── Init splash ── */}
+                                        {!edReady && !edLoading && (
+                                            <div className="flex flex-col items-center justify-center h-80 gap-4">
+                                                <LayoutTemplate className="w-12 h-12 text-indigo-200" />
+                                                <p className="text-sm font-medium text-slate-600">
+                                                    Render the current PDF into the visual editor
+                                                </p>
+                                                <button onClick={initEditor}
+                                                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-indigo-200">
+                                                    Open in Editor
+                                                </button>
+                                                <p className="text-xs text-slate-400 max-w-xs text-center">
+                                                    All pages are rasterised from your current data. Finish filling in
+                                                    the other tabs first, then come back here to make final tweaks.
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {/* ── Loading ── */}
+                                        {edLoading && (
+                                            <div className="flex flex-col items-center justify-center h-80 gap-3">
+                                                <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+                                                <p className="text-sm text-slate-500">Rendering PDF pages…</p>
+                                            </div>
+                                        )}
+
+                                        {/* ── Main editor layout ── */}
+                                        {edReady && edPages.length > 0 && (() => {
+                                            const btnCls = (on: boolean) =>
+                                                `p-2 rounded-lg border transition-all text-sm ${on
+                                                    ? 'bg-indigo-600 border-indigo-600 text-white'
+                                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`;
+
+                                            return (
+                                                <div className="flex" style={{ height: 800 }}>
+
+                                                    {/* ──── Left: page strip ──── */}
+                                                    <div className="w-[136px] shrink-0 bg-slate-100 border-r border-slate-200 flex flex-col">
+                                                        <div className="px-3 py-2.5 border-b border-slate-200 bg-white flex items-center justify-between">
+                                                            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Pages</span>
+                                                            <span className="text-[11px] text-slate-400">{edPages.length}</span>
+                                                        </div>
+                                                        <div className="flex-1 overflow-y-auto py-2 px-2 space-y-2">
+                                                            {edPages.map((pg, idx) => (
+                                                                <div key={pg.id}
+                                                                    draggable
+                                                                    onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDragFromIdx(idx); }}
+                                                                    onDragOver={e => e.preventDefault()}
+                                                                    onDrop={() => { if (dragFromIdx !== null) { reorderPage(dragFromIdx, idx); setDragFromIdx(null); } }}
+                                                                    onDragEnd={() => setDragFromIdx(null)}
+                                                                    onClick={() => { jumpToPage(idx); setSelElId(null); setEditingTxtId(null); }}
+                                                                    className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all select-none ${selPage === idx ? 'border-indigo-500 shadow-lg' : dragFromIdx === idx ? 'opacity-40 border-slate-300' : 'border-transparent hover:border-slate-300'}`}
+                                                                    style={{ width: THUMB_W, height: THUMB_H }}
+                                                                >
+                                                                    {pg.bg
+                                                                        ? <img src={pg.bg} alt="" className="w-full h-full object-cover pointer-events-none" />
+                                                                        : <div className="w-full h-full bg-white flex items-center justify-center"><span className="text-[10px] text-slate-300">Blank</span></div>
+                                                                    }
+                                                                    <span className="absolute bottom-0 inset-x-0 text-center bg-black/40 text-white text-[9px] py-0.5">{idx + 1}</span>
+                                                                    <GripVertical className="absolute top-1 left-1 w-3 h-3 text-white/60 pointer-events-none" />
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <div className="p-2 border-t border-slate-200 bg-white">
+                                                            <button onClick={() => insertPage(selPage)}
+                                                                className="w-full py-1.5 border border-dashed border-slate-300 rounded-lg text-[11px] text-slate-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all flex items-center justify-center gap-1">
+                                                                <FilePlus className="w-3 h-3" /> Insert after
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* ──── Centre: canvas ──── */}
+                                                    <div className="flex-1 flex flex-col min-w-0 bg-slate-200">
+
+                                                        {/* toolbar */}
+                                                        <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center gap-2 shrink-0 flex-wrap">
+                                                            {/* add text */}
+                                                            <button title="Add text block" onClick={addText} className={btnCls(false)}>
+                                                                <Type className="w-4 h-4" />
+                                                            </button>
+                                                            {/* add image */}
+                                                            <button title="Add image" onClick={() => {
+                                                                const inp = document.createElement('input');
+                                                                inp.type = 'file'; inp.accept = 'image/*';
+                                                                inp.onchange = () => {
+                                                                    const f = inp.files?.[0]; if (!f) return;
+                                                                    const r = new FileReader();
+                                                                    r.onload = ev => addImage(ev.target!.result as string);
+                                                                    r.readAsDataURL(f);
+                                                                };
+                                                                inp.click();
+                                                            }} className={btnCls(false)}><ImagePlus className="w-4 h-4" /></button>
+
+                                                            <div className="w-px h-5 bg-slate-200 mx-0.5" />
+
+                                                            {/* delete selected */}
+                                                            {selElId && (
+                                                                <button title="Delete element" onClick={() => deleteEl(selElId)}
+                                                                    className="p-2 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-all">
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            )}
+
+                                                            {/* H/F toggle */}
+                                                            <button onClick={() => setShowHFPanel(v => !v)}
+                                                                className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${showHFPanel ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                                                                <Settings2 className="w-3.5 h-3.5" /> Header / Footer
+                                                            </button>
+
+                                                            {/* re-render */}
+                                                            <button onClick={() => { setEdReady(false); setEdPages([]); setTimeout(initEditor, 50); }}
+                                                                title="Re-render from current data"
+                                                                className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-all">
+                                                                <RefreshCw className="w-4 h-4" />
+                                                            </button>
+
+                                                            {/* Export */}
+                                                            <PDFDownloadLink
+                                                                document={<EditorExportDoc pages={edPages} hf={hf} />}
+                                                                fileName="proceedings-edited.pdf"
+                                                            >
+                                                                {({ loading: dl }) => (
+                                                                    <button disabled={dl}
+                                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-all">
+                                                                        <Download className="w-3.5 h-3.5" />
+                                                                        {dl ? 'Generating…' : 'Export PDF'}
+                                                                    </button>
+                                                                )}
+                                                            </PDFDownloadLink>
+                                                        </div>
+
+                                                        {/* Header/Footer config panel */}
+                                                        {showHFPanel && (
+                                                            <div className="bg-indigo-50 border-b border-indigo-100 px-5 py-3 grid grid-cols-3 gap-4 items-end shrink-0">
+                                                                <div>
+                                                                    <label className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider block mb-1">
+                                                                        Header (all pages)
+                                                                    </label>
+                                                                    <input
+                                                                        className="w-full px-2.5 py-1.5 text-xs border border-indigo-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-indigo-400"
+                                                                        value={hf.headerText}
+                                                                        onChange={e => setHF(h => ({ ...h, headerText: e.target.value }))}
+                                                                        placeholder="e.g. SOICT 2025 Program Book" />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider block mb-1">
+                                                                        Footer text
+                                                                    </label>
+                                                                    <input
+                                                                        className="w-full px-2.5 py-1.5 text-xs border border-indigo-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-indigo-400"
+                                                                        value={hf.footerText}
+                                                                        onChange={e => setHF(h => ({ ...h, footerText: e.target.value }))}
+                                                                        placeholder="e.g. https://soict.org" />
+                                                                </div>
+                                                                <div className="space-y-1.5">
+                                                                    <label className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider block">
+                                                                        Page numbers
+                                                                    </label>
+                                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                        <label className="flex items-center gap-1 text-xs text-slate-600 cursor-pointer">
+                                                                            <input type="checkbox" checked={hf.showPageNum}
+                                                                                onChange={e => setHF(h => ({ ...h, showPageNum: e.target.checked }))}
+                                                                                className="accent-indigo-600" />
+                                                                            Show
+                                                                        </label>
+                                                                        <select value={hf.pageNumPos}
+                                                                            onChange={e => setHF(h => ({ ...h, pageNumPos: e.target.value as any }))}
+                                                                            className="text-xs border border-indigo-200 rounded px-1.5 py-1 bg-white outline-none">
+                                                                            <option value="left">Left</option>
+                                                                            <option value="center">Center</option>
+                                                                            <option value="right">Right</option>
+                                                                        </select>
+                                                                        <span className="text-xs text-slate-500">Start:</span>
+                                                                        <input type="number" min={1} value={hf.startFrom}
+                                                                            onChange={e => setHF(h => ({ ...h, startFrom: Number(e.target.value) }))}
+                                                                            className="w-12 text-xs border border-indigo-200 rounded px-1.5 py-1 bg-white outline-none" />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* canvas scroll area */}
+                                                        {/* Vùng cuộn chính của Editor */}
+                                                        <div
+                                                            ref={scrollAreaRef}
+                                                            className="flex-1 overflow-auto flex flex-col items-center pt-6 pb-10 gap-10 bg-slate-300 transition-all"
+                                                            onClick={() => { setSelElId(null); setEditingTxtId(null); }}
+                                                        >
+                                                            {edPages.map((pg, idx) => (
+                                                                <div
+                                                                    key={pg.id}
+                                                                    id={`editor-page-${idx}`} // ID để scroll Area tìm đến khi click thumbnail
+                                                                    data-page-index={idx}     // Thuộc tính để IntersectionObserver nhận diện trang hiện tại
+                                                                    className="editor-page-container relative shadow-2xl bg-white flex-shrink-0"
+                                                                    style={{ width: CANVAS_W, height: CANVAS_H }}
+                                                                    onPointerMove={onCanvasPointerMove}
+                                                                    onPointerUp={() => { dragRef.current = null; }}
+                                                                >
+                                                                    {/* 1. Page Background (Chuyển từ curPg -> pg) */}
+                                                                    {pg.bg
+                                                                        ? <img src={pg.bg} alt="" draggable={false}
+                                                                            className="absolute inset-0 w-full h-full pointer-events-none select-none"
+                                                                            style={{ zIndex: 5 }} />
+                                                                        : <div className="absolute inset-0 bg-white" style={{ zIndex: 5 }} />
+                                                                    }
+
+                                                                    {/* 2. Header Preview (Dùng dữ liệu của từng trang pg) */}
+                                                                    {hf.headerText.trim() && (
+                                                                        <div className="absolute top-3 left-12 right-12 text-center text-[9px] text-slate-400 border-b border-slate-200 pb-0.5 pointer-events-none" style={{ zIndex: 10 }}>
+                                                                            {hf.headerText}
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* 3. Footer Preview (Số trang tính theo index idx của vòng lặp) */}
+                                                                    {(hf.footerText.trim() || hf.showPageNum) && (
+                                                                        <div
+                                                                            className={`absolute bottom-3 left-12 right-12 flex items-center text-[9px] text-slate-400 border-t border-slate-200 pt-0.5 pointer-events-none ${hf.pageNumPos === 'right' ? 'justify-between' : hf.pageNumPos === 'center' ? 'justify-center gap-4' : 'justify-start gap-4'}`}
+                                                                            style={{ zIndex: 10 }}
+                                                                        >
+                                                                            {hf.footerText.trim() && <span>{hf.footerText}</span>}
+                                                                            {hf.showPageNum && <span>{hf.startFrom + idx}</span>}
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* 4. Overlay Elements (Các phần tử text/image trên trang pg) */}
+                                                                    {[...pg.els]
+                                                                        .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
+                                                                        .map(el => {
+                                                                            const isSel = selElId === el.id;
+                                                                            return (
+                                                                                <div key={el.id}
+                                                                                    className={`absolute group ${isSel ? 'ring-2 ring-indigo-500' : 'hover:ring-1 hover:ring-indigo-300'}`}
+                                                                                    style={{
+                                                                                        left: el.x, top: el.y, width: el.w, height: el.h,
+                                                                                        cursor: 'move', userSelect: 'none',
+                                                                                        zIndex: el.zIndex ?? 10,
+                                                                                    }}
+                                                                                    onPointerDown={e => onElPointerDown(e, el, 'move')}
+                                                                                    onClick={e => { e.stopPropagation(); setSelElId(el.id); }}
+                                                                                    onDoubleClick={e => { e.stopPropagation(); if (el.type === 'text') setEditingTxtId(el.id); }}
+                                                                                >
+                                                                                    {el.type === 'text' && (
+                                                                                        editingTxtId === el.id
+                                                                                            ? <textarea autoFocus
+                                                                                                className="w-full h-full bg-transparent outline-none resize-none p-0 border-none"
+                                                                                                style={{ fontSize: el.fontSize, fontWeight: el.bold ? 'bold' : 'normal', fontStyle: el.italic ? 'italic' : 'normal', color: el.color, textAlign: el.align as any, lineHeight: 1.4 }}
+                                                                                                value={el.text ?? ''}
+                                                                                                onChange={ev => patchEl(el.id, e2 => ({ ...e2, text: ev.target.value }))}
+                                                                                                onBlur={() => setEditingTxtId(null)}
+                                                                                                onKeyDown={ev => ev.key === 'Escape' && setEditingTxtId(null)}
+                                                                                                onClick={ev => ev.stopPropagation()}
+                                                                                                onPointerDown={ev => ev.stopPropagation()}
+                                                                                            />
+                                                                                            : <div className="w-full h-full overflow-hidden pointer-events-none"
+                                                                                                style={{ fontSize: el.fontSize, fontWeight: el.bold ? 'bold' : 'normal', fontStyle: el.italic ? 'italic' : 'normal', color: el.color, textAlign: el.align as any, lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
+                                                                                                {el.text}
+                                                                                            </div>
+                                                                                    )}
+                                                                                    {el.type === 'image' && el.src && (
+                                                                                        <img src={el.src} alt="" draggable={false}
+                                                                                            className="w-full h-full object-fill pointer-events-none select-none" />
+                                                                                    )}
+                                                                                    {isSel && DIRS.map(dir => (
+                                                                                        <div key={dir} style={handlePos(dir)}
+                                                                                            onPointerDown={e => onElPointerDown(e, el, 'resize', dir)} />
+                                                                                    ))}
+                                                                                </div>
+                                                                            );
+                                                                        })
+                                                                    }
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* ──── Right: properties panel ──── */}
+                                                    <div className="w-[220px] shrink-0 bg-white border-l border-slate-200 overflow-y-auto flex flex-col">
+                                                        <div className="px-4 py-3 border-b border-slate-100 shrink-0">
+                                                            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Properties</p>
+                                                        </div>
+
+                                                        {/* no selection → page controls */}
+                                                        {!selEl && (
+                                                            <div className="p-4 space-y-4">
+                                                                <p className="text-xs text-slate-400 italic leading-relaxed">
+                                                                    Click an element on the canvas to edit it.
+                                                                    Double-click a text block to type.
+                                                                </p>
+                                                                <div className="border-t border-slate-100 pt-4 space-y-2">
+                                                                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                                                                        Page {selPage + 1} / {edPages.length}
+                                                                    </p>
+                                                                    <p className="text-xs text-slate-400">{curPg.els.length} element{curPg.els.length !== 1 ? 's' : ''} on this page</p>
+                                                                    <button onClick={() => insertPage(selPage)}
+                                                                        className="w-full py-2 text-xs border border-dashed border-slate-300 rounded-lg text-slate-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 flex items-center justify-center gap-1.5 transition-all">
+                                                                        <FilePlus className="w-3.5 h-3.5" /> Insert page after
+                                                                    </button>
+                                                                    {edPages.length > 1 && (
+                                                                        <button onClick={() => {
+                                                                            setEdPages(ps => ps.filter((_, i) => i !== selPage));
+                                                                            setSelPage(Math.max(0, selPage - 1));
+                                                                            setSelElId(null);
+                                                                        }}
+                                                                            className="w-full py-2 text-xs border border-dashed border-red-200 rounded-lg text-red-400 hover:bg-red-50 flex items-center justify-center gap-1.5 transition-all">
+                                                                            <Trash2 className="w-3.5 h-3.5" /> Delete this page
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* element selected */}
+                                                        {selEl && (
+                                                            <div className="p-4 space-y-4 flex-1">
+
+                                                                {/* ── Text props ── */}
+                                                                {selEl.type === 'text' && (<>
+                                                                    <div>
+                                                                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Font size</label>
+                                                                        <input type="number" min={6} max={96} value={selEl.fontSize ?? 14}
+                                                                            onChange={e => patchEl(selEl.id, el => ({ ...el, fontSize: Number(e.target.value) }))}
+                                                                            className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Style</label>
+                                                                        <div className="flex gap-1.5">
+                                                                            <button onClick={() => patchEl(selEl.id, el => ({ ...el, bold: !el.bold }))}
+                                                                                className={`flex-1 py-1.5 rounded-lg border text-sm font-bold transition-all ${selEl.bold ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>B</button>
+                                                                            <button onClick={() => patchEl(selEl.id, el => ({ ...el, italic: !el.italic }))}
+                                                                                className={`flex-1 py-1.5 rounded-lg border text-sm italic transition-all ${selEl.italic ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'}`}>I</button>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Alignment</label>
+                                                                        <div className="flex gap-1.5">
+                                                                            {(['left', 'center', 'right'] as const).map(a => (
+                                                                                <button key={a}
+                                                                                    onClick={() => patchEl(selEl.id, el => ({ ...el, align: a }))}
+                                                                                    className={`flex-1 py-1.5 rounded-lg border flex items-center justify-center transition-all ${selEl.align === a ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                                                                                    {a === 'left' ? <AlignLeft className="w-3.5 h-3.5" /> : a === 'center' ? <AlignCenter className="w-3.5 h-3.5" /> : <AlignRight className="w-3.5 h-3.5" />}
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Color</label>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <input type="color" value={selEl.color ?? '#000000'}
+                                                                                onChange={e => patchEl(selEl.id, el => ({ ...el, color: e.target.value }))}
+                                                                                className="w-8 h-8 rounded cursor-pointer border-0 p-0 bg-transparent" />
+                                                                            <input value={selEl.color ?? '#000000'}
+                                                                                onChange={e => patchEl(selEl.id, el => ({ ...el, color: e.target.value }))}
+                                                                                className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono outline-none focus:ring-2 focus:ring-indigo-400" />
+                                                                        </div>
+                                                                    </div>
+                                                                    <button onClick={() => setEditingTxtId(selEl.id)}
+                                                                        className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all">
+                                                                        <Type className="w-3.5 h-3.5" /> Edit text content
+                                                                    </button>
+                                                                </>)}
+
+                                                                {/* ── Image props ── */}
+                                                                {selEl.type === 'image' && (<>
+                                                                    <div>
+                                                                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Preview</label>
+                                                                        <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center" style={{ height: 72 }}>
+                                                                            {selEl.src && <img src={selEl.src} alt="" className="max-h-full max-w-full object-contain" />}
+                                                                        </div>
+                                                                    </div>
+                                                                    <button onClick={() => openCrop(selEl)}
+                                                                        className="w-full py-2 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all">
+                                                                        <Crop className="w-3.5 h-3.5" /> Crop image
+                                                                    </button>
+                                                                    <button onClick={() => {
+                                                                        const inp = document.createElement('input');
+                                                                        inp.type = 'file'; inp.accept = 'image/*';
+                                                                        inp.onchange = () => {
+                                                                            const f = inp.files?.[0]; if (!f) return;
+                                                                            const r = new FileReader();
+                                                                            r.onload = ev => patchEl(selEl.id, el => ({ ...el, src: ev.target!.result as string }));
+                                                                            r.readAsDataURL(f);
+                                                                        };
+                                                                        inp.click();
+                                                                    }} className="w-full py-2 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all">
+                                                                        <ImagePlus className="w-3.5 h-3.5" /> Replace image
+                                                                    </button>
+                                                                </>)}
+
+                                                                {/* ── Position & size (shared) ── */}
+                                                                <div className="border-t border-slate-100 pt-4">
+                                                                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">Position & size</label>
+                                                                    <div className="grid grid-cols-2 gap-2">
+                                                                        {(['x', 'y', 'w', 'h'] as const).map(k => (
+                                                                            <div key={k}>
+                                                                                <label className="text-[10px] text-slate-400 block mb-0.5">{k.toUpperCase()}</label>
+                                                                                <input type="number" value={Math.round((selEl as any)[k])}
+                                                                                    onChange={e => patchEl(selEl.id, el => ({ ...el, [k]: Number(e.target.value) }))}
+                                                                                    className="w-full px-2 py-1 border border-slate-200 rounded text-xs outline-none focus:ring-1 focus:ring-indigo-400" />
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+
+                                                                <button onClick={() => deleteEl(selEl.id)}
+                                                                    className="w-full py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all">
+                                                                    <Trash2 className="w-3.5 h-3.5" /> Delete element
+                                                                </button>
+                                                                <div className="border-t border-slate-100 pt-3">
+                                                                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">Layer</label>
+                                                                    <div className="flex gap-2">
+                                                                        <button onClick={() => patchEl(selEl.id, e => ({ ...e, zIndex: (e.zIndex ?? 10) + 1 }))}
+                                                                            className="flex-1 py-1.5 text-xs border border-slate-200 rounded-lg hover:bg-slate-50">
+                                                                            ↑ Forward
+                                                                        </button>
+                                                                        <button onClick={() => patchEl(selEl.id, e => ({ ...e, zIndex: Math.max(1, (e.zIndex ?? 10) - 1) }))}
+                                                                            className="flex-1 py-1.5 text-xs border border-slate-200 rounded-lg hover:bg-slate-50">
+                                                                            ↓ Backward
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* ──── Crop modal ──── */}
+                                        {cropState && (() => {
+                                            const DISP = 460;
+                                            const scale = Math.min(1, DISP / cropState.natW, DISP / cropState.natH);
+                                            const dw = cropState.natW * scale, dh = cropState.natH * scale;
+                                            return (
+                                                <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+                                                    <div className="bg-white rounded-2xl shadow-2xl p-6 flex flex-col gap-4" style={{ maxWidth: 560, width: '100%' }}>
+                                                        <div className="flex items-center justify-between">
+                                                            <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                                                                <Crop className="w-4 h-4 text-indigo-600" /> Crop Image
+                                                            </h3>
+                                                            <button onClick={() => setCropState(null)} className="p-1.5 rounded-lg hover:bg-slate-100">
+                                                                <X className="w-4 h-4 text-slate-500" />
+                                                            </button>
+                                                        </div>
+                                                        {/* crop canvas */}
+                                                        <div className="relative overflow-hidden rounded-xl bg-slate-100 mx-auto"
+                                                            style={{ width: dw, height: dh }}>
+                                                            <img src={cropState.src} alt="" style={{ width: dw, height: dh }} draggable={false} />
+                                                            {/* dark vignette outside crop */}
+                                                            <div className="absolute inset-0 pointer-events-none" style={{ background: 'rgba(0,0,0,0.45)' }} />
+                                                            {/* crop box */}
+                                                            <div
+                                                                className="absolute border-2 border-indigo-500"
+                                                                style={{
+                                                                    left: cropState.cx * scale,
+                                                                    top: cropState.cy * scale,
+                                                                    width: cropState.cw * scale,
+                                                                    height: cropState.ch * scale,
+                                                                    background: 'transparent',
+                                                                    boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)',
+                                                                    cursor: 'move',
+                                                                }}
+                                                                onPointerDown={e => {
+                                                                    e.stopPropagation();
+                                                                    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+                                                                    cropDragRef.current = { active: true, mode: 'move', sx: e.clientX, sy: e.clientY, origCx: cropState.cx, origCy: cropState.cy, origCw: cropState.cw, origCh: cropState.ch };
+                                                                }}
+                                                                onPointerMove={e => {
+                                                                    const d = cropDragRef.current; if (!d.active) return;
+                                                                    const dx = (e.clientX - d.sx) / scale, dy = (e.clientY - d.sy) / scale;
+                                                                    if (d.mode === 'move') {
+                                                                        setCropState(c => c ? {
+                                                                            ...c,
+                                                                            cx: Math.max(0, Math.min(c.natW - c.cw, d.origCx + dx)),
+                                                                            cy: Math.max(0, Math.min(c.natH - c.ch, d.origCy + dy)),
+                                                                        } : c);
+                                                                    } else {
+                                                                        setCropState(c => {
+                                                                            if (!c) return c;
+                                                                            let { cx, cy, cw, ch } = { cx: d.origCx, cy: d.origCy, cw: d.origCw, ch: d.origCh };
+                                                                            if (d.mode.includes('e')) cw = Math.max(20, d.origCw + dx);
+                                                                            if (d.mode.includes('s')) ch = Math.max(20, d.origCh + dy);
+                                                                            if (d.mode.includes('w')) { cx = d.origCx + dx; cw = Math.max(20, d.origCw - dx); }
+                                                                            if (d.mode.includes('n')) { cy = d.origCy + dy; ch = Math.max(20, d.origCh - dy); }
+                                                                            return { ...c, cx, cy, cw, ch };
+                                                                        });
+                                                                    }
+                                                                }}
+                                                                onPointerUp={() => { cropDragRef.current.active = false; }}
+                                                            >
+                                                                {/* rule-of-thirds grid */}
+                                                                <div className="absolute inset-0 pointer-events-none" style={{
+                                                                    backgroundImage: 'linear-gradient(rgba(255,255,255,.25) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.25) 1px, transparent 1px)',
+                                                                    backgroundSize: '33.33% 33.33%',
+                                                                }} />
+                                                                {/* resize handles on crop box */}
+                                                                {DIRS.map(dir => (
+                                                                    <div key={dir}
+                                                                        style={{
+                                                                            ...handlePos(dir),
+                                                                            background: 'white', border: '2px solid #4f46e5', cursor: DIR_CURSOR[dir],
+                                                                        }}
+                                                                        onPointerDown={e => {
+                                                                            e.stopPropagation();
+                                                                            (e.currentTarget as Element).setPointerCapture(e.pointerId);
+                                                                            cropDragRef.current = { active: true, mode: dir, sx: e.clientX, sy: e.clientY, origCx: cropState.cx, origCy: cropState.cy, origCw: cropState.cw, origCh: cropState.ch };
+                                                                        }}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                        <p className="text-xs text-slate-400 text-center">
+                                                            Drag box to move · Drag corner/edge handles to resize &nbsp;·&nbsp;
+                                                            {Math.round(cropState.cw)} × {Math.round(cropState.ch)} px
+                                                        </p>
+                                                        <div className="flex gap-3">
+                                                            <button onClick={() => setCropState(null)}
+                                                                className="flex-1 py-2 border border-slate-200 rounded-xl text-sm text-slate-600 hover:bg-slate-50 transition-all">Cancel</button>
+                                                            <button onClick={applyCrop}
+                                                                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all">
+                                                                <Check className="w-4 h-4" /> Apply crop
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
                                     </div>
                                 )}
 
