@@ -36,7 +36,7 @@ const pdfStyles = StyleSheet.create({
     coverDateLoc: { fontSize: 11, color: '#93c5fd', textAlign: 'center', marginBottom: 50 },
     coverDivider: { width: 60, height: 2, backgroundColor: '#60a5fa', marginBottom: 50 },
     coverSponsorLabel: { fontSize: 9, color: '#93c5fd', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 14 },
-    coverLogos: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 16 },
+    coverLogos: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' },
 
     // TOC
     tocRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, borderBottomWidth: 0.5, borderBottomColor: '#e2e8f0' },
@@ -56,8 +56,8 @@ const pdfStyles = StyleSheet.create({
     tableHeader: { flexDirection: 'row', backgroundColor: '#1a3a6b', paddingVertical: 6, paddingHorizontal: 8, marginBottom: 2 },
     tableHeaderText: { fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: '#ffffff', textTransform: 'uppercase' },
     tableRow: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#e2e8f0', paddingVertical: 7, paddingHorizontal: 4, alignItems: 'flex-start' },
-    colTime: { width: '22%', fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#1a3a6b' },
-    colTopic: { width: '55%', fontSize: 9, color: '#2d3748' },
+    colTime: { width: '28%', fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#1a3a6b', paddingRight: 6 },
+    colTopic: { width: '49%', fontSize: 9, color: '#2d3748' },
     colLocation: { width: '23%', fontSize: 9, color: '#718096', textAlign: 'right' },
 
     // Keynotes
@@ -156,16 +156,22 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                 <Text style={pdfStyles.coverSubtitle}>{data.cover.conferenceName}</Text>
                 <Text style={pdfStyles.coverDateLoc}>{data.cover.date}  ·  {data.cover.location}</Text>
 
-                {data.cover.sponsorLogos?.length > 0 && (
-                    <>
-                        <Text style={pdfStyles.coverSponsorLabel}>Sponsors &amp; Partners</Text>
-                        <View style={pdfStyles.coverLogos}>
-                            {data.cover.sponsorLogos.map((logo: string, i: number) => (
-                                <Image key={i} src={logo} style={{ width: 80, height: 60, objectFit: 'contain' }} />
-                            ))}
-                        </View>
-                    </>
-                )}
+                {data.cover.sponsorLogos?.length > 0 && (() => {
+                    const count = data.cover.sponsorLogos.length;
+                    // Tính kích thước logo tự động để vừa 1 hàng (max width ~475pt với padding 60 mỗi bên)
+                    const logoW = Math.min(80, Math.floor((475 - (count - 1) * 10) / count));
+                    const logoH = Math.round(logoW * 0.75);
+                    return (
+                        <>
+                            <Text style={pdfStyles.coverSponsorLabel}>Sponsors &amp; Partners</Text>
+                            <View style={pdfStyles.coverLogos}>
+                                {data.cover.sponsorLogos.map((logo: string, i: number) => (
+                                    <Image key={i} src={logo} style={{ width: logoW, height: logoH, objectFit: 'contain', marginRight: i < count - 1 ? 10 : 0 }} />
+                                ))}
+                            </View>
+                        </>
+                    );
+                })()}
             </Page>
 
             {/* ── TABLE OF CONTENTS ── (no footer/page-number on this page) */}
@@ -278,8 +284,8 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                         <View key={di}>
                             <Text style={pdfStyles.dayHeader}>{date}</Text>
                             <View style={pdfStyles.tableHeader}>
-                                <Text style={[pdfStyles.tableHeaderText, { width: '22%' }]}>Time</Text>
-                                <Text style={[pdfStyles.tableHeaderText, { width: '55%' }]}>Session / Event</Text>
+                                <Text style={[pdfStyles.tableHeaderText, { width: '28%' }]}>Time</Text>
+                                <Text style={[pdfStyles.tableHeaderText, { width: '49%' }]}>Session / Event</Text>
                                 <Text style={[pdfStyles.tableHeaderText, { width: '23%', textAlign: 'right' }]}>Location</Text>
                             </View>
                             {items.map((s: any, i: number) => (
@@ -431,8 +437,11 @@ interface EditorEl {
     // image
     src?: string;
     zIndex?: number;
+    // TOC detection
+    isTocEntry?: boolean;
+    tocLabel?: string;
 }
-interface EditorPage { id: string; bg: string; els: EditorEl[]; }
+interface EditorPage { id: string; bg: string; bgColor?: string; els: EditorEl[]; }
 interface HFConfig {
     headerText: string; footerText: string;
     showPageNum: boolean; pageNumPos: 'left' | 'center' | 'right'; startFrom: number;
@@ -452,8 +461,7 @@ const px2pt = (v: number, axis: 'x' | 'y') =>
 const EditorExportDoc = ({ pages, hf }: { pages: EditorPage[]; hf: HFConfig }) => (
     <Document>
         {pages.map((pg, pi) => (
-            // Add wrap={false} to the page and set minHeight to force container size
-            <Page key={pg.id} size="A4" wrap={false} style={{ padding: 0, position: 'relative', minHeight: 842 }}>
+            <Page key={pg.id} size="A4" wrap={false} style={{ padding: 0, position: 'relative', minHeight: 842, backgroundColor: pg.bgColor || '#ffffff' }}>
                 {/* overlay elements */}
                 {[...pg.els]
                     .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
@@ -467,25 +475,27 @@ const EditorExportDoc = ({ pages, hf }: { pages: EditorPage[]; hf: HFConfig }) =
                                 : el.italic ? 'Helvetica-Oblique' : 'Helvetica',
                             color: el.color ?? '#000000',
                             textAlign: (el.align ?? 'left') as any,
+
                         }}>{el.text ?? ''}</Text>
                     ) : el.src ? (
                         <Image key={el.id} src={el.src} style={{
                             position: 'absolute',
                             left: px2pt(el.x, 'x'), top: px2pt(el.y, 'y'),
                             width: px2pt(el.w, 'x'), height: px2pt(el.h, 'y'),
+                            objectFit: 'contain',
                         }} />
                     ) : null)
                 }
 
                 {/* global header */}
-                {hf.headerText.trim() && (
+                {hf.headerText.trim() && pi > 1 && (
                     <Text style={{
                         position: 'absolute', top: 14, left: 42, right: 42,
                         fontSize: 8, color: '#888', textAlign: 'center', fontFamily: 'Helvetica',
                     }}>{hf.headerText}</Text>
                 )}
                 {/* global footer */}
-                {(hf.footerText.trim() || hf.showPageNum) && (
+                {(hf.footerText.trim() || hf.showPageNum) && pi > 1 && (
                     <View style={{
                         position: 'absolute', bottom: 14, left: 42, right: 42,
                         flexDirection: 'row',
@@ -499,7 +509,7 @@ const EditorExportDoc = ({ pages, hf }: { pages: EditorPage[]; hf: HFConfig }) =
                                 {hf.footerText}
                             </Text>
                         )}
-                        {hf.showPageNum && pi > 1 && ( // Skip first 2 pages (Cover and TOC)
+                        {hf.showPageNum && (
                             <Text style={{ fontSize: 8, color: '#888', fontFamily: 'Helvetica' }}>
                                 {hf.startFrom + (pi - 2)}
                             </Text>
@@ -526,6 +536,397 @@ const handlePos = (dir: string): React.CSSProperties => ({
     zIndex: 20,
 });
 
+// ─── Shared canvas helper ─────────────────────────────────────────────────────
+const solidColorImg = (color: string, w: number, h: number): string => {
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h));
+    const ctx = c.getContext('2d')!;
+    ctx.fillStyle = color; ctx.fillRect(0, 0, c.width, c.height);
+    return c.toDataURL('image/png');
+};
+
+/** Convert an external image URL to base64 data URL (qua server proxy để bypass CORS) */
+const urlToBase64 = async (url: string): Promise<string> => {
+    // Nếu đã là data URL thì trả về luôn
+    if (url.startsWith('data:')) return url;
+    try {
+        // Gọi server proxy để fetch ảnh (server không bị CORS)
+        const resp = await fetch(`http://localhost:8080/proxy-image?url=${encodeURIComponent(url)}`);
+        if (resp.ok) {
+            const json = await resp.json();
+            if (json.data_url) return json.data_url;
+        }
+    } catch { /* server không khả dụng, thử fallback */ }
+    // Fallback: thử client-side canvas (chỉ hoạt động nếu server ảnh cho phép CORS)
+    return new Promise((resolve) => {
+        const img = new window.Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+            try {
+                const c = document.createElement('canvas');
+                c.width = img.naturalWidth; c.height = img.naturalHeight;
+                const ctx = c.getContext('2d')!;
+                ctx.drawImage(img, 0, 0);
+                resolve(c.toDataURL('image/png'));
+            } catch { resolve(url); }
+        };
+        img.onerror = () => resolve(url);
+        img.src = url;
+    });
+};
+
+// ─── Build editor pages directly from procData (overflow-aware) ───────────────
+const buildEditorPages = (data: any): EditorPage[] => {
+    const scX = CANVAS_W / 595;
+    const scY = CANVAS_H / 842;
+    const ML = Math.round(55 * scX);
+    const MT = Math.round(50 * scY);
+    const CW = CANVAS_W - ML * 2;
+    const MAX_Y = CANVAS_H - Math.round(56 * scY);
+
+    const allPages: EditorPage[] = [];
+    let els: EditorEl[] = [];
+    let curY = MT;
+    // Tách zIndex theo loại: image 10-99, text 100-199
+    let imgZ = 10;
+    let txtZ = 100;
+    const nzImg = () => ++imgZ;
+    const nzTxt = () => ++txtZ;
+
+    const flushPage = (bgColor?: string) => {
+        allPages.push({ id: uuidv4(), bg: '', bgColor, els: [...els] });
+        els = []; curY = MT; imgZ = 10; txtZ = 100;
+    };
+    const fit = (h: number) => { if (curY + h > MAX_Y) flushPage(); };
+
+    const addT = (text: string, x: number, w: number, h: number, opts: Partial<EditorEl> = {}): EditorEl => {
+        const el: EditorEl = {
+            id: uuidv4(), type: 'text', x, y: curY, w, h, text,
+            fontSize: opts.fontSize ?? Math.round(10 * scY),
+            bold: opts.bold ?? false, italic: opts.italic ?? false,
+            color: opts.color ?? '#1a202c', align: opts.align ?? 'left',
+            zIndex: opts.zIndex !== undefined ? opts.zIndex : nzTxt(),
+            isTocEntry: opts.isTocEntry ?? false, tocLabel: opts.tocLabel,
+        };
+        els.push(el); curY += h; return el;
+    };
+    const addRect = (color: string, x: number, w: number, h: number): number => {
+        const savedY = curY;
+        els.push({ id: uuidv4(), type: 'image', x, y: savedY, w, h, src: solidColorImg(color, w, h), zIndex: nzImg() });
+        curY += h; return savedY;
+    };
+    const addRectFlat = (color: string, x: number, y: number, w: number, h: number) => {
+        els.push({ id: uuidv4(), type: 'image', x, y, w, h, src: solidColorImg(color, w, h), zIndex: nzImg() });
+    };
+    const addImg = (src: string, x: number, w: number, h: number) => {
+        els.push({ id: uuidv4(), type: 'image', x, y: curY, w, h, src, zIndex: nzImg() }); curY += h;
+    };
+    const addTAt = (text: string, x: number, y: number, w: number, h: number, opts: Partial<EditorEl> = {}): EditorEl => {
+        const el: EditorEl = {
+            id: uuidv4(), type: 'text', x, y, w, h, text,
+            fontSize: opts.fontSize ?? Math.round(9 * scY),
+            bold: opts.bold ?? false, italic: opts.italic ?? false,
+            color: opts.color ?? '#1a202c', align: opts.align ?? 'left',
+            zIndex: opts.zIndex !== undefined ? opts.zIndex : nzTxt(),
+        };
+        els.push(el); return el;
+    };
+    const addSecHeader = (title: string) => {
+        const h = Math.round(20 * scY);
+        addT(title, ML, CW, h, { fontSize: Math.round(13 * scY), bold: true, color: '#1a3a6b', isTocEntry: true, tocLabel: title });
+        curY += Math.round(4 * scY);
+        addRectFlat('#1a3a6b', ML, curY, CW, Math.round(2 * scY));
+        curY += Math.round(2 * scY) + Math.round(18 * scY);
+    };
+
+    // ── COVER ─────────────────────────────────────────────────────────────────
+    {
+        const coverEls: EditorEl[] = [];
+        let y = Math.round(CANVAS_H * 0.26);
+        const addC = (el: EditorEl) => coverEls.push(el);
+        // Không cần tạo ảnh nền solid color vì bgColor đã xử lý background
+        // (ảnh lớn 744x1052px base64 gây lỗi render các ảnh khác trong react-pdf)
+        addC({ id: uuidv4(), type: 'text', x: ML, y, w: CW, h: Math.round(16 * scY), text: 'P R O G R A M  B O O K', fontSize: Math.round(9 * scY), bold: false, italic: false, color: '#93c5fd', align: 'center', zIndex: 11 });
+        y += Math.round(20 * scY);
+        addC({ id: uuidv4(), type: 'image', x: Math.round((CANVAS_W - 60 * scX) / 2), y, w: Math.round(60 * scX), h: Math.round(2 * scY), src: solidColorImg('#60a5fa', Math.round(60 * scX), 2), zIndex: 12 });
+        y += Math.round(22 * scY);
+        const title = data.cover?.title || 'CONFERENCE PROCEEDINGS';
+        const titleLines = Math.ceil(title.length / 22) + 1;
+        const titleH = Math.round(titleLines * 30 * scY);
+        addC({ id: uuidv4(), type: 'text', x: ML, y, w: CW, h: titleH, text: title, fontSize: Math.round(25 * scY), bold: true, italic: false, color: '#ffffff', align: 'center', zIndex: 13 });
+        y += titleH + Math.round(10 * scY);
+        if (data.cover?.conferenceName) {
+            addC({ id: uuidv4(), type: 'text', x: ML, y, w: CW, h: Math.round(20 * scY), text: data.cover.conferenceName, fontSize: Math.round(11 * scY), bold: false, italic: false, color: '#bfdbfe', align: 'center', zIndex: 14 });
+            y += Math.round(22 * scY);
+        }
+        const dl = [data.cover?.date, data.cover?.location].filter(Boolean).join('  ·  ');
+        if (dl) {
+            addC({ id: uuidv4(), type: 'text', x: ML, y, w: CW, h: Math.round(18 * scY), text: dl, fontSize: Math.round(10 * scY), bold: false, italic: false, color: '#93c5fd', align: 'center', zIndex: 15 });
+            y += Math.round(44 * scY);
+        }
+        if (data.cover?.sponsorLogos?.length > 0) {
+            addC({ id: uuidv4(), type: 'text', x: ML, y, w: CW, h: Math.round(14 * scY), text: 'S P O N S O R S  &  P A R T N E R S', fontSize: Math.round(8 * scY), bold: false, italic: false, color: '#93c5fd', align: 'center', zIndex: 16 });
+            y += Math.round(18 * scY);
+            let lx = ML;
+            data.cover.sponsorLogos.forEach((logo: string) => {
+                const lw = Math.round(80 * scX), lh = Math.round(60 * scY);
+                addC({ id: uuidv4(), type: 'image', x: lx, y, w: lw, h: lh, src: logo, zIndex: 17 }); lx += lw + Math.round(16 * scX);
+            });
+        }
+        allPages.push({ id: uuidv4(), bg: solidColorImg('#1a3a6b', THUMB_W, THUMB_H), bgColor: '#1a3a6b', els: coverEls });
+    }
+
+    // ── TOC placeholder (filled by regenerateToc) ─────────────────────────────
+    allPages.push({ id: uuidv4(), bg: '', bgColor: '#ffffff', els: [] });
+
+    // ── FOREWORD ──────────────────────────────────────────────────────────────
+    addSecHeader('FOREWORD');
+    const paras = (data.foreword || '').split('\n').filter((p: string) => p.trim());
+    if (paras.length === 0) {
+        addT('No foreword provided.', ML, CW, Math.round(18 * scY), { color: '#718096', italic: true });
+    } else {
+        paras.forEach((p: string) => {
+            const lines = Math.ceil(p.trim().length / 85) + 1;
+            const h = Math.round(lines * 16 * scY);
+            fit(h + Math.round(10 * scY));
+            addT(p.trim(), ML, CW, h, { color: '#2d3748' });
+            curY += Math.round(10 * scY);
+        });
+    }
+    flushPage();
+
+    // ── ORGANIZING COMMITTEE ──────────────────────────────────────────────────
+    addSecHeader('ORGANIZING COMMITTEE');
+    const byRole: Record<string, any[]> = {};
+    (data.committee || []).forEach((m: any) => {
+        if (!byRole[m.role]) byRole[m.role] = [];
+        byRole[m.role].push(m);
+    });
+    if (Object.keys(byRole).length === 0) {
+        addT('No committee members added.', ML, CW, Math.round(18 * scY), { color: '#718096', italic: true });
+    } else {
+        Object.entries(byRole).forEach(([role, members]) => {
+            fit(Math.round(60 * scY));
+            addT(role, ML, CW, Math.round(16 * scY), { fontSize: Math.round(9 * scY), bold: true, color: '#1a3a6b' });
+            curY += Math.round(4 * scY);
+            (members as any[]).forEach((m: any) => {
+                fit(Math.round(16 * scY));
+                addT(m.name + (m.affiliation ? `, ${m.affiliation}` : ''), ML + Math.round(8 * scX), CW - Math.round(8 * scX), Math.round(16 * scY), { fontSize: Math.round(9 * scY), color: '#2d3748' });
+            });
+            curY += Math.round(8 * scY);
+        });
+    }
+    flushPage();
+
+    // ── CONFERENCE INFORMATION ────────────────────────────────────────────────
+    addSecHeader('CONFERENCE INFORMATION');
+    const addInfoSection = (label: string, text?: string) => {
+        if (!text?.trim()) return;
+        fit(Math.round(50 * scY));
+        addT(label, ML, CW, Math.round(14 * scY), { fontSize: Math.round(9 * scY), bold: true, color: '#1a3a6b' });
+        curY += Math.round(4 * scY);
+        const lines = Math.ceil(text.length / 90) + 1;
+        const h = Math.round(lines * 16 * scY);
+        fit(h); addT(text, ML, CW, h, { fontSize: Math.round(9 * scY), color: '#2d3748' });
+        curY += Math.round(14 * scY);
+    };
+    addInfoSection('CONFERENCE VENUE', data.generalInfo?.venueDetails);
+    addInfoSection('REGISTRATION DESK HOURS', data.generalInfo?.registrationHours);
+    addInfoSection('FUNCTION ROOMS', data.generalInfo?.roomAssignments);
+    addInfoSection('REFRESHMENTS & INTERNET', data.generalInfo?.coffeeInternetInfo);
+    addInfoSection('GALA DINNER', data.generalInfo?.galaDinner);
+    if (data.generalInfo?.floorPlan) {
+        fit(Math.round(220 * scY));
+        addT('VENUE LAYOUT', ML, CW, Math.round(14 * scY), { fontSize: Math.round(9 * scY), bold: true, color: '#1a3a6b' });
+        curY += Math.round(6 * scY); addImg(data.generalInfo.floorPlan, ML, CW, Math.round(200 * scY));
+    }
+    flushPage();
+
+    // ── PROGRAM AT A GLANCE ───────────────────────────────────────────────────
+    addSecHeader('PROGRAM AT A GLANCE');
+    const byDate: Record<string, any[]> = {};
+    (data.summarySchedule || []).forEach((s: any) => {
+        const k = s.date || 'Unscheduled'; if (!byDate[k]) byDate[k] = []; byDate[k].push(s);
+    });
+    if (Object.keys(byDate).length === 0) {
+        addT('No schedule data loaded.', ML, CW, Math.round(18 * scY), { color: '#718096', italic: true });
+    } else {
+        Object.entries(byDate).forEach(([date, items]) => {
+            fit(Math.round(80 * scY));
+            addT(date, ML, CW, Math.round(20 * scY), { fontSize: Math.round(11 * scY), bold: true, color: '#1a3a6b' });
+            curY += Math.round(6 * scY);
+            const rowH = Math.round(22 * scY);
+            const hdrY = addRect('#1a3a6b', ML, CW, rowH);
+            const tY = hdrY + Math.round(5 * scY), tH = rowH - Math.round(8 * scY);
+            addTAt('TIME', ML + 4, tY, CW * 0.28, tH, { fontSize: Math.round(8 * scY), bold: true, color: '#ffffff' });
+            addTAt('SESSION / EVENT', ML + CW * 0.28, tY, CW * 0.52, tH, { fontSize: Math.round(8 * scY), bold: true, color: '#ffffff' });
+            addTAt('LOCATION', ML + CW * 0.77, tY, CW * 0.23, tH, { fontSize: Math.round(8 * scY), bold: true, color: '#ffffff', align: 'right' });
+            curY += Math.round(2 * scY);
+            (items as any[]).forEach((s: any) => {
+                const tLines = Math.ceil((s.topic || '').length / 45) + 1;
+                const rH = Math.round(Math.max(tLines * 14 * scY, 22 * scY));
+                fit(rH);
+                const rY = curY + Math.round(4 * scY), rH2 = rH - Math.round(8 * scY);
+                addTAt(s.time || '', ML + 4, rY, CW * 0.28, rH2, { fontSize: Math.round(9 * scY), bold: true, color: '#1a3a6b' });
+                addTAt(s.topic || '', ML + CW * 0.28, rY, CW * 0.52, rH2, { fontSize: Math.round(9 * scY), color: '#2d3748' });
+                addTAt(s.location || '', ML + CW * 0.77, rY, CW * 0.23, rH2, { fontSize: Math.round(9 * scY), color: '#718096', align: 'right' });
+                curY += rH; addRectFlat('#e2e8f0', ML, curY - 1, CW, 1); curY += Math.round(3 * scY);
+            });
+            curY += Math.round(18 * scY);
+        });
+    }
+    flushPage();
+
+    // ── KEYNOTE SPEAKERS ──────────────────────────────────────────────────────
+    if (data.keynotes?.length > 0) {
+        addSecHeader('KEYNOTE SPEAKERS');
+        (data.keynotes as KeynoteSpeaker[]).forEach(k => {
+            const photoW = Math.round(72 * scX), photoH = Math.round(72 * scY);
+            const tLines = Math.ceil((k.presentationTitle || 'Untitled').length / 40) + 1;
+            const tH = Math.round(tLines * 14 * scY);
+            const abH = k.abstract ? Math.round((Math.ceil(k.abstract.length / 90) + 1) * 14 * scY + 28) : 0;
+            const bioH = k.bio ? Math.round((Math.ceil(k.bio.length / 95) + 1) * 14 * scY + 10) : 0;
+            fit(photoH + abH + bioH + Math.round(40 * scY));
+            const blockY = curY;
+            if (k.photo) els.push({ id: uuidv4(), type: 'image', x: ML, y: blockY, w: photoW, h: photoH, src: k.photo, zIndex: nzImg() });
+            const infoX = k.photo ? ML + photoW + Math.round(12 * scX) : ML;
+            const infoW = k.photo ? CW - photoW - Math.round(12 * scX) : CW;
+            els.push({ id: uuidv4(), type: 'text', x: infoX, y: blockY, w: infoW, h: tH, text: k.presentationTitle || 'Untitled Keynote', fontSize: Math.round(12 * scY), bold: true, italic: false, color: '#1a3a6b', align: 'left', zIndex: nzTxt() });
+            els.push({ id: uuidv4(), type: 'text', x: infoX, y: blockY + tH + 4, w: infoW, h: Math.round(18 * scY), text: k.name || '', fontSize: Math.round(10 * scY), bold: false, italic: true, color: '#4a5568', align: 'left', zIndex: nzTxt() });
+            curY += Math.max(photoH, tH + 24) + Math.round(12 * scY);
+            if (k.abstract) {
+                addT('ABSTRACT', ML, CW, Math.round(12 * scY), { fontSize: Math.round(8 * scY), bold: true, color: '#718096' });
+                curY += Math.round(4 * scY);
+                addT(k.abstract, ML, CW, Math.round((Math.ceil(k.abstract.length / 90) + 1) * 14 * scY), { fontSize: Math.round(9 * scY), color: '#2d3748' });
+                curY += Math.round(6 * scY);
+            }
+            if (k.bio) {
+                addT(k.bio, ML, CW, Math.round((Math.ceil(k.bio.length / 95) + 1) * 14 * scY), { fontSize: Math.round(9 * scY), italic: true, color: '#4a5568' });
+                curY += Math.round(8 * scY);
+            }
+            addRectFlat('#e2e8f0', ML, curY, CW, 1); curY += Math.round(24 * scY);
+        });
+        flushPage();
+    }
+
+    // ── DETAILED PROGRAM WITH ABSTRACTS ───────────────────────────────────────
+    addSecHeader('DETAILED PROGRAM WITH ABSTRACTS');
+    const schedule: any[] = data.detailedSchedule || [];
+    if (schedule.length === 0) {
+        addT('No accepted papers found for this conference.', ML, CW, Math.round(18 * scY), { color: '#718096', italic: true });
+    } else {
+        const sorted = [...schedule].sort((a, b) => {
+            if (a.sessionDayOrder !== b.sessionDayOrder) return (a.sessionDayOrder || 0) - (b.sessionDayOrder || 0);
+            return (a.timeSlot || '').localeCompare(b.timeSlot || '');
+        });
+        const days: { label: string; papers: any[] }[] = [];
+        sorted.forEach(p => {
+            const label = p.sessionDayLabel || 'Unscheduled';
+            const ex = days.find(d => d.label === label);
+            if (ex) ex.papers.push(p); else days.push({ label, papers: [p] });
+        });
+        days.forEach(day => {
+            const dayH = Math.round(26 * scY);
+            fit(dayH + Math.round(50 * scY));
+            const dayBgY = addRect('#1a3a6b', ML, CW, dayH);
+            addTAt(day.label, ML + Math.round(10 * scX), dayBgY + Math.round(6 * scY), CW - Math.round(20 * scX), dayH - Math.round(10 * scY), { fontSize: Math.round(11 * scY), bold: true, color: '#ffffff' });
+            curY += Math.round(14 * scY);
+            day.papers.forEach(p => {
+                const authH = Math.round(16 * scY);
+                const tLines = Math.ceil((p.paperTitle || '').length / 65) + 1;
+                const tH = Math.round(Math.max(tLines * 13 * scY, 14));
+                const abText = p.abstract ? 'ABSTRACT. ' + p.abstract.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim() : '';
+                const abH = abText ? Math.round((Math.ceil(abText.length / 85) + 1) * 13 * scY) : 0;
+                const totalH = authH + tH + abH + Math.round(34 * scY);
+                fit(totalH);
+                const pML = ML + Math.round(15 * scX), pCW = CW - Math.round(13 * scX);
+                const timeW = p.timeSlot ? Math.round(50 * scX) : 0;
+                const blockStartY = curY;
+                els.push({ id: uuidv4(), type: 'image', x: ML, y: blockStartY, w: Math.round(3 * scX), h: totalH - Math.round(10 * scY), src: solidColorImg('#93c5fd', Math.round(3 * scX), totalH - Math.round(10 * scY)), zIndex: nzImg() });
+                if (p.timeSlot) addTAt(p.timeSlot, pML, curY, Math.round(40 * scX), authH, { fontSize: Math.round(9 * scY), bold: true, color: '#1a3a6b' });
+                addTAt(p.authors || '', pML + timeW + 8, curY, pCW - timeW - 8, authH, { fontSize: Math.round(9 * scY), italic: true, color: '#4a5568' });
+                curY += authH + Math.round(3 * scY);
+                addTAt(p.paperTitle || '', pML + timeW, curY, pCW - timeW, tH, { fontSize: Math.round(10 * scY), bold: true, color: '#1a202c' });
+                curY += tH + Math.round(4 * scY);
+                if (abText) { addTAt(abText, pML + timeW, curY, pCW - timeW, abH, { fontSize: Math.round(9 * scY), color: '#2d3748' }); curY += abH + Math.round(6 * scY); }
+                curY += Math.round(16 * scY);
+            });
+        });
+    }
+    flushPage();
+    return allPages;
+};
+
+// ─── Regenerate TOC page (always index 1) from isTocEntry elements ────────────
+const regenerateToc = (pages: EditorPage[]): EditorPage[] => {
+    if (pages.length < 2) return pages;
+    const scX = CANVAS_W / 595, scY = CANVAS_H / 842;
+    const ML = Math.round(55 * scX), MT = Math.round(50 * scY);
+    const CW = CANVAS_W - ML * 2;
+    const entries: { label: string; pageNum: number }[] = [];
+    pages.forEach((pg, idx) => {
+        if (idx <= 1) return;
+        pg.els.forEach(el => { if (el.isTocEntry && el.text) entries.push({ label: el.tocLabel || el.text, pageNum: idx + 1 }); });
+    });
+    const tocEls: EditorEl[] = [];
+    let y = MT, imgZ = 10, txtZ = 100;
+    const nzImg = () => ++imgZ;
+    const nzTxt = () => ++txtZ;
+    const titleH = Math.round(20 * scY);
+    tocEls.push({ id: uuidv4(), type: 'text', x: ML, y, w: CW, h: titleH, text: 'TABLE OF CONTENTS', fontSize: Math.round(13 * scY), bold: true, italic: false, color: '#1a3a6b', align: 'left', zIndex: nzTxt() });
+    y += titleH + Math.round(4 * scY);
+    tocEls.push({ id: uuidv4(), type: 'image', x: ML, y, w: CW, h: Math.round(2 * scY), src: solidColorImg('#1a3a6b', CW, Math.round(2 * scY)), zIndex: nzImg() });
+    y += Math.round(2 * scY) + Math.round(20 * scY);
+    entries.forEach(entry => {
+        const rowH = Math.round(22 * scY);
+        tocEls.push({ id: uuidv4(), type: 'text', x: ML, y, w: CW * 0.82, h: rowH, text: entry.label, fontSize: Math.round(10 * scY), bold: true, italic: false, color: '#1a3a6b', align: 'left', zIndex: nzTxt() });
+        tocEls.push({ id: uuidv4(), type: 'text', x: ML + CW * 0.82, y, w: CW * 0.18, h: rowH, text: String(entry.pageNum), fontSize: Math.round(9 * scY), bold: false, italic: false, color: '#718096', align: 'right', zIndex: nzTxt() });
+        y += rowH;
+        tocEls.push({ id: uuidv4(), type: 'image', x: ML, y: y - 1, w: CW, h: 1, src: solidColorImg('#e2e8f0', CW, 1), zIndex: nzImg() });
+    });
+    return pages.map((pg, idx) => idx === 1 ? { ...pg, els: tocEls } : pg);
+};
+
+// ─── Render page elements to a thumbnail JPEG ────────────────────────────────
+const renderThumbnail = (page: EditorPage): Promise<string> => {
+    const scale = THUMB_W / CANVAS_W;
+    return new Promise(resolve => {
+        const c = document.createElement('canvas');
+        c.width = THUMB_W; c.height = THUMB_H;
+        const ctx = c.getContext('2d')!;
+        ctx.fillStyle = page.bgColor || '#ffffff';
+        ctx.fillRect(0, 0, THUMB_W, THUMB_H);
+        const sorted = [...page.els].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
+        const drawNext = (i: number) => {
+            if (i >= sorted.length) { resolve(c.toDataURL('image/jpeg', 0.82)); return; }
+            const el = sorted[i];
+            const x = el.x * scale, y = el.y * scale;
+            const w = Math.max(1, el.w * scale), h = Math.max(1, el.h * scale);
+            if (el.type === 'image' && el.src) {
+                const img = new window.Image();
+                img.onload = () => { ctx.drawImage(img, x, y, w, h); drawNext(i + 1); };
+                img.onerror = () => drawNext(i + 1);
+                img.src = el.src;
+            } else if (el.type === 'text' && el.text) {
+                ctx.fillStyle = el.color || '#1a202c';
+                const fs = Math.max(1.5, (el.fontSize || 10) * scale);
+                ctx.font = `${el.italic ? 'italic ' : ''}${el.bold ? 'bold ' : ''}${fs}px Helvetica, Arial, sans-serif`;
+                ctx.textBaseline = 'top';
+                const lineH = fs * 1.35;
+                el.text.split('\n').forEach((line, li) => {
+                    const ly = y + li * lineH;
+                    if (ly > THUMB_H || !line.trim()) return;
+                    if (el.align === 'center') { const tw = ctx.measureText(line).width; ctx.fillText(line, x + (w - tw) / 2, ly, w); }
+                    else if (el.align === 'right') { const tw = ctx.measureText(line).width; ctx.fillText(line, x + w - tw, ly, w); }
+                    else ctx.fillText(line, x, ly, w);
+                });
+                drawNext(i + 1);
+            } else drawNext(i + 1);
+        };
+        drawNext(0);
+    });
+};
+
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 const TABS = [
     { key: 'cover', label: 'Cover', icon: ImageLucide },
@@ -535,8 +936,8 @@ const TABS = [
     { key: 'schedule', label: 'At a Glance', icon: CalendarDays },
     { key: 'keynotes', label: 'Keynotes', icon: Mic },
     { key: 'papers', label: 'Papers', icon: List },
-    { key: 'preview', label: 'PDF Preview', icon: Eye },
     { key: 'editor', label: 'PDF Editor', icon: PenLine },
+    { key: 'preview', label: 'PDF Preview', icon: Eye },
 ];
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -554,6 +955,12 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
     const [edLoading, setEdLoading] = useState(false);
     const [selPage, setSelPage] = useState(0);
     const scrollAreaRef = useRef<HTMLDivElement>(null); // Thêm ref này
+    const [clipboard, setClipboard] = useState<EditorEl | null>(null);
+    const [history, setHistory] = useState<EditorPage[][]>([]);
+    // Hàm helper để lưu lại trạng thái trước khi thay đổi
+    const saveHistory = () => {
+        setHistory(prev => [JSON.parse(JSON.stringify(edPages)), ...prev].slice(0, 20)); // Lưu tối đa 20 bước
+    };
 
     // Hàm để cuộn đến trang cụ thể khi click thumbnail
     const jumpToPage = (idx: number) => {
@@ -692,7 +1099,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                     conferenceName: conf.conf_name,
                     date: `${new Date(conf.start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} – ${new Date(conf.end_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`,
                     location: conf.location,
-                    sponsorLogos: Array.isArray(conf.banner_urls) ? conf.banner_urls : [],
+                    sponsorLogos: [], // Sẽ được convert từ URL sang base64 bên dưới
                 },
                 foreword: config?.foreword || '',
                 summarySchedule: (sessions || []).map(s => {
@@ -754,6 +1161,13 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
             if (new Date(conf.end_date) > new Date()) {
                 setError(`Note: Conference is still ongoing (ends ${new Date(conf.end_date).toLocaleDateString()}). You may finalize proceedings after it concludes.`);
             }
+
+            // Convert sponsor logo URLs thành base64 (tránh lỗi CORS trong react-pdf)
+            const bannerUrls: string[] = Array.isArray(conf.banner_urls) ? conf.banner_urls : [];
+            if (bannerUrls.length > 0) {
+                const base64Logos = await Promise.all(bannerUrls.map(url => urlToBase64(url)));
+                setProcData(d => ({ ...d, cover: { ...d.cover, sponsorLogos: base64Logos } }));
+            }
         } catch (err) {
             console.error(err);
             setError('Failed to load conference data. Please try again.');
@@ -786,55 +1200,37 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
 
     // ── Editor helpers ────────────────────────────────────────────────────────
 
-    /** Lazily load PDF.js from CDN */
-    const loadPdfJs = (): Promise<any> => new Promise(res => {
-        const w = window as any;
-        if (w.pdfjsLib) { res(w.pdfjsLib); return; }
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-        s.onload = () => {
-            w.pdfjsLib.GlobalWorkerOptions.workerSrc =
-                'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-            res(w.pdfjsLib);
-        };
-        document.head.appendChild(s);
-    });
-
-    /** Render the current ProceedingsDocument into canvas images then open editor */
-    const initEditor = async () => {
-        if (edReady || edLoading) return;
+    /** Build pages from procData, regenerate TOC, render thumbnails */
+    const initEditor = async (forceRebuild = false) => {
+        if ((!forceRebuild && edReady) || edLoading) return;
         setEdLoading(true);
         try {
-            const blob = await pdf(<ProceedingsDocument data={procData} />).toBlob();
-            const pdfjs = await loadPdfJs();
-            const url = URL.createObjectURL(blob);
-            const doc = await pdfjs.getDocument(url).promise;
-            const pages: EditorPage[] = [];
-            for (let i = 1; i <= doc.numPages; i++) {
-                const pg = await doc.getPage(i);
-                const vp = pg.getViewport({ scale: 2.2 });
-                const cnv = document.createElement('canvas');
-                cnv.width = vp.width; cnv.height = vp.height;
-                const ctx = cnv.getContext('2d')!;
-                await pg.render({ canvasContext: cnv.getContext('2d')!, viewport: vp }).promise;
-                // Đưa ảnh nền vào danh sách phần tử để có thể di chuyển layer
-                const bgDataUrl = cnv.toDataURL('image/jpeg', 0.9);
-                pages.push({
-                    id: uuidv4(),
-                    bg: bgDataUrl,
-                    els: [{
-                        id: 'original-pdf-content-' + i,
-                        type: 'image',
-                        x: 0, y: 0, w: CANVAS_W, h: CANVAS_H,
-                        src: bgDataUrl,
-                        zIndex: 5
-                    }]
-                });
-            }
-            URL.revokeObjectURL(url);
-            setEdPages(pages); setSelPage(0); setEdReady(true);
+            let pages = buildEditorPages(procData);
+            pages = regenerateToc(pages);
+            const pagesWithThumbs = await Promise.all(
+                pages.map(async pg => ({ ...pg, bg: pg.bg || await renderThumbnail(pg) }))
+            );
+            setEdPages(pagesWithThumbs); setSelPage(0); setEdReady(true);
         } catch (e) { console.error('Editor init failed', e); }
         finally { setEdLoading(false); }
+    };
+
+    // Auto-sync: Khi procData thay đổi và editor đã mở, rebuild lại editor pages
+    const procDataJson = JSON.stringify(procData);
+    useEffect(() => {
+        if (!edReady) return;
+        const timer = setTimeout(() => {
+            initEditor(true);
+        }, 500); // debounce 500ms để tránh rebuild liên tục khi gõ
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [procDataJson]);
+
+    /** Regenerate TOC page and refresh its thumbnail */
+    const syncToc = async () => {
+        const synced = regenerateToc(edPages);
+        const tocThumb = await renderThumbnail(synced[1]);
+        setEdPages(synced.map((pg, i) => i === 1 ? { ...pg, bg: tocThumb } : pg));
     };
 
     /** Patch the currently selected page */
@@ -848,13 +1244,89 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
     const curPg = edPages[selPage];
     const selEl = curPg?.els.find(e => e.id === selElId) ?? null;
 
+    // Logic Ctrl C + Ctrl V
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Phớt lờ nếu đang gõ trong textarea
+            if (document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'INPUT') return;
+
+            // Ctrl + C (Copy)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selEl) {
+                e.preventDefault();
+                setClipboard({ ...selEl });
+            }
+
+            // Ctrl + V (Paste)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'v' && clipboard) {
+                e.preventDefault();
+                const newId = uuidv4();
+                const pastedEl = {
+                    ...clipboard,
+                    id: newId,
+                    x: clipboard.x + 20, // Lệch một chút để thấy
+                    y: clipboard.y + 20,
+                    zIndex: clipboard.type === 'image' ? 90 : 190 // Lên trên cùng theo loại
+                };
+                patchPage(p => ({ ...p, els: [...p.els, pastedEl] }));
+                setSelElId(newId);
+            }
+        };
+
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selEl, clipboard, selPage]);
+
+    // Logic Del + Ctrl Z
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'INPUT') return;
+
+            // 1. Phím Delete để xóa element
+            if (e.key === 'Delete' && selElId) {
+                e.preventDefault();
+                saveHistory();
+                deleteEl(selElId);
+            }
+
+            // 2. Ctrl + Z để Undo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                e.preventDefault();
+                if (history.length > 0) {
+                    const prev = history[0];
+                    setEdPages(prev);
+                    setHistory(history.slice(1));
+                    setSelElId(null);
+                }
+            }
+
+            // Ctrl + C / Ctrl + V giữ nguyên nhưng thêm saveHistory() vào trước khi Paste
+            if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selEl) {
+                e.preventDefault();
+                setClipboard({ ...selEl });
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'v' && clipboard) {
+                e.preventDefault();
+                saveHistory(); // Lưu lịch sử trước khi dán
+                const newId = uuidv4();
+                const pastedEl = { ...clipboard, id: newId, x: clipboard.x + 20, y: clipboard.y + 20, zIndex: clipboard.type === 'image' ? 90 : 190 };
+                patchPage(p => ({ ...p, els: [...p.els, pastedEl] }));
+                setSelElId(newId);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selEl, clipboard, edPages, history, selPage, selElId]);
+
     const addText = () => {
         const id = uuidv4();
+        const maxTxtZ = curPg.els.filter(e => e.type === 'text').reduce((m, e) => Math.max(m, e.zIndex ?? 100), 100);
         patchPage(p => ({
             ...p, els: [...p.els, {
                 id, type: 'text', x: 60, y: 80, w: 320, h: 44,
                 text: 'New Text', fontSize: 14, bold: false, italic: false,
-                color: '#000000', align: 'left', zIndex: 10 + curPg.els.length,
+                color: '#000000', align: 'left', zIndex: maxTxtZ + 1,
             }],
         }));
         setSelElId(id); setEditingTxtId(id);
@@ -866,9 +1338,10 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
             const id = uuidv4();
             const aspect = img.naturalHeight / img.naturalWidth;
             const w = 200;
+            const maxImgZ = curPg.els.filter(e => e.type === 'image').reduce((m, e) => Math.max(m, e.zIndex ?? 10), 10);
             patchPage(p => ({
                 ...p, els: [...p.els, {
-                    id, type: 'image', x: 60, y: 80, w, h: Math.round(w * aspect), src, zIndex: 10 + curPg.els.length,
+                    id, type: 'image', x: 60, y: 80, w, h: Math.round(w * aspect), src, zIndex: maxImgZ + 1,
                 }],
             }));
             setSelElId(id);
@@ -910,16 +1383,17 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
     const reorderPage = (from: number, to: number) => {
         if (from === to) return;
         setEdPages(ps => {
-            const a = [...ps]; const [item] = a.splice(from, 1); a.splice(to, 0, item); return a;
+            const a = [...ps]; const [item] = a.splice(from, 1); a.splice(to, 0, item);
+            return regenerateToc(a);
         });
         setSelPage(to);
     };
 
     /** Insert a blank page after afterIdx */
     const insertPage = (afterIdx: number) => {
-        const blank: EditorPage = { id: uuidv4(), bg: '', els: [] };
+        const blank: EditorPage = { id: uuidv4(), bg: '', bgColor: '#ffffff', els: [] };
         setEdPages(ps => {
-            const a = [...ps]; a.splice(afterIdx + 1, 0, blank); return a;
+            const a = [...ps]; a.splice(afterIdx + 1, 0, blank); return regenerateToc(a);
         });
         setSelPage(afterIdx + 1);
     };
@@ -1113,7 +1587,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                     {activeTab === 'schedule' && 'High-level session schedule shown in "Program at a Glance" table.'}
                                     {activeTab === 'keynotes' && 'Invited keynote speakers with abstract and biography.'}
                                     {activeTab === 'papers' && 'Accepted papers auto-loaded from the database. Edit DOI codes here.'}
-                                    {activeTab === 'preview' && 'Live PDF preview. Use "Export PDF" in the top bar to download.'}
+                                    {activeTab === 'preview' && 'Live PDF preview. Use "Export PDF" button to download.'}
                                     {activeTab === 'editor' && 'Visual editor: add text & images, move/resize/crop, reorder pages, set header & footer, then export.'}
                                 </p>
                             </div>
@@ -1146,8 +1620,29 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                             <input type="file" multiple accept="image/*"
                                                 onChange={e => {
                                                     if (e.target.files) {
-                                                        const urls = Array.from(e.target.files).map(f => URL.createObjectURL(f as File));
-                                                        updateCover({ sponsorLogos: [...procData.cover.sponsorLogos, ...urls] });
+                                                        const files = Array.from(e.target.files as FileList);
+                                                        // Sử dụng mảng tạm để thu thập toàn bộ Base64 trước khi cập nhật State 1 lần duy nhất
+                                                        const loadedBase64: string[] = [];
+                                                        let count = 0;
+
+                                                        files.forEach(file => {
+                                                            const reader = new FileReader();
+                                                            reader.onload = (ev) => {
+                                                                loadedBase64.push(ev.target?.result as string);
+                                                                count++;
+                                                                // Khi đã đọc xong tất cả các file
+                                                                if (count === files.length) {
+                                                                    setProcData(d => ({
+                                                                        ...d,
+                                                                        cover: {
+                                                                            ...d.cover,
+                                                                            sponsorLogos: [...d.cover.sponsorLogos, ...loadedBase64]
+                                                                        }
+                                                                    }));
+                                                                }
+                                                            };
+                                                            reader.readAsDataURL(file);
+                                                        });
                                                     }
                                                 }}
                                                 className="block w-full text-sm text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
@@ -1405,10 +1900,39 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
 
                                 {/* ─── PREVIEW ─── */}
                                 {activeTab === 'preview' && (
-                                    <div className="h-[720px] rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
-                                        <PDFViewer width="100%" height="100%" className="border-none">
-                                            <ProceedingsDocument data={procData} />
-                                        </PDFViewer>
+                                    <div className="space-y-4">
+                                        {/* Thêm nút Export PDF ngay trong tab Preview */}
+                                        <div className="flex justify-end">
+                                            <PDFDownloadLink
+                                                document={edReady ? <EditorExportDoc pages={edPages} hf={hf} /> : <ProceedingsDocument data={procData} />}
+                                                fileName="conference-proceedings.pdf"
+                                            >
+                                                {({ loading }) => (
+                                                    <Button
+                                                        variant="primary"
+                                                        icon={Download}
+                                                        disabled={loading}
+                                                        className="shadow-md shadow-indigo-200"
+                                                    >
+                                                        {loading ? 'Preparing Document...' : 'Export PDF'}
+                                                    </Button>
+                                                )}
+                                            </PDFDownloadLink>
+                                        </div>
+
+                                        <div className="h-[720px] rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+                                            <PDFViewer width="100%" height="100%" className="border-none">
+                                                {/* Đồng bộ: Nếu người dùng đã mở Editor (edReady = true), Preview sẽ 
+                                                hiển thị EditorExportDoc (chứa các thay đổi visual). 
+                                                Nếu chưa, hiển thị bản ProceedingsDocument mặc định.
+                                                */}
+                                                {edReady ? (
+                                                    <EditorExportDoc pages={edPages} hf={hf} />
+                                                ) : (
+                                                    <ProceedingsDocument data={procData} />
+                                                )}
+                                            </PDFViewer>
+                                        </div>
                                     </div>
                                 )}
 
@@ -1532,6 +2056,13 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                                 <RefreshCw className="w-4 h-4" />
                                                             </button>
 
+                                                            {/* Sync TOC */}
+                                                            <button onClick={syncToc}
+                                                                title="Sync Table of Contents from TOC-entry elements"
+                                                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 text-xs font-medium transition-all">
+                                                                <List className="w-3.5 h-3.5" /> Sync TOC
+                                                            </button>
+
                                                             {/* Export */}
                                                             <PDFDownloadLink
                                                                 document={<EditorExportDoc pages={edPages} hf={hf} />}
@@ -1609,28 +2140,23 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                                     key={pg.id}
                                                                     id={`editor-page-${idx}`} // ID để scroll Area tìm đến khi click thumbnail
                                                                     data-page-index={idx}     // Thuộc tính để IntersectionObserver nhận diện trang hiện tại
-                                                                    className="editor-page-container relative shadow-2xl bg-white flex-shrink-0"
-                                                                    style={{ width: CANVAS_W, height: CANVAS_H }}
+                                                                    className={`editor-page-container relative shadow-2xl flex-shrink-0`}
+                                                                    style={{ width: CANVAS_W, height: CANVAS_H, backgroundColor: pg.bgColor || '#ffffff' }}
                                                                     onPointerMove={onCanvasPointerMove}
                                                                     onPointerUp={() => { dragRef.current = null; }}
                                                                 >
-                                                                    {/* 1. Page Background (Chuyển từ curPg -> pg) */}
-                                                                    {pg.bg
-                                                                        ? <img src={pg.bg} alt="" draggable={false}
-                                                                            className="absolute inset-0 w-full h-full pointer-events-none select-none"
-                                                                            style={{ zIndex: 5 }} />
-                                                                        : <div className="absolute inset-0 bg-white" style={{ zIndex: 5 }} />
-                                                                    }
+                                                                    {/* 1. Page Background */}
+                                                                    <div className="absolute inset-0" style={{ zIndex: 0, backgroundColor: pg.bgColor || '#ffffff' }} />
 
                                                                     {/* 2. Header Preview (Dùng dữ liệu của từng trang pg) */}
-                                                                    {hf.headerText.trim() && (
+                                                                    {hf.headerText.trim() && idx > 1 && (
                                                                         <div className="absolute top-3 left-12 right-12 text-center text-[9px] text-slate-400 border-b border-slate-200 pb-0.5 pointer-events-none" style={{ zIndex: 10 }}>
                                                                             {hf.headerText}
                                                                         </div>
                                                                     )}
 
                                                                     {/* 3. Footer Preview (Số trang tính theo index idx của vòng lặp) */}
-                                                                    {(hf.footerText.trim() || hf.showPageNum) && (
+                                                                    {(hf.footerText.trim() || hf.showPageNum) && idx > 1 && (
                                                                         <div
                                                                             className={`absolute bottom-3 left-12 right-12 flex items-center text-[9px] text-slate-400 border-t border-slate-200 pt-0.5 pointer-events-none ${hf.pageNumPos === 'right' ? 'justify-between' : hf.pageNumPos === 'center' ? 'justify-center gap-4' : 'justify-start gap-4'}`}
                                                                             style={{ zIndex: 10 }}
@@ -1676,7 +2202,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                                                     )}
                                                                                     {el.type === 'image' && el.src && (
                                                                                         <img src={el.src} alt="" draggable={false}
-                                                                                            className="w-full h-full object-fill pointer-events-none select-none" />
+                                                                                            className="w-full h-full object-contain pointer-events-none select-none" />
                                                                                     )}
                                                                                     {isSel && DIRS.map(dir => (
                                                                                         <div key={dir} style={handlePos(dir)}
@@ -1836,6 +2362,89 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                                         </button>
                                                                     </div>
                                                                 </div>
+
+                                                                {/* ── TOC Entry ── */}
+                                                                {selEl.type === 'text' && (
+                                                                    <div className="border-t border-slate-100 pt-3">
+                                                                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">Table of Contents</label>
+                                                                        <label className="flex items-center gap-2 cursor-pointer select-none mb-2">
+                                                                            <input type="checkbox"
+                                                                                checked={selEl.isTocEntry ?? false}
+                                                                                onChange={e => {
+                                                                                    const checked = e.target.checked;
+                                                                                    const elId = selEl.id;
+                                                                                    const scX = CANVAS_W / 595;
+                                                                                    const scY = CANVAS_H / 842;
+                                                                                    const ML = Math.round(55 * scX);
+                                                                                    const CW = CANVAS_W - ML * 2;
+
+                                                                                    saveHistory(); // Lưu lại để có thể Ctrl Z nếu bấm nhầm
+
+                                                                                    setEdPages(prev => prev.map((pg, pi) => {
+                                                                                        if (pi !== selPage) return pg;
+
+                                                                                        let newEls = pg.els.map(el => {
+                                                                                            if (el.id === elId) {
+                                                                                                return {
+                                                                                                    ...el,
+                                                                                                    isTocEntry: checked,
+                                                                                                    // Tự động format text chuẩn Header (Ảnh 2)
+                                                                                                    fontSize: checked ? Math.round(13 * scY) : el.fontSize,
+                                                                                                    bold: checked ? true : el.bold,
+                                                                                                    color: checked ? '#1a3a6b' : el.color,
+                                                                                                    text: checked ? el.text?.toUpperCase() : el.text,
+                                                                                                    tocLabel: checked ? el.text : ''
+                                                                                                };
+                                                                                            }
+                                                                                            return el;
+                                                                                        });
+
+                                                                                        // NẾU TÍCH CHỌN: Thêm element thanh ngang ngay bên dưới
+                                                                                        if (checked) {
+                                                                                            const lineY = selEl.y + selEl.h + 4;
+                                                                                            const lineId = uuidv4();
+                                                                                            newEls.push({
+                                                                                                id: lineId,
+                                                                                                type: 'image',
+                                                                                                x: ML, // Căn lề trái theo nội dung
+                                                                                                y: lineY,
+                                                                                                w: CW, // Kéo dài hết chiều ngang nội dung
+                                                                                                h: Math.round(2 * scY),
+                                                                                                src: solidColorImg('#1a3a6b', CW, 2),
+                                                                                                zIndex: selEl.zIndex
+                                                                                            });
+                                                                                        }
+
+                                                                                        return { ...pg, els: newEls };
+                                                                                    }));
+                                                                                }}
+                                                                                className="accent-indigo-600 w-3.5 h-3.5" />
+                                                                            <span className="text-xs text-slate-700">Add to TOC</span>
+                                                                        </label>
+                                                                        {selEl.isTocEntry && (
+                                                                            <input type="text"
+                                                                                placeholder="TOC label (default: element text)"
+                                                                                value={selEl.tocLabel || ''}
+                                                                                onChange={e => {
+                                                                                    const val = e.target.value;
+                                                                                    const elId = selEl.id;
+                                                                                    setEdPages(prev => {
+                                                                                        const patched = prev.map((pg, pi) =>
+                                                                                            pi !== selPage ? pg : { ...pg, els: pg.els.map(el => el.id === elId ? { ...el, tocLabel: val } : el) }
+                                                                                        );
+                                                                                        return regenerateToc(patched);
+                                                                                    });
+                                                                                }}
+                                                                                className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-400"
+                                                                            />
+                                                                        )}
+                                                                        {selEl.isTocEntry && (
+                                                                            <p className="text-[10px] text-indigo-500 mt-1.5 flex items-center gap-1">
+                                                                                <List className="w-3 h-3" /> Click "Sync TOC" to update thumbnail
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         )}
                                                     </div>
