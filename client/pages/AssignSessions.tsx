@@ -3,15 +3,20 @@ import {
   ArrowLeft, Calendar, MapPin, Clock, 
   Save, CheckCircle, AlertCircle, 
   Loader2, Plus, Trash2, X, Info,
-  Zap, Layers, FileText, Search, UserCheck, GripVertical
+  Zap, Layers, FileText, Search, UserCheck, GripVertical, Search as SearchIcon
 } from 'lucide-react';
 import Button from '../components/ui/Button'; 
 import { supabase } from '../lib/supabase'; 
+import dayjs from 'dayjs';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
+
+dayjs.extend(customParseFormat);
 
 // --- Interfaces ---
 interface AssignSessionsProps {
   conferenceId: number;
   userRoleId: number;
+  initialSessionId?: number | null;
   onNavigateBack: () => void;
 }
 
@@ -22,6 +27,12 @@ interface Paper {
   author_name?: string;
 }
 
+interface SessionPaperDetail {
+  paper_id: number;
+  start_time: string;
+  end_time: string;
+}
+
 interface LocalSession {
   temp_id: string;      
   db_id?: number;       
@@ -30,7 +41,7 @@ interface LocalSession {
   end_time: string;
   room_location: string;
   is_ai_generated: boolean;
-  assigned_paper_ids: number[];
+  assigned_papers: SessionPaperDetail[];
   chair_person_id?: number;
 }
 
@@ -44,13 +55,16 @@ interface ChairCandidate {
 
 const BASE_API_URL = "http://localhost:8080";
 
-const AssignSessions: React.FC<AssignSessionsProps> = ({ conferenceId, userRoleId, onNavigateBack }) => {
+const AssignSessions: React.FC<AssignSessionsProps> = ({ conferenceId, userRoleId, onNavigateBack, initialSessionId }) => {
   const isAuthorized = userRoleId === 1 || userRoleId === 2; 
 
   const [step, setStep] = useState<'CREATE' | 'CHAIRS'>('CREATE');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  const [paperSearchQuery, setPaperSearchQuery] = useState('');
+  const [chairSearchQueries, setChairSearchQueries] = useState<Record<string, string>>({});
 
   const [acceptedPapers, setAcceptedPapers] = useState<Paper[]>([]);
   const [sessions, setSessions] = useState<LocalSession[]>([]);
@@ -72,10 +86,80 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({ conferenceId, userRoleI
 
   useEffect(() => {
     if (isAuthorized && conferenceId) {
-      fetchAcceptedPapers();
-      fetchChairCandidates();
+      const loadInitialData = async () => {
+        setLoading(true);
+        await Promise.all([
+          fetchAcceptedPapers(),
+          fetchChairCandidates(),
+          fetchExistingSessions()
+        ]);
+        setLoading(false);
+      }
+      loadInitialData();
     }
   }, [conferenceId, isAuthorized]);
+
+  const fetchExistingSessions = async () => {
+    try {
+      let query = supabase
+        .from('sessions')
+        .select(`
+          *,
+          session_papers (
+            paper_id, presentation_order, start_time, end_time
+          )
+        `)
+        .eq('conf_id', conferenceId);
+
+      if (initialSessionId) {
+        query = query.eq('session_id', initialSessionId);
+      }
+
+      const { data: sessionData, error: sessionError } = await query.order('start_time', { ascending: true });
+
+      if (sessionError) throw sessionError;
+
+      if (sessionData && sessionData.length > 0) {
+        const formattedSessions: LocalSession[] = sessionData.map(s => {
+          let st = '';
+          if (s.start_time) {
+            const date = dayjs(s.start_time);
+            if (date.isValid()) {
+              st = date.format('YYYY-MM-DDTHH:mm');
+            }
+          }
+          let et = '';
+          if (s.end_time) {
+             const date = dayjs(s.end_time);
+             if (date.isValid()) {
+                et = date.format('YYYY-MM-DDTHH:mm');
+             }
+          }
+
+          const ap = (s.session_papers || []).sort((a:any, b:any) => a.presentation_order - b.presentation_order).map((p: any) => ({
+             paper_id: p.paper_id,
+             start_time: p.start_time ? dayjs(p.start_time).format('HH:mm') : '',
+             end_time: p.end_time ? dayjs(p.end_time).format('HH:mm') : ''
+          }));
+
+          return {
+            temp_id: Math.random().toString(36).substr(2, 9),
+            db_id: s.session_id,
+            session_name: s.session_name,
+            start_time: st,
+            end_time: et,
+            room_location: s.room_location,
+            is_ai_generated: s.is_ai_generated,
+            chair_person_id: s.chair_person_id,
+            assigned_papers: ap
+          };
+        });
+        setSessions(formattedSessions);
+      }
+    } catch (err: any) {
+      console.error("Error fetching existing sessions:", err);
+    }
+  };
 
   const fetchAcceptedPapers = async () => {
     setLoading(true);
@@ -131,13 +215,23 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({ conferenceId, userRoleI
       end_time: '',
       room_location: '',
       is_ai_generated: false,
-      assigned_paper_ids: []
+      assigned_papers: []
     };
     setSessions([...sessions, newSession]);
   };
 
   const updateSession = (id: string, field: keyof LocalSession, value: any) => {
     setSessions(prev => prev.map(s => s.temp_id === id ? { ...s, [field]: value } : s));
+  };
+
+  const updateSessionPaper = (sessionId: string, paperId: number, field: keyof SessionPaperDetail, value: string) => {
+    setSessions(prev => prev.map(s => {
+      if (s.temp_id !== sessionId) return s;
+      return {
+        ...s,
+        assigned_papers: s.assigned_papers.map(p => p.paper_id === paperId ? { ...p, [field]: value } : p)
+      };
+    }));
   };
 
   const removeSession = (id: string) => {
@@ -148,11 +242,90 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({ conferenceId, userRoleI
   const removePaperFromSession = (sessionId: string, paperId: number) => {
     setSessions(prev => prev.map(s => {
       if (s.temp_id !== sessionId) return s;
-      return { ...s, assigned_paper_ids: s.assigned_paper_ids.filter(id => id !== paperId) };
+      return { ...s, assigned_papers: s.assigned_papers.filter(p => p.paper_id !== paperId) };
     }));
   };
 
-  // --- DRAG AND DROP HANDLERS ---
+  // --- DRAG AND DROP// --- CUSTOM DATE/TIME PICKERS ---
+
+const SimpleDateTimePicker = ({ value, onChange, placeholder, className }: { value: string, onChange: (val: string) => void, placeholder: string, className?: string }) => {
+  // Try to parse the text value to a format suitable for datetime-local (YYYY-MM-DDTHH:mm)
+  let isoValue = '';
+  if (value) {
+    const parsed = dayjs(value, [
+      'DD/MM/YYYY hh:mmA', 'DD/MM/YYYY hh:mm A', 'DD/MM/YYYY HH:mm', 'YYYY-MM-DDTHH:mm'
+    ], true);
+    if (parsed.isValid()) {
+      isoValue = parsed.format('YYYY-MM-DDTHH:mm');
+    }
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawVal = e.target.value; // YYYY-MM-DDTHH:mm
+    if (!rawVal) {
+      onChange('');
+      return;
+    }
+    const d = dayjs(rawVal);
+    if (d.isValid()) {
+      onChange(d.format('DD/MM/YYYY hh:mm A'));
+    } else {
+      onChange(rawVal);
+    }
+  }
+
+  return (
+    <div className="relative group w-full">
+      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
+      <input 
+        type="datetime-local" 
+        className={`w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all ${className || ''}`}
+        value={isoValue}
+        onChange={handleChange}
+        title={placeholder}
+      />
+      {/* Hidden text input just to hold custom string if user types it manually (not strictly needed if we enforce datetime-local) */}
+    </div>
+  );
+};
+
+const SimpleTimePicker = ({ value, onChange, placeholder, className }: { value: string, onChange: (val: string) => void, placeholder: string, className?: string }) => {
+   // Try to parse time (hh:mmA, hh:mm A, HH:mm)
+   let timeValue = '';
+   if (value) {
+     const parsed = dayjs(value, ['hh:mmA', 'hh:mm A', 'HH:mm', 'HH:mm:ss'], true);
+     if (parsed.isValid()) {
+       timeValue = parsed.format('HH:mm');
+     } else {
+       // fallback try to parse just the time part if it has date
+        const parsedWithDate = dayjs(value, ['DD/MM/YYYY hh:mmA', 'DD/MM/YYYY hh:mm A', 'DD/MM/YYYY HH:mm', 'YYYY-MM-DDTHH:mm'], true);
+        if (parsedWithDate.isValid()) {
+          timeValue = parsedWithDate.format('HH:mm');
+        }
+     }
+   }
+ 
+   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+     const rawVal = e.target.value; // HH:mm
+     if (!rawVal) {
+       onChange('');
+       return;
+     }
+     onChange(rawVal);
+   }
+ 
+   return (
+     <input 
+       type="time"
+       placeholder={placeholder}
+       className={`px-2 py-1 text-xs border border-slate-200 rounded-md focus:ring-1 focus:ring-indigo-500 outline-none ${className || ''}`}
+       value={timeValue}
+       onChange={handleChange}
+     />
+   );
+ };
+
+// --- HELPERS ---
   const handleDragStart = (e: React.DragEvent, paperId: number) => {
     setDraggedPaperId(paperId);
     e.dataTransfer.setData('paperId', paperId.toString());
@@ -188,11 +361,11 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({ conferenceId, userRoleI
       setSessions(prev => prev.map(s => {
         // Xóa paper khỏi session cũ nếu nó đang nằm ở session khác
         if (s.temp_id !== targetSessionId) {
-          return { ...s, assigned_paper_ids: s.assigned_paper_ids.filter(id => id !== paperId) };
+          return { ...s, assigned_papers: s.assigned_papers.filter(p => p.paper_id !== paperId) };
         }
         // Thêm paper vào session đích (nếu chưa có)
-        if (!s.assigned_paper_ids.includes(paperId)) {
-          return { ...s, assigned_paper_ids: [...s.assigned_paper_ids, paperId] };
+        if (!s.assigned_papers.some(p => p.paper_id === paperId)) {
+          return { ...s, assigned_papers: [...s.assigned_papers, { paper_id: paperId, start_time: '', end_time: '' }] };
         }
         return s;
       }));
@@ -246,7 +419,7 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({ conferenceId, userRoleI
           end_time: '',   
           room_location: '',
           is_ai_generated: true,
-          assigned_paper_ids: mappedIds
+          assigned_papers: mappedIds.map(id => ({ paper_id: id, start_time: '', end_time: '' }))
         };
       });
 
@@ -261,10 +434,35 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({ conferenceId, userRoleI
   };
 
   const handleSaveSessions = async () => {
+    const formatToISO = (dateStr: string) => {
+      if (!dateStr) return null;
+      // Tránh việc parse lệch múi giờ, datetime-local trả về YYYY-MM-DDTHH:mm
+      // Chỉ parse khi nó là text do user nhập, còn nếu là input native thì đã có dạng YYYY-MM-DDTHH:mm
+      const parsed = dayjs(dateStr, ['YYYY-MM-DDTHH:mm', 'DD/MM/YYYY hh:mmA', 'DD/MM/YYYY hh:mm A', 'DD/MM/YYYY HH:mm'], true);
+      return parsed.isValid() ? parsed.toISOString() : dateStr;
+    }
+
+    const formatPaperTime = (timeStr: string, sessionIsoStart: string) => {
+      if (!timeStr) return null;
+      // timeStr từ native time picker sẽ có dạng HH:mm
+      const timeParsed = dayjs(timeStr, ['HH:mm', 'hh:mmA', 'hh:mm A', 'HH:mm:ss'], true);
+      if (timeParsed.isValid() && sessionIsoStart) {
+        const baseDate = dayjs(sessionIsoStart).format('YYYY-MM-DD');
+        return dayjs(`${baseDate} ${timeParsed.format('HH:mm:ss')}`).toISOString();
+      }
+      return timeStr;
+    };
+
     for (const s of sessions) {
       if (!s.session_name || !s.start_time || !s.end_time || !s.room_location) {
         setError(`Please fill in all details for session: ${s.session_name}`);
         return;
+      }
+      const isoStart = formatToISO(s.start_time);
+      const isoEnd = formatToISO(s.end_time);
+      if (!dayjs(isoStart).isValid() || !dayjs(isoEnd).isValid()) {
+         setError(`Invalid date format for session ${s.session_name}. Please use explicit format like 14/11/2025 08:30PM`);
+         return;
       }
     }
 
@@ -276,12 +474,15 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({ conferenceId, userRoleI
 
       for (const s of sessions) {
         let currentDbId = s.db_id;
+        
+        const isoStart = formatToISO(s.start_time);
+        const isoEnd = formatToISO(s.end_time);
 
         if (currentDbId) {
           const { error: uError } = await supabase.from('sessions').update({
             session_name: s.session_name,
-            start_time: s.start_time,
-            end_time: s.end_time,
+            start_time: isoStart,
+            end_time: isoEnd,
             room_location: s.room_location,
             conf_id: conferenceId,
           }).eq('session_id', currentDbId);
@@ -294,8 +495,8 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({ conferenceId, userRoleI
           const { data: sData, error: sError } = await supabase.from('sessions').insert([{
             conf_id: conferenceId,
             session_name: s.session_name,
-            start_time: s.start_time,
-            end_time: s.end_time,
+            start_time: isoStart,
+            end_time: isoEnd,
             room_location: s.room_location,
             is_ai_generated: s.is_ai_generated, 
             chair_person_id: null
@@ -305,11 +506,13 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({ conferenceId, userRoleI
           currentDbId = sData.session_id;
         }
 
-        if (s.assigned_paper_ids.length > 0) {
-          const paperInserts = s.assigned_paper_ids.map((pid, idx) => ({
+        if (s.assigned_papers.length > 0) {
+          const paperInserts = s.assigned_papers.map((p, idx) => ({
             session_id: currentDbId,
-            paper_id: pid,
-            presentation_order: idx + 1 
+            paper_id: p.paper_id,
+            presentation_order: idx + 1,
+            start_time: p.start_time ? formatPaperTime(p.start_time, isoStart) : null,
+            end_time: p.end_time ? formatPaperTime(p.end_time, isoStart) : null
           }));
           const { error: pError } = await supabase.from('session_papers').insert(paperInserts);
           if (pError) throw pError;
@@ -472,17 +675,29 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({ conferenceId, userRoleI
 
               {/* Unassigned Papers Pool */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden h-[600px]">
-                <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                  <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-slate-400" />
-                    Accepted Papers
-                  </h4>
-                  <span className="bg-slate-200 text-slate-700 text-xs font-bold px-2 py-0.5 rounded-full">{acceptedPapers.length}</span>
+                <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col gap-3">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-slate-400" />
+                      Accepted Papers
+                    </h4>
+                    <span className="bg-slate-200 text-slate-700 text-xs font-bold px-2 py-0.5 rounded-full">{acceptedPapers.length}</span>
+                  </div>
+                  <div className="relative">
+                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Search papers by title or author..." 
+                      className="w-full pl-9 pr-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-100 outline-none"
+                      value={paperSearchQuery}
+                      onChange={e => setPaperSearchQuery(e.target.value)}
+                    />
+                  </div>
                 </div>
                 
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                  {acceptedPapers.map(p => {
-                    const isAssigned = sessions.some(s => s.assigned_paper_ids.includes(p.paper_id));
+                  {acceptedPapers.filter(p => !paperSearchQuery || p.title.toLowerCase().includes(paperSearchQuery.toLowerCase()) || p.author_name?.toLowerCase().includes(paperSearchQuery.toLowerCase())).map(p => {
+                    const isAssigned = sessions.some(s => s.assigned_papers.some(ap => ap.paper_id === p.paper_id));
                     return (
                       <div 
                         key={p.paper_id} 
@@ -565,24 +780,18 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({ conferenceId, userRoleI
 
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 xl:ml-11">
                                  <div className="relative group">
-                                   <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
-                                   <input 
-                                     type="datetime-local" 
-                                     className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
-                                     value={session.start_time}
-                                     onChange={(e) => updateSession(session.temp_id, 'start_time', e.target.value)}
-                                     title="Start Time"
-                                   />
+                                    <SimpleDateTimePicker 
+                                      placeholder="Start Time"
+                                      value={session.start_time || ''}
+                                      onChange={(val) => updateSession(session.temp_id, 'start_time', val)}
+                                    />
                                  </div>
                                  <div className="relative group">
-                                   <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
-                                   <input 
-                                     type="datetime-local" 
-                                     className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
-                                     value={session.end_time}
-                                     onChange={(e) => updateSession(session.temp_id, 'end_time', e.target.value)}
-                                     title="End Time"
-                                   />
+                                    <SimpleDateTimePicker 
+                                      placeholder="End Time"
+                                      value={session.end_time || ''}
+                                      onChange={(val) => updateSession(session.temp_id, 'end_time', val)}
+                                    />
                                  </div>
                                  <div className="relative group">
                                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
@@ -604,36 +813,51 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({ conferenceId, userRoleI
                         {/* Papers List inside Session */}
                         <div className={`p-6 transition-colors ${dragOverSessionId === session.temp_id ? 'bg-indigo-50/30' : ''}`}>
                             <div className="flex items-center justify-between mb-4">
-                              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Presentations ({session.assigned_paper_ids.length})</p>
+                              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Presentations ({session.assigned_papers.length})</p>
                             </div>
                             
-                            {session.assigned_paper_ids.length === 0 ? (
+                            {session.assigned_papers.length === 0 ? (
                               <div className="py-8 border-2 border-dashed border-slate-200 rounded-xl text-center pointer-events-none">
                                 <p className="text-sm text-slate-400 font-medium">Drop papers here to assign to this session</p>
                               </div>
                             ) : (
-                              <div className="space-y-2">
-                                {session.assigned_paper_ids.map((pid, pIdx) => {
-                                  const p = acceptedPapers.find(ap => ap.paper_id === pid);
+                              <div className="space-y-3">
+                                {session.assigned_papers.map((ap, pIdx) => {
+                                  const p = acceptedPapers.find(acc => acc.paper_id === ap.paper_id);
                                   return p ? (
                                     <div 
-                                      key={pid} 
-                                      className="group flex justify-between items-center text-sm bg-white p-3 rounded-xl border border-slate-200 hover:border-slate-300 shadow-sm transition-all"
+                                      key={ap.paper_id} 
+                                      className="group flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-sm bg-white p-3 rounded-xl border border-slate-200 hover:border-slate-300 shadow-sm transition-all"
                                       draggable
-                                      onDragStart={(e) => handleDragStart(e, pid)}
+                                      onDragStart={(e) => handleDragStart(e, ap.paper_id)}
                                       onDragEnd={handleDragEnd}
                                     >
-                                        <div className="flex items-start gap-3 overflow-hidden cursor-grab active:cursor-grabbing">
+                                        <div className="flex items-start gap-3 overflow-hidden cursor-grab active:cursor-grabbing w-full sm:w-auto flex-grow">
                                            <GripVertical className="w-4 h-4 text-slate-300 shrink-0 mt-0.5" />
-                                           <span className="text-slate-400 font-medium text-xs mt-0.5">{pIdx + 1}.</span>
+                                           <span className="text-slate-400 font-medium text-xs mt-0.5 shrink-0">{pIdx + 1}.</span>
                                            <span className="font-medium text-slate-700 truncate">{p.title}</span>
                                         </div>
-                                        <button 
-                                          onClick={() => removePaperFromSession(session.temp_id, pid)} 
-                                          className="text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 shrink-0 ml-2"
-                                        >
-                                          <X className="w-4 h-4" />
-                                        </button>
+                                        <div className="flex items-center gap-2 w-full sm:w-auto md:ml-auto">
+                                          <SimpleTimePicker 
+                                            placeholder="Start Time"
+                                            className="w-full sm:w-28"
+                                            value={ap.start_time || ''}
+                                            onChange={(val) => updateSessionPaper(session.temp_id, ap.paper_id, 'start_time', val)}
+                                          />
+                                          <span className="text-slate-400 hidden sm:inline">-</span>
+                                          <SimpleTimePicker 
+                                            placeholder="End Time"
+                                            className="w-full sm:w-28"
+                                            value={ap.end_time || ''}
+                                            onChange={(val) => updateSessionPaper(session.temp_id, ap.paper_id, 'end_time', val)}
+                                          />
+                                          <button 
+                                            onClick={() => removePaperFromSession(session.temp_id, ap.paper_id)} 
+                                            className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors shrink-0"
+                                          >
+                                            <X className="w-4 h-4" />
+                                          </button>
+                                        </div>
                                     </div>
                                   ) : null;
                                 })}
@@ -677,16 +901,76 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({ conferenceId, userRoleI
                        
                        <div className="relative max-w-md">
                           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Select Chair</label>
-                          <select 
-                            className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all cursor-pointer font-medium text-slate-700"
-                            value={session.chair_person_id || ''}
-                            onChange={(e) => updateSession(session.temp_id, 'chair_person_id', Number(e.target.value))}
-                          >
-                            <option value="">-- Choose a candidate --</option>
-                            {availableChairs.map(c => (
-                              <option key={c.user_id} value={c.user_id}>{c.full_name} • {c.organization}</option>
-                            ))}
-                          </select>
+                          <div className="relative group">
+                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <input 
+                              type="text"
+                              placeholder="Search chair by name..."
+                              className="w-full pl-9 pr-3 py-2.5 text-sm font-medium bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
+                              value={
+                                // Hiển thị tên chair đã chọn nếu query trống và đã chọn
+                                chairSearchQueries[session.temp_id] !== undefined
+                                  ? chairSearchQueries[session.temp_id]
+                                  : session.chair_person_id 
+                                    ? availableChairs.find(c => c.user_id === session.chair_person_id)?.full_name || ''
+                                    : ''
+                              }
+                              onChange={(e) => {
+                                setChairSearchQueries({...chairSearchQueries, [session.temp_id]: e.target.value});
+                                // Nếu người dùng chủ động xóa trống, thì gỡ chair đang chọn
+                                if (e.target.value === '') {
+                                   updateSession(session.temp_id, 'chair_person_id', null);
+                                }
+                              }}
+                              onFocus={() => {
+                                // Khi Focus, tự động clear Tên đang hiển thị để search cái mới
+                                if (session.chair_person_id && chairSearchQueries[session.temp_id] === undefined) {
+                                  setChairSearchQueries({...chairSearchQueries, [session.temp_id]: ''});
+                                }
+                              }}
+                            />
+                            
+                            {/* Autocomplete Dropdown */}
+                            {(chairSearchQueries[session.temp_id] !== undefined) && (
+                               <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 max-h-48 overflow-y-auto">
+                                 {availableChairs.filter(c => c.full_name.toLowerCase().includes(chairSearchQueries[session.temp_id].toLowerCase())).length === 0 ? (
+                                    <div className="p-3 text-sm text-slate-500 text-center">No chairs found</div>
+                                 ) : (
+                                    availableChairs.filter(c => c.full_name.toLowerCase().includes(chairSearchQueries[session.temp_id].toLowerCase())).map(c => (
+                                      <div 
+                                        key={c.user_id} 
+                                        className="p-3 hover:bg-indigo-50 cursor-pointer flex justify-between items-center group transition-colors"
+                                        onMouseDown={(e) => {
+                                          e.preventDefault(); // Ngăn input mất focus ngay lập tức
+                                          updateSession(session.temp_id, 'chair_person_id', c.user_id);
+                                          // Clear query, giữ trạng thái undefined để hiện tên
+                                          const newQ = {...chairSearchQueries};
+                                          delete newQ[session.temp_id];
+                                          setChairSearchQueries(newQ);
+                                        }}
+                                      >
+                                        <div>
+                                          <div className="text-sm font-bold text-slate-700 group-hover:text-indigo-700">{c.full_name}</div>
+                                          <div className="text-xs text-slate-500">{c.organization}</div>
+                                        </div>
+                                        {session.chair_person_id === c.user_id && <CheckCircle className="w-4 h-4 text-indigo-600" />}
+                                      </div>
+                                    ))
+                                 )}
+                               </div>
+                            )}
+                          </div>
+                          
+                          {/* Selected Badge */}
+                          {session.chair_person_id && chairSearchQueries[session.temp_id] === undefined && (
+                             <div className="mt-3 inline-flex items-center gap-2 bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-sm font-medium animate-in fade-in transition-all">
+                                <UserCheck className="w-4 h-4" />
+                                {availableChairs.find(c => c.user_id === session.chair_person_id)?.full_name}
+                                <button className="ml-1 text-indigo-400 hover:text-indigo-600" onClick={() => updateSession(session.temp_id, 'chair_person_id', null)}>
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                             </div>
+                          )}
                        </div>
                     </div>
 

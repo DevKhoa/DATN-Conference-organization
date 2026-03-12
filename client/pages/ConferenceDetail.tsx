@@ -12,7 +12,7 @@ import { supabase } from '../lib/supabase';
 interface ConferenceDetailProps {
   conferenceId: number;
   onNavigateBack: () => void;
-  onNavigateAssignSessions?: () => void;
+  onNavigateAssignSessions?: (sessionId?: number) => void;
   onNavigateAttendance?: (confId: number, sessionId: number) => void;
   onNavigateCheckinScanner?: (sessionIds: number[]) => void;
   userRoleId?: number;
@@ -31,6 +31,8 @@ interface Paper {
 
 interface SessionPaper {
   presentation_order: number;
+  start_time?: string;
+  end_time?: string;
   paper: Paper;
 }
 
@@ -164,6 +166,7 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
 
   // UI State
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set());
 
   // Checkin Scanner Modal State
@@ -206,7 +209,7 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
           *,
           chair:users!chair_person_id ( user_id, full_name, email, description, avatar_url ),
           session_papers (
-            presentation_order,
+            presentation_order, start_time, end_time,
             paper:papers (
               paper_id, title, abstract,
               author:users!primary_author_id ( full_name )
@@ -227,6 +230,8 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
 
       // Expand first session
       if (processedSessions.length > 0) {
+        const firstDay = new Date(processedSessions[0].start_time).toDateString();
+        setExpandedDays(new Set([firstDay]));
         setExpandedSessions(new Set([processedSessions[0].session_id]));
       }
 
@@ -244,6 +249,28 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
     else newSet.add(id);
     setExpandedSessions(newSet);
   };
+
+  const toggleDay = (dateStr: string) => {
+    const newSet = new Set(expandedDays);
+    if (newSet.has(dateStr)) newSet.delete(dateStr);
+    else newSet.add(dateStr);
+    setExpandedDays(newSet);
+  };
+
+  // Memoized grouped sessions
+  const groupedSessions = React.useMemo(() => {
+    const groups: { dateStr: string; sessions: Session[] }[] = [];
+    sessions.forEach(s => {
+      const dStr = new Date(s.start_time).toDateString();
+      let group = groups.find(g => g.dateStr === dStr);
+      if (!group) {
+        group = { dateStr: dStr, sessions: [] };
+        groups.push(group);
+      }
+      group.sessions.push(s);
+    });
+    return groups;
+  }, [sessions]);
 
   const getBannerImage = () => {
     if (conference?.banner_urls && conference.banner_urls.length > 0) {
@@ -348,7 +375,7 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
             {/* ADMIN ACTION: Assign Sessions */}
             {canEdit && onNavigateAssignSessions && (
               <Button
-                onClick={onNavigateAssignSessions}
+                onClick={() => onNavigateAssignSessions()}
                 variant="white-outline"
                 icon={Settings}
                 className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20"
@@ -461,7 +488,7 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
               </div>
 
               <div className="space-y-0 relative">
-                {sessions.length === 0 ? (
+                {groupedSessions.length === 0 ? (
                   <div className="bg-white p-12 text-center rounded-2xl border-2 border-dashed border-slate-200">
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-50 mb-4">
                       <Calendar className="w-8 h-8 text-slate-300" />
@@ -469,107 +496,123 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
                     <p className="text-slate-500 font-medium">No sessions scheduled yet.</p>
                   </div>
                 ) : (
-                  sessions.map((session, index) => {
-                    const isExpanded = expandedSessions.has(session.session_id);
-                    const startTime = formatTimeOnly(session.start_time);
-                    const endTime = formatTimeOnly(session.end_time);
-
-                    // Logic for Date Headers
-                    const prevSession = index > 0 ? sessions[index - 1] : null;
-                    const isNewDay = !prevSession || !isSameDay(session.start_time, prevSession.start_time);
-                    const dateInfo = formatDateHeader(session.start_time);
+                  <div className="relative">
+                    {/* Continuous vertical timeline connector for the entire event */}
+                    <div className="absolute left-[29px] top-8 bottom-4 w-[2px] bg-slate-200/80 z-0 hidden sm:block"></div>
+                    {groupedSessions.map((group, groupIdx) => {
+                      const isDayExpanded = expandedDays.has(group.dateStr);
+                      const dateInfo = formatDateHeader(group.sessions[0].start_time);
 
                     return (
-                      <React.Fragment key={session.session_id}>
-
+                      <div key={group.dateStr} className="mb-4 relative">
                         {/* --- DATE HEADER --- */}
-                        {isNewDay && (
-                          <div className="relative pt-4 pb-8">
-                            {/* Date Badge */}
-                            <div className="flex items-center gap-4 relative z-10">
-                              <div className="flex flex-col items-center justify-center bg-brand-600 text-white rounded-xl shadow-lg shadow-brand-200 w-16 h-16 shrink-0 border-4 border-slate-50">
-                                <span className="text-xs font-bold uppercase tracking-wider opacity-80">{dateInfo.weekday.substring(0, 3)}</span>
-                                <span className="text-xl font-extrabold">{dateInfo.day}</span>
-                              </div>
-                              <div>
-                                <h3 className="text-xl font-bold text-slate-800">{dateInfo.weekday}</h3>
-                                <p className="text-slate-500 font-medium">{dateInfo.monthYear}</p>
-                              </div>
-                              <div className="flex-grow h-px bg-gradient-to-r from-slate-200 to-transparent ml-4"></div>
+                        <div 
+                          className="relative pt-4 pb-4 cursor-pointer group/dayheader" 
+                          onClick={() => toggleDay(group.dateStr)}
+                        >
+                          <div className="flex items-center gap-4 relative z-10 hover:bg-slate-100/50 p-2 rounded-xl transition-colors -ml-2">
+                            <div className={`flex flex-col items-center justify-center text-white rounded-xl shadow-lg w-16 h-16 shrink-0 border-4 border-slate-50 transition-colors ${isDayExpanded ? 'bg-brand-600 shadow-brand-200' : 'bg-slate-400 shadow-slate-200'}`}>
+                              <span className="text-xs font-bold uppercase tracking-wider opacity-80">{dateInfo.weekday.substring(0, 3)}</span>
+                              <span className="text-xl font-extrabold">{dateInfo.day}</span>
                             </div>
-                            {/* Connecting Line Start */}
-                            <div className="absolute left-8 top-16 bottom-0 w-0.5 bg-slate-200 -z-0"></div>
+                            <div className="flex-grow">
+                              <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                {dateInfo.weekday}
+                                {isDayExpanded ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+                              </h3>
+                              <p className="text-slate-500 font-medium">{dateInfo.monthYear}</p>
+                            </div>
                           </div>
-                        )}
+                        </div>
 
-                        {/* --- SESSION ITEM --- */}
-                        <div className="group flex gap-4 md:gap-6 relative mb-6">
+                        {/* --- SESSIONS LIST --- */}
+                        {isDayExpanded && (
+                          <div className="relative mt-2 pb-8">
+                            {/* Single continuous line for all sessions in this day */}
+                            <div className="absolute left-[29px] top-[0px] bottom-12 w-[2px] bg-slate-200 z-0"></div>
 
-                          {/* Timeline Left Column */}
-                          <div className="flex flex-col items-center flex-shrink-0 w-16 md:w-16 pt-2 z-10 bg-slate-50">
-                            <span className={`text-sm font-bold font-mono tracking-tight ${isExpanded ? 'text-brand-600' : 'text-slate-500'}`}>
-                              {startTime}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-medium">{endTime}</span>
+                            {group.sessions.map((session, index) => {
+                              const isExpanded = expandedSessions.has(session.session_id);
+                              const startTime = formatTimeOnly(session.start_time);
+                              const endTime = formatTimeOnly(session.end_time);
 
-                            {/* Dot */}
-                            <div className={`mt-2 w-3 h-3 rounded-full border-2 transition-all duration-300 ${isExpanded
-                                ? 'bg-brand-600 border-brand-200 shadow-[0_0_0_4px_rgba(37,99,235,0.1)] scale-110'
-                                : 'bg-white border-slate-300 group-hover:border-brand-400'
-                              }`}
-                            />
-                          </div>
-
-                          {/* Connecting Line (Vertical) */}
-                          <div className="absolute left-8 top-0 bottom-[-24px] w-0.5 bg-slate-200 group-hover:bg-slate-300 transition-colors -z-0 ml-[1px]"></div>
-
-                          {/* Content Card */}
-                          <div className={`flex-grow bg-white rounded-2xl transition-all duration-300 border relative z-10 ${isExpanded
-                              ? 'shadow-lg border-brand-200 ring-1 ring-brand-100 translate-x-1'
-                              : 'shadow-sm border-slate-200 hover:shadow-md hover:border-slate-300'
-                            }`}>
-
-                            {/* Header (Clickable) */}
-                            <div
-                              onClick={() => toggleSession(session.session_id)}
-                              className="p-5 md:p-6 cursor-pointer"
-                            >
-                              <div className="flex justify-between items-start gap-4">
-                                <div className="space-y-2">
-                                  {/* Badges */}
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                                      <MapPin className="w-3 h-3 mr-1" /> {session.room_location}
-                                    </span>
+                              return (
+                                <div key={session.session_id} className="group flex gap-4 md:gap-6 relative mb-8 last:mb-0">
+                                  {/* Timeline Left Column */}
+                                  <div className="flex flex-col items-center flex-shrink-0 w-16 z-10">
+                                    <div className="bg-slate-50 py-2 flex flex-col items-center w-full">
+                                        <span className={`text-sm font-bold font-mono tracking-tight ${isExpanded ? 'text-brand-600' : 'text-slate-500'}`}>
+                                          {startTime}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 font-medium mb-3">{endTime}</span>
+                                        {/* Dot */}
+                                        <div className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-300 relative bg-white ${isExpanded
+                                            ? 'border-brand-600 shadow-[0_0_0_4px_rgba(37,99,235,0.1)] scale-110'
+                                            : 'border-slate-300 group-hover:border-brand-400'
+                                          }`}
+                                        >
+                                           {isExpanded && <div className="absolute inset-0.5 rounded-full bg-brand-600" />}
+                                        </div>
+                                    </div>
                                   </div>
 
-                                  <h3 className={`text-lg md:text-xl font-bold transition-colors ${isExpanded ? 'text-brand-700' : 'text-slate-900 group-hover:text-brand-600'}`}>
-                                    {session.session_name}
-                                  </h3>
-                                </div>
+                                  {/* Content Card */}
+                                  <div className={`flex-grow bg-white rounded-2xl transition-all duration-300 border relative z-10 ${isExpanded
+                                      ? 'shadow-lg border-brand-200 ring-1 ring-brand-100 translate-x-1'
+                                      : 'shadow-sm border-slate-200 hover:shadow-md hover:border-slate-300'
+                                    }`}>
 
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 flex-shrink-0 ${isExpanded ? 'bg-brand-100 text-brand-600 rotate-180' : 'bg-slate-50 text-slate-400'}`}>
-                                  <ChevronDown className="w-5 h-5" />
-                                </div>
-                              </div>
+                                    {/* Header (Clickable) */}
+                                    <div
+                                      onClick={() => toggleSession(session.session_id)}
+                                      className="p-5 md:p-6 cursor-pointer"
+                                    >
+                                      <div className="flex justify-between items-start gap-4">
+                                        <div className="space-y-2">
+                                          {/* Badges */}
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                                              <MapPin className="w-3 h-3 mr-1" /> {session.room_location}
+                                            </span>
+                                          </div>
 
-                              {/* Chair Teaser (Collapsed View) */}
-                              {!isExpanded && session.chair && (
-                                <div className="mt-3 flex items-center gap-2 text-sm text-slate-500 animate-in fade-in duration-300">
-                                  <span className="text-xs font-semibold uppercase text-slate-400">Chair:</span>
-                                  <div className="flex items-center gap-2">
-                                    {session.chair.avatar_url ? (
-                                      <img src={session.chair.avatar_url} className="w-5 h-5 rounded-full object-cover" alt="" />
-                                    ) : (
-                                      <div className="w-5 h-5 rounded-full bg-brand-100 text-brand-600 text-[10px] flex items-center justify-center font-bold">
-                                        {session.chair.full_name.charAt(0)}
+                                          <h3 className={`text-lg md:text-xl font-bold transition-colors ${isExpanded ? 'text-brand-700' : 'text-slate-900 group-hover:text-brand-600'}`}>
+                                            {session.session_name}
+                                          </h3>
+                                        </div>
+
+                                        <div className="flex items-center gap-3 shrink-0">
+                                          {canEdit && onNavigateAssignSessions && (
+                                            <button 
+                                              onClick={(e) => { e.stopPropagation(); onNavigateAssignSessions(session.session_id); }}
+                                              className="text-xs font-bold text-slate-600 bg-slate-100 hover:bg-brand-50 hover:text-brand-600 px-3 py-1.5 rounded-lg transition-colors border border-slate-200"
+                                            >
+                                              Edit Session
+                                            </button>
+                                          )}
+                                          <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${isExpanded ? 'bg-brand-100 text-brand-600 rotate-180' : 'bg-slate-50 text-slate-400'}`}>
+                                            <ChevronDown className="w-5 h-5" />
+                                          </div>
+                                        </div>
                                       </div>
-                                    )}
-                                    <span className="font-medium text-slate-700">{session.chair.full_name}</span>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
+
+                                      {/* Chair Teaser (Collapsed View) */}
+                                      {!isExpanded && session.chair && (
+                                        <div className="mt-3 flex items-center gap-2 text-sm text-slate-500 animate-in fade-in duration-300">
+                                          <span className="text-xs font-semibold uppercase text-slate-400">Chair:</span>
+                                          <div className="flex items-center gap-2">
+                                            {session.chair.avatar_url ? (
+                                              <img src={session.chair.avatar_url} className="w-5 h-5 rounded-full object-cover" alt="" />
+                                            ) : (
+                                              <div className="w-5 h-5 rounded-full bg-brand-100 text-brand-600 text-[10px] flex items-center justify-center font-bold">
+                                                {session.chair.full_name.charAt(0)}
+                                              </div>
+                                            )}
+                                            <span className="font-medium text-slate-700">{session.chair.full_name}</span>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
 
                             {/* Expanded Body */}
                             {isExpanded && (
@@ -596,9 +639,16 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
                                               </div>
                                             </div>
                                             <div className="flex-grow">
-                                              <h5 className="text-base font-bold text-slate-900 mb-1 group-hover/paper:text-brand-700 transition-colors">
-                                                {sp.paper.title}
-                                              </h5>
+                                              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 mb-1">
+                                                <h5 className="text-base font-bold text-slate-900 group-hover/paper:text-brand-700 transition-colors">
+                                                  {sp.paper.title}
+                                                </h5>
+                                                {(sp.start_time || sp.end_time) && (
+                                                  <span className="text-[10px] font-mono font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded border border-brand-100 shrink-0 whitespace-nowrap">
+                                                    {sp.start_time ? formatTimeOnly(sp.start_time) : ''} - {sp.end_time ? formatTimeOnly(sp.end_time) : ''}
+                                                  </span>
+                                                )}
+                                              </div>
                                               <div className="flex items-center text-sm text-slate-600 mb-2">
                                                 <User className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
                                                 <span className="font-medium">{sp.paper.author?.full_name || 'Unknown Author'}</span>
@@ -617,11 +667,16 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({ conferenceId, onNav
                                 </div>
                               </div>
                             )}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        </div>
-                      </React.Fragment>
+                        )}
+                      </div>
                     );
-                  })
+                  })}
+                  </div>
                 )}
               </div>
             </div>

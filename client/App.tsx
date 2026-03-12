@@ -49,7 +49,8 @@ const App: React.FC = () => {
   const [selectedPaperId, setSelectedPaperId] = useState<number>(0);
 
   const [attendanceContext, setAttendanceContext] = useState<{ confId: number; sessionId: number } | null>(null);
-  const [checkinScannerContext, setCheckinScannerContext] = useState<{ sessionIds: number[], authToken: string } | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
+  const [checkinScannerContext, setCheckinScannerContext] = useState<{ sessionIds: number[] } | null>(null);
 
   // Persist Login State
   useEffect(() => {
@@ -186,7 +187,8 @@ const App: React.FC = () => {
     setCurrentPage('submit-paper');
   };
 
-  const navigateToAssignSessions = () => {
+  const navigateToAssignSessions = (sessionId?: number) => {
+    setSelectedSessionId(sessionId || null);
     window.scrollTo(0, 0);
     setCurrentPage('assign-sessions');
   };
@@ -217,8 +219,8 @@ const App: React.FC = () => {
     setCurrentPage('attendences-management');
   };
 
-  const navigateToCheckinScanner = (sessionIds: number[], authToken: string) => {
-    setCheckinScannerContext({ sessionIds, authToken });
+  const navigateToCheckinScanner = (sessionIds: number[]) => {
+    setCheckinScannerContext({ sessionIds });
     window.scrollTo(0, 0);
     setCurrentPage('checkin-scanner');
   };
@@ -383,7 +385,7 @@ const App: React.FC = () => {
           conferenceId={selectedConferenceId}
           onNavigateBack={navigateToConferences}
           // Pass navigation prop for Assign Sessions
-          onNavigateAssignSessions={navigateToAssignSessions}
+          onNavigateAssignSessions={(sessionId) => navigateToAssignSessions(sessionId)}
           onNavigateAttendance={navigateToAttendences}
           onNavigateCheckinScanner={navigateToCheckinScanner}
           userRoleId={userRoleId} // Pass role to check permissions
@@ -510,6 +512,7 @@ const App: React.FC = () => {
         <AssignSessions
           conferenceId={selectedConferenceId}
           userRoleId={userRoleId}
+          initialSessionId={selectedSessionId}
           onNavigateBack={() => navigateToConferenceDetail(selectedConferenceId)}
         />
         <Footer />
@@ -651,7 +654,6 @@ const App: React.FC = () => {
     return (
       <CheckinScanner
         sessionIds={checkinScannerContext.sessionIds}
-        authToken={checkinScannerContext.authToken}
         onNavigateBack={() => {
           setCurrentPage('conference-detail');
           setCheckinScannerContext(null);
