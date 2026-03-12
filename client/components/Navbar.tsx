@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Menu, X, GraduationCap, User, LogOut, Settings, Sparkles } from 'lucide-react';
+import { Menu, X, GraduationCap, User, LogOut, Settings, Sparkles, Calendar } from 'lucide-react';
 import Button from './ui/Button';
 
 interface NavbarProps {
@@ -11,6 +11,7 @@ interface NavbarProps {
   onNavigatePapers?: () => void;
   onNavigateAiAssistant?: () => void; // New Prop
   onNavigateAttendences?: () => void;
+  onNavigateAgenda?: () => void;
   onLogout: () => void;
   isLoggedIn?: boolean;
   userName?: string;
@@ -29,6 +30,7 @@ const Navbar: React.FC<NavbarProps> = ({
   onNavigatePapers,
   onNavigateAiAssistant,
   onNavigateAttendences,
+  onNavigateAgenda,
   onLogout, 
   isLoggedIn = false, 
   userName = '',
@@ -87,6 +89,13 @@ const adminLinks = [
     setIsProfileOpen(false);
     if (onNavigateProfile) {
       onNavigateProfile();
+    }
+  };
+
+  const handleAgendaClick = () => {
+    setIsProfileOpen(false);
+    if (onNavigateAgenda) {
+      onNavigateAgenda();
     }
   };
 
@@ -198,6 +207,13 @@ const adminLinks = [
                       <User className="w-4 h-4 mr-3" />
                       Your Profile
                     </button>
+                    <button
+                      onClick={handleAgendaClick}
+                      className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-brand-700 transition-colors"
+                    >
+                      <Calendar className="w-4 h-4 mr-3" />
+                      My Agenda
+                    </button>
                     <a href="#settings" className="flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-brand-700 transition-colors">
                       <Settings className="w-4 h-4 mr-3" />
                       Settings
@@ -281,6 +297,16 @@ const adminLinks = [
                   >
                     <User className="w-4 h-4 mr-2" />
                     My Profile
+                  </button>
+                  <button
+                    onClick={() => {
+                      toggleMenu();
+                      if (onNavigateAgenda) onNavigateAgenda();
+                    }}
+                    className="w-full flex items-center justify-center px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
+                  >
+                    <Calendar className="w-4 h-4 mr-2" />
+                    My Agenda
                   </button>
                   <button
                     onClick={onLogout}
