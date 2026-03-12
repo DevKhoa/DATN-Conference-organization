@@ -1,15 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     Book, FileText, Users, Clock, Map as MapIcon, Download, Globe, Plus,
     Trash2, Loader2, AlertCircle, ChevronRight, Image as ImageLucide,
     ArrowLeft, Save, Mic, Info, CalendarDays, Eye, List,
     PenLine, Type, Crop, FilePlus, GripVertical, AlignLeft, AlignCenter,
-    AlignRight, Move, Settings2, X, Check, ImagePlus, RefreshCw, LayoutTemplate,
+    AlignRight, Move, Settings2, X, Check, ImagePlus, RefreshCw, LayoutTemplate, RotateCw,
+    Grid3X3,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
 import { Document, Page, Text, View, StyleSheet, Image, PDFViewer, PDFDownloadLink, pdf } from '@react-pdf/renderer';
 import { v4 as uuidv4 } from 'uuid';
+import {
+    TableData, CellCoord, createEmptyTable, TableEditorCanvas, TablePropertiesPanel,
+    InsertTableModal, TablePdfExport, renderTableToCanvas,
+} from './TableEditor';
+import { FontSelector, cssFontFamily } from './FontManager';
 
 
 interface ProceedingsManagementProps {
@@ -38,27 +44,28 @@ const pdfStyles = StyleSheet.create({
     coverSponsorLabel: { fontSize: 9, color: '#93c5fd', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 14 },
     coverLogos: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' },
 
-    // TOC
-    tocRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, borderBottomWidth: 0.5, borderBottomColor: '#e2e8f0' },
-    tocChapter: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#1a3a6b' },
-    tocPage: { fontSize: 10, color: '#718096' },
+    // TOC (SOICT 2025 style)
+    tocTitle: { fontSize: 24, fontFamily: 'Helvetica-Bold', color: '#2b5797', textAlign: 'center', marginBottom: 30, letterSpacing: 1 },
+    tocEntryRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 28, paddingLeft: 10 },
+    tocPageNum: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: '#3b6cb5', width: 48, marginRight: 14 },
+    tocLabel: { fontSize: 12, color: '#3b6cb5', fontFamily: 'Helvetica' },
 
     // Section headings
     sectionTitle: { fontSize: 15, fontFamily: 'Helvetica-Bold', marginTop: 0, marginBottom: 18, color: '#1a3a6b', textTransform: 'uppercase', letterSpacing: 1 },
     sectionDivider: { height: 2, backgroundColor: '#1a3a6b', marginBottom: 18 },
-    dayHeader: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: '#1a3a6b', marginTop: 20, marginBottom: 10, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: '#93c5fd' },
-
     // Committee
     roleHeader: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#1a3a6b', textTransform: 'uppercase', letterSpacing: 1, marginTop: 14, marginBottom: 4 },
     memberLine: { fontSize: 9.5, color: '#2d3748', marginBottom: 3, paddingLeft: 8 },
 
-    // Schedule table
-    tableHeader: { flexDirection: 'row', backgroundColor: '#1a3a6b', paddingVertical: 6, paddingHorizontal: 8, marginBottom: 2 },
-    tableHeaderText: { fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: '#ffffff', textTransform: 'uppercase' },
-    tableRow: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#e2e8f0', paddingVertical: 7, paddingHorizontal: 4, alignItems: 'flex-start' },
-    colTime: { width: '28%', fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#1a3a6b', paddingRight: 6 },
-    colTopic: { width: '49%', fontSize: 9, color: '#2d3748' },
-    colLocation: { width: '23%', fontSize: 9, color: '#718096', textAlign: 'right' },
+    // Program at a Glance — day bar
+    glanceDayBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#1a3a6b', paddingVertical: 7, paddingHorizontal: 10, marginTop: 18, marginBottom: 0 },
+    glanceDayLeft: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#ffffff', textTransform: 'uppercase' },
+    glanceDayRight: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#ffffff' },
+    // Program at a Glance — table rows
+    glanceRow: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#cbd5e0', paddingVertical: 6, paddingHorizontal: 4, alignItems: 'flex-start' },
+    glanceColTime: { width: '18%', fontSize: 9, color: '#2d3748' },
+    glanceColSession: { width: '57%', fontSize: 9, color: '#2d3748' },
+    glanceColLocation: { width: '25%', fontSize: 9, color: '#2d3748', textAlign: 'right' },
 
     // Keynotes
     keynoteCard: { marginBottom: 30, padding: '16pt 0', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
@@ -78,12 +85,12 @@ const pdfStyles = StyleSheet.create({
     paperBlock: { marginBottom: 20, paddingLeft: 12, borderLeftWidth: 3, borderLeftColor: '#93c5fd', width: '100%' },
     paperTitle: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#1a202c', marginBottom: 3 },
     paperAuthors: { fontSize: 9, fontFamily: 'Helvetica-Oblique', color: '#4a5568', marginBottom: 6 },
-    paperDoi: { fontSize: 8, color: '#3182ce', marginBottom: 6 },
 
     // General info
     infoSection: { marginBottom: 16 },
-    infoLabel: { fontSize: 9.5, fontFamily: 'Helvetica-Bold', color: '#1a3a6b', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
-    infoText: { fontSize: 9.5, color: '#2d3748', lineHeight: 1.6 },
+    infoLabelBar: { backgroundColor: '#3b5488', paddingVertical: 4, paddingHorizontal: 6, marginBottom: 4 },
+    infoLabelText: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#ffffff', textTransform: 'uppercase' },
+    infoText: { fontSize: 10, color: '#1a202c', lineHeight: 1.5, paddingHorizontal: 2 },
 
     footerContainer: {
         position: 'absolute',
@@ -174,16 +181,43 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                 })()}
             </Page>
 
-            {/* ── TABLE OF CONTENTS ── (no footer/page-number on this page) */}
-            <Page size="A4" style={pdfStyles.page}>
-                <Text style={pdfStyles.sectionTitle}>Table of Contents</Text>
-                <View style={pdfStyles.sectionDivider} />
-                {tocItems.map((item, i) => (
-                    <View key={i} style={pdfStyles.tocRow}>
-                        <Text style={pdfStyles.tocChapter}>{item.label}</Text>
-                        <Text style={pdfStyles.tocPage}>{item.page}</Text>
-                    </View>
-                ))}
+            {/* ── TABLE OF CONTENTS */}
+            <Page size="A4" style={{ ...pdfStyles.page, position: 'relative' }}>
+                {/* Vertical conference name (decorative left side, auto-scaled to fill height) */}
+                {(() => {
+                    const cn = data.cover.conferenceName || 'CONFERENCE';
+                    const len = cn.length;
+                    // Auto-scale to fill ~800pt height
+                    const fs = Math.max(16, Math.min(140, 800 / (len * 0.65)));
+                    // Fixed width 800
+                    const tw = 800;
+                    // Visual center x ≈ 40pt (left margin)
+                    const lft = Math.round(40 - tw / 2);
+                    // Visual center y ≈ 421 (A4 half height 842/2)
+                    const lineH = Math.round(fs * 1.4);
+                    const tp = Math.round(421 - lineH / 2);
+                    return (
+                        <Text style={{
+                            position: 'absolute', left: lft, top: tp, width: tw,
+                            fontSize: fs, fontFamily: 'Helvetica-Bold', color: '#3b6cb5',
+                            letterSpacing: Math.max(1, Math.round(fs * 0.05)), opacity: 0.8,
+                            textAlign: 'center', transform: 'rotate(-90deg)',
+                        }}>{cn}</Text>
+                    );
+                })()}
+
+                {/* Title */}
+                <Text style={pdfStyles.tocTitle}>TABLE OF CONTENT</Text>
+
+                {/* Entries: page number before label */}
+                <View style={{ paddingLeft: 120, paddingTop: 15 }}>
+                    {tocItems.map((item, i) => (
+                        <View key={i} style={pdfStyles.tocEntryRow}>
+                            <Text style={pdfStyles.tocPageNum}>{item.page}</Text>
+                            <Text style={pdfStyles.tocLabel}>{item.label}</Text>
+                        </View>
+                    ))}
+                </View>
             </Page>
 
             {/* ── FOREWORD ── */}
@@ -225,47 +259,55 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                 </View>
             </Page>
 
-            {/* ── GENERAL INFORMATION ── */}
+            {/* ── CONFERENCE INFORMATION ── */}
             <Page size="A4" style={pdfStyles.page}>
-                <Text style={pdfStyles.sectionTitle}>Conference Information</Text>
-                <View style={pdfStyles.sectionDivider} />
+                {(() => {
+                    const infoTitle = data.cover.conferenceName ? `${data.cover.conferenceName.toUpperCase()} INFORMATION` : 'CONFERENCE INFORMATION';
+                    const titleFontSize = Math.max(14, Math.min(24, Math.floor(475 / (infoTitle.length * 0.6))));
+                    return (
+                        <Text style={{ fontSize: titleFontSize, fontFamily: 'Helvetica-Bold', color: '#2a4365', textAlign: 'center', marginBottom: 20 }}>
+                            {infoTitle}
+                        </Text>
+                    );
+                })()}
 
-                {data.generalInfo?.venueDetails && (
-                    <View style={pdfStyles.infoSection}>
-                        <Text style={pdfStyles.infoLabel}>Conference Venue</Text>
-                        <Text style={pdfStyles.infoText}>{data.generalInfo.venueDetails}</Text>
-                    </View>
-                )}
-                {data.generalInfo?.registrationHours && (
-                    <View style={pdfStyles.infoSection}>
-                        <Text style={pdfStyles.infoLabel}>Registration Desk Hours</Text>
-                        <Text style={pdfStyles.infoText}>{data.generalInfo.registrationHours}</Text>
-                    </View>
-                )}
-                {data.generalInfo?.roomAssignments && (
-                    <View style={pdfStyles.infoSection}>
-                        <Text style={pdfStyles.infoLabel}>Function Rooms</Text>
-                        <Text style={pdfStyles.infoText}>{data.generalInfo.roomAssignments}</Text>
-                    </View>
-                )}
-                {data.generalInfo?.coffeeInternetInfo && (
-                    <View style={pdfStyles.infoSection}>
-                        <Text style={pdfStyles.infoLabel}>Refreshments &amp; Internet Access</Text>
-                        <Text style={pdfStyles.infoText}>{data.generalInfo.coffeeInternetInfo}</Text>
-                    </View>
-                )}
-                {data.generalInfo?.galaDinner && (
-                    <View style={pdfStyles.infoSection}>
-                        <Text style={pdfStyles.infoLabel}>Gala Dinner</Text>
-                        <Text style={pdfStyles.infoText}>{data.generalInfo.galaDinner}</Text>
-                    </View>
-                )}
-                {data.generalInfo?.floorPlan && (
-                    <View style={{ marginTop: 10 }}>
-                        <Text style={pdfStyles.infoLabel}>Venue Layout</Text>
-                        <Image src={data.generalInfo.floorPlan} style={{ width: '100%', maxHeight: 220, objectFit: 'contain', marginTop: 6 }} />
-                    </View>
-                )}
+                {(() => {
+                    const renderInf = (label: string, text?: string) => {
+                        if (!text?.trim()) return null;
+                        return (
+                            <View wrap={false} style={{ marginBottom: 15 }}>
+                                <View style={{ backgroundColor: '#2a4365', padding: '4px 6px', marginBottom: 5 }}>
+                                    <Text style={{ fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#ffffff', textTransform: 'uppercase' }}>{label}</Text>
+                                </View>
+                                {text.split('\n').filter(l => l.trim()).map((line, i) => (
+                                    <Text key={i} style={{ fontSize: 9, color: '#2d3748', lineHeight: 1.5 }}>{line.trim()}</Text>
+                                ))}
+                            </View>
+                        );
+                    };
+                    return (
+                        <>
+                            {renderInf('Conference Venue', data.generalInfo?.venueDetails)}
+                            {renderInf('Registration Desk Opening Time', data.generalInfo?.registrationHours)}
+                            {renderInf('Function Rooms', data.generalInfo?.roomAssignments)}
+                            {renderInf('Refreshments & Internet Access', data.generalInfo?.coffeeInternetInfo)}
+                            {renderInf('Gala Dinner', data.generalInfo?.galaDinner)}
+                        </>
+                    );
+                })()}
+
+                {data.generalInfo?.floorPlan && (() => {
+                    const layoutTitle = data.cover.conferenceName ? `${data.cover.conferenceName.toUpperCase()} LAYOUT` : 'VENUE LAYOUT';
+                    const layoutFontSize = Math.max(14, Math.min(24, Math.floor(475 / (layoutTitle.length * 0.6))));
+                    return (
+                        <View style={{ marginTop: 10 }}>
+                            <Text style={{ fontSize: layoutFontSize, fontFamily: 'Helvetica-Bold', color: '#2a4365', textAlign: 'center', marginBottom: 12 }}>
+                                {layoutTitle}
+                            </Text>
+                            <Image src={data.generalInfo.floorPlan} style={{ width: '100%', maxHeight: 220, objectFit: 'contain' }} />
+                        </View>
+                    );
+                })()}
 
                 <View style={pdfStyles.footerContainer} fixed>
                     <Text style={pdfStyles.footerTitle}>{data.cover.conferenceName} </Text>
@@ -275,29 +317,13 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
 
             {/* ── PROGRAM AT A GLANCE ── */}
             <Page size="A4" style={pdfStyles.page}>
-                <Text style={pdfStyles.sectionTitle}>Program at a Glance</Text>
-                <View style={pdfStyles.sectionDivider} />
+                <Text style={{ fontSize: 22, fontFamily: 'Helvetica-Bold', color: '#1a3a6b', textTransform: 'uppercase', letterSpacing: 1, textAlign: 'center', marginBottom: 14 }}>Program at a Glance</Text>
 
-                {Object.keys(scheduleByDate).length === 0
-                    ? <Text style={{ color: '#718096', fontFamily: 'Helvetica-Oblique' }}>No schedule data loaded.</Text>
-                    : Object.entries(scheduleByDate).map(([date, items], di) => (
-                        <View key={di}>
-                            <Text style={pdfStyles.dayHeader}>{date}</Text>
-                            <View style={pdfStyles.tableHeader}>
-                                <Text style={[pdfStyles.tableHeaderText, { width: '28%' }]}>Time</Text>
-                                <Text style={[pdfStyles.tableHeaderText, { width: '49%' }]}>Session / Event</Text>
-                                <Text style={[pdfStyles.tableHeaderText, { width: '23%', textAlign: 'right' }]}>Location</Text>
-                            </View>
-                            {items.map((s: any, i: number) => (
-                                <View key={i} style={pdfStyles.tableRow} >
-                                    <Text style={pdfStyles.colTime}>{s.time}</Text>
-                                    <Text style={pdfStyles.colTopic}>{s.topic}</Text>
-                                    <Text style={pdfStyles.colLocation}>{s.location}</Text>
-                                </View>
-                            ))}
-                        </View>
-                    ))
-                }
+                {/* The Program at a Glance is now generated as 'table' elements within the editor pages. */}
+                {/* We no longer render it manually here. Provide a placeholder if there are no pages that were generated. */}
+                {Object.keys(scheduleByDate).length === 0 && (
+                    <Text style={{ color: '#718096', fontFamily: 'Helvetica-Oblique' }}>No schedule data loaded.</Text>
+                )}
 
                 <View style={pdfStyles.footerContainer} fixed>
                     <Text style={pdfStyles.footerTitle}>{data.cover.conferenceName} </Text>
@@ -398,12 +424,6 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                                         {p.paperTitle}
                                     </Text>
 
-                                    {/* Row 3: DOI */}
-                                    {p.doi ? (
-                                        <Text style={[pdfStyles.paperDoi, { paddingLeft: p.timeSlot ? 42 : 0 }]}>
-                                            DOI: {p.doi}
-                                        </Text>
-                                    ) : null}
 
                                     {/* Row 4: Abstract */}
                                     {p.abstract ? (
@@ -429,17 +449,20 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
 
 // ─── PDF Editor — types ───────────────────────────────────────────────────────
 interface EditorEl {
-    id: string; type: 'text' | 'image';
+    id: string; type: 'text' | 'image' | 'table';
     x: number; y: number; w: number; h: number;
     // text
     text?: string; fontSize?: number; bold?: boolean; italic?: boolean;
-    color?: string; align?: 'left' | 'center' | 'right';
+    color?: string; align?: 'left' | 'center' | 'right'; fontFamily?: string;
     // image
     src?: string;
     zIndex?: number;
+    rotation?: number;
     // TOC detection
     isTocEntry?: boolean;
     tocLabel?: string;
+    // table
+    tableData?: TableData;
 }
 interface EditorPage { id: string; bg: string; bgColor?: string; els: EditorEl[]; }
 interface HFConfig {
@@ -465,24 +488,28 @@ const EditorExportDoc = ({ pages, hf }: { pages: EditorPage[]; hf: HFConfig }) =
                 {/* overlay elements */}
                 {[...pg.els]
                     .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
-                    .map(el => el.type === 'text' ? (
+                    .map(el => el.type === 'table' && el.tableData ? (
+                        <TablePdfExport key={el.id} tableData={el.tableData}
+                            elX={el.x} elY={el.y} elW={el.w} elH={el.h} px2pt={px2pt} />
+                    ) : el.type === 'text' ? (
                         <Text key={el.id} style={{
                             position: 'absolute',
                             left: px2pt(el.x, 'x'), top: px2pt(el.y, 'y'),
                             width: px2pt(el.w, 'x'),
-                            fontSize: el.fontSize ?? 12,
+                            fontSize: px2pt(el.fontSize ?? 12, 'y'),
                             fontFamily: el.bold ? 'Helvetica-Bold'
                                 : el.italic ? 'Helvetica-Oblique' : 'Helvetica',
                             color: el.color ?? '#000000',
                             textAlign: (el.align ?? 'left') as any,
-
+                            ...(el.rotation ? { transform: `rotate(${el.rotation}deg)` } : {}),
                         }}>{el.text ?? ''}</Text>
-                    ) : el.src ? (
+                    ) : el.type === 'image' && el.src ? (
                         <Image key={el.id} src={el.src} style={{
                             position: 'absolute',
                             left: px2pt(el.x, 'x'), top: px2pt(el.y, 'y'),
                             width: px2pt(el.w, 'x'), height: px2pt(el.h, 'y'),
                             objectFit: 'contain',
+                            ...(el.rotation ? { transform: `rotate(${el.rotation}deg)` } : {}),
                         }} />
                     ) : null)
                 }
@@ -719,26 +746,43 @@ const buildEditorPages = (data: any): EditorPage[] => {
     flushPage();
 
     // ── CONFERENCE INFORMATION ────────────────────────────────────────────────
-    addSecHeader('CONFERENCE INFORMATION');
+    const infoTitle = data.cover?.conferenceName ? `${data.cover.conferenceName.toUpperCase()} INFORMATION` : 'CONFERENCE INFORMATION';
+    const titleFontSize = Math.max(14, Math.min(24, Math.floor(475 / (infoTitle.length * 0.6))));
+
+    fit(Math.round(40 * scY));
+    addT(infoTitle, ML, CW, Math.round(32 * scY), { fontSize: Math.round(titleFontSize * scY), bold: true, color: '#2a4365', align: 'center', isTocEntry: true, tocLabel: 'Conference Information' });
+    curY += Math.round(16 * scY);
+
     const addInfoSection = (label: string, text?: string) => {
         if (!text?.trim()) return;
-        fit(Math.round(50 * scY));
-        addT(label, ML, CW, Math.round(14 * scY), { fontSize: Math.round(9 * scY), bold: true, color: '#1a3a6b' });
-        curY += Math.round(4 * scY);
+        const rH = Math.round(16 * scY);
+        fit(Math.round(40 * scY));
+        const bgY = curY;
+        addRectFlat('#2a4365', ML, bgY, CW, rH);
+        addTAt(label.toUpperCase(), ML + Math.round(4 * scX), bgY + Math.round(3 * scY), CW, rH, { fontSize: Math.round(9 * scY), bold: true, color: '#ffffff' });
+        curY = bgY + rH + Math.round(4 * scY);
+
         const lines = Math.ceil(text.length / 90) + 1;
         const h = Math.round(lines * 16 * scY);
         fit(h); addT(text, ML, CW, h, { fontSize: Math.round(9 * scY), color: '#2d3748' });
-        curY += Math.round(14 * scY);
+        curY += Math.round(12 * scY);
     };
+
     addInfoSection('CONFERENCE VENUE', data.generalInfo?.venueDetails);
-    addInfoSection('REGISTRATION DESK HOURS', data.generalInfo?.registrationHours);
+    addInfoSection('REGISTRATION DESK OPENING TIME', data.generalInfo?.registrationHours);
     addInfoSection('FUNCTION ROOMS', data.generalInfo?.roomAssignments);
-    addInfoSection('REFRESHMENTS & INTERNET', data.generalInfo?.coffeeInternetInfo);
+    addInfoSection('REFRESHMENTS & INTERNET ACCESS', data.generalInfo?.coffeeInternetInfo);
     addInfoSection('GALA DINNER', data.generalInfo?.galaDinner);
+
     if (data.generalInfo?.floorPlan) {
-        fit(Math.round(220 * scY));
-        addT('VENUE LAYOUT', ML, CW, Math.round(14 * scY), { fontSize: Math.round(9 * scY), bold: true, color: '#1a3a6b' });
-        curY += Math.round(6 * scY); addImg(data.generalInfo.floorPlan, ML, CW, Math.round(200 * scY));
+        fit(Math.round(240 * scY));
+        const layoutTitle = data.cover?.conferenceName ? `${data.cover.conferenceName.toUpperCase()} LAYOUT` : 'VENUE LAYOUT';
+        const layoutFontSize = Math.max(14, Math.min(24, Math.floor(475 / (layoutTitle.length * 0.6))));
+
+        curY += Math.round(16 * scY);
+        addT(layoutTitle, ML, CW, Math.round(32 * scY), { fontSize: Math.round(layoutFontSize * scY), bold: true, color: '#2a4365', align: 'center' });
+        curY += Math.round(12 * scY);
+        addImg(data.generalInfo.floorPlan, ML, CW, Math.round(200 * scY));
     }
     flushPage();
 
@@ -751,28 +795,86 @@ const buildEditorPages = (data: any): EditorPage[] => {
     if (Object.keys(byDate).length === 0) {
         addT('No schedule data loaded.', ML, CW, Math.round(18 * scY), { color: '#718096', italic: true });
     } else {
-        Object.entries(byDate).forEach(([date, items]) => {
-            fit(Math.round(80 * scY));
-            addT(date, ML, CW, Math.round(20 * scY), { fontSize: Math.round(11 * scY), bold: true, color: '#1a3a6b' });
-            curY += Math.round(6 * scY);
-            const rowH = Math.round(22 * scY);
-            const hdrY = addRect('#1a3a6b', ML, CW, rowH);
-            const tY = hdrY + Math.round(5 * scY), tH = rowH - Math.round(8 * scY);
-            addTAt('TIME', ML + 4, tY, CW * 0.28, tH, { fontSize: Math.round(8 * scY), bold: true, color: '#ffffff' });
-            addTAt('SESSION / EVENT', ML + CW * 0.28, tY, CW * 0.52, tH, { fontSize: Math.round(8 * scY), bold: true, color: '#ffffff' });
-            addTAt('LOCATION', ML + CW * 0.77, tY, CW * 0.23, tH, { fontSize: Math.round(8 * scY), bold: true, color: '#ffffff', align: 'right' });
-            curY += Math.round(2 * scY);
-            (items as any[]).forEach((s: any) => {
-                const tLines = Math.ceil((s.topic || '').length / 45) + 1;
-                const rH = Math.round(Math.max(tLines * 14 * scY, 22 * scY));
-                fit(rH);
-                const rY = curY + Math.round(4 * scY), rH2 = rH - Math.round(8 * scY);
-                addTAt(s.time || '', ML + 4, rY, CW * 0.28, rH2, { fontSize: Math.round(9 * scY), bold: true, color: '#1a3a6b' });
-                addTAt(s.topic || '', ML + CW * 0.28, rY, CW * 0.52, rH2, { fontSize: Math.round(9 * scY), color: '#2d3748' });
-                addTAt(s.location || '', ML + CW * 0.77, rY, CW * 0.23, rH2, { fontSize: Math.round(9 * scY), color: '#718096', align: 'right' });
-                curY += rH; addRectFlat('#e2e8f0', ML, curY - 1, CW, 1); curY += Math.round(3 * scY);
+        Object.entries(byDate).forEach(([dateStr, items]) => {
+            const parts = dateStr.split(' - ');
+            const dayLabel = (parts[0] || '').toUpperCase();
+            const dateLabel = parts.slice(1).join(' - ');
+
+            const timeGroups: { time: string; sessions: any[] }[] = [];
+            (items as any[]).forEach(s => {
+                const ex = timeGroups.find(g => g.time === s.time);
+                if (ex) ex.sessions.push(s); else timeGroups.push({ time: s.time || '', sessions: [s] });
             });
-            curY += Math.round(18 * scY);
+
+            // Calculate total rows: header (Day), plus session rows
+            const totalRows = 1 + timeGroups.reduce((acc, g) => acc + g.sessions.length, 0);
+
+            // Calculate required height (~22px per row, slightly more for header)
+            const rowH = Math.round(22 * scY);
+            const totalHs = (totalRows + 1) * rowH; // extra space buffer
+            fit(totalHs);
+
+            const cells: any[][] = [];
+            // Row 0: Day Header (top outer borders, inner bottom border as separator)
+            const hr: any[] = [];
+            hr.push({ id: uuidv4(), text: dayLabel, align: 'left', colSpan: 1, rowSpan: 1, hidden: false, bgColor: '#2a4365', fontColor: '#ffffff', bold: true, fontSize: Math.round(12 * scY), borderBottom: true, borderRight: false, borderTop: true, borderLeft: true });
+            hr.push({ id: uuidv4(), text: dateLabel, align: 'right', colSpan: 2, rowSpan: 1, hidden: false, bgColor: '#2a4365', fontColor: '#ffffff', bold: true, fontSize: Math.round(12 * scY), borderBottom: true, borderLeft: false, borderTop: true, borderRight: true });
+            hr.push({ id: uuidv4(), text: '', align: 'right', colSpan: 1, rowSpan: 1, hidden: true }); // covered by colSpan 2
+            cells.push(hr);
+
+            // Session Rows (inner borders removed, outer borders preserved)
+            timeGroups.forEach((group, gi) => {
+                const sLen = group.sessions.length;
+                group.sessions.forEach((s, si) => {
+                    const r: any[] = [];
+                    const isLastRow = (gi === timeGroups.length - 1) && (si === sLen - 1);
+
+                    // Time cell (merged if first of group, hidden otherwise)
+                    if (si === 0) {
+                        r.push({ id: uuidv4(), text: group.time, align: 'left', colSpan: 1, rowSpan: sLen, hidden: false, fontColor: '#1a3a6b', bold: true, fontSize: Math.round(9 * scY), borderTop: false, borderRight: false, borderBottom: (gi === timeGroups.length - 1), borderLeft: true });
+                    } else {
+                        r.push({ id: uuidv4(), text: '', align: 'left', colSpan: 1, rowSpan: 1, hidden: true });
+                    }
+
+                    // Topic
+                    r.push({ id: uuidv4(), text: s.topic || '', align: 'left', colSpan: 1, rowSpan: 1, hidden: false, fontColor: '#4a5568', fontSize: Math.round(9 * scY), borderTop: false, borderRight: false, borderLeft: false, borderBottom: isLastRow });
+
+                    // Location
+                    r.push({ id: uuidv4(), text: s.location || '', align: 'right', colSpan: 1, rowSpan: 1, hidden: false, fontColor: '#a0aec0', fontSize: Math.round(9 * scY), borderTop: false, borderLeft: false, borderRight: true, borderBottom: isLastRow });
+
+                    cells.push(r);
+                });
+            });
+
+            // Calculate heights based on contents
+            const rHeights: number[] = Array(totalRows).fill(rowH);
+            // Day header padding
+            rHeights[0] = Math.round(30 * scY);
+
+            const tableData = {
+                rows: totalRows,
+                cols: 3,
+                cells: cells,
+                colWidths: [CW * 0.25, CW * 0.55, CW * 0.20],
+                rowHeights: rHeights,
+                borderOn: true,
+                borderThickness: 1,
+                cellPadding: 6,
+                headerHighlight: false, // We did manual headers
+                headerBgColor: '#2a4365',
+                borderColor: '#e2e8f0'
+            };
+
+            const tH = rHeights.reduce((s, h) => s + h, 0);
+            els.push({
+                id: uuidv4(),
+                type: 'table',
+                x: ML, y: curY, w: CW, h: tH,
+                tableData: tableData as any,
+                zIndex: nzTxt()
+            });
+
+            curY += tH + Math.round(18 * scY);
         });
     }
     flushPage();
@@ -857,7 +959,7 @@ const buildEditorPages = (data: any): EditorPage[] => {
     return allPages;
 };
 
-// ─── Regenerate TOC page (always index 1) from isTocEntry elements ────────────
+// ─── Regenerate TOC page (always index 1) — SOICT 2025 style ────────────────
 const regenerateToc = (pages: EditorPage[]): EditorPage[] => {
     if (pages.length < 2) return pages;
     const scX = CANVAS_W / 595, scY = CANVAS_H / 842;
@@ -869,20 +971,78 @@ const regenerateToc = (pages: EditorPage[]): EditorPage[] => {
         pg.els.forEach(el => { if (el.isTocEntry && el.text) entries.push({ label: el.tocLabel || el.text, pageNum: idx + 1 }); });
     });
     const tocEls: EditorEl[] = [];
-    let y = MT, imgZ = 10, txtZ = 100;
-    const nzImg = () => ++imgZ;
+    let txtZ = 100;
     const nzTxt = () => ++txtZ;
-    const titleH = Math.round(20 * scY);
-    tocEls.push({ id: uuidv4(), type: 'text', x: ML, y, w: CW, h: titleH, text: 'TABLE OF CONTENTS', fontSize: Math.round(13 * scY), bold: true, italic: false, color: '#1a3a6b', align: 'left', zIndex: nzTxt() });
-    y += titleH + Math.round(4 * scY);
-    tocEls.push({ id: uuidv4(), type: 'image', x: ML, y, w: CW, h: Math.round(2 * scY), src: solidColorImg('#1a3a6b', CW, Math.round(2 * scY)), zIndex: nzImg() });
-    y += Math.round(2 * scY) + Math.round(20 * scY);
+
+    // Extract conference name from cover page
+    const confNameEl = pages[0]?.els.find(e => e.type === 'text' && e.color === '#bfdbfe');
+    const confName = confNameEl?.text || 'CONFERENCE';
+
+    // Vertical conference name (rotated -90deg, decorative left side)
+    const textLen = confName.length;
+    // Auto-scale to fill ~800pt height
+    const rawFont = Math.max(16, Math.min(140, 800 / (textLen * 0.65)));
+    const vertFontSize = Math.round(rawFont * scY);
+    // Width fixed to 800 to avoid wrapping and ensure center rotation alignment
+    const vertW = Math.round(800 * scY);
+    const vertH = Math.round(rawFont * 1.4 * scY);
+    // x: visual center at ~40px from left
+    const cx = Math.round(40 * scX);
+    const cy = Math.round(421 * scY);
+    const vertX = cx - Math.round(vertW / 2);
+    const vertY = cy - Math.round(vertH / 2);
+    tocEls.push({
+        id: uuidv4(), type: 'text',
+        x: vertX, y: vertY,
+        w: vertW, h: vertH,
+        text: confName,
+        fontSize: vertFontSize,
+        bold: true, italic: false,
+        color: '#3b6cb5', align: 'center',
+        zIndex: nzTxt(),
+        rotation: -90,
+    });
+
+    // Title centered
+    const titleH = Math.round(32 * scY);
+    tocEls.push({
+        id: uuidv4(), type: 'text',
+        x: ML, y: MT, w: CW, h: titleH,
+        text: 'TABLE OF CONTENT',
+        fontSize: Math.round(20 * scY),
+        bold: true, italic: false,
+        color: '#2b5797', align: 'center',
+        zIndex: nzTxt(),
+    });
+
+    // Entries: large page number + label
+    let y = MT + titleH + Math.round(30 * scY);
+    const entryML = ML + Math.round(120 * scX);
+    const numW = Math.round(48 * scX);
     entries.forEach(entry => {
-        const rowH = Math.round(22 * scY);
-        tocEls.push({ id: uuidv4(), type: 'text', x: ML, y, w: CW * 0.82, h: rowH, text: entry.label, fontSize: Math.round(10 * scY), bold: true, italic: false, color: '#1a3a6b', align: 'left', zIndex: nzTxt() });
-        tocEls.push({ id: uuidv4(), type: 'text', x: ML + CW * 0.82, y, w: CW * 0.18, h: rowH, text: String(entry.pageNum), fontSize: Math.round(9 * scY), bold: false, italic: false, color: '#718096', align: 'right', zIndex: nzTxt() });
+        const rowH = Math.round(35 * scY);
+        // Large page number
+        tocEls.push({
+            id: uuidv4(), type: 'text',
+            x: entryML, y, w: numW, h: rowH,
+            text: String(entry.pageNum),
+            fontSize: Math.round(18 * scY),
+            bold: true, italic: false,
+            color: '#3b6cb5', align: 'left',
+            zIndex: nzTxt(),
+        });
+        // Label
+        tocEls.push({
+            id: uuidv4(), type: 'text',
+            x: entryML + numW + Math.round(10 * scX), y: y + Math.round(6 * scY),
+            w: CW - numW - Math.round(75 * scX), h: rowH - Math.round(6 * scY),
+            text: entry.label,
+            fontSize: Math.round(10 * scY),
+            bold: false, italic: false,
+            color: '#3b6cb5', align: 'left',
+            zIndex: nzTxt(),
+        });
         y += rowH;
-        tocEls.push({ id: uuidv4(), type: 'image', x: ML, y: y - 1, w: CW, h: 1, src: solidColorImg('#e2e8f0', CW, 1), zIndex: nzImg() });
     });
     return pages.map((pg, idx) => idx === 1 ? { ...pg, els: tocEls } : pg);
 };
@@ -902,10 +1062,22 @@ const renderThumbnail = (page: EditorPage): Promise<string> => {
             const el = sorted[i];
             const x = el.x * scale, y = el.y * scale;
             const w = Math.max(1, el.w * scale), h = Math.max(1, el.h * scale);
-            if (el.type === 'image' && el.src) {
+            const hasRotation = el.rotation && el.rotation !== 0;
+            if (hasRotation) {
+                const cx = x + w / 2, cy = y + h / 2;
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate((el.rotation! * Math.PI) / 180);
+                ctx.translate(-cx, -cy);
+            }
+            if (el.type === 'table' && el.tableData) {
+                renderTableToCanvas(ctx, el.tableData, x, y, w, h, scale);
+                if (hasRotation) ctx.restore();
+                drawNext(i + 1);
+            } else if (el.type === 'image' && el.src) {
                 const img = new window.Image();
-                img.onload = () => { ctx.drawImage(img, x, y, w, h); drawNext(i + 1); };
-                img.onerror = () => drawNext(i + 1);
+                img.onload = () => { ctx.drawImage(img, x, y, w, h); if (hasRotation) ctx.restore(); drawNext(i + 1); };
+                img.onerror = () => { if (hasRotation) ctx.restore(); drawNext(i + 1); };
                 img.src = el.src;
             } else if (el.type === 'text' && el.text) {
                 ctx.fillStyle = el.color || '#1a202c';
@@ -920,8 +1092,9 @@ const renderThumbnail = (page: EditorPage): Promise<string> => {
                     else if (el.align === 'right') { const tw = ctx.measureText(line).width; ctx.fillText(line, x + w - tw, ly, w); }
                     else ctx.fillText(line, x, ly, w);
                 });
+                if (hasRotation) ctx.restore();
                 drawNext(i + 1);
-            } else drawNext(i + 1);
+            } else { if (hasRotation) ctx.restore(); drawNext(i + 1); }
         };
         drawNext(0);
     });
@@ -974,11 +1147,16 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
         headerText: '', footerText: '', showPageNum: true, pageNumPos: 'right', startFrom: 1,
     });
     const [showHFPanel, setShowHFPanel] = useState(false);
+    const [showPagesSidebar, setShowPagesSidebar] = useState(true);
     const [cropState, setCropState] = useState<{
         elId: string; src: string; natW: number; natH: number;
         cx: number; cy: number; cw: number; ch: number;
     } | null>(null);
+    const [abstractModal, setAbstractModal] = useState<{ title: string; authors: string; abstract: string } | null>(null);
+    const [showInsertTable, setShowInsertTable] = useState(false);
+    const [tableSelectedCells, setTableSelectedCells] = useState<CellCoord[]>([]);
     const [dragFromIdx, setDragFromIdx] = useState<number | null>(null);
+    const [debouncedEdPages, setDebouncedEdPages] = useState<EditorPage[]>([]);
     const dragRef = useRef<{
         type: 'move' | 'resize'; elId: string; dir: string;
         sx: number; sy: number; orig: EditorEl;
@@ -1149,7 +1327,6 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                         paperTitle: p.title,
                         authors: a?.full_name || '',
                         abstract: p.abstract || '',
-                        doi: p.doi_code || '',
                         timeSlot: timeStr,
                         sessionDayLabel,
                         sessionDayOrder,
@@ -1272,10 +1449,26 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
             }
         };
 
-
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selEl, clipboard, selPage]);
+
+    // Debounce edPages for PDF Export to prevent lag during rapid updates
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedEdPages(edPages);
+        }, 1500); // 1.5s delay after user stops typing/dragging
+        return () => clearTimeout(timer);
+    }, [edPages]);
+
+    const editorPdfDoc = useMemo(() => {
+        const pagesToRender = debouncedEdPages.length > 0 ? debouncedEdPages : edPages;
+        return <EditorExportDoc pages={pagesToRender} hf={hf} />;
+    }, [debouncedEdPages, edPages.length === 0, hf]);
+
+    const procPdfDoc = useMemo(() => {
+        return <ProceedingsDocument data={procData} />;
+    }, [procData]);
 
     // Logic Del + Ctrl Z
     useEffect(() => {
@@ -1349,9 +1542,23 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
         img.src = src;
     };
 
+    const addTable = (rows: number, cols: number) => {
+        const id = uuidv4();
+        const tW = 500, tH = rows * 32 + 10;
+        const tblData = createEmptyTable(rows, cols, tW, tH);
+        const maxZ = curPg.els.reduce((m, e) => Math.max(m, e.zIndex ?? 10), 10);
+        patchPage(p => ({
+            ...p, els: [...p.els, {
+                id, type: 'table' as const, x: 60, y: 80, w: tW, h: tH,
+                zIndex: maxZ + 1, tableData: tblData,
+            }],
+        }));
+        setSelElId(id);
+    };
+
     const deleteEl = (id: string) => {
         patchPage(p => ({ ...p, els: p.els.filter(e => e.id !== id) }));
-        if (selElId === id) setSelElId(null);
+        if (selElId === id) { setSelElId(null); setTableSelectedCells([]); }
     };
 
     /** Pointer move/resize on canvas */
@@ -1360,7 +1567,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
         const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
         patchEl(d.elId, el => {
             if (d.type === 'move')
-                return { ...el, x: Math.max(0, d.orig.x + dx), y: Math.max(0, d.orig.y + dy) };
+                return { ...el, x: d.orig.x + dx, y: d.orig.y + dy };
             let { x, y, w, h } = d.orig;
             if (d.dir.includes('e')) w = Math.max(30, d.orig.w + dx);
             if (d.dir.includes('s')) h = Math.max(20, d.orig.h + dy);
@@ -1586,7 +1793,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                     {activeTab === 'generalInfo' && 'Venue address, registration hours, room assignments, Wi-Fi and gala dinner details.'}
                                     {activeTab === 'schedule' && 'High-level session schedule shown in "Program at a Glance" table.'}
                                     {activeTab === 'keynotes' && 'Invited keynote speakers with abstract and biography.'}
-                                    {activeTab === 'papers' && 'Accepted papers auto-loaded from the database. Edit DOI codes here.'}
+                                    {activeTab === 'papers' && 'Accepted papers auto-loaded from the database. Click the abstract icon to read.'}
                                     {activeTab === 'preview' && 'Live PDF preview. Use "Export PDF" button to download.'}
                                     {activeTab === 'editor' && 'Visual editor: add text & images, move/resize/crop, reorder pages, set header & footer, then export.'}
                                 </p>
@@ -1859,13 +2066,12 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                     <tr>
                                                         <th className="px-5 py-3">#</th>
                                                         <th className="px-5 py-3">Title & Authors</th>
-                                                        <th className="px-5 py-3 w-52">DOI Code</th>
-                                                        <th className="px-5 py-3 w-10 text-center">Abs.</th>
+                                                        <th className="px-5 py-3 w-24 text-center">Abstract</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-100">
                                                     {procData.detailedSchedule.length === 0
-                                                        ? <tr><td colSpan={4} className="px-5 py-8 text-center text-slate-400 italic">No accepted papers found for this conference.</td></tr>
+                                                        ? <tr><td colSpan={3} className="px-5 py-8 text-center text-slate-400 italic">No accepted papers found for this conference.</td></tr>
                                                         : procData.detailedSchedule.map((p, i) => (
                                                             <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
                                                                 <td className="px-5 py-3 text-slate-400 text-xs">{i + 1}</td>
@@ -1873,19 +2079,15 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                                     <p className="font-semibold text-slate-900 leading-snug text-sm">{p.paperTitle}</p>
                                                                     <p className="text-xs text-slate-500 mt-0.5 italic">{p.authors}</p>
                                                                 </td>
-                                                                <td className="px-5 py-3">
-                                                                    <input type="text"
-                                                                        className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-mono outline-none focus:ring-2 focus:ring-indigo-400"
-                                                                        value={p.doi} placeholder="10.xxxx/xxxxx"
-                                                                        onChange={e => {
-                                                                            const n = [...procData.detailedSchedule];
-                                                                            n[i] = { ...n[i], doi: e.target.value };
-                                                                            setProcData(d => ({ ...d, detailedSchedule: n }));
-                                                                        }} />
-                                                                </td>
                                                                 <td className="px-5 py-3 text-center">
                                                                     {p.abstract
-                                                                        ? <span title={p.abstract}><FileText className="w-4 h-4 text-indigo-400 mx-auto cursor-help" /></span>
+                                                                        ? <button
+                                                                            onClick={() => setAbstractModal({ title: p.paperTitle, authors: p.authors, abstract: p.abstract })}
+                                                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-medium transition-all"
+                                                                            title="View abstract"
+                                                                        >
+                                                                            <Eye className="w-3.5 h-3.5" /> Read
+                                                                        </button>
                                                                         : <span className="text-slate-300 text-xs">—</span>}
                                                                 </td>
                                                             </tr>
@@ -1894,7 +2096,33 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                 </tbody>
                                             </table>
                                         </div>
-                                        <p className="text-xs text-slate-400">Papers are auto-loaded from the database (status = ACCEPTED). Edit DOI codes here then hit Save.</p>
+                                        <p className="text-xs text-slate-400">Papers are auto-loaded from the database (status = ACCEPTED).</p>
+
+                                        {/* Abstract modal */}
+                                        {abstractModal && (
+                                            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-6" style={{ zIndex: 9999 }}
+                                                onClick={() => setAbstractModal(null)}>
+                                                <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                                                    <div className="flex items-start justify-between p-6 pb-4 border-b border-slate-100">
+                                                        <div className="flex-1 min-w-0 pr-4">
+                                                            <h3 className="font-bold text-slate-900 text-base leading-snug">{abstractModal.title}</h3>
+                                                            <p className="text-sm text-slate-500 mt-1 italic">{abstractModal.authors}</p>
+                                                        </div>
+                                                        <button onClick={() => setAbstractModal(null)} className="p-1.5 rounded-lg hover:bg-slate-100 shrink-0">
+                                                            <X className="w-4 h-4 text-slate-500" />
+                                                        </button>
+                                                    </div>
+                                                    <div className="p-6 overflow-y-auto">
+                                                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3">Abstract</p>
+                                                        <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{abstractModal.abstract}</p>
+                                                    </div>
+                                                    <div className="p-4 border-t border-slate-100 flex justify-end">
+                                                        <button onClick={() => setAbstractModal(null)}
+                                                            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition-all">Close</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -1904,7 +2132,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                         {/* Thêm nút Export PDF ngay trong tab Preview */}
                                         <div className="flex justify-end">
                                             <PDFDownloadLink
-                                                document={edReady ? <EditorExportDoc pages={edPages} hf={hf} /> : <ProceedingsDocument data={procData} />}
+                                                document={edReady ? editorPdfDoc : procPdfDoc}
                                                 fileName="conference-proceedings.pdf"
                                             >
                                                 {({ loading }) => (
@@ -1926,11 +2154,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                 hiển thị EditorExportDoc (chứa các thay đổi visual). 
                                                 Nếu chưa, hiển thị bản ProceedingsDocument mặc định.
                                                 */}
-                                                {edReady ? (
-                                                    <EditorExportDoc pages={edPages} hf={hf} />
-                                                ) : (
-                                                    <ProceedingsDocument data={procData} />
-                                                )}
+                                                {edReady ? editorPdfDoc : procPdfDoc}
                                             </PDFViewer>
                                         </div>
                                     </div>
@@ -1976,8 +2200,9 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                             return (
                                                 <div className="flex" style={{ height: 800 }}>
 
-                                                    {/* ──── Left: page strip ──── */}
-                                                    <div className="w-[136px] shrink-0 bg-slate-100 border-r border-slate-200 flex flex-col">
+                                                    {/* ──── Left: page strip (collapsible) ──── */}
+                                                    <div className="shrink-0 bg-slate-100 border-r border-slate-200 flex flex-col transition-all duration-200 overflow-hidden"
+                                                        style={{ width: showPagesSidebar ? 136 : 0, minWidth: showPagesSidebar ? 136 : 0 }}>
                                                         <div className="px-3 py-2.5 border-b border-slate-200 bg-white flex items-center justify-between">
                                                             <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Pages</span>
                                                             <span className="text-[11px] text-slate-400">{edPages.length}</span>
@@ -2010,6 +2235,14 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                             </button>
                                                         </div>
                                                     </div>
+                                                    {/* Toggle sidebar button */}
+                                                    <button
+                                                        onClick={() => setShowPagesSidebar(v => !v)}
+                                                        className="shrink-0 w-5 bg-slate-200 hover:bg-slate-300 border-r border-slate-300 flex items-center justify-center transition-all"
+                                                        title={showPagesSidebar ? 'Hide pages' : 'Show pages'}
+                                                    >
+                                                        <ChevronRight className={`w-3.5 h-3.5 text-slate-500 transition-transform ${showPagesSidebar ? 'rotate-180' : ''}`} />
+                                                    </button>
 
                                                     {/* ──── Centre: canvas ──── */}
                                                     <div className="flex-1 flex flex-col min-w-0 bg-slate-200">
@@ -2032,6 +2265,10 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                                 };
                                                                 inp.click();
                                                             }} className={btnCls(false)}><ImagePlus className="w-4 h-4" /></button>
+                                                            {/* add table */}
+                                                            <button title="Insert table" onClick={() => setShowInsertTable(true)} className={btnCls(false)}>
+                                                                <Grid3X3 className="w-4 h-4" />
+                                                            </button>
 
                                                             <div className="w-px h-5 bg-slate-200 mx-0.5" />
 
@@ -2065,7 +2302,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
 
                                                             {/* Export */}
                                                             <PDFDownloadLink
-                                                                document={<EditorExportDoc pages={edPages} hf={hf} />}
+                                                                document={editorPdfDoc}
                                                                 fileName="proceedings-edited.pdf"
                                                             >
                                                                 {({ loading: dl }) => (
@@ -2133,7 +2370,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                         <div
                                                             ref={scrollAreaRef}
                                                             className="flex-1 overflow-auto flex flex-col items-center pt-6 pb-10 gap-10 bg-slate-300 transition-all"
-                                                            onClick={() => { setSelElId(null); setEditingTxtId(null); }}
+                                                            onClick={() => { setSelElId(null); setEditingTxtId(null); setTableSelectedCells([]); }}
                                                         >
                                                             {edPages.map((pg, idx) => (
                                                                 <div
@@ -2175,19 +2412,26 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                                                 <div key={el.id}
                                                                                     className={`absolute group ${isSel ? 'ring-2 ring-indigo-500' : 'hover:ring-1 hover:ring-indigo-300'}`}
                                                                                     style={{
-                                                                                        left: el.x, top: el.y, width: el.w, height: el.h,
-                                                                                        cursor: 'move', userSelect: 'none',
+                                                                                        left: el.x - (isSel && el.type === 'table' ? 22 : 0),
+                                                                                        top: el.y - (isSel && el.type === 'table' ? 16 : 0),
+                                                                                        width: el.w + (isSel && el.type === 'table' ? 22 : 0),
+                                                                                        height: el.h + (isSel && el.type === 'table' ? 16 : 0),
+                                                                                        cursor: el.type === 'table' ? (isSel ? 'default' : 'pointer') : 'move',
+                                                                                        userSelect: 'none',
                                                                                         zIndex: el.zIndex ?? 10,
+                                                                                        transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
+                                                                                        transformOrigin: 'center center',
+                                                                                        overflow: el.type === 'table' ? 'visible' : undefined,
                                                                                     }}
-                                                                                    onPointerDown={e => onElPointerDown(e, el, 'move')}
-                                                                                    onClick={e => { e.stopPropagation(); setSelElId(el.id); }}
+                                                                                    onPointerDown={e => { setSelPage(idx); onElPointerDown(e, el, 'move'); }}
+                                                                                    onClick={e => { e.stopPropagation(); setSelPage(idx); setSelElId(el.id); }}
                                                                                     onDoubleClick={e => { e.stopPropagation(); if (el.type === 'text') setEditingTxtId(el.id); }}
                                                                                 >
                                                                                     {el.type === 'text' && (
                                                                                         editingTxtId === el.id
                                                                                             ? <textarea autoFocus
                                                                                                 className="w-full h-full bg-transparent outline-none resize-none p-0 border-none"
-                                                                                                style={{ fontSize: el.fontSize, fontWeight: el.bold ? 'bold' : 'normal', fontStyle: el.italic ? 'italic' : 'normal', color: el.color, textAlign: el.align as any, lineHeight: 1.4 }}
+                                                                                                style={{ fontSize: el.fontSize, fontWeight: el.bold ? 'bold' : 'normal', fontStyle: el.italic ? 'italic' : 'normal', color: el.color, textAlign: el.align as any, lineHeight: 1.4, fontFamily: el.fontFamily ? cssFontFamily(el.fontFamily) : 'inherit' }}
                                                                                                 value={el.text ?? ''}
                                                                                                 onChange={ev => patchEl(el.id, e2 => ({ ...e2, text: ev.target.value }))}
                                                                                                 onBlur={() => setEditingTxtId(null)}
@@ -2196,13 +2440,33 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                                                                 onPointerDown={ev => ev.stopPropagation()}
                                                                                             />
                                                                                             : <div className="w-full h-full overflow-hidden pointer-events-none"
-                                                                                                style={{ fontSize: el.fontSize, fontWeight: el.bold ? 'bold' : 'normal', fontStyle: el.italic ? 'italic' : 'normal', color: el.color, textAlign: el.align as any, lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
+                                                                                                style={{ fontSize: el.fontSize, fontWeight: el.bold ? 'bold' : 'normal', fontStyle: el.italic ? 'italic' : 'normal', color: el.color, textAlign: el.align as any, lineHeight: 1.4, whiteSpace: 'pre-wrap', fontFamily: el.fontFamily ? cssFontFamily(el.fontFamily) : 'inherit' }}>
                                                                                                 {el.text}
                                                                                             </div>
                                                                                     )}
                                                                                     {el.type === 'image' && el.src && (
                                                                                         <img src={el.src} alt="" draggable={false}
                                                                                             className="w-full h-full object-contain pointer-events-none select-none" />
+                                                                                    )}
+                                                                                    {/* Move handles for table */}
+                                                                                    {isSel && el.type === 'table' && (
+                                                                                        <>
+                                                                                            <div className="absolute top-[-6px] left-[-6px] right-[-6px] h-[12px] cursor-move z-10" onPointerDown={e => onElPointerDown(e, el, 'move')} />
+                                                                                            <div className="absolute bottom-[-6px] left-[-6px] right-[-6px] h-[12px] cursor-move z-10" onPointerDown={e => onElPointerDown(e, el, 'move')} />
+                                                                                            <div className="absolute left-[-6px] top-[-6px] bottom-[-6px] w-[12px] cursor-move z-10" onPointerDown={e => onElPointerDown(e, el, 'move')} />
+                                                                                            <div className="absolute right-[-6px] top-[-6px] bottom-[-6px] w-[12px] cursor-move z-10" onPointerDown={e => onElPointerDown(e, el, 'move')} />
+                                                                                        </>
+                                                                                    )}
+                                                                                    {el.type === 'table' && el.tableData && (
+                                                                                        <TableEditorCanvas
+                                                                                            tableData={el.tableData}
+                                                                                            elW={el.w}
+                                                                                            elH={el.h}
+                                                                                            isSelected={selElId === el.id}
+                                                                                            selectedCells={selElId === el.id ? tableSelectedCells : []}
+                                                                                            onSelectCells={cells => { setSelElId(el.id); setTableSelectedCells(cells); }}
+                                                                                            onPatchTable={(td) => patchEl(el.id, e2 => ({ ...e2, tableData: td, h: td.rowHeights.reduce((s, v) => s + v, 0) }))}
+                                                                                        />
                                                                                     )}
                                                                                     {isSel && DIRS.map(dir => (
                                                                                         <div key={dir} style={handlePos(dir)}
@@ -2260,7 +2524,12 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                                 {/* ── Text props ── */}
                                                                 {selEl.type === 'text' && (<>
                                                                     <div>
-                                                                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Font size</label>
+                                                                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Font Family & Size</label>
+                                                                        <FontSelector 
+                                                                            value={selEl.fontFamily ?? ''} 
+                                                                            onChange={f => patchEl(selEl.id, el => ({ ...el, fontFamily: f }))} 
+                                                                            className="mb-1.5" 
+                                                                        />
                                                                         <input type="number" min={6} max={96} value={selEl.fontSize ?? 14}
                                                                             onChange={e => patchEl(selEl.id, el => ({ ...el, fontSize: Number(e.target.value) }))}
                                                                             className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400" />
@@ -2330,6 +2599,16 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                                     </button>
                                                                 </>)}
 
+                                                                {/* ── Table props ── */}
+                                                                {selEl.type === 'table' && selEl.tableData && (
+                                                                    <TablePropertiesPanel
+                                                                        tableData={selEl.tableData}
+                                                                        selectedCells={tableSelectedCells}
+                                                                        onPatchTable={(td) => patchEl(selEl.id, el => ({ ...el, tableData: td, h: td.rowHeights.reduce((s, v) => s + v, 0) }))}
+                                                                        elementW={selEl.w}
+                                                                    />
+                                                                )}
+
                                                                 {/* ── Position & size (shared) ── */}
                                                                 <div className="border-t border-slate-100 pt-4">
                                                                     <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">Position & size</label>
@@ -2341,6 +2620,30 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                                                     onChange={e => patchEl(selEl.id, el => ({ ...el, [k]: Number(e.target.value) }))}
                                                                                     className="w-full px-2 py-1 border border-slate-200 rounded text-xs outline-none focus:ring-1 focus:ring-indigo-400" />
                                                                             </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* ── Rotation (shared) ── */}
+                                                                <div className="border-t border-slate-100 pt-4">
+                                                                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
+                                                                        <RotateCw className="w-3 h-3 inline mr-1" />Rotation
+                                                                    </label>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <input type="range" min={-180} max={360} value={selEl.rotation ?? 0}
+                                                                            onChange={e => patchEl(selEl.id, el => ({ ...el, rotation: Number(e.target.value) }))}
+                                                                            className="flex-1 accent-indigo-600" />
+                                                                        <input type="number" min={-360} max={360} value={selEl.rotation ?? 0}
+                                                                            onChange={e => patchEl(selEl.id, el => ({ ...el, rotation: Number(e.target.value) }))}
+                                                                            className="w-14 px-2 py-1 border border-slate-200 rounded text-xs outline-none focus:ring-1 focus:ring-indigo-400 text-center" />
+                                                                    </div>
+                                                                    <div className="flex gap-1.5 mt-2">
+                                                                        {[0, 90, 180, 270].map(deg => (
+                                                                            <button key={deg} onClick={() => patchEl(selEl.id, el => ({ ...el, rotation: deg }))}
+                                                                                className={`flex-1 py-1 text-[10px] rounded border transition-all ${(selEl.rotation ?? 0) === deg
+                                                                                    ? 'bg-indigo-600 border-indigo-600 text-white'
+                                                                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                                                                    }`}>{deg}°</button>
                                                                         ))}
                                                                     </div>
                                                                 </div>
@@ -2458,7 +2761,11 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                             const scale = Math.min(1, DISP / cropState.natW, DISP / cropState.natH);
                                             const dw = cropState.natW * scale, dh = cropState.natH * scale;
                                             return (
-                                                <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+                                                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4"
+                                                    style={{ zIndex: 9999 }}
+                                                    onClick={e => e.stopPropagation()}
+                                                    onPointerDown={e => e.stopPropagation()}
+                                                >
                                                     <div className="bg-white rounded-2xl shadow-2xl p-6 flex flex-col gap-4" style={{ maxWidth: 560, width: '100%' }}>
                                                         <div className="flex items-center justify-between">
                                                             <h3 className="font-semibold text-slate-900 flex items-center gap-2">
@@ -2551,6 +2858,14 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                 </div>
                                             );
                                         })()}
+
+                                        {/* ──── Insert Table Modal ──── */}
+                                        {showInsertTable && (
+                                            <InsertTableModal
+                                                onInsert={(rows, cols) => addTable(rows, cols)}
+                                                onClose={() => setShowInsertTable(false)}
+                                            />
+                                        )}
 
                                     </div>
                                 )}
