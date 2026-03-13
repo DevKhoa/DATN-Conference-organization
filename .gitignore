@@ -243,5 +243,6 @@ __marimo__/
 .streamlit/secrets.toml
 
 Credentials/
+Test/
 *Test*
 *test*

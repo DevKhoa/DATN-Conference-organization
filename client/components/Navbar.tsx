@@ -20,6 +20,7 @@ interface NavbarProps {
   onNavigatePapers?: () => void;
   onNavigateAiAssistant?: () => void; // New Prop
   onNavigateAttendences?: () => void;
+  onNavigateProceedings: () => void;
   onNavigateAgenda?: () => void;
   onLogout: () => void;
   isLoggedIn?: boolean;
@@ -39,6 +40,7 @@ const Navbar: React.FC<NavbarProps> = ({
   onNavigatePapers,
   onNavigateAiAssistant,
   onNavigateAttendences,
+  onNavigateProceedings,
   onNavigateAgenda,
   onLogout,
   isLoggedIn = false,
@@ -82,6 +84,7 @@ const Navbar: React.FC<NavbarProps> = ({
   const adminLinks = [
     { name: "Users Management", href: "#users-management" },
     { name: "Attendances", href: "#attendances" },
+    { name: "Proceedings", href: "#proceedings" },
   ];
 
   // Determine which links to show based on role_id
@@ -149,6 +152,14 @@ const Navbar: React.FC<NavbarProps> = ({
       setIsOpen(false);
       if (onNavigateAttendences) {
         onNavigateAttendences();
+      }
+    } else if (linkName === "Proceedings") {
+      e.preventDefault();
+      setIsOpen(false);
+      if (onNavigateProceedings) {
+        onNavigateProceedings();
+      }
+    }
       }
     }
     // For other links like #about, let default anchor behavior happen for now

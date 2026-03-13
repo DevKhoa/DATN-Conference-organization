@@ -428,6 +428,7 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({
                           <span className="font-medium truncate mr-2">
                             {s.session_name}
                           </span>
+                          <ChevronRight className="w-4 h-4 text-slate-300 group-hover/item:text-brand-500 transition-colors" />
                         </button>
                       ))}
                     </div>

@@ -21,6 +21,7 @@ import MyPaperDetail from "./pages/MyPaperDetail";
 import AiAssistant from "./pages/AiAssistant"; // IMPORT NEW PAGE
 import AttendancesManagement from "./pages/AttendencesManagement";
 import CheckinScanner from "./pages/CheckinScanner";
+import ProceedingsManagement from "./pages/ProceedingsManagement";
 import MyAgenda from "./pages/Agenda";
 import { supabase } from "./lib/supabase";
 
@@ -42,6 +43,7 @@ type Page =
   | "ai-assistant"
   | "attendences-management"
   | "checkin-scanner"
+  | "proceedings-management";
   | "agenda";
 
 interface UserSession {
@@ -256,6 +258,9 @@ const App: React.FC = () => {
     setCurrentPage("checkin-scanner");
   };
 
+  const navigateToProceedings = () => {
+    window.scrollTo(0, 0);
+    setCurrentPage("proceedings-management");
   const navigateToAgenda = () => {
     window.scrollTo(0, 0);
     setCurrentPage("agenda");
@@ -353,6 +358,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateProceedings={navigateToProceedings}
           onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
@@ -384,6 +390,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateProceedings={navigateToProceedings}
           onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
@@ -417,6 +424,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateProceedings={navigateToProceedings}
           onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
@@ -455,6 +463,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateProceedings={navigateToProceedings}
           onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
@@ -488,6 +497,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateProceedings={navigateToProceedings}
           onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
@@ -519,6 +529,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateProceedings={navigateToProceedings}
           onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
@@ -551,6 +562,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateProceedings={navigateToProceedings}
           onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
@@ -586,6 +598,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateProceedings={navigateToProceedings}
           onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
@@ -618,6 +631,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateProceedings={navigateToProceedings}
           onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
@@ -649,6 +663,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateProceedings={navigateToProceedings}
           onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
@@ -677,6 +692,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateProceedings={navigateToProceedings}
           onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
@@ -719,6 +735,7 @@ const App: React.FC = () => {
     );
   }
 
+  if (currentPage === "proceedings-management") {
   // Render Agenda Page
   if (currentPage === "agenda") {
     return (
@@ -732,6 +749,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateProceedings={navigateToProceedings}
           onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
@@ -741,6 +759,14 @@ const App: React.FC = () => {
           userRoleId={userRoleId}
           userAvatar={userAvatar}
         />
+
+        <main className="flex-grow">
+          <ProceedingsManagement
+            userRoleId={userRoleId}
+            onNavigateBack={navigateToConferences}
+          />
+        </main>
+
         <MyAgenda onNavigateConferenceDetail={navigateToConferenceDetail} />
         <Footer />
       </>
@@ -759,6 +785,7 @@ const App: React.FC = () => {
         onNavigatePapers={navigateToPapers}
         onNavigateAiAssistant={navigateToAiAssistant}
         onNavigateAttendences={navigateToAttendences}
+        onNavigateProceedings={navigateToProceedings}
         onNavigateAgenda={navigateToAgenda}
         onLogout={handleLogout}
         isLoggedIn={isLoggedIn}
