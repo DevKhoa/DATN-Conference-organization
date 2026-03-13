@@ -1,31 +1,48 @@
-import React, { useState, useEffect } from 'react';
-import Navbar from './components/Navbar';
-import Hero from './components/Hero';
-import CoreValues from './components/CoreValues';
-import Features from './components/Features';
-import Partners from './components/Partners';
-import CallToAction from './components/CallToAction';
-import Footer from './components/Footer';
-import Register from './pages/Register';
-import Login from './pages/Login';
-import Profile from './pages/Profile';
-import Conferences from './pages/Conferences';
-import ConferenceDetail from './pages/ConferenceDetail';
-import CreateConference from './pages/CreateConference';
-import Papers from './pages/Papers';
-import PaperDetail from './pages/PaperDetail';
-import SubmitPaper from './pages/SubmitPaper';
-import AssignSessions from './pages/AssignSessions';
-import MyPapers from './pages/MyPapers';
-import MyPaperDetail from './pages/MyPaperDetail';
-import AiAssistant from './pages/AiAssistant'; // IMPORT NEW PAGE
-import AttendancesManagement from './pages/AttendencesManagement';
-import CheckinScanner from './pages/CheckinScanner';
-import MyAgenda from './pages/Agenda';
-import { supabase } from './lib/supabase';
+import React, { useState, useEffect } from "react";
+import Navbar from "./components/Navbar";
+import Hero from "./components/Hero";
+import CoreValues from "./components/CoreValues";
+import Features from "./components/Features";
+import Partners from "./components/Partners";
+import CallToAction from "./components/CallToAction";
+import Footer from "./components/Footer";
+import Register from "./pages/Register";
+import Login from "./pages/Login";
+import Profile from "./pages/Profile";
+import Conferences from "./pages/Conferences";
+import ConferenceDetail from "./pages/ConferenceDetail";
+import CreateConference from "./pages/CreateConference";
+import Papers from "./pages/Papers";
+import PaperDetail from "./pages/PaperDetail";
+import SubmitPaper from "./pages/SubmitPaper";
+import AssignSessions from "./pages/AssignSessions";
+import MyPapers from "./pages/MyPapers";
+import MyPaperDetail from "./pages/MyPaperDetail";
+import AiAssistant from "./pages/AiAssistant"; // IMPORT NEW PAGE
+import AttendancesManagement from "./pages/AttendencesManagement";
+import CheckinScanner from "./pages/CheckinScanner";
+import TicketManagement from "./pages/TicketManagement";
+import { supabase } from "./lib/supabase";
 
 // Simple Route State management to avoid adding react-router-dom dependency
-type Page = 'home' | 'register' | 'login' | 'profile' | 'conferences' | 'conference-detail' | 'create-conference' | 'papers' | 'paper-detail' | 'submit-paper' | 'assign-sessions' | 'my-papers' | 'my-paper-detail' | 'ai-assistant' | 'attendences-management' | 'checkin-scanner' | 'agenda';
+type Page =
+  | "home"
+  | "register"
+  | "login"
+  | "profile"
+  | "conferences"
+  | "conference-detail"
+  | "create-conference"
+  | "papers"
+  | "paper-detail"
+  | "submit-paper"
+  | "assign-sessions"
+  | "my-papers"
+  | "my-paper-detail"
+  | "ai-assistant"
+  | "attendences-management"
+  | "checkin-scanner"
+  | "ticket-management";
 
 interface UserSession {
   name: string;
@@ -36,39 +53,45 @@ interface UserSession {
 }
 
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<Page>('home');
+  const [currentPage, setCurrentPage] = useState<Page>("home");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userName, setUserName] = useState('');
-  const [userEmail, setUserEmail] = useState('');
-  const [userRole, setUserRole] = useState('');
+  const [userName, setUserName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+  const [userRole, setUserRole] = useState("");
   const [userRoleId, setUserRoleId] = useState<number>(0);
-  const [userAvatar, setUserAvatar] = useState('');
+  const [userAvatar, setUserAvatar] = useState("");
   const [viewingUserEmail, setViewingUserEmail] = useState<string | null>(null);
 
   // New State for Detail Page
   const [selectedConferenceId, setSelectedConferenceId] = useState<number>(0);
   const [selectedPaperId, setSelectedPaperId] = useState<number>(0);
 
-  const [attendanceContext, setAttendanceContext] = useState<{ confId: number; sessionId: number } | null>(null);
-  const [checkinScannerContext, setCheckinScannerContext] = useState<{ sessionIds: number[], authToken: string } | null>(null);
+  const [attendanceContext, setAttendanceContext] = useState<{
+    confId: number;
+    sessionId: number;
+  } | null>(null);
+  const [checkinScannerContext, setCheckinScannerContext] = useState<{
+    sessionIds: number[];
+    authToken: string;
+  } | null>(null);
 
   // Persist Login State
   useEffect(() => {
-    const storedUser = localStorage.getItem('conf_user');
+    const storedUser = localStorage.getItem("conf_user");
     if (storedUser) {
       try {
         const session: UserSession = JSON.parse(storedUser);
         if (session.name) {
           setIsLoggedIn(true);
           setUserName(session.name);
-          setUserEmail(session.email || '');
-          setUserRole(session.role || '');
+          setUserEmail(session.email || "");
+          setUserRole(session.role || "");
           setUserRoleId(session.roleId || 0);
-          setUserAvatar(session.avatar || '');
+          setUserAvatar(session.avatar || "");
         }
       } catch (error) {
-        console.error('Error parsing stored user:', error);
-        localStorage.removeItem('conf_user');
+        console.error("Error parsing stored user:", error);
+        localStorage.removeItem("conf_user");
       }
     }
   }, []);
@@ -78,29 +101,32 @@ const App: React.FC = () => {
 
     try {
       const { data, error } = await supabase
-        .from('users')
-        .select(`
+        .from("users")
+        .select(
+          `
           full_name,
           email,
           avatar_url,
           description,
+          description_reformat,
           user_roles (
             role_id,
             roles (
               role_name
             )
           )
-        `)
-        .eq('email', userEmail)
+        `,
+        )
+        .eq("email", userEmail)
         .single();
 
       if (error) {
-        console.error('Error refreshing session:', error);
+        console.error("Error refreshing session:", error);
         return;
       }
 
       if (data) {
-        let roleName = 'User';
+        let roleName = "User";
         let rId = 0;
         // @ts-ignore
         if (data.user_roles && data.user_roles.length > 0) {
@@ -116,35 +142,35 @@ const App: React.FC = () => {
         setUserName(data.full_name);
         setUserRole(roleName);
         setUserRoleId(rId);
-        setUserAvatar(data.avatar_url || '');
+        setUserAvatar(data.avatar_url || "");
 
         const session: UserSession = {
           name: data.full_name,
           email: data.email,
           role: roleName,
           roleId: rId,
-          avatar: data.avatar_url || ''
+          avatar: data.avatar_url || "",
         };
-        localStorage.setItem('conf_user', JSON.stringify(session));
+        localStorage.setItem("conf_user", JSON.stringify(session));
       }
     } catch (err) {
-      console.error('Error refreshing session:', err);
+      console.error("Error refreshing session:", err);
     }
   };
 
   const navigateToRegister = () => {
     window.scrollTo(0, 0);
-    setCurrentPage('register');
+    setCurrentPage("register");
   };
 
   const navigateToLogin = () => {
     window.scrollTo(0, 0);
-    setCurrentPage('login');
+    setCurrentPage("login");
   };
 
   const navigateToHome = () => {
     window.scrollTo(0, 0);
-    setCurrentPage('home');
+    setCurrentPage("home");
     if (isLoggedIn) {
       refreshUserSession();
     }
@@ -152,60 +178,60 @@ const App: React.FC = () => {
 
   const navigateToProfile = () => {
     window.scrollTo(0, 0);
-    setCurrentPage('profile');
+    setCurrentPage("profile");
   };
 
   const navigateToConferences = () => {
     window.scrollTo(0, 0);
-    setCurrentPage('conferences');
-  }
+    setCurrentPage("conferences");
+  };
 
   const navigateToConferenceDetail = (confId: number) => {
     setSelectedConferenceId(confId);
     window.scrollTo(0, 0);
-    setCurrentPage('conference-detail');
+    setCurrentPage("conference-detail");
   };
 
   const navigateToCreateConference = () => {
     window.scrollTo(0, 0);
-    setCurrentPage('create-conference');
+    setCurrentPage("create-conference");
   };
 
   const navigateToPapers = () => {
     window.scrollTo(0, 0);
-    setCurrentPage('papers');
+    setCurrentPage("papers");
   };
 
   const navigateToPaperDetail = (paperId: number) => {
     setSelectedPaperId(paperId);
     window.scrollTo(0, 0);
-    setCurrentPage('paper-detail');
+    setCurrentPage("paper-detail");
   };
 
   const navigateToSubmitPaper = () => {
     window.scrollTo(0, 0);
-    setCurrentPage('submit-paper');
+    setCurrentPage("submit-paper");
   };
 
   const navigateToAssignSessions = () => {
     window.scrollTo(0, 0);
-    setCurrentPage('assign-sessions');
+    setCurrentPage("assign-sessions");
   };
 
   const navigateToMyPapers = () => {
     window.scrollTo(0, 0);
-    setCurrentPage('my-papers');
+    setCurrentPage("my-papers");
   };
 
   const navigateToMyPaperDetail = (paperId: number) => {
     setSelectedPaperId(paperId);
     window.scrollTo(0, 0);
-    setCurrentPage('my-paper-detail');
+    setCurrentPage("my-paper-detail");
   };
 
   const navigateToAiAssistant = () => {
     window.scrollTo(0, 0);
-    setCurrentPage('ai-assistant');
+    setCurrentPage("ai-assistant");
   };
 
   const navigateToAttendences = (confId?: number, sessionId?: number) => {
@@ -215,21 +241,30 @@ const App: React.FC = () => {
       setAttendanceContext(null);
     }
     window.scrollTo(0, 0);
-    setCurrentPage('attendences-management');
+    setCurrentPage("attendences-management");
   };
 
-  const navigateToCheckinScanner = (sessionIds: number[], authToken: string) => {
+  const navigateToCheckinScanner = (
+    sessionIds: number[],
+    authToken: string,
+  ) => {
     setCheckinScannerContext({ sessionIds, authToken });
     window.scrollTo(0, 0);
-    setCurrentPage('checkin-scanner');
+    setCurrentPage("checkin-scanner");
   };
 
-  const navigateToAgenda = () => {
+  const navigateToTicketManagement = () => {
     window.scrollTo(0, 0);
-    setCurrentPage('agenda');
+    setCurrentPage("ticket-management");
   };
 
-  const handleAuthSuccess = (data: { name: string; email: string; role: string; roleId: number; avatar: string }) => {
+  const handleAuthSuccess = (data: {
+    name: string;
+    email: string;
+    role: string;
+    roleId: number;
+    avatar: string;
+  }) => {
     setIsLoggedIn(true);
     setUserName(data.name);
     setUserEmail(data.email);
@@ -242,31 +277,31 @@ const App: React.FC = () => {
       email: data.email,
       role: data.role,
       roleId: data.roleId,
-      avatar: data.avatar
+      avatar: data.avatar,
     };
-    localStorage.setItem('conf_user', JSON.stringify(session));
+    localStorage.setItem("conf_user", JSON.stringify(session));
     navigateToHome();
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
-    setUserName('');
-    setUserEmail('');
-    setUserRole('');
+    setUserName("");
+    setUserEmail("");
+    setUserRole("");
     setUserRoleId(0);
-    setUserAvatar('');
-    localStorage.removeItem('conf_user');
+    setUserAvatar("");
+    localStorage.removeItem("conf_user");
     navigateToHome();
   };
 
   const navigateToUserProfile = (email: string) => {
     setViewingUserEmail(email);
     window.scrollTo(0, 0);
-    setCurrentPage('profile');
+    setCurrentPage("profile");
   };
 
   // Render Register Page
-  if (currentPage === 'register') {
+  if (currentPage === "register") {
     return (
       <Register
         onNavigateHome={navigateToHome}
@@ -277,7 +312,7 @@ const App: React.FC = () => {
   }
 
   // Render Login Page
-  if (currentPage === 'login') {
+  if (currentPage === "login") {
     return (
       <Login
         onNavigateHome={navigateToHome}
@@ -288,7 +323,7 @@ const App: React.FC = () => {
   }
 
   // Render Profile Page
-  if (currentPage === 'profile') {
+  if (currentPage === "profile") {
     return (
       <Profile
         // Ưu tiên email đang được xem, nếu null thì hiện profile cá nhân
@@ -303,7 +338,7 @@ const App: React.FC = () => {
   }
 
   // Render Create Conference Page
-  if (currentPage === 'create-conference') {
+  if (currentPage === "create-conference") {
     return (
       <>
         <Navbar
@@ -315,7 +350,6 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
-          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -334,7 +368,7 @@ const App: React.FC = () => {
   }
 
   // Render Conference List Page
-  if (currentPage === 'conferences') {
+  if (currentPage === "conferences") {
     return (
       <>
         <Navbar
@@ -346,7 +380,6 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
-          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -367,7 +400,7 @@ const App: React.FC = () => {
   }
 
   // Render Conference Detail Page
-  if (currentPage === 'conference-detail') {
+  if (currentPage === "conference-detail") {
     return (
       <>
         <Navbar
@@ -379,7 +412,6 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
-          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -391,11 +423,12 @@ const App: React.FC = () => {
         <ConferenceDetail
           conferenceId={selectedConferenceId}
           onNavigateBack={navigateToConferences}
-          // Pass navigation prop for Assign Sessions
           onNavigateAssignSessions={navigateToAssignSessions}
           onNavigateAttendance={navigateToAttendences}
           onNavigateCheckinScanner={navigateToCheckinScanner}
-          userRoleId={userRoleId} // Pass role to check permissions
+          onNavigateTicketManagement={navigateToTicketManagement}
+          userRoleId={userRoleId}
+          userEmail={userEmail}
         />
         <Footer />
       </>
@@ -403,7 +436,7 @@ const App: React.FC = () => {
   }
 
   // Render Papers List Page
-  if (currentPage === 'papers') {
+  if (currentPage === "papers") {
     return (
       <>
         <Navbar
@@ -415,7 +448,6 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
-          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -436,7 +468,7 @@ const App: React.FC = () => {
   }
 
   // Render Paper Detail Page
-  if (currentPage === 'paper-detail') {
+  if (currentPage === "paper-detail") {
     return (
       <>
         <Navbar
@@ -448,7 +480,6 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
-          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -467,7 +498,7 @@ const App: React.FC = () => {
   }
 
   // Render Submit Paper Page
-  if (currentPage === 'submit-paper') {
+  if (currentPage === "submit-paper") {
     return (
       <>
         <Navbar
@@ -479,7 +510,6 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
-          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -499,7 +529,7 @@ const App: React.FC = () => {
   }
 
   // Render Assign Sessions Page
-  if (currentPage === 'assign-sessions') {
+  if (currentPage === "assign-sessions") {
     return (
       <>
         <Navbar
@@ -511,7 +541,6 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
-          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -523,7 +552,9 @@ const App: React.FC = () => {
         <AssignSessions
           conferenceId={selectedConferenceId}
           userRoleId={userRoleId}
-          onNavigateBack={() => navigateToConferenceDetail(selectedConferenceId)}
+          onNavigateBack={() =>
+            navigateToConferenceDetail(selectedConferenceId)
+          }
         />
         <Footer />
       </>
@@ -531,7 +562,7 @@ const App: React.FC = () => {
   }
 
   // Render My Papers Page (NEW)
-  if (currentPage === 'my-papers') {
+  if (currentPage === "my-papers") {
     return (
       <>
         <Navbar
@@ -543,7 +574,6 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
-          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -563,7 +593,7 @@ const App: React.FC = () => {
   }
 
   // Render My Paper Detail Page (NEW)
-  if (currentPage === 'my-paper-detail') {
+  if (currentPage === "my-paper-detail") {
     return (
       <>
         <Navbar
@@ -575,7 +605,6 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
-          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -594,7 +623,7 @@ const App: React.FC = () => {
   }
 
   // Render AI Assistant Page (NEW)
-  if (currentPage === 'ai-assistant') {
+  if (currentPage === "ai-assistant") {
     return (
       <>
         <Navbar
@@ -606,7 +635,6 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
-          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -622,7 +650,7 @@ const App: React.FC = () => {
   }
 
   // Render Attendances Management Page
-  if (currentPage === 'attendences-management') {
+  if (currentPage === "attendences-management") {
     return (
       <>
         <Navbar
@@ -634,7 +662,6 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
-          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -648,7 +675,7 @@ const App: React.FC = () => {
           onNavigateBack={() => {
             if (attendanceContext) {
               setSelectedConferenceId(attendanceContext.confId);
-              setCurrentPage('conference-detail');
+              setCurrentPage("conference-detail");
               // setAttendanceContext(null); // Tùy chọn: Xóa context sau khi quay về
             } else {
               navigateToHome();
@@ -664,44 +691,27 @@ const App: React.FC = () => {
   }
 
   // Render Checkin Scanner Page
-  if (currentPage === 'checkin-scanner' && checkinScannerContext) {
+  if (currentPage === "checkin-scanner" && checkinScannerContext) {
     return (
       <CheckinScanner
         sessionIds={checkinScannerContext.sessionIds}
         authToken={checkinScannerContext.authToken}
         onNavigateBack={() => {
-          setCurrentPage('conference-detail');
+          setCurrentPage("conference-detail");
           setCheckinScannerContext(null);
         }}
       />
     );
   }
 
-  // Render Agenda Page
-  if (currentPage === 'agenda') {
+  // Render Ticket Management Page
+  if (currentPage === "ticket-management") {
     return (
-      <>
-        <Navbar
-          onNavigateRegister={navigateToRegister}
-          onNavigateLogin={navigateToLogin}
-          onNavigateProfile={navigateToProfile}
-          onNavigateConferences={navigateToConferences}
-          onNavigateHome={navigateToHome}
-          onNavigatePapers={navigateToPapers}
-          onNavigateAiAssistant={navigateToAiAssistant}
-          onNavigateAttendences={navigateToAttendences}
-          onNavigateAgenda={navigateToAgenda}
-          onLogout={handleLogout}
-          isLoggedIn={isLoggedIn}
-          userName={userName}
-          userEmail={userEmail}
-          userRole={userRole}
-          userRoleId={userRoleId}
-          userAvatar={userAvatar}
-        />
-        <MyAgenda onNavigateConferenceDetail={navigateToConferenceDetail} />
-        <Footer />
-      </>
+      <TicketManagement
+        conferenceId={selectedConferenceId}
+        userRoleId={userRoleId}
+        onNavigateBack={() => setCurrentPage("conference-detail")}
+      />
     );
   }
 
@@ -717,7 +727,6 @@ const App: React.FC = () => {
         onNavigatePapers={navigateToPapers}
         onNavigateAiAssistant={navigateToAiAssistant}
         onNavigateAttendences={navigateToAttendences}
-        onNavigateAgenda={navigateToAgenda}
         onLogout={handleLogout}
         isLoggedIn={isLoggedIn}
         userName={userName}
