@@ -102,7 +102,7 @@ const Register: React.FC<RegisterProps> = ({
     setServerCode(code);
     setExpiryTime(Date.now() + 5 * 60 * 1000);
 
-    const BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
+    const BASE_URL = "http://localhost:8080";
     const url = `${BASE_URL}/send-email`;
 
     const payload = {
