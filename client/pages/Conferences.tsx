@@ -22,7 +22,6 @@ interface Conference {
   banner_urls: string[] | null;
   keywords: string[] | null;
   open_for_papers: boolean;
-  create_time: string;
 }
 
 const Conferences: React.FC<ConferencesProps> = ({ onNavigateHome, onNavigateDetail, onNavigateCreate, userRoleId = 0 }) => {
@@ -33,9 +32,9 @@ const Conferences: React.FC<ConferencesProps> = ({ onNavigateHome, onNavigateDet
   // Filter States
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [sortOrder, setSortOrder] = useState<'NEWEST' | 'UPCOMING' | 'AZ'>('NEWEST');
+  const [sortOrder, setSortOrder] = useState<'UPCOMING' | 'AZ'>('UPCOMING');
   const [selectedKeyword, setSelectedKeyword] = useState<string>('');
-
+  
   // NEW STATE: Dùng để search trong list topics
   const [topicSearch, setTopicSearch] = useState('');
 
@@ -71,8 +70,7 @@ const Conferences: React.FC<ConferencesProps> = ({ onNavigateHome, onNavigateDet
       const { data, error } = await supabase
         .from('conferences')
         .select('*')
-        .eq('is_active', true)
-        .order('create_time', { ascending: false });
+        .eq('is_active', true);
 
       if (error) throw error;
       setConferences(data || []);
@@ -86,7 +84,7 @@ const Conferences: React.FC<ConferencesProps> = ({ onNavigateHome, onNavigateDet
 
   const getRandomImage = (urls: string[] | null) => {
     if (!urls || urls.length === 0) {
-      return "https://images.unsplash.com/photo-1544531586-fde5298cdd40?q=80&w=2070&auto=format&fit=crop";
+      return "https://images.unsplash.com/photo-1544531586-fde5298cdd40?q=80&w=2070&auto=format&fit=crop"; 
     }
     const randomIndex = Math.floor(Math.random() * urls.length);
     return urls[randomIndex];
@@ -113,17 +111,15 @@ const Conferences: React.FC<ConferencesProps> = ({ onNavigateHome, onNavigateDet
   const filteredConferences = conferences
     .filter(conf => {
       const searchLower = searchTerm.toLowerCase();
-      const matchesSearch =
-        conf.conf_name.toLowerCase().includes(searchLower) ||
+      const matchesSearch = 
+        conf.conf_name.toLowerCase().includes(searchLower) || 
         (conf.description && conf.description.toLowerCase().includes(searchLower));
       const matchesStatus = statusFilter === 'ALL' || conf.status?.toUpperCase() === statusFilter;
       const matchesKeyword = !selectedKeyword || (conf.keywords && conf.keywords.includes(selectedKeyword));
       return matchesSearch && matchesStatus && matchesKeyword;
     })
     .sort((a, b) => {
-      if (sortOrder === 'NEWEST') {
-        return new Date(b.create_time).getTime() - new Date(a.create_time).getTime();
-      } else if (sortOrder === 'UPCOMING') {
+      if (sortOrder === 'UPCOMING') {
         return new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
       } else {
         return a.conf_name.localeCompare(b.conf_name);
@@ -132,12 +128,12 @@ const Conferences: React.FC<ConferencesProps> = ({ onNavigateHome, onNavigateDet
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
-
+      
       {/* HEADER SECTION */}
       <div className="relative h-[300px] md:h-[400px] w-full overflow-hidden bg-slate-900">
-        <img
-          src="https://iated.org/inted/img/inted2025-071.jpg"
-          alt="Conference Hall"
+        <img 
+          src="https://iated.org/inted/img/inted2025-071.jpg" 
+          alt="Conference Hall" 
           className="w-full h-full object-cover opacity-60"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/40 to-transparent" />
@@ -148,10 +144,10 @@ const Conferences: React.FC<ConferencesProps> = ({ onNavigateHome, onNavigateDet
           <p className="text-lg md:text-xl text-slate-200 max-w-2xl drop-shadow-sm mb-6">
             Discover our upcoming academic conferences, connect with peers, and share your research.
           </p>
-
+          
           {/* Create Conference Button (Conditional) */}
           {canCreate && onNavigateCreate && (
-            <Button
+            <Button 
               onClick={onNavigateCreate}
               className="bg-brand-600 hover:bg-brand-500 text-white shadow-xl border-2 border-brand-400/30"
               size="lg"
@@ -165,19 +161,19 @@ const Conferences: React.FC<ConferencesProps> = ({ onNavigateHome, onNavigateDet
 
       {/* MAIN CONTENT */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 -mt-10 relative z-10">
-
+        
         {/* FILTER BAR CONTAINER */}
         <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-6 mb-10">
-
+          
           {/* Top Row: Main Filters */}
           <div className="flex flex-col lg:flex-row gap-6">
             <div className="flex-grow">
               <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5 ml-1">Search</label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-                <input
-                  type="text"
-                  placeholder="Search by name or topic..."
+                <input 
+                  type="text" 
+                  placeholder="Search by name or topic..." 
                   className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -190,7 +186,7 @@ const Conferences: React.FC<ConferencesProps> = ({ onNavigateHome, onNavigateDet
                 <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5 ml-1">Status</label>
                 <div className="relative">
                   <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                  <select
+                  <select 
                     className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none appearance-none bg-white"
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
@@ -205,12 +201,11 @@ const Conferences: React.FC<ConferencesProps> = ({ onNavigateHome, onNavigateDet
 
               <div className="w-full sm:w-48">
                 <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5 ml-1">Sort By</label>
-                <select
+                <select 
                   className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none bg-white"
                   value={sortOrder}
-                  onChange={(e) => setSortOrder(e.target.value as 'NEWEST' | 'UPCOMING' | 'AZ')}
+                  onChange={(e) => setSortOrder(e.target.value as 'UPCOMING' | 'AZ')}
                 >
-                  <option value="NEWEST">Newly Added</option>
                   <option value="UPCOMING">Upcoming Dates</option>
                   <option value="AZ">Alphabetical (A-Z)</option>
                 </select>
@@ -221,18 +216,18 @@ const Conferences: React.FC<ConferencesProps> = ({ onNavigateHome, onNavigateDet
           {/* IMPROVED TOPICS SECTION - BOX STYLE */}
           {allKeywords.length > 0 && (
             <div className="mt-6 pt-5 border-t border-slate-100">
-
+              
               {/* Header: Label + Search */}
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-semibold text-slate-700 flex items-center">
-                  <Tag className="w-4 h-4 mr-2 text-brand-500" />
+                  <Tag className="w-4 h-4 mr-2 text-brand-500" /> 
                   Popular Topics
                 </span>
-
+                
                 {/* Search Input Compact */}
                 <div className="relative w-48 md:w-64">
-                  <input
-                    type="text"
+                   <input 
+                    type="text" 
                     value={topicSearch}
                     onChange={(e) => setTopicSearch(e.target.value)}
                     placeholder="Filter topics..."
@@ -240,7 +235,7 @@ const Conferences: React.FC<ConferencesProps> = ({ onNavigateHome, onNavigateDet
                   />
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
                   {topicSearch && (
-                    <button
+                    <button 
                       onClick={() => setTopicSearch('')}
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                     >
@@ -253,12 +248,13 @@ const Conferences: React.FC<ConferencesProps> = ({ onNavigateHome, onNavigateDet
               {/* Tags Container - Box Style */}
               <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 max-h-[140px] overflow-y-auto custom-scrollbar">
                 <div className="flex flex-wrap gap-2">
-                  <button
+                  <button 
                     onClick={() => setSelectedKeyword('')}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all border ${selectedKeyword === ''
-                      ? 'bg-slate-800 text-white border-slate-800 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-100'
-                      }`}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all border ${
+                      selectedKeyword === '' 
+                        ? 'bg-slate-800 text-white border-slate-800 shadow-sm' 
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-100'
+                    }`}
                   >
                     All Topics
                   </button>
@@ -267,19 +263,20 @@ const Conferences: React.FC<ConferencesProps> = ({ onNavigateHome, onNavigateDet
                     <button
                       key={keyword}
                       onClick={() => setSelectedKeyword(keyword === selectedKeyword ? '' : keyword)}
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all border ${selectedKeyword === keyword
-                        ? 'bg-brand-100 text-brand-700 border-brand-200 shadow-sm font-semibold'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300 hover:text-brand-600'
-                        }`}
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all border ${
+                        selectedKeyword === keyword
+                          ? 'bg-brand-100 text-brand-700 border-brand-200 shadow-sm font-semibold'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300 hover:text-brand-600'
+                      }`}
                     >
                       {keyword}
                     </button>
                   ))}
 
                   {displayedKeywords.length === 0 && (
-                    <p className="text-xs text-slate-400 w-full text-center py-2 italic">
-                      No topics found matching "{topicSearch}"
-                    </p>
+                     <p className="text-xs text-slate-400 w-full text-center py-2 italic">
+                       No topics found matching "{topicSearch}"
+                     </p>
                   )}
                 </div>
               </div>
@@ -308,68 +305,68 @@ const Conferences: React.FC<ConferencesProps> = ({ onNavigateHome, onNavigateDet
           <div className="text-center py-20 bg-white rounded-xl shadow-sm border border-slate-200">
             <p className="text-slate-900 font-semibold text-lg mb-2">No conferences found</p>
             <p className="text-slate-500">Try adjusting your search or filters.</p>
-            <Button
-              variant="outline"
-              className="mt-6"
+            <Button 
+              variant="outline" 
+              className="mt-6" 
               onClick={() => { setSearchTerm(''); setStatusFilter('ALL'); setSelectedKeyword(''); setTopicSearch(''); }}
             >
               Clear Filters
             </Button>
           </div>
         )}
-
+        
         {/* GRID */}
         {!loading && filteredConferences.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredConferences.map((conf) => (
-              <div
-                key={conf.conf_id}
-                onClick={() => onNavigateDetail(conf.conf_id)}
-                className="group bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col h-full cursor-pointer"
-              >
-                <div className="relative h-48 overflow-hidden bg-slate-100">
-                  <img src={getRandomImage(conf.banner_urls)} alt={conf.conf_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
-                  <div className="absolute top-4 right-4">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide border shadow-sm ${getStatusColor(conf.status)}`}>{conf.status}</span>
-                  </div>
-                </div>
-                <div className="p-6 flex-grow flex flex-col">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+               {filteredConferences.map((conf) => (
+                  <div 
+                    key={conf.conf_id} 
+                    onClick={() => onNavigateDetail(conf.conf_id)}
+                    className="group bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col h-full cursor-pointer"
+                  >
+                       <div className="relative h-48 overflow-hidden bg-slate-100">
+                        <img src={getRandomImage(conf.banner_urls)} alt={conf.conf_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
+                        <div className="absolute top-4 right-4">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide border shadow-sm ${getStatusColor(conf.status)}`}>{conf.status}</span>
+                        </div>
+                       </div>
+                       <div className="p-6 flex-grow flex flex-col">
+                            
+                            {/* Open for Paper Submission CTA */}
+                            {conf.open_for_papers && (
+                              <div className="mb-3">
+                                <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold uppercase tracking-wider border border-emerald-100 shadow-sm">
+                                  <FileText className="w-3 h-3 mr-1.5" />
+                                  Open for paper submission
+                                </span>
+                              </div>
+                            )}
 
-                  {/* Open for Paper Submission CTA */}
-                  {conf.open_for_papers && (
-                    <div className="mb-3">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold uppercase tracking-wider border border-emerald-100 shadow-sm">
-                        <FileText className="w-3 h-3 mr-1.5" />
-                        Open for paper submission
-                      </span>
-                    </div>
-                  )}
-
-                  {conf.keywords && conf.keywords.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {conf.keywords.slice(0, 2).map((k, i) => (
-                        <span key={i} className="text-[10px] font-semibold uppercase tracking-wider text-brand-600 bg-brand-50 px-2 py-1 rounded-md">{k}</span>
-                      ))}
-                      {conf.keywords.length > 2 && <span className="text-[10px] text-slate-400 py-1">+ {conf.keywords.length - 2}</span>}
-                    </div>
-                  )}
-                  <h3 className="text-xl font-bold text-slate-900 mb-2 line-clamp-2 group-hover:text-brand-700 transition-colors">{conf.conf_name}</h3>
-                  <div className="flex items-center text-slate-500 text-sm mb-2">
-                    <Calendar className="w-4 h-4 mr-2 text-brand-500" /><span>{formatDate(conf.start_date)}</span>
+                            {conf.keywords && conf.keywords.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                    {conf.keywords.slice(0, 2).map((k, i) => (
+                                    <span key={i} className="text-[10px] font-semibold uppercase tracking-wider text-brand-600 bg-brand-50 px-2 py-1 rounded-md">{k}</span>
+                                    ))}
+                                    {conf.keywords.length > 2 && <span className="text-[10px] text-slate-400 py-1">+ {conf.keywords.length - 2}</span>}
+                                </div>
+                            )}
+                            <h3 className="text-xl font-bold text-slate-900 mb-2 line-clamp-2 group-hover:text-brand-700 transition-colors">{conf.conf_name}</h3>
+                            <div className="flex items-center text-slate-500 text-sm mb-2">
+                                <Calendar className="w-4 h-4 mr-2 text-brand-500" /><span>{formatDate(conf.start_date)}</span>
+                            </div>
+                            <div className="flex items-center text-slate-500 text-sm mb-4">
+                                <MapPin className="w-4 h-4 mr-2 text-brand-500" /> <span className="truncate">{conf.location}</span>
+                            </div>
+                            <p className="text-slate-600 text-sm line-clamp-3 mb-6 flex-grow">{conf.description}</p>
+                            <div className="pt-4 border-t border-slate-100 mt-auto">
+                                <button className="w-full flex items-center justify-center text-sm font-semibold text-slate-700 hover:text-brand-700 transition-colors group/btn">
+                                    View Details <ArrowRight className="w-4 h-4 ml-2 group-hover/btn:translate-x-1 transition-transform" />
+                                </button>
+                            </div>
+                       </div>
                   </div>
-                  <div className="flex items-center text-slate-500 text-sm mb-4">
-                    <MapPin className="w-4 h-4 mr-2 text-brand-500" /> <span className="truncate">{conf.location}</span>
-                  </div>
-                  <p className="text-slate-600 text-sm line-clamp-3 mb-6 flex-grow">{conf.description}</p>
-                  <div className="pt-4 border-t border-slate-100 mt-auto">
-                    <button className="w-full flex items-center justify-center text-sm font-semibold text-slate-700 hover:text-brand-700 transition-colors group/btn">
-                      View Details <ArrowRight className="w-4 h-4 ml-2 group-hover/btn:translate-x-1 transition-transform" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+               ))}
+            </div>
         )}
 
       </div>
