@@ -21,6 +21,7 @@ import MyPaperDetail from "./pages/MyPaperDetail";
 import AiAssistant from "./pages/AiAssistant"; // IMPORT NEW PAGE
 import AttendancesManagement from "./pages/AttendencesManagement";
 import CheckinScanner from "./pages/CheckinScanner";
+import MyAgenda from "./pages/Agenda";
 import { supabase } from "./lib/supabase";
 
 // Simple Route State management to avoid adding react-router-dom dependency
@@ -40,7 +41,8 @@ type Page =
   | "my-paper-detail"
   | "ai-assistant"
   | "attendences-management"
-  | "checkin-scanner";
+  | "checkin-scanner"
+  | "agenda";
 
 interface UserSession {
   name: string;
@@ -73,6 +75,9 @@ const App: React.FC = () => {
   );
   const [checkinScannerContext, setCheckinScannerContext] = useState<{
     sessionIds: number[];
+  const [checkinScannerContext, setCheckinScannerContext] = useState<{
+    sessionIds: number[];
+    authToken: string;
   } | null>(null);
 
   // Persist Login State
@@ -244,10 +249,18 @@ const App: React.FC = () => {
     setCurrentPage("attendences-management");
   };
 
-  const navigateToCheckinScanner = (sessionIds: number[]) => {
-    setCheckinScannerContext({ sessionIds });
+  const navigateToCheckinScanner = (
+    sessionIds: number[],
+    authToken: string,
+  ) => {
+    setCheckinScannerContext({ sessionIds, authToken });
     window.scrollTo(0, 0);
     setCurrentPage("checkin-scanner");
+  };
+
+  const navigateToAgenda = () => {
+    window.scrollTo(0, 0);
+    setCurrentPage("agenda");
   };
 
   const handleAuthSuccess = (data: {
@@ -342,6 +355,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -372,6 +386,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -404,6 +419,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -441,6 +457,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -473,6 +490,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -503,6 +521,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -534,6 +553,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -568,6 +588,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -599,6 +620,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -629,6 +651,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -656,6 +679,7 @@ const App: React.FC = () => {
           onNavigatePapers={navigateToPapers}
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -697,6 +721,34 @@ const App: React.FC = () => {
     );
   }
 
+  // Render Agenda Page
+  if (currentPage === "agenda") {
+    return (
+      <>
+        <Navbar
+          onNavigateRegister={navigateToRegister}
+          onNavigateLogin={navigateToLogin}
+          onNavigateProfile={navigateToProfile}
+          onNavigateConferences={navigateToConferences}
+          onNavigateHome={navigateToHome}
+          onNavigatePapers={navigateToPapers}
+          onNavigateAiAssistant={navigateToAiAssistant}
+          onNavigateAttendences={navigateToAttendences}
+          onNavigateAgenda={navigateToAgenda}
+          onLogout={handleLogout}
+          isLoggedIn={isLoggedIn}
+          userName={userName}
+          userEmail={userEmail}
+          userRole={userRole}
+          userRoleId={userRoleId}
+          userAvatar={userAvatar}
+        />
+        <MyAgenda onNavigateConferenceDetail={navigateToConferenceDetail} />
+        <Footer />
+      </>
+    );
+  }
+
   // Render Landing Page
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 animate-in fade-in duration-300">
@@ -709,6 +761,7 @@ const App: React.FC = () => {
         onNavigatePapers={navigateToPapers}
         onNavigateAiAssistant={navigateToAiAssistant}
         onNavigateAttendences={navigateToAttendences}
+        onNavigateAgenda={navigateToAgenda}
         onLogout={handleLogout}
         isLoggedIn={isLoggedIn}
         userName={userName}
