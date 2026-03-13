@@ -75,8 +75,6 @@ const App: React.FC = () => {
   );
   const [checkinScannerContext, setCheckinScannerContext] = useState<{
     sessionIds: number[];
-  const [checkinScannerContext, setCheckinScannerContext] = useState<{
-    sessionIds: number[];
     authToken: string;
   } | null>(null);
 
