@@ -1,6 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Menu, X, GraduationCap, User, LogOut, Settings, Sparkles } from 'lucide-react';
-import Button from './ui/Button';
+import React, { useState, useRef, useEffect } from "react";
+import {
+  Menu,
+  X,
+  GraduationCap,
+  User,
+  LogOut,
+  Settings,
+  Sparkles,
+} from "lucide-react";
+import Button from "./ui/Button";
 
 interface NavbarProps {
   onNavigateRegister: () => void;
@@ -33,11 +41,11 @@ const Navbar: React.FC<NavbarProps> = ({
   onNavigateProceedings,
   onLogout,
   isLoggedIn = false,
-  userName = '',
-  userEmail = '',
-  userRole = '',
+  userName = "",
+  userEmail = "",
+  userRole = "",
   userRoleId = 0,
-  userAvatar = ''
+  userAvatar = "",
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -49,27 +57,30 @@ const Navbar: React.FC<NavbarProps> = ({
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsProfileOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   // Define Navigation Items
   const baseLinks = [
-    { name: 'Home', href: '#' },
-    { name: 'Papers', href: '#papers' },
-    { name: 'Conferences', href: '#conferences' },
-    { name: 'AI Assistant', href: '#ai-assistant', icon: Sparkles }, // Added AI Assistant
-    { name: 'News', href: '#news' }
+    { name: "Home", href: "#" },
+    { name: "Papers", href: "#papers" },
+    { name: "Conferences", href: "#conferences" },
+    { name: "AI Assistant", href: "#ai-assistant", icon: Sparkles }, // Added AI Assistant
+    { name: "News", href: "#news" },
   ];
 
   const adminLinks = [
-    { name: 'Users Management', href: '#users-management' },
-    { name: 'Attendances', href: '#attendances' },
-    { name: 'Proceedings', href: '#proceedings' }
+    { name: "Users Management", href: "#users-management" },
+    { name: "Attendances", href: "#attendances" },
+    { name: "Proceedings", href: "#proceedings" },
   ];
 
   // Determine which links to show based on role_id
@@ -81,8 +92,13 @@ const Navbar: React.FC<NavbarProps> = ({
   }
 
   const getInitials = (name: string) => {
-    if (!name) return 'U';
-    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+    if (!name) return "U";
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .substring(0, 2)
+      .toUpperCase();
   };
 
   const handleProfileClick = () => {
@@ -92,45 +108,47 @@ const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, linkName: string) => {
-    if (linkName === 'Conferences') {
+  const handleLinkClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    linkName: string,
+  ) => {
+    if (linkName === "Conferences") {
       e.preventDefault();
       setIsOpen(false);
       if (onNavigateConferences) {
         onNavigateConferences();
       }
-    } else if (linkName === 'Home') {
+    } else if (linkName === "Home") {
       e.preventDefault();
       setIsOpen(false);
       if (onNavigateHome) {
         onNavigateHome();
       }
-    } else if (linkName === 'Papers') {
+    } else if (linkName === "Papers") {
       e.preventDefault();
       setIsOpen(false);
       if (onNavigatePapers) {
         onNavigatePapers();
       }
-    } else if (linkName === 'AI Assistant') {
+    } else if (linkName === "AI Assistant") {
       e.preventDefault();
       setIsOpen(false);
       if (onNavigateAiAssistant) {
         onNavigateAiAssistant();
       }
-    } else if (linkName === 'Attendances') {
+    } else if (linkName === "Attendances") {
       e.preventDefault();
       setIsOpen(false);
       if (onNavigateAttendences) {
         onNavigateAttendences();
       }
-    } else if (linkName === 'Proceedings') {
+    } else if (linkName === "Proceedings") {
       e.preventDefault();
       setIsOpen(false);
       if (onNavigateProceedings) {
         onNavigateProceedings();
       }
     }
-
   };
 
   const handleLogoClick = () => {
@@ -146,11 +164,16 @@ const Navbar: React.FC<NavbarProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <div className="flex-shrink-0 flex items-center gap-2 cursor-pointer" onClick={handleLogoClick}>
+          <div
+            className="flex-shrink-0 flex items-center gap-2 cursor-pointer"
+            onClick={handleLogoClick}
+          >
             <div className="bg-brand-700 p-1.5 rounded-lg">
               <GraduationCap className="h-6 w-6 text-white" />
             </div>
-            <span className="font-bold text-xl tracking-tight text-slate-900">Conf-Org</span>
+            <span className="font-bold text-xl tracking-tight text-slate-900">
+              Conf-Org
+            </span>
           </div>
 
           {/* Desktop Navigation */}
@@ -160,8 +183,11 @@ const Navbar: React.FC<NavbarProps> = ({
                 key={link.name}
                 href={link.href}
                 onClick={(e) => handleLinkClick(e, link.name)}
-                className={`text-sm font-medium transition-colors flex items-center gap-1.5 ${link.name === 'AI Assistant' ? 'text-indigo-600 hover:text-indigo-800' : 'text-slate-600 hover:text-brand-700'
-                  }`}
+                className={`text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                  link.name === "AI Assistant"
+                    ? "text-indigo-600 hover:text-indigo-800"
+                    : "text-slate-600 hover:text-brand-700"
+                }`}
               >
                 {link.icon && <link.icon className="w-4 h-4" />}
                 {link.name}
@@ -178,12 +204,20 @@ const Navbar: React.FC<NavbarProps> = ({
                   className="flex items-center gap-3 pl-4 border-l border-slate-200 focus:outline-none group"
                 >
                   <div className="text-right hidden lg:block">
-                    <p className="text-sm font-medium text-slate-900 leading-none group-hover:text-brand-700 transition-colors">{userName}</p>
-                    <p className="text-xs text-slate-500 mt-0.5 capitalize">{userRole || 'User'}</p>
+                    <p className="text-sm font-medium text-slate-900 leading-none group-hover:text-brand-700 transition-colors">
+                      {userName}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5 capitalize">
+                      {userRole || "User"}
+                    </p>
                   </div>
                   <div className="h-10 w-10 rounded-full bg-brand-100 border border-brand-200 flex items-center justify-center text-brand-700 font-bold shadow-sm group-hover:bg-brand-200 transition-colors overflow-hidden">
                     {userAvatar ? (
-                      <img src={userAvatar} alt={userName} className="w-full h-full object-cover" />
+                      <img
+                        src={userAvatar}
+                        alt={userName}
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
                       getInitials(userName)
                     )}
@@ -194,8 +228,12 @@ const Navbar: React.FC<NavbarProps> = ({
                 {isProfileOpen && (
                   <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg ring-1 ring-black ring-opacity-5 py-2 animate-in fade-in zoom-in-95 duration-200 origin-top-right z-50">
                     <div className="px-4 py-3 border-b border-slate-100 mb-1">
-                      <p className="text-sm font-medium text-slate-900">{userName}</p>
-                      <p className="text-xs text-slate-500 truncate">{userEmail}</p>
+                      <p className="text-sm font-medium text-slate-900">
+                        {userName}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {userEmail}
+                      </p>
                     </div>
                     <button
                       onClick={handleProfileClick}
@@ -204,7 +242,10 @@ const Navbar: React.FC<NavbarProps> = ({
                       <User className="w-4 h-4 mr-3" />
                       Your Profile
                     </button>
-                    <a href="#settings" className="flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-brand-700 transition-colors">
+                    <a
+                      href="#settings"
+                      className="flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-brand-700 transition-colors"
+                    >
                       <Settings className="w-4 h-4 mr-3" />
                       Settings
                     </a>
@@ -224,8 +265,16 @@ const Navbar: React.FC<NavbarProps> = ({
               </div>
             ) : (
               <>
-                <Button variant="ghost" size="sm" onClick={onNavigateLogin}>Sign In</Button>
-                <Button variant="primary" size="sm" onClick={onNavigateRegister}>Get Started</Button>
+                <Button variant="ghost" size="sm" onClick={onNavigateLogin}>
+                  Sign In
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={onNavigateRegister}
+                >
+                  Get Started
+                </Button>
               </>
             )}
           </div>
@@ -237,7 +286,11 @@ const Navbar: React.FC<NavbarProps> = ({
               className="inline-flex items-center justify-center p-2 rounded-md text-slate-600 hover:text-brand-700 hover:bg-slate-100 focus:outline-none"
             >
               <span className="sr-only">Open main menu</span>
-              {isOpen ? <X className="block h-6 w-6" /> : <Menu className="block h-6 w-6" />}
+              {isOpen ? (
+                <X className="block h-6 w-6" />
+              ) : (
+                <Menu className="block h-6 w-6" />
+              )}
             </button>
           </div>
         </div>
@@ -252,8 +305,11 @@ const Navbar: React.FC<NavbarProps> = ({
                 key={link.name}
                 href={link.href}
                 onClick={(e) => handleLinkClick(e, link.name)}
-                className={`block px-3 py-2 rounded-md text-base font-medium hover:bg-slate-50 flex items-center gap-2 ${link.name === 'AI Assistant' ? 'text-indigo-600 hover:text-indigo-800' : 'text-slate-700 hover:text-brand-700'
-                  }`}
+                className={`block px-3 py-2 rounded-md text-base font-medium hover:bg-slate-50 flex items-center gap-2 ${
+                  link.name === "AI Assistant"
+                    ? "text-indigo-600 hover:text-indigo-800"
+                    : "text-slate-700 hover:text-brand-700"
+                }`}
               >
                 {link.icon && <link.icon className="w-5 h-5" />}
                 {link.name}
@@ -267,14 +323,22 @@ const Navbar: React.FC<NavbarProps> = ({
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
                     <div className="h-10 w-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold overflow-hidden border border-brand-200">
                       {userAvatar ? (
-                        <img src={userAvatar} alt={userName} className="w-full h-full object-cover" />
+                        <img
+                          src={userAvatar}
+                          alt={userName}
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
                         getInitials(userName)
                       )}
                     </div>
                     <div className="overflow-hidden">
-                      <p className="text-sm font-medium text-slate-900">{userName}</p>
-                      <p className="text-xs text-slate-500 capitalize truncate">{userRole || 'User'} • {userEmail}</p>
+                      <p className="text-sm font-medium text-slate-900">
+                        {userName}
+                      </p>
+                      <p className="text-xs text-slate-500 capitalize truncate">
+                        {userRole || "User"} • {userEmail}
+                      </p>
                     </div>
                   </div>
                   <button
@@ -297,8 +361,22 @@ const Navbar: React.FC<NavbarProps> = ({
                 </div>
               ) : (
                 <>
-                  <Button variant="ghost" size="sm" className="w-full justify-start" onClick={onNavigateLogin}>Sign In</Button>
-                  <Button variant="primary" size="sm" className="w-full justify-center" onClick={onNavigateRegister}>Get Started</Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={onNavigateLogin}
+                  >
+                    Sign In
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="w-full justify-center"
+                    onClick={onNavigateRegister}
+                  >
+                    Get Started
+                  </Button>
                 </>
               )}
             </div>
