@@ -1,12 +1,27 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import {
-  User, Mail, Building, FileText, Calendar, Edit2, Save, X,
-  Loader2, ArrowLeft, CheckCircle, AlertCircle, Shield, Camera,
-  Upload, Link as LinkIcon, PenTool, BookOpen
-} from 'lucide-react';
-import Button from '../components/ui/Button';
-import { supabase } from '../lib/supabase';
-import ReactMarkdown from 'react-markdown'; // Thêm thư viện render Markdown
+  User,
+  Mail,
+  Building,
+  FileText,
+  Calendar,
+  Edit2,
+  Save,
+  X,
+  Loader2,
+  ArrowLeft,
+  CheckCircle,
+  AlertCircle,
+  Shield,
+  Camera,
+  Upload,
+  Link as LinkIcon,
+  PenTool,
+  BookOpen,
+} from "lucide-react";
+import Button from "../components/ui/Button";
+import { supabase } from "../lib/supabase";
+import ReactMarkdown from "react-markdown"; // Thêm thư viện render Markdown
 
 // --- INTERFACES ---
 interface ProfileProps {
@@ -29,7 +44,11 @@ interface UserProfile {
 
 const BASE_API_URL = "http://localhost:8080";
 
-const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigateMyPapers }) => {
+const Profile: React.FC<ProfileProps> = ({
+  userEmail,
+  onNavigateHome,
+  onNavigateMyPapers,
+}) => {
   // --- STATE ---
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,21 +56,26 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
   // Basic Info State
   const [basicEditMode, setBasicEditMode] = useState(false);
   const [basicSaving, setBasicSaving] = useState(false);
-  const [basicData, setBasicData] = useState({ full_name: '', organization: '' });
+  const [basicData, setBasicData] = useState({
+    full_name: "",
+    organization: "",
+  });
 
   // Avatar State
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Bio/Description State
-  const [bioMode, setBioMode] = useState<'VIEW' | 'MANUAL' | 'CV' | 'SCHOLAR'>('VIEW');
+  const [bioMode, setBioMode] = useState<"VIEW" | "MANUAL" | "CV" | "SCHOLAR">(
+    "VIEW",
+  );
   const [bioSaving, setBioSaving] = useState(false);
-  const [manualBio, setManualBio] = useState('');
-  const [scholarUrl, setScholarUrl] = useState('');
+  const [manualBio, setManualBio] = useState("");
+  const [scholarUrl, setScholarUrl] = useState("");
   const [cvFile, setCvFile] = useState<File | null>(null);
 
   // Messages
-  const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
+  const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   // Refs
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -69,22 +93,24 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
   // --- DATA FETCHING ---
   const fetchProfile = async () => {
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
       const { data, error } = await supabase
-        .from('users')
-        .select(`
+        .from("users")
+        .select(
+          `
           user_id, full_name, email, organization, description, created_at, avatar_url,
           user_roles ( role_id, roles ( role_name ) )
-        `)
-        .eq('email', userEmail)
+        `,
+        )
+        .eq("email", userEmail)
         .single();
 
       if (error) throw error;
 
       if (data) {
-        let roleName = 'Participant';
+        let roleName = "Participant";
         let roleId = 5;
 
         const rawRoles = data.user_roles as any[];
@@ -96,9 +122,9 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
           if (firstRoleEntry.roles) {
             const rolesData = firstRoleEntry.roles;
             if (Array.isArray(rolesData)) {
-              roleName = rolesData[0]?.role_name || 'Participant';
+              roleName = rolesData[0]?.role_name || "Participant";
             } else {
-              roleName = (rolesData as any).role_name || 'Participant';
+              roleName = (rolesData as any).role_name || "Participant";
             }
           }
         }
@@ -112,19 +138,19 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
           created_at: data.created_at,
           role_name: roleName,
           role_id: roleId,
-          avatar_url: data.avatar_url
+          avatar_url: data.avatar_url,
         };
 
         setProfile(userProfile);
         setBasicData({
-          full_name: userProfile.full_name || '',
-          organization: userProfile.organization || ''
+          full_name: userProfile.full_name || "",
+          organization: userProfile.organization || "",
         });
-        setManualBio(userProfile.description || '');
+        setManualBio(userProfile.description || "");
       }
     } catch (err: any) {
-      console.error('Fetch Error:', err);
-      setError('Failed to load profile data.');
+      console.error("Fetch Error:", err);
+      setError("Failed to load profile data.");
     } finally {
       setLoading(false);
     }
@@ -134,31 +160,31 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
   const handleSaveBasicInfo = async () => {
     if (!profile) return;
     setBasicSaving(true);
-    setError('');
-    setSuccessMsg('');
+    setError("");
+    setSuccessMsg("");
 
     try {
       const { error } = await supabase
-        .from('users')
+        .from("users")
         .update({
           full_name: basicData.full_name,
-          organization: basicData.organization
+          organization: basicData.organization,
         })
-        .eq('user_id', profile.user_id);
+        .eq("user_id", profile.user_id);
 
       if (error) throw error;
 
       setProfile({
         ...profile,
         full_name: basicData.full_name,
-        organization: basicData.organization
+        organization: basicData.organization,
       });
 
-      setSuccessMsg('Basic information updated.');
+      setSuccessMsg("Basic information updated.");
       setBasicEditMode(false);
-      setTimeout(() => setSuccessMsg(''), 3000);
+      setTimeout(() => setSuccessMsg(""), 3000);
     } catch (err: any) {
-      setError('Failed to update basic info.');
+      setError("Failed to update basic info.");
     } finally {
       setBasicSaving(false);
     }
@@ -167,43 +193,48 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
   const handleCancelBasic = () => {
     if (profile) {
       setBasicData({
-        full_name: profile.full_name || '',
-        organization: profile.organization || ''
+        full_name: profile.full_name || "",
+        organization: profile.organization || "",
       });
     }
     setBasicEditMode(false);
   };
 
   // --- AVATAR HANDLERS ---
-  const handleAvatarFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = event.target.files?.[0];
     if (!file || !profile) return;
 
     setUploadingAvatar(true);
-    setError('');
+    setError("");
 
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append("file", file);
 
-      const response = await fetch(`${BASE_API_URL}/users/${profile.user_id}/upload-avatar`, {
-        method: 'POST',
-        body: formData,
-      });
+      const response = await fetch(
+        `${BASE_API_URL}/users/${profile.user_id}/upload-avatar`,
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
 
       const result = await response.json();
       if (response.ok && result.avatar_url) {
         setProfile({ ...profile, avatar_url: result.avatar_url });
-        setSuccessMsg('Avatar updated.');
+        setSuccessMsg("Avatar updated.");
       } else {
-        throw new Error(result.message || 'Upload failed');
+        throw new Error(result.message || "Upload failed");
       }
     } catch (err: any) {
-      setError('Failed to upload avatar.');
+      setError("Failed to upload avatar.");
     } finally {
       setUploadingAvatar(false);
-      if (avatarInputRef.current) avatarInputRef.current.value = '';
-      setTimeout(() => setSuccessMsg(''), 3000);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+      setTimeout(() => setSuccessMsg(""), 3000);
     }
   };
 
@@ -211,112 +242,123 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
   const handleSaveManualBio = async () => {
     if (!profile) return;
     setBioSaving(true);
-    setError('');
+    setError("");
 
     try {
       const url = `${BASE_API_URL}/users/${profile.user_id}/description`;
       const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: manualBio })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: manualBio }),
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.message || 'Update failed');
+      if (!response.ok) throw new Error(result.message || "Update failed");
 
       setProfile({ ...profile, description: manualBio });
-      setSuccessMsg('Bio updated successfully.');
-      setBioMode('VIEW');
+      setSuccessMsg("Bio updated successfully.");
+      setBioMode("VIEW");
     } catch (err: any) {
-      setError(err.message || 'Failed to update bio.');
+      setError(err.message || "Failed to update bio.");
     } finally {
       setBioSaving(false);
-      setTimeout(() => setSuccessMsg(''), 3000);
+      setTimeout(() => setSuccessMsg(""), 3000);
     }
   };
 
   const handleUploadCV = async () => {
     if (!profile || !cvFile) {
-      setError('Please select a PDF file.');
+      setError("Please select a PDF file.");
       return;
     }
     setBioSaving(true);
-    setError('');
+    setError("");
 
     try {
       const formData = new FormData();
-      formData.append('file', cvFile);
+      formData.append("file", cvFile);
 
       const url = `${BASE_API_URL}/users/${profile.user_id}/upload-cv`;
       const response = await fetch(url, {
-        method: 'POST',
-        body: formData
+        method: "POST",
+        body: formData,
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.message || 'Upload failed');
+      if (!response.ok) throw new Error(result.message || "Upload failed");
 
-      setSuccessMsg('CV uploaded & bio extracted successfully.');
+      setSuccessMsg("CV uploaded & bio extracted successfully.");
       await fetchProfile();
-      setBioMode('VIEW');
+      setBioMode("VIEW");
       setCvFile(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to upload CV.');
+      setError(err.message || "Failed to upload CV.");
     } finally {
       setBioSaving(false);
-      setTimeout(() => setSuccessMsg(''), 3000);
+      setTimeout(() => setSuccessMsg(""), 3000);
     }
   };
 
   const handleImportScholar = async () => {
     if (!profile || !scholarUrl) {
-      setError('Please enter a Google Scholar URL.');
+      setError("Please enter a Google Scholar URL.");
       return;
     }
-    if (!scholarUrl.includes('scholar.google.com')) {
-      setError('Invalid Google Scholar URL.');
+    if (!scholarUrl.includes("scholar.google.com")) {
+      setError("Invalid Google Scholar URL.");
       return;
     }
     setBioSaving(true);
-    setError('');
+    setError("");
 
     try {
       const url = `${BASE_API_URL}/users/${profile.user_id}/import-scholar`;
       const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scholar_url: scholarUrl })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scholar_url: scholarUrl }),
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.message || 'Import failed');
+      if (!response.ok) throw new Error(result.message || "Import failed");
 
-      setSuccessMsg('Scholar profile imported successfully.');
+      setSuccessMsg("Scholar profile imported successfully.");
       await fetchProfile();
-      setBioMode('VIEW');
-      setScholarUrl('');
+      setBioMode("VIEW");
+      setScholarUrl("");
     } catch (err: any) {
-      setError(err.message || 'Failed to import Scholar profile.');
+      setError(err.message || "Failed to import Scholar profile.");
     } finally {
       setBioSaving(false);
-      setTimeout(() => setSuccessMsg(''), 3000);
+      setTimeout(() => setSuccessMsg(""), 3000);
     }
   };
 
   // --- HELPERS ---
   const formatDate = (dateString: string) => {
     try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric', month: 'long', day: 'numeric'
+      return new Date(dateString).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
       });
-    } catch (e) { return dateString; }
+    } catch (e) {
+      return dateString;
+    }
   };
 
   const getInitials = (name: string) => {
-    return name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'U';
+    return name
+      ? name
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .substring(0, 2)
+          .toUpperCase()
+      : "U";
   };
 
-  const isAuthor = profile?.role_id === 3 || profile?.role_name === 'Author';
+  const isAuthor = profile?.role_id === 3 || profile?.role_name === "Author";
 
   if (loading) {
     return (
@@ -332,12 +374,13 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
   return (
     <div className="min-h-screen bg-slate-50 pt-20 pb-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-5xl mx-auto">
-
         {/* Header Navigation */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">My Profile</h1>
-            <p className="text-slate-500 mt-1">Manage your identity and professional information.</p>
+            <p className="text-slate-500 mt-1">
+              Manage your identity and professional information.
+            </p>
           </div>
           <button
             onClick={onNavigateHome}
@@ -363,11 +406,9 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-
           {/* LEFT COLUMN: Avatar & Summary (4 Cols) */}
           <div className="lg:col-span-4 space-y-6">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-center">
-
               {/* Avatar */}
               <div className="relative group mx-auto mb-4 w-32 h-32">
                 <div
@@ -376,9 +417,15 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                   title="Upload Avatar"
                 >
                   {profile?.avatar_url ? (
-                    <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                    <img
+                      src={profile.avatar_url}
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
-                    <span className="text-4xl font-bold text-brand-700">{getInitials(profile?.full_name || '')}</span>
+                    <span className="text-4xl font-bold text-brand-700">
+                      {getInitials(profile?.full_name || "")}
+                    </span>
                   )}
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     <Camera className="w-8 h-8 text-white" />
@@ -398,18 +445,25 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                 />
               </div>
 
-              <h2 className="text-xl font-bold text-slate-900">{profile?.full_name}</h2>
+              <h2 className="text-xl font-bold text-slate-900">
+                {profile?.full_name}
+              </h2>
               <p className="text-slate-500 text-sm mb-4">{profile?.email}</p>
 
               <div className="inline-flex items-center px-3 py-1 rounded-full bg-brand-50 text-brand-700 text-xs font-semibold uppercase tracking-wide">
                 <Shield className="w-3 h-3 mr-1.5" />
-                {profile?.role_name || 'User'}
+                {profile?.role_name || "User"}
               </div>
 
               <div className="mt-8 pt-6 border-t border-slate-100 text-left space-y-3">
                 <div className="flex items-center text-sm text-slate-600">
                   <Calendar className="w-4 h-4 mr-3 text-slate-400" />
-                  <span>Joined {profile?.created_at ? formatDate(profile.created_at) : 'N/A'}</span>
+                  <span>
+                    Joined{" "}
+                    {profile?.created_at
+                      ? formatDate(profile.created_at)
+                      : "N/A"}
+                  </span>
                 </div>
                 <div className="flex items-center text-sm text-slate-600">
                   <CheckCircle className="w-4 h-4 mr-3 text-green-500" />
@@ -433,13 +487,18 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
 
           {/* RIGHT COLUMN: Details (8 Cols) */}
           <div className="lg:col-span-8 space-y-8">
-
             {/* SECTION 1: BASIC INFORMATION */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-slate-900">Basic Information</h3>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Basic Information
+                </h3>
                 {!basicEditMode && (
-                  <Button variant="ghost" size="sm" onClick={() => setBasicEditMode(true)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setBasicEditMode(true)}
+                  >
                     <Edit2 className="w-4 h-4 mr-2" /> Edit
                   </Button>
                 )}
@@ -448,49 +507,70 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Full Name */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Full Name</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                      Full Name
+                    </label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
                       <input
                         type="text"
                         disabled={!basicEditMode}
                         value={basicData.full_name}
-                        onChange={(e) => setBasicData({ ...basicData, full_name: e.target.value })}
-                        className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${basicEditMode
-                            ? 'border-slate-300 focus:ring-2 focus:ring-brand-500 bg-white'
-                            : 'border-slate-200 bg-slate-50 text-slate-600'
-                          }`}
+                        onChange={(e) =>
+                          setBasicData({
+                            ...basicData,
+                            full_name: e.target.value,
+                          })
+                        }
+                        className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${
+                          basicEditMode
+                            ? "border-slate-300 focus:ring-2 focus:ring-brand-500 bg-white"
+                            : "border-slate-200 bg-slate-50 text-slate-600"
+                        }`}
                       />
                     </div>
                   </div>
                   {/* Organization */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Organization</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                      Organization
+                    </label>
                     <div className="relative">
                       <Building className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
                       <input
                         type="text"
                         disabled={!basicEditMode}
                         value={basicData.organization}
-                        onChange={(e) => setBasicData({ ...basicData, organization: e.target.value })}
+                        onChange={(e) =>
+                          setBasicData({
+                            ...basicData,
+                            organization: e.target.value,
+                          })
+                        }
                         placeholder="University / Institute"
-                        className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${basicEditMode
-                            ? 'border-slate-300 focus:ring-2 focus:ring-brand-500 bg-white'
-                            : 'border-slate-200 bg-slate-50 text-slate-600'
-                          }`}
+                        className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${
+                          basicEditMode
+                            ? "border-slate-300 focus:ring-2 focus:ring-brand-500 bg-white"
+                            : "border-slate-200 bg-slate-50 text-slate-600"
+                        }`}
                       />
                     </div>
                   </div>
                 </div>
                 {/* Email (Read Only) */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Email Address <span className="text-xs text-slate-400 font-normal">(Cannot be changed)</span></label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Email Address{" "}
+                    <span className="text-xs text-slate-400 font-normal">
+                      (Cannot be changed)
+                    </span>
+                  </label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
                     <input
                       type="email"
                       disabled
-                      value={profile?.email || ''}
+                      value={profile?.email || ""}
                       className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed"
                     />
                   </div>
@@ -498,9 +578,22 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
 
                 {basicEditMode && (
                   <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-                    <Button variant="ghost" onClick={handleCancelBasic} disabled={basicSaving}>Cancel</Button>
-                    <Button onClick={handleSaveBasicInfo} disabled={basicSaving}>
-                      {basicSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                    <Button
+                      variant="ghost"
+                      onClick={handleCancelBasic}
+                      disabled={basicSaving}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleSaveBasicInfo}
+                      disabled={basicSaving}
+                    >
+                      {basicSaving ? (
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      ) : (
+                        <Save className="w-4 h-4 mr-2" />
+                      )}
                       Save Info
                     </Button>
                   </div>
@@ -511,42 +604,82 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
             {/* SECTION 2: PROFESSIONAL BIO */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                <h3 className="text-lg font-semibold text-slate-900">Professional Profile</h3>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Professional Profile
+                </h3>
               </div>
 
               <div className="p-6">
-                {bioMode === 'VIEW' && (
+                {bioMode === "VIEW" && (
                   <div className="space-y-4">
                     {/* KHU VỰC ĐÃ CẬP NHẬT RENDER MARKDOWN */}
-                    <div className="text-slate-700 leading-relaxed text-sm"> {/* Bỏ class prose đi nếu không dùng */}
+                    <div className="text-slate-700 leading-relaxed text-sm">
+                      {" "}
+                      {/* Bỏ class prose đi nếu không dùng */}
                       {profile?.description ? (
                         <ReactMarkdown
                           components={{
                             // Custom style cho thẻ h3 (###)
-                            h3: ({ node, ...props }) => <h3 className="text-lg font-bold text-slate-900 mt-6 mb-2" {...props} />,
+                            h3: ({ node, ...props }) => (
+                              <h3
+                                className="text-lg font-bold text-slate-900 mt-6 mb-2"
+                                {...props}
+                              />
+                            ),
                             // Bạn có thể custom thêm thẻ h1 (#), h2 (##), p, ul, li nếu cần
-                            h1: ({ node, ...props }) => <h1 className="text-2xl font-bold text-slate-900 mt-6 mb-4" {...props} />,
-                            h2: ({ node, ...props }) => <h2 className="text-xl font-bold text-slate-900 mt-6 mb-3" {...props} />,
-                            p: ({ node, ...props }) => <p className="mb-4" {...props} />,
-                            ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-4 space-y-1" {...props} />,
+                            h1: ({ node, ...props }) => (
+                              <h1
+                                className="text-2xl font-bold text-slate-900 mt-6 mb-4"
+                                {...props}
+                              />
+                            ),
+                            h2: ({ node, ...props }) => (
+                              <h2
+                                className="text-xl font-bold text-slate-900 mt-6 mb-3"
+                                {...props}
+                              />
+                            ),
+                            p: ({ node, ...props }) => (
+                              <p className="mb-4" {...props} />
+                            ),
+                            ul: ({ node, ...props }) => (
+                              <ul
+                                className="list-disc pl-5 mb-4 space-y-1"
+                                {...props}
+                              />
+                            ),
                           }}
                         >
                           {profile?.description}
                         </ReactMarkdown>
                       ) : (
-                        <span className="italic text-slate-500">No professional summary available yet.</span>
+                        <span className="italic text-slate-500">
+                          No professional summary available yet.
+                        </span>
                       )}
                     </div>
 
                     {/* Các nút hành động */}
                     <div className="flex flex-wrap gap-3 pt-4 border-t border-slate-50">
-                      <Button variant="outline" size="sm" onClick={() => setBioMode('MANUAL')}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBioMode("MANUAL")}
+                      >
                         <PenTool className="w-4 h-4 mr-2" /> Edit Text
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => setBioMode('CV')}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBioMode("CV")}
+                      >
                         <Upload className="w-4 h-4 mr-2" /> Upload CV (PDF)
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => setBioMode('SCHOLAR')}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBioMode("SCHOLAR")}
+                      >
                         <LinkIcon className="w-4 h-4 mr-2" /> Import Scholar
                       </Button>
                     </div>
@@ -554,10 +687,12 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                 )}
 
                 {/* MODE: MANUAL */}
-                {bioMode === 'MANUAL' && (
+                {bioMode === "MANUAL" && (
                   <div className="space-y-4 animate-in fade-in">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1.5">Edit Bio (Markdown Supported)</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                        Edit Bio (Markdown Supported)
+                      </label>
                       <textarea
                         rows={10}
                         value={manualBio}
@@ -567,16 +702,29 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                       />
                     </div>
                     <div className="flex justify-end gap-3">
-                      <Button variant="ghost" onClick={() => setBioMode('VIEW')} disabled={bioSaving}>Cancel</Button>
-                      <Button onClick={handleSaveManualBio} disabled={bioSaving}>
-                        {bioSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Update Bio"}
+                      <Button
+                        variant="ghost"
+                        onClick={() => setBioMode("VIEW")}
+                        disabled={bioSaving}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleSaveManualBio}
+                        disabled={bioSaving}
+                      >
+                        {bioSaving ? (
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        ) : (
+                          "Update Bio"
+                        )}
                       </Button>
                     </div>
                   </div>
                 )}
 
                 {/* MODE: CV */}
-                {bioMode === 'CV' && (
+                {bioMode === "CV" && (
                   <div className="space-y-4 animate-in fade-in max-w-lg mx-auto text-center py-6">
                     <div
                       onClick={() => cvInputRef.current?.click()}
@@ -586,7 +734,9 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                       <p className="text-slate-900 font-medium">
                         {cvFile ? cvFile.name : "Click to Upload CV"}
                       </p>
-                      <p className="text-xs text-slate-500 mt-1">PDF format only. We'll extract your bio automatically.</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        PDF format only. We'll extract your bio automatically.
+                      </p>
                       <input
                         type="file"
                         ref={cvInputRef}
@@ -596,19 +746,37 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                       />
                     </div>
                     <div className="flex justify-center gap-3">
-                      <Button variant="ghost" onClick={() => { setBioMode('VIEW'); setCvFile(null); }} disabled={bioSaving}>Cancel</Button>
-                      <Button onClick={handleUploadCV} disabled={bioSaving || !cvFile}>
-                        {bioSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Process & Save"}
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          setBioMode("VIEW");
+                          setCvFile(null);
+                        }}
+                        disabled={bioSaving}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleUploadCV}
+                        disabled={bioSaving || !cvFile}
+                      >
+                        {bioSaving ? (
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        ) : (
+                          "Process & Save"
+                        )}
                       </Button>
                     </div>
                   </div>
                 )}
 
                 {/* MODE: SCHOLAR */}
-                {bioMode === 'SCHOLAR' && (
+                {bioMode === "SCHOLAR" && (
                   <div className="space-y-4 animate-in fade-in max-w-lg mx-auto py-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1.5">Google Scholar Profile URL</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                        Google Scholar Profile URL
+                      </label>
                       <div className="relative">
                         <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
                         <input
@@ -619,20 +787,37 @@ const Profile: React.FC<ProfileProps> = ({ userEmail, onNavigateHome, onNavigate
                           placeholder="https://scholar.google.com/citations?user=..."
                         />
                       </div>
-                      <p className="text-xs text-slate-500 mt-2">We will analyze your profile to generate a professional summary.</p>
+                      <p className="text-xs text-slate-500 mt-2">
+                        We will analyze your profile to generate a professional
+                        summary.
+                      </p>
                     </div>
                     <div className="flex justify-end gap-3">
-                      <Button variant="ghost" onClick={() => { setBioMode('VIEW'); setScholarUrl(''); }} disabled={bioSaving}>Cancel</Button>
-                      <Button onClick={handleImportScholar} disabled={bioSaving || !scholarUrl}>
-                        {bioSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Import"}
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          setBioMode("VIEW");
+                          setScholarUrl("");
+                        }}
+                        disabled={bioSaving}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleImportScholar}
+                        disabled={bioSaving || !scholarUrl}
+                      >
+                        {bioSaving ? (
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        ) : (
+                          "Import"
+                        )}
                       </Button>
                     </div>
                   </div>
                 )}
-
               </div>
             </div>
-
           </div>
         </div>
       </div>
