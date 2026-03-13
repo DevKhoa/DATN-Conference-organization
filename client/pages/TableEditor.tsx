@@ -833,11 +833,14 @@ export const TablePdfExport: React.FC<TablePdfExportProps> = ({
     const yP: number[] = [0]; for (let i = 0; i < sRH.length; i++) yP.push(yP[i] + sRH[i]);
 
     return (
-        <View style={{ position: 'absolute', left: px2pt(elX, 'x') || 0, top: px2pt(elY, 'y') || 0, width: px2pt(elW, 'x') || 0, height: px2pt(elH, 'y') || 0 }}>
+        <View style={{ position: 'absolute', left: px2pt(elX, 'x'), top: px2pt(elY, 'y'), width: Math.max(1, px2pt(elW, 'x')), height: Math.max(1, px2pt(elH, 'y')) }}>
             {(td.cells || []).map((row, ri) => (row || []).map((cell, ci) => {
                 if (!cell || cell.hidden) return null;
-                const x = xP[ci], y = yP[ri];
-                const w = (xP[ci + cell.colSpan] || 0) - x, h = (yP[ri + cell.rowSpan] || 0) - y;
+                const x = xP[ci] ?? 0, y = yP[ri] ?? 0;
+                // Use Math.min to clamp index within bounds — prevents negative dimensions
+                const w = Math.max(0, (xP[Math.min(ci + cell.colSpan, sCW.length)] ?? xP[xP.length - 1]) - x);
+                const h = Math.max(0, (yP[Math.min(ri + cell.rowSpan, sRH.length)] ?? yP[yP.length - 1]) - y);
+                if (w <= 0 || h <= 0) return null; // Skip degenerate cells
                 const isHdr = td.headerHighlight && ri === 0;
                 const bg = cell.bgColor || (isHdr ? td.headerBgColor : undefined);
                 const tc = cell.fontColor || (isHdr ? '#fff' : '#1a202c');
@@ -856,21 +859,21 @@ export const TablePdfExport: React.FC<TablePdfExportProps> = ({
                 return (
                     <View key={cell.id} style={{
                         position: 'absolute',
-                        left: px2pt(x, 'x') || 0,
-                        top: px2pt(y, 'y') || 0,
-                        width: px2pt(w, 'x') || 0,
-                        height: px2pt(h, 'y') || 0,
+                        left: px2pt(x, 'x'),
+                        top: px2pt(y, 'y'),
+                        width: Math.max(1, px2pt(w, 'x')),
+                        height: Math.max(1, px2pt(h, 'y')),
                         backgroundColor: bg,
-                        borderTopWidth: px2pt(bt, 'y') || 0,
-                        borderRightWidth: px2pt(br, 'x') || 0,
-                        borderBottomWidth: px2pt(bb, 'y') || 0,
-                        borderLeftWidth: px2pt(bl, 'x') || 0,
+                        borderTopWidth: Math.max(0, px2pt(bt, 'y')),
+                        borderRightWidth: Math.max(0, px2pt(br, 'x')),
+                        borderBottomWidth: Math.max(0, px2pt(bb, 'y')),
+                        borderLeftWidth: Math.max(0, px2pt(bl, 'x')),
                         borderColor: cell.borderColor ?? td.borderColor,
-                        padding: px2pt((td.cellPadding || 4) * 0.75, 'y') || 0,
+                        padding: Math.max(0, px2pt((td.cellPadding || 4) * 0.75, 'y')),
                         overflow: 'hidden',
                     }}>
                         <PdfText style={{
-                            fontSize: px2pt(fs, 'y') || 8,
+                            fontSize: Math.max(4, px2pt(fs, 'y')),
                             fontFamily: isCustomFont ? cell.fontFamily : 
                                        (isBold ? 'Helvetica-Bold' : isItalic ? 'Helvetica-Oblique' : 'Helvetica'),
                             fontWeight: (isCustomFont && isBold) ? 'bold' : 'normal',

@@ -12,25 +12,28 @@ import Button from '../components/ui/Button';
 import { Document, Page, Text, View, StyleSheet, Image, PDFViewer, PDFDownloadLink, pdf, Font } from '@react-pdf/renderer';
 import { v4 as uuidv4 } from 'uuid';
 
-// Register fonts for Vietnamese support
+// Register Inter font using local TTF files in public folder
 Font.register({
     family: 'Inter',
     fonts: [
-        { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfMZfOkw.ttf', fontWeight: 'normal' },
-        { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYMZfOkw.ttf', fontWeight: 'bold' },
-        { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFuYMZfOkw.ttf', fontStyle: 'italic' },
+        { src: '/fonts/Inter-Regular.ttf', fontWeight: 'normal' },
+        { src: '/fonts/Inter-Bold.ttf', fontWeight: 'bold' },
+        { src: '/fonts/Inter-Italic.ttf', fontStyle: 'italic' },
     ]
 });
 
-// Also register Roboto just in case it's selected (standard in FontManager)
+// Register Roboto font using standard UI sans-serif fallbacks since we don't have local TTF yet
 Font.register({
     family: 'Roboto',
     fonts: [
-        { src: 'https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxKKTU1Kg.ttf', fontWeight: 'normal' },
-        { src: 'https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmWUlfBBc4AMP6lQ.ttf', fontWeight: 'bold' },
-        { src: 'https://fonts.gstatic.com/s/roboto/v30/KFOkCnqEu92Fr1Mu51xIIzIXKMny.ttf', fontStyle: 'italic' },
+        { src: '/fonts/Inter-Regular.ttf', fontWeight: 'normal' },
+        { src: '/fonts/Inter-Bold.ttf', fontWeight: 'bold' },
+        { src: '/fonts/Inter-Italic.ttf', fontStyle: 'italic' },
     ]
 });
+
+// Suppress react-pdf hyphenation warnings
+Font.registerHyphenationCallback(word => [word]);
 import {
     TableData, CellCoord, createEmptyTable, TableEditorCanvas, TablePropertiesPanel,
     InsertTableModal, TablePdfExport, renderTableToCanvas,
@@ -88,23 +91,23 @@ const pdfStyles = StyleSheet.create({
     glanceColLocation: { width: '25%', fontSize: 9, color: '#2d3748', textAlign: 'right' },
 
     // Keynotes
-    keynoteCard: { marginBottom: 30, padding: '16pt 0', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
+    keynoteCard: { marginBottom: 24, padding: '12pt 0', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
     keynoteTitle: { fontSize: 13, fontFamily: 'Inter', fontWeight: 'bold', color: '#1a3a6b', marginBottom: 6 },
-    keynoteHeader: { flexDirection: 'row', marginBottom: 12, alignItems: 'flex-start' },
-    keynoteSpeaker: { fontSize: 11, fontFamily: 'Inter', fontStyle: 'italic', color: '#4a5568', marginBottom: 12 },
+    keynoteHeader: { flexDirection: 'row', marginBottom: 10, alignItems: 'flex-start' },
+    keynoteSpeaker: { fontSize: 11, fontFamily: 'Inter', fontStyle: 'italic', color: '#4a5568', marginBottom: 10 },
     keynotePhoto: { width: 90, height: 90, borderRadius: 45, marginRight: 15, objectFit: 'cover' },
     keynoteInfo: { flex: 1 },
-    abstractLabel: { fontSize: 8.5, fontFamily: 'Inter', fontWeight: 'bold', color: '#718096', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
-    abstractText: { marginTop: 4, width: '100%', fontSize: 9.5, color: '#2d3748', lineHeight: 1.65, textAlign: 'justify' },
-    bioText: { fontSize: 9, color: '#4a5568', lineHeight: 1.6, textAlign: 'justify', marginTop: 8, fontFamily: 'Inter', fontStyle: 'italic' },
+    abstractLabel: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#718096', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3, marginTop: 6 },
+    abstractText: { fontSize: 9.5, fontFamily: 'Inter', color: '#2d3748', lineHeight: 1.55, textAlign: 'justify' },
+    bioText: { fontSize: 9, color: '#4a5568', lineHeight: 1.5, textAlign: 'justify', marginTop: 6, fontFamily: 'Inter', fontStyle: 'italic' },
 
     // Detailed papers
-    sessionHeader: { backgroundColor: '#eef2f7', padding: '8pt 10pt', marginBottom: 10, marginTop: 20 },
+    sessionHeader: { backgroundColor: '#eef2f7', padding: '8pt 10pt', marginBottom: 8, marginTop: 16 },
     sessionName: { fontSize: 11, fontFamily: 'Inter', fontWeight: 'bold', color: '#1a3a6b' },
     sessionMeta: { fontSize: 8.5, color: '#718096', marginTop: 2 },
-    paperBlock: { marginBottom: 20, paddingLeft: 12, borderLeftWidth: 3, borderLeftColor: '#93c5fd', width: '100%' },
-    paperTitle: { fontSize: 11, fontFamily: 'Inter', fontWeight: 'bold', color: '#1a202c', marginBottom: 3 },
-    paperAuthors: { fontSize: 9, fontFamily: 'Inter', fontStyle: 'italic', color: '#4a5568', marginBottom: 6 },
+    paperBlock: { marginBottom: 8, paddingLeft: 10, borderLeftWidth: 2.5, borderLeftColor: '#93c5fd', width: '100%' },
+    paperTitle: { fontSize: 10.5, fontFamily: 'Inter', fontWeight: 'bold', color: '#1a202c', marginBottom: 2 },
+    paperAuthors: { fontSize: 8.5, fontFamily: 'Inter', fontStyle: 'italic', color: '#4a5568', marginBottom: 4 },
 
     // General info
     infoSection: { marginBottom: 16 },
@@ -412,25 +415,25 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
 
                     return days.map((day, di) => (
                         <View key={di}>
-                            {/* Day header — styled like SOICT: dark blue background, white text */}
+                            {/* Day header */}
                             <View style={{
                                 backgroundColor: '#1a3a6b',
-                                paddingVertical: 8,
-                                paddingHorizontal: 12,
-                                marginTop: di === 0 ? 0 : 24,
-                                marginBottom: 14,
+                                paddingVertical: 6,
+                                paddingHorizontal: 10,
+                                marginTop: di === 0 ? 0 : 16,
+                                marginBottom: 8,
                             }} wrap={false}>
-                                <Text style={{ fontSize: 12, fontFamily: 'Helvetica-Bold', color: '#ffffff', letterSpacing: 0.5 }}>
+                                <Text style={{ fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#ffffff', letterSpacing: 0.5 }}>
                                     {day.label}
                                 </Text>
                             </View>
 
                             {day.papers.map((p: any, i: number) => (
                                 <View key={i} style={pdfStyles.paperBlock} wrap={false}>
-                                    {/* Row 1: time + authors (like image 1: "13:50  Author1, Author2") */}
-                                    <View style={{ flexDirection: 'row', alignItems: 'baseline', marginBottom: 3 }}>
+                                    {/* Row 1: time + authors */}
+                                    <View style={{ flexDirection: 'row', alignItems: 'baseline', marginBottom: 2 }}>
                                         {p.timeSlot ? (
-                                            <Text style={{ fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#1a3a6b', width: 36, marginRight: 6 }}>
+                                            <Text style={{ fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: '#1a3a6b', width: 34, marginRight: 4 }}>
                                                 {p.timeSlot}
                                             </Text>
                                         ) : null}
@@ -440,18 +443,15 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                                     </View>
 
                                     {/* Row 2: Bold title */}
-                                    <Text style={[pdfStyles.paperTitle, { paddingLeft: p.timeSlot ? 42 : 0 }]}>
+                                    <Text style={[pdfStyles.paperTitle, { paddingLeft: p.timeSlot ? 38 : 0 }]}>
                                         {p.paperTitle}
                                     </Text>
 
-
-                                    {/* Row 4: Abstract */}
+                                    {/* Row 3: Abstract — justified */}
                                     {p.abstract ? (
-                                        <View style={{ paddingLeft: p.timeSlot ? 42 : 0 }}>
-                                            <Text style={pdfStyles.abstractText}>
-                                                {'ABSTRACT. ' + formatAbstract(p.abstract)}
-                                            </Text>
-                                        </View>
+                                        <Text style={[pdfStyles.abstractText, { paddingLeft: p.timeSlot ? 38 : 0 }]}>
+                                            {'ABSTRACT. ' + formatAbstract(p.abstract)}
+                                        </Text>
                                     ) : null}
                                 </View>
                             ))}
@@ -473,7 +473,7 @@ interface EditorEl {
     x: number; y: number; w: number; h: number;
     // text
     text?: string; fontSize?: number; bold?: boolean; italic?: boolean;
-    color?: string; align?: 'left' | 'center' | 'right'; fontFamily?: string;
+    color?: string; align?: 'left' | 'center' | 'right' | 'justify'; fontFamily?: string;
     // image
     src?: string;
     zIndex?: number;
@@ -922,11 +922,11 @@ const buildEditorPages = (data: any): EditorPage[] => {
             if (k.abstract) {
                 addT('ABSTRACT', ML, CW, Math.round(12 * scY), { fontSize: Math.round(8 * scY), bold: true, color: '#718096' });
                 curY += Math.round(4 * scY);
-                addT(k.abstract, ML, CW, Math.round((Math.ceil(k.abstract.length / 90) + 1) * 14 * scY), { fontSize: Math.round(9 * scY), color: '#2d3748' });
+                addT(k.abstract, ML, CW, Math.round((Math.ceil(k.abstract.length / 90) + 1) * 14 * scY), { fontSize: Math.round(9 * scY), color: '#2d3748', align: 'justify' });
                 curY += Math.round(6 * scY);
             }
             if (k.bio) {
-                addT(k.bio, ML, CW, Math.round((Math.ceil(k.bio.length / 95) + 1) * 14 * scY), { fontSize: Math.round(9 * scY), italic: true, color: '#4a5568' });
+                addT(k.bio, ML, CW, Math.round((Math.ceil(k.bio.length / 95) + 1) * 14 * scY), { fontSize: Math.round(9 * scY), italic: true, color: '#4a5568', align: 'justify' });
                 curY += Math.round(8 * scY);
             }
             addRectFlat('#e2e8f0', ML, curY, CW, 1); curY += Math.round(24 * scY);
@@ -951,30 +951,30 @@ const buildEditorPages = (data: any): EditorPage[] => {
             if (ex) ex.papers.push(p); else days.push({ label, papers: [p] });
         });
         days.forEach(day => {
-            const dayH = Math.round(26 * scY);
-            fit(dayH + Math.round(50 * scY));
+            const dayH = Math.round(22 * scY);
+            fit(dayH + Math.round(40 * scY));
             const dayBgY = addRect('#1a3a6b', ML, CW, dayH);
-            addTAt(day.label, ML + Math.round(10 * scX), dayBgY + Math.round(6 * scY), CW - Math.round(20 * scX), dayH - Math.round(10 * scY), { fontSize: Math.round(11 * scY), bold: true, color: '#ffffff' });
-            curY += Math.round(14 * scY);
+            addTAt(day.label, ML + Math.round(8 * scX), dayBgY + Math.round(5 * scY), CW - Math.round(16 * scX), dayH - Math.round(8 * scY), { fontSize: Math.round(10 * scY), bold: true, color: '#ffffff' });
+            curY += Math.round(10 * scY);
             day.papers.forEach(p => {
-                const authH = Math.round(16 * scY);
+                const authH = Math.round(14 * scY);
                 const tLines = Math.ceil((p.paperTitle || '').length / 65) + 1;
-                const tH = Math.round(Math.max(tLines * 13 * scY, 14));
+                const tH = Math.round(Math.max(tLines * 12 * scY, 14));
                 const abText = p.abstract ? 'ABSTRACT. ' + p.abstract.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim() : '';
-                const abH = abText ? Math.round((Math.ceil(abText.length / 85) + 1) * 13 * scY) : 0;
-                const totalH = authH + tH + abH + Math.round(34 * scY);
+                const abH = abText ? Math.round((Math.ceil(abText.length / 88) + 1) * 12 * scY) : 0;
+                const totalH = authH + tH + abH + Math.round(20 * scY);
                 fit(totalH);
-                const pML = ML + Math.round(15 * scX), pCW = CW - Math.round(13 * scX);
-                const timeW = p.timeSlot ? Math.round(50 * scX) : 0;
+                const pML = ML + Math.round(12 * scX), pCW = CW - Math.round(10 * scX);
+                const timeW = p.timeSlot ? Math.round(44 * scX) : 0;
                 const blockStartY = curY;
-                els.push({ id: uuidv4(), type: 'image', x: ML, y: blockStartY, w: Math.round(3 * scX), h: totalH - Math.round(10 * scY), src: solidColorImg('#93c5fd', Math.round(3 * scX), totalH - Math.round(10 * scY)), zIndex: nzImg() });
-                if (p.timeSlot) addTAt(p.timeSlot, pML, curY, Math.round(40 * scX), authH, { fontSize: Math.round(9 * scY), bold: true, color: '#1a3a6b' });
-                addTAt(p.authors || '', pML + timeW + 8, curY, pCW - timeW - 8, authH, { fontSize: Math.round(9 * scY), italic: true, color: '#4a5568' });
-                curY += authH + Math.round(3 * scY);
-                addTAt(p.paperTitle || '', pML + timeW, curY, pCW - timeW, tH, { fontSize: Math.round(10 * scY), bold: true, color: '#1a202c' });
-                curY += tH + Math.round(4 * scY);
-                if (abText) { addTAt(abText, pML + timeW, curY, pCW - timeW, abH, { fontSize: Math.round(9 * scY), color: '#2d3748' }); curY += abH + Math.round(6 * scY); }
-                curY += Math.round(16 * scY);
+                els.push({ id: uuidv4(), type: 'image', x: ML, y: blockStartY, w: Math.round(2.5 * scX), h: totalH - Math.round(6 * scY), src: solidColorImg('#93c5fd', Math.round(3 * scX), totalH - Math.round(6 * scY)), zIndex: nzImg() });
+                if (p.timeSlot) addTAt(p.timeSlot, pML, curY, Math.round(36 * scX), authH, { fontSize: Math.round(8.5 * scY), bold: true, color: '#1a3a6b' });
+                addTAt(p.authors || '', pML + timeW + 4, curY, pCW - timeW - 4, authH, { fontSize: Math.round(8.5 * scY), italic: true, color: '#4a5568' });
+                curY += authH + Math.round(2 * scY);
+                addTAt(p.paperTitle || '', pML + timeW, curY, pCW - timeW, tH, { fontSize: Math.round(9.5 * scY), bold: true, color: '#1a202c' });
+                curY += tH + Math.round(2 * scY);
+                if (abText) { addTAt(abText, pML + timeW, curY, pCW - timeW, abH, { fontSize: Math.round(8.5 * scY), color: '#2d3748', align: 'justify' }); curY += abH + Math.round(3 * scY); }
+                curY += Math.round(8 * scY);
             });
         });
     }
