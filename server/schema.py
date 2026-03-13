@@ -115,3 +115,77 @@ class ScholarAuthor(BaseModel):
 class CheckinRequest(BaseModel):
     registration_id: int
     session_ids: List[int]
+
+class PersonalInformation(BaseModel):
+    full_name: str = Field(description="Full name of the candidate")
+    email: Optional[str] = Field(None, description="Email address of the candidate")
+    phone: Optional[str] = Field(None, description="Contact phone number")
+    location: Optional[str] = Field(None, description="Current location or address")
+    linkedin: Optional[str] = Field(None, description="Link to the candidate's LinkedIn profile")
+    github: Optional[str] = Field(None, description="Link to the candidate's GitHub profile")
+    portfolio: Optional[str] = Field(None, description="Link to personal website or portfolio")
+
+class Education(BaseModel):
+    institution: str = Field(description="Name of the university or educational institution")
+    degree: Optional[str] = Field(None, description="Degree obtained (e.g., Bachelor, Master, Engineer)")
+    field_of_study: Optional[str] = Field(None, description="Academic major or field of study")
+    start_year: Optional[str] = Field(None, description="Year when the study program started")
+    end_year: Optional[str] = Field(None, description="Year of graduation or 'Present' if still studying")
+
+class WorkExperience(BaseModel):
+    company: str = Field(description="Name of the company or organization")
+    position: str = Field(description="Job title or role held by the candidate")
+    start_date: Optional[str] = Field(None, description="Start date of the job (month/year)")
+    end_date: Optional[str] = Field(None, description="End date of the job (month/year) or 'Present'")
+    responsibilities: List[str] = Field(
+        default_factory=list,
+        description="List of responsibilities, tasks, and achievements in this role"
+    )
+
+class Skills(BaseModel):
+    technical_skills: List[str] = Field(
+        default_factory=list,
+        description="List of technical skills such as programming languages, frameworks, and tools"
+    )
+    soft_skills: List[str] = Field(
+        default_factory=list,
+        description="List of soft skills such as teamwork, communication, and leadership"
+    )
+
+class Project(BaseModel):
+    name: str = Field(description="Name of the project")
+    description: Optional[str] = Field(
+        None,
+        description="Brief description of the project and the candidate's role"
+    )
+    technologies: List[str] = Field(
+        default_factory=list,
+        description="List of technologies, frameworks, or programming languages used in the project"
+    )
+
+class CVBaseModel(BaseModel):
+    personal_information: PersonalInformation
+    professional_summary: Optional[str] = Field(
+        None,
+        description="Professional summary or career objective statement"
+    )
+    education: List[Education] = Field(default_factory=list)
+    work_experience: List[WorkExperience] = Field(default_factory=list)
+    skills: Skills
+    projects: List[Project] = Field(default_factory=list)
+    certifications: List[str] = Field(
+        default_factory=list,
+        description="List of certifications obtained by the candidate"
+    )
+    languages: List[str] = Field(
+        default_factory=list,
+        description="List of languages the candidate can speak or use"
+    )
+    awards: List[str] = Field(
+        default_factory=list,
+        description="List of awards or recognitions received"
+    )
+    additional_information: Optional[str] = Field(
+        None,
+        description="Any additional information that does not fit into the categories above"
+    )

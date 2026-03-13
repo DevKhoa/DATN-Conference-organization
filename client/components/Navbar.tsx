@@ -7,6 +7,7 @@ import {
   LogOut,
   Settings,
   Sparkles,
+  Calendar,
 } from "lucide-react";
 import Button from "./ui/Button";
 
@@ -20,6 +21,7 @@ interface NavbarProps {
   onNavigateAiAssistant?: () => void; // New Prop
   onNavigateAttendences?: () => void;
   onNavigateProceedings: () => void;
+  onNavigateAgenda?: () => void;
   onLogout: () => void;
   isLoggedIn?: boolean;
   userName?: string;
@@ -39,6 +41,7 @@ const Navbar: React.FC<NavbarProps> = ({
   onNavigateAiAssistant,
   onNavigateAttendences,
   onNavigateProceedings,
+  onNavigateAgenda,
   onLogout,
   isLoggedIn = false,
   userName = "",
@@ -75,6 +78,7 @@ const Navbar: React.FC<NavbarProps> = ({
     { name: "Conferences", href: "#conferences" },
     { name: "AI Assistant", href: "#ai-assistant", icon: Sparkles }, // Added AI Assistant
     { name: "News", href: "#news" },
+    { name: "Proceedings", href: "#proceedings" },
   ];
 
   const adminLinks = [
@@ -105,6 +109,13 @@ const Navbar: React.FC<NavbarProps> = ({
     setIsProfileOpen(false);
     if (onNavigateProfile) {
       onNavigateProfile();
+    }
+  };
+
+  const handleAgendaClick = () => {
+    setIsProfileOpen(false);
+    if (onNavigateAgenda) {
+      onNavigateAgenda();
     }
   };
 
@@ -149,6 +160,9 @@ const Navbar: React.FC<NavbarProps> = ({
         onNavigateProceedings();
       }
     }
+      }
+    }
+    // For other links like #about, let default anchor behavior happen for now
   };
 
   const handleLogoClick = () => {
@@ -241,6 +255,13 @@ const Navbar: React.FC<NavbarProps> = ({
                     >
                       <User className="w-4 h-4 mr-3" />
                       Your Profile
+                    </button>
+                    <button
+                      onClick={handleAgendaClick}
+                      className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-brand-700 transition-colors"
+                    >
+                      <Calendar className="w-4 h-4 mr-3" />
+                      My Agenda
                     </button>
                     <a
                       href="#settings"
@@ -350,6 +371,16 @@ const Navbar: React.FC<NavbarProps> = ({
                   >
                     <User className="w-4 h-4 mr-2" />
                     My Profile
+                  </button>
+                  <button
+                    onClick={() => {
+                      toggleMenu();
+                      if (onNavigateAgenda) onNavigateAgenda();
+                    }}
+                    className="w-full flex items-center justify-center px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
+                  >
+                    <Calendar className="w-4 h-4 mr-2" />
+                    My Agenda
                   </button>
                   <button
                     onClick={onLogout}

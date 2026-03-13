@@ -22,6 +22,7 @@ import AiAssistant from "./pages/AiAssistant"; // IMPORT NEW PAGE
 import AttendancesManagement from "./pages/AttendencesManagement";
 import CheckinScanner from "./pages/CheckinScanner";
 import ProceedingsManagement from "./pages/ProceedingsManagement";
+import MyAgenda from "./pages/Agenda";
 import { supabase } from "./lib/supabase";
 
 // Simple Route State management to avoid adding react-router-dom dependency
@@ -43,6 +44,7 @@ type Page =
   | "attendences-management"
   | "checkin-scanner"
   | "proceedings-management";
+  | "agenda";
 
 interface UserSession {
   name: string;
@@ -70,6 +72,9 @@ const App: React.FC = () => {
     confId: number;
     sessionId: number;
   } | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<number | null>(
+    null,
+  );
   const [checkinScannerContext, setCheckinScannerContext] = useState<{
     sessionIds: number[];
     authToken: string;
@@ -108,7 +113,6 @@ const App: React.FC = () => {
           email,
           avatar_url,
           description,
-          description_reformat,
           user_roles (
             role_id,
             roles (
@@ -213,7 +217,8 @@ const App: React.FC = () => {
     setCurrentPage("submit-paper");
   };
 
-  const navigateToAssignSessions = () => {
+  const navigateToAssignSessions = (sessionId?: number) => {
+    setSelectedSessionId(sessionId || null);
     window.scrollTo(0, 0);
     setCurrentPage("assign-sessions");
   };
@@ -256,6 +261,9 @@ const App: React.FC = () => {
   const navigateToProceedings = () => {
     window.scrollTo(0, 0);
     setCurrentPage("proceedings-management");
+  const navigateToAgenda = () => {
+    window.scrollTo(0, 0);
+    setCurrentPage("agenda");
   };
 
   const handleAuthSuccess = (data: {
@@ -351,6 +359,7 @@ const App: React.FC = () => {
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
           onNavigateProceedings={navigateToProceedings}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -382,6 +391,7 @@ const App: React.FC = () => {
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
           onNavigateProceedings={navigateToProceedings}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -415,6 +425,7 @@ const App: React.FC = () => {
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
           onNavigateProceedings={navigateToProceedings}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -427,7 +438,9 @@ const App: React.FC = () => {
           conferenceId={selectedConferenceId}
           onNavigateBack={navigateToConferences}
           // Pass navigation prop for Assign Sessions
-          onNavigateAssignSessions={navigateToAssignSessions}
+          onNavigateAssignSessions={(sessionId) =>
+            navigateToAssignSessions(sessionId)
+          }
           onNavigateAttendance={navigateToAttendences}
           onNavigateCheckinScanner={navigateToCheckinScanner}
           userRoleId={userRoleId} // Pass role to check permissions
@@ -451,6 +464,7 @@ const App: React.FC = () => {
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
           onNavigateProceedings={navigateToProceedings}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -484,6 +498,7 @@ const App: React.FC = () => {
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
           onNavigateProceedings={navigateToProceedings}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -515,6 +530,7 @@ const App: React.FC = () => {
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
           onNavigateProceedings={navigateToProceedings}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -547,6 +563,7 @@ const App: React.FC = () => {
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
           onNavigateProceedings={navigateToProceedings}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -558,6 +575,7 @@ const App: React.FC = () => {
         <AssignSessions
           conferenceId={selectedConferenceId}
           userRoleId={userRoleId}
+          initialSessionId={selectedSessionId}
           onNavigateBack={() =>
             navigateToConferenceDetail(selectedConferenceId)
           }
@@ -581,6 +599,7 @@ const App: React.FC = () => {
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
           onNavigateProceedings={navigateToProceedings}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -613,6 +632,7 @@ const App: React.FC = () => {
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
           onNavigateProceedings={navigateToProceedings}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -644,6 +664,7 @@ const App: React.FC = () => {
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
           onNavigateProceedings={navigateToProceedings}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -672,6 +693,7 @@ const App: React.FC = () => {
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
           onNavigateProceedings={navigateToProceedings}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -705,7 +727,6 @@ const App: React.FC = () => {
     return (
       <CheckinScanner
         sessionIds={checkinScannerContext.sessionIds}
-        authToken={checkinScannerContext.authToken}
         onNavigateBack={() => {
           setCurrentPage("conference-detail");
           setCheckinScannerContext(null);
@@ -715,6 +736,8 @@ const App: React.FC = () => {
   }
 
   if (currentPage === "proceedings-management") {
+  // Render Agenda Page
+  if (currentPage === "agenda") {
     return (
       <>
         <Navbar
@@ -727,6 +750,7 @@ const App: React.FC = () => {
           onNavigateAiAssistant={navigateToAiAssistant}
           onNavigateAttendences={navigateToAttendences}
           onNavigateProceedings={navigateToProceedings}
+          onNavigateAgenda={navigateToAgenda}
           onLogout={handleLogout}
           isLoggedIn={isLoggedIn}
           userName={userName}
@@ -743,6 +767,7 @@ const App: React.FC = () => {
           />
         </main>
 
+        <MyAgenda onNavigateConferenceDetail={navigateToConferenceDetail} />
         <Footer />
       </>
     );
@@ -761,6 +786,7 @@ const App: React.FC = () => {
         onNavigateAiAssistant={navigateToAiAssistant}
         onNavigateAttendences={navigateToAttendences}
         onNavigateProceedings={navigateToProceedings}
+        onNavigateAgenda={navigateToAgenda}
         onLogout={handleLogout}
         isLoggedIn={isLoggedIn}
         userName={userName}

@@ -22,12 +22,16 @@ import {
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import { supabase } from "../lib/supabase";
+} from "lucide-react";
+import Button from "../components/ui/Button";
+import { supabase } from "../lib/supabase";
+import ReactMarkdown from "react-markdown"; // Thêm thư viện render Markdown
 
 // --- INTERFACES ---
 interface ProfileProps {
   userEmail: string;
   onNavigateHome: () => void;
-  onNavigateMyPapers?: () => void; // New Prop
+  onNavigateMyPapers?: () => void;
 }
 
 interface UserProfile {
@@ -36,7 +40,6 @@ interface UserProfile {
   email: string;
   organization: string | null;
   description: string | null;
-  description_reformat: string | null;
   created_at: string;
   role_name?: string;
   role_id?: number; // Added
@@ -83,7 +86,6 @@ const Profile: React.FC<ProfileProps> = ({
   const cvInputRef = useRef<HTMLInputElement>(null);
 
   // --- EFFECTS ---
-
   useEffect(() => {
     if (userEmail) {
       fetchProfile();
@@ -162,7 +164,6 @@ const Profile: React.FC<ProfileProps> = ({
   };
 
   // --- DATA FETCHING ---
-
   const fetchProfile = async () => {
     setLoading(true);
     setError("");
@@ -193,7 +194,6 @@ const Profile: React.FC<ProfileProps> = ({
           roleId = firstRoleEntry.role_id;
 
           if (firstRoleEntry.roles) {
-            // Ép kiểu cho rolesData để TypeScript biết nó chứa role_name
             const rolesData = firstRoleEntry.roles;
 
             if (Array.isArray(rolesData)) {
@@ -210,7 +210,6 @@ const Profile: React.FC<ProfileProps> = ({
           email: data.email,
           organization: data.organization,
           description: data.description,
-          description_reformat: data.description_reformat,
           created_at: data.created_at,
           role_name: roleName,
           role_id: roleId,
@@ -233,7 +232,6 @@ const Profile: React.FC<ProfileProps> = ({
   };
 
   // --- BASIC INFO HANDLERS ---
-
   const handleSaveBasicInfo = async () => {
     if (!profile) return;
     setBasicSaving(true);
@@ -317,15 +315,12 @@ const Profile: React.FC<ProfileProps> = ({
   };
 
   // --- BIO UPDATE HANDLERS ---
-
-  // Method 1: Manual Input
   const handleSaveManualBio = async () => {
     if (!profile) return;
     setBioSaving(true);
     setError("");
 
     try {
-      // API: POST /users/{USER_ID}/description
       const url = `${BASE_API_URL}/users/${profile.user_id}/description`;
       const response = await fetch(url, {
         method: "POST",
@@ -347,7 +342,6 @@ const Profile: React.FC<ProfileProps> = ({
     }
   };
 
-  // Method 2: Upload CV
   const handleUploadCV = async () => {
     if (!profile || !cvFile) {
       setError("Please select a PDF file.");
@@ -357,7 +351,6 @@ const Profile: React.FC<ProfileProps> = ({
     setError("");
 
     try {
-      // API: POST /users/{USER_ID}/upload-cv
       const formData = new FormData();
       formData.append("file", cvFile);
 
@@ -383,7 +376,6 @@ const Profile: React.FC<ProfileProps> = ({
     }
   };
 
-  // Method 3: Import Scholar
   const handleImportScholar = async () => {
     if (!profile || !scholarUrl) {
       setError("Please enter a Google Scholar URL.");
@@ -397,7 +389,6 @@ const Profile: React.FC<ProfileProps> = ({
     setError("");
 
     try {
-      // API: POST /users/{USER_ID}/import-scholar
       const url = `${BASE_API_URL}/users/${profile.user_id}/import-scholar`;
       const response = await fetch(url, {
         method: "POST",
@@ -705,6 +696,51 @@ const Profile: React.FC<ProfileProps> = ({
                       {profile?.description_reformat ||
                         profile?.description ||
                         "No professional summary available yet."}
+                    {/* KHU VỰC ĐÃ CẬP NHẬT RENDER MARKDOWN */}
+                    <div className="text-slate-700 leading-relaxed text-sm">
+                      {" "}
+                      {/* Bỏ class prose đi nếu không dùng */}
+                      {profile?.description ? (
+                        <ReactMarkdown
+                          components={{
+                            // Custom style cho thẻ h3 (###)
+                            h3: ({ node, ...props }) => (
+                              <h3
+                                className="text-lg font-bold text-slate-900 mt-6 mb-2"
+                                {...props}
+                              />
+                            ),
+                            // Bạn có thể custom thêm thẻ h1 (#), h2 (##), p, ul, li nếu cần
+                            h1: ({ node, ...props }) => (
+                              <h1
+                                className="text-2xl font-bold text-slate-900 mt-6 mb-4"
+                                {...props}
+                              />
+                            ),
+                            h2: ({ node, ...props }) => (
+                              <h2
+                                className="text-xl font-bold text-slate-900 mt-6 mb-3"
+                                {...props}
+                              />
+                            ),
+                            p: ({ node, ...props }) => (
+                              <p className="mb-4" {...props} />
+                            ),
+                            ul: ({ node, ...props }) => (
+                              <ul
+                                className="list-disc pl-5 mb-4 space-y-1"
+                                {...props}
+                              />
+                            ),
+                          }}
+                        >
+                          {profile?.description}
+                        </ReactMarkdown>
+                      ) : (
+                        <span className="italic text-slate-500">
+                          No professional summary available yet.
+                        </span>
+                      )}
                     </div>
 
                     {/* Các nút hành động */}
@@ -751,14 +787,14 @@ const Profile: React.FC<ProfileProps> = ({
                   <div className="space-y-4 animate-in fade-in">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                        Edit Bio
+                        Edit Bio (Markdown Supported)
                       </label>
                       <textarea
-                        rows={6}
+                        rows={10}
                         value={manualBio}
                         onChange={(e) => setManualBio(e.target.value)}
-                        className="w-full p-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none resize-y text-sm"
-                        placeholder="Write a short professional biography..."
+                        className="w-full p-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none resize-y text-sm font-mono"
+                        placeholder="Write a short professional biography using markdown (*, #, etc)..."
                       />
                     </div>
                     <div className="flex justify-end gap-3">

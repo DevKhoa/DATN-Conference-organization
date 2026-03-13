@@ -60,6 +60,8 @@ const SubmitPaper: React.FC<SubmitPaperProps> = ({
   const [paperTitle, setPaperTitle] = useState("");
   const [paperAbstract, setPaperAbstract] = useState("");
   const [selectedAuthorId, setSelectedAuthorId] = useState<number | null>(null);
+  const [coAuthorSearch, setCoAuthorSearch] = useState("");
+  const [selectedCoAuthors, setSelectedCoAuthors] = useState<any[]>([]);
 
   // Step 2: Existing Paper Selection
   const [selectedPaperId, setSelectedPaperId] = useState<number | null>(null);
@@ -103,7 +105,7 @@ const SubmitPaper: React.FC<SubmitPaperProps> = ({
         .from("conferences")
         .select("conf_id, conf_name, start_date, location")
         .eq("open_for_papers", true)
-        .order("start_date", { ascending: true });
+        .order("create_time", { ascending: false });
       if (data) setConferences(data);
     } catch (e) {
       console.error(e);
@@ -158,6 +160,19 @@ const SubmitPaper: React.FC<SubmitPaperProps> = ({
         .select()
         .single();
       if (error) throw error;
+
+      if (selectedCoAuthors.length > 0) {
+        const coAuthorInserts = selectedCoAuthors.map((ca, index) => ({
+          paper_id: data.paper_id,
+          user_id: ca.user_id,
+          author_order: index + 2,
+        }));
+        const { error: coError } = await supabase
+          .from("paper_coauthors")
+          .insert(coAuthorInserts);
+        if (coError) throw coError;
+      }
+
       setSelectedPaperId(data.paper_id);
       setStep(3);
     } catch (err: any) {
@@ -221,6 +236,11 @@ const SubmitPaper: React.FC<SubmitPaperProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSkipUpload = () => {
+    setSuccess(true);
+    setTimeout(() => onNavigateBack(), 2000);
   };
 
   // --- Helpers ---
@@ -483,6 +503,93 @@ const SubmitPaper: React.FC<SubmitPaperProps> = ({
                   )}
                 </div>
 
+                {/* Co-Authors Search */}
+                <div className="relative mt-4">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    Co-Authors (Optional)
+                  </label>
+
+                  {selectedCoAuthors.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {selectedCoAuthors.map((ca) => (
+                        <span
+                          key={ca.user_id}
+                          className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-brand-50 text-brand-700 border border-brand-200"
+                        >
+                          {ca.full_name}
+                          <button
+                            onClick={() =>
+                              setSelectedCoAuthors((prev) =>
+                                prev.filter((c) => c.user_id !== ca.user_id),
+                              )
+                            }
+                            className="ml-1.5 text-brand-500 hover:text-brand-800"
+                          >
+                            &times;
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                    <input
+                      type="text"
+                      value={coAuthorSearch}
+                      onChange={(e) => setCoAuthorSearch(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none"
+                      placeholder="Search co-author by name..."
+                    />
+                  </div>
+                  {coAuthorSearch && (
+                    <div className="absolute z-10 w-full bg-white border border-slate-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
+                      {authors
+                        .filter(
+                          (a) =>
+                            a.full_name
+                              .toLowerCase()
+                              .includes(coAuthorSearch.toLowerCase()) &&
+                            a.user_id !== selectedAuthorId &&
+                            !selectedCoAuthors.find(
+                              (c) => c.user_id === a.user_id,
+                            ),
+                        )
+                        .map((author) => (
+                          <div
+                            key={author.user_id}
+                            onClick={() => {
+                              setSelectedCoAuthors((prev) => [...prev, author]);
+                              setCoAuthorSearch("");
+                            }}
+                            className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 border-b border-slate-50 last:border-0"
+                          >
+                            <div className="font-medium">
+                              {author.full_name}
+                            </div>
+                            <div className="text-xs text-slate-400">
+                              {author.email}
+                            </div>
+                          </div>
+                        ))}
+                      {authors.filter(
+                        (a) =>
+                          a.full_name
+                            .toLowerCase()
+                            .includes(coAuthorSearch.toLowerCase()) &&
+                          a.user_id !== selectedAuthorId &&
+                          !selectedCoAuthors.find(
+                            (c) => c.user_id === a.user_id,
+                          ),
+                      ).length === 0 && (
+                        <div className="px-4 py-3 text-sm text-slate-500 italic">
+                          No available authors found.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex justify-end pt-4">
                   <Button onClick={handleCreatePaper} disabled={loading}>
                     {loading ? (
@@ -620,18 +727,29 @@ const SubmitPaper: React.FC<SubmitPaperProps> = ({
                 </label>
               </div>
 
-              <Button
-                onClick={handleUploadVersion}
-                className="w-full"
-                size="lg"
-                disabled={loading || !file}
-              >
-                {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                ) : (
-                  "Submit Paper"
-                )}
-              </Button>
+              <div className="flex gap-4">
+                <Button
+                  onClick={handleSkipUpload}
+                  variant="outline"
+                  className="flex-1"
+                  size="lg"
+                  disabled={loading}
+                >
+                  Skip Upload
+                </Button>
+                <Button
+                  onClick={handleUploadVersion}
+                  className="flex-1"
+                  size="lg"
+                  disabled={loading || !file}
+                >
+                  {loading ? (
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                  ) : (
+                    "Submit Paper"
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         )}

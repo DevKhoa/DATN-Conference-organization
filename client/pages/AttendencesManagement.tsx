@@ -88,7 +88,7 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({
           .from("conferences")
           .select("conf_id, conf_name, start_date, location")
           .eq("is_active", true)
-          .order("start_date", { ascending: false });
+          .order("create_time", { ascending: false });
 
         if (confError) throw confError;
         if (data && data.length > 0) {
@@ -117,7 +117,13 @@ const AttendencesManagement: React.FC<AttendencesManagementProps> = ({
         if (sessError) throw sessError;
         setSessions(data || []);
         if (data && data.length > 0) {
-          setSelectedSessionId(data[0].session_id);
+          const isCurrentValid = (data as any[]).some(
+            (s) => s.session_id === selectedSessionId,
+          );
+
+          if (!selectedSessionId || !isCurrentValid) {
+            setSelectedSessionId(data[0].session_id);
+          }
         } else {
           setSelectedSessionId(null);
           setAttendees([]);

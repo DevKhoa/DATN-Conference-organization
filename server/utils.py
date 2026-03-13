@@ -120,6 +120,10 @@ with open("Prompts/format_reviewer.txt", 'r') as f:
 with open("Prompts/scholar_retriever.txt", 'r', encoding='utf-8') as f:
     SCHOLAR_PROMPT = f.read()
 
+with open("Prompts/cv_retriever.txt", 'r') as f:
+    CV_RETRIEVER = f.read()
+
+
 #======================================== HELPER FUNCTIONS ========================================#
 def load_file_local(file_path):
    
@@ -200,3 +204,97 @@ def valid_check(file_path: pathlib.Path, max_size_mb: float, extensions: List[st
 def is_image_file(filename: str) -> bool:
     _, ext = os.path.splitext(filename)
     return ext.lower() in ALLOWED_IMAGE_EXTENSIONS
+
+def format_cv_profile(cv: dict) -> str:
+    lines = []
+
+    pi = cv["personal_information"]
+
+    lines.append(f"# {pi['full_name']}")
+    
+    contact = []
+    if pi.get("email"):
+        contact.append(f"Email: {pi['email']}")
+    if pi.get("phone"):
+        contact.append(f"Phone: {pi['phone']}")
+    if pi.get("location"):
+        contact.append(f"Location: {pi['location']}")
+    if pi.get("linkedin"):
+        contact.append(f"LinkedIn: {pi['linkedin']}")
+    if pi.get("github"):
+        contact.append(f"GitHub: {pi['github']}")
+    if pi.get("portfolio"):
+        contact.append(f"Portfolio: {pi['portfolio']}")
+
+    if contact:
+        lines.append(" | ".join(contact))
+
+    if cv.get("professional_summary"):
+        lines.append("\n## Professional Summary")
+        lines.append(cv["professional_summary"])
+
+    if cv["education"]:
+        lines.append("\n## Education")
+        for edu in cv["education"]:
+            line = f"**{edu['institution']}**"
+            if edu.get("degree") or edu.get("field_of_study"):
+                line += f" — {edu.get('degree', '')} {edu.get('field_of_study', '')}".strip()
+            if edu.get("start_year") or edu.get("end_year"):
+                line += f" ({edu.get('start_year','')} - {edu.get('end_year','')})"
+            lines.append(line)
+
+    if cv["work_experience"]:
+        lines.append("\n## Work Experience")
+        for job in cv["work_experience"]:
+            lines.append(
+                f"**{job['position']} — {job['company']}** "
+                f"({job.get('start_date','')} - {job.get('end_date','')})"
+            )
+            for r in job["responsibilities"]:
+                lines.append(f"- {r}")
+            lines.append("\n")
+
+    skills = cv["skills"]
+    if skills["technical_skills"] or skills["soft_skills"]:
+        lines.append("\n## Skills")
+
+        if skills["technical_skills"]:
+            lines.append("**Technical Skills:**")
+            lines.append(", ".join(skills["technical_skills"]))
+
+        if skills["soft_skills"]:
+            lines.append("\n**Soft Skills:**")
+            lines.append(", ".join(skills["soft_skills"]))
+
+    if cv["projects"]:
+        lines.append("\n## Projects")
+        for p in cv["projects"]:
+            lines.append(f"**{p['name']}**")
+            if p.get("description"):
+                lines.append(p["description"])
+            if p["technologies"]:
+                lines.append(f"Technologies: {', '.join(p['technologies'])}")
+            lines.append("")
+
+    if cv["certifications"]:
+        lines.append("\n## Certifications")
+        for c in cv["certifications"]:
+            lines.append(f"- {c}")
+
+    # Languages
+    if cv["languages"]:
+        lines.append("\n## Languages")
+        lines.append(", ".join(cv["languages"]))
+
+    # Awards
+    if cv["awards"]:
+        lines.append("\n## Awards")
+        for a in cv["awards"]:
+            lines.append(f"- {a}")
+
+    # Additional Info
+    if cv.get("additional_information"):
+        lines.append("\n## Additional Information")
+        lines.append(cv["additional_information"])
+
+    return "\n".join(lines)

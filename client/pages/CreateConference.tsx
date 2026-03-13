@@ -112,6 +112,7 @@ const CreateConference: React.FC<CreateConferenceProps> = ({
         ...restData, // Bao gồm cả open_for_papers
         keywords: keywords,
         banner_urls: [],
+        create_time: new Date().toISOString(),
       };
 
       const { data, error } = await supabase

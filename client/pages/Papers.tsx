@@ -221,13 +221,14 @@ const Papers: React.FC<PapersProps> = ({
     // 5. Sorting
     result.sort((a, b) => {
       switch (sortBy) {
-        case "DATE_ASC":
-          return (
-            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-          );
+        case "DATE_ASC": {
+          const t1 = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const t2 = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return t1 - t2;
+        }
         case "TITLE_AZ":
-          return a.title.localeCompare(b.title);
-        case "DECISION":
+          return (a.title || "").localeCompare(b.title || "");
+        case "DECISION": {
           const d1 = a.final_decision_date
             ? new Date(a.final_decision_date).getTime()
             : 0;
@@ -235,11 +236,13 @@ const Papers: React.FC<PapersProps> = ({
             ? new Date(b.final_decision_date).getTime()
             : 0;
           return d2 - d1;
+        }
         case "DATE_DESC":
-        default:
-          return (
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          );
+        default: {
+          const t1 = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const t2 = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return t2 - t1;
+        }
       }
     });
 

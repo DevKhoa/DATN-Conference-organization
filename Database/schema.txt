@@ -1,0 +1,295 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.agenda_comments (
+  comment_id integer NOT NULL DEFAULT nextval('agenda_comments_comment_id_seq'::regclass),
+  draft_id integer,
+  commenter_id integer,
+  comment_text text,
+  commented_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT agenda_comments_pkey PRIMARY KEY (comment_id),
+  CONSTRAINT agenda_comments_draft_id_fkey FOREIGN KEY (draft_id) REFERENCES public.agenda_drafts(draft_id),
+  CONSTRAINT agenda_comments_commenter_id_fkey FOREIGN KEY (commenter_id) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.agenda_drafts (
+  draft_id integer NOT NULL DEFAULT nextval('agenda_drafts_draft_id_seq'::regclass),
+  conference_id integer,
+  version integer NOT NULL,
+  is_final boolean DEFAULT false,
+  created_by integer,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT agenda_drafts_pkey PRIMARY KEY (draft_id),
+  CONSTRAINT agenda_drafts_conference_id_fkey FOREIGN KEY (conference_id) REFERENCES public.conferences(conf_id),
+  CONSTRAINT agenda_drafts_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.ai_paper_analysis_logs (
+  log_id integer NOT NULL DEFAULT nextval('ai_paper_analysis_logs_log_id_seq'::regclass),
+  version_id integer,
+  check_type character varying CHECK (check_type::text = ANY (ARRAY['FORMAT_CHECK'::character varying, 'PROOFREADING'::character varying, 'PLAGIARISM'::character varying]::text[])),
+  result_data jsonb,
+  passed boolean DEFAULT false,
+  checked_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT ai_paper_analysis_logs_pkey PRIMARY KEY (log_id),
+  CONSTRAINT ai_paper_analysis_logs_version_id_fkey FOREIGN KEY (version_id) REFERENCES public.paper_versions(version_id)
+);
+CREATE TABLE public.attendences (
+  at_id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  is_checkin boolean,
+  checkin_time timestamp without time zone,
+  registration_id integer,
+  session_id integer,
+  CONSTRAINT attendences_pkey PRIMARY KEY (at_id),
+  CONSTRAINT attendences_registration_id_fkey FOREIGN KEY (registration_id) REFERENCES public.registrations(registration_id),
+  CONSTRAINT attendences_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.sessions(session_id)
+);
+CREATE TABLE public.cms_contents (
+  content_id integer NOT NULL DEFAULT nextval('cms_contents_content_id_seq'::regclass),
+  title character varying,
+  body_content text,
+  content_type character varying CHECK (content_type::text = ANY (ARRAY['CFP'::character varying, 'AGENDA'::character varying, 'VENUE'::character varying, 'POST_EVENT_MAIL'::character varying]::text[])),
+  scheduled_publish_time timestamp without time zone,
+  is_published boolean DEFAULT false,
+  created_by integer,
+  CONSTRAINT cms_contents_pkey PRIMARY KEY (content_id),
+  CONSTRAINT cms_contents_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.conferences (
+  conf_id integer NOT NULL DEFAULT nextval('conferences_conf_id_seq'::regclass),
+  conf_name character varying NOT NULL,
+  start_date date,
+  end_date date,
+  location character varying,
+  is_active boolean DEFAULT true,
+  status character varying DEFAULT 'DRAFT'::character varying,
+  description text,
+  banner_urls jsonb,
+  keywords jsonb,
+  open_for_papers boolean,
+  sessions_ready boolean DEFAULT true,
+  create_time timestamp with time zone,
+  CONSTRAINT conferences_pkey PRIMARY KEY (conf_id)
+);
+CREATE TABLE public.email_logs (
+  email_log_id integer NOT NULL DEFAULT nextval('email_logs_email_log_id_seq'::regclass),
+  recipient_email character varying,
+  email_type character varying,
+  sent_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  status character varying CHECK (status::text = ANY (ARRAY['SENT'::character varying, 'FAILED'::character varying]::text[])),
+  CONSTRAINT email_logs_pkey PRIMARY KEY (email_log_id)
+);
+CREATE TABLE public.email_templates (
+  template_id integer NOT NULL DEFAULT nextval('email_templates_template_id_seq'::regclass),
+  template_name character varying UNIQUE,
+  subject character varying,
+  body_html text,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT email_templates_pkey PRIMARY KEY (template_id)
+);
+CREATE TABLE public.paper_chunks (
+  id integer NOT NULL DEFAULT nextval('paper_chunks_id_seq'::regclass),
+  chunk_index integer NOT NULL,
+  version_id integer,
+  paper_id integer,
+  chunk_content text NOT NULL,
+  chunk_metadata jsonb DEFAULT '{}'::jsonb,
+  embedding USER-DEFINED,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT paper_chunks_pkey PRIMARY KEY (id),
+  CONSTRAINT paper_chunks_version_id_fkey FOREIGN KEY (version_id) REFERENCES public.paper_versions(version_id),
+  CONSTRAINT paper_chunks_paper_id_fkey FOREIGN KEY (paper_id) REFERENCES public.papers(paper_id)
+);
+CREATE TABLE public.paper_coauthors (
+  paper_id integer NOT NULL,
+  user_id integer NOT NULL,
+  author_order integer,
+  CONSTRAINT paper_coauthors_pkey PRIMARY KEY (paper_id, user_id),
+  CONSTRAINT paper_coauthors_paper_id_fkey FOREIGN KEY (paper_id) REFERENCES public.papers(paper_id),
+  CONSTRAINT paper_coauthors_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.paper_decisions (
+  decision_id integer NOT NULL DEFAULT nextval('paper_decisions_decision_id_seq'::regclass),
+  paper_id integer,
+  decision character varying CHECK (decision::text = ANY (ARRAY['ACCEPT'::character varying, 'REJECT'::character varying]::text[])),
+  decided_by integer,
+  decision_note text,
+  decided_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT paper_decisions_pkey PRIMARY KEY (decision_id),
+  CONSTRAINT paper_decisions_paper_id_fkey FOREIGN KEY (paper_id) REFERENCES public.papers(paper_id),
+  CONSTRAINT paper_decisions_decided_by_fkey FOREIGN KEY (decided_by) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.paper_versions (
+  version_id integer NOT NULL DEFAULT nextval('paper_versions_version_id_seq'::regclass),
+  paper_id integer,
+  file_path character varying NOT NULL,
+  version_number integer NOT NULL,
+  is_final boolean DEFAULT false,
+  plagiarism_safe boolean,
+  format_ok boolean,
+  upload_date timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  upload_by integer,
+  display boolean,
+  CONSTRAINT paper_versions_pkey PRIMARY KEY (version_id),
+  CONSTRAINT paper_versions_paper_id_fkey FOREIGN KEY (paper_id) REFERENCES public.papers(paper_id),
+  CONSTRAINT paper_versions_upload_by_fkey FOREIGN KEY (upload_by) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.papers (
+  paper_id integer NOT NULL DEFAULT nextval('papers_paper_id_seq'::regclass),
+  title text NOT NULL,
+  abstract text,
+  primary_author_id integer,
+  status character varying DEFAULT 'SUBMITTED'::character varying CHECK (status::text = ANY (ARRAY['SUBMITTED'::character varying, 'UNDER_REVIEW'::character varying, 'ACCEPTED'::character varying, 'REJECTED'::character varying, 'REVISION_REQ'::character varying]::text[])),
+  final_decision_date timestamp without time zone,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  submitted_conf integer,
+  CONSTRAINT papers_pkey PRIMARY KEY (paper_id),
+  CONSTRAINT papers_primary_author_id_fkey FOREIGN KEY (primary_author_id) REFERENCES public.users(user_id),
+  CONSTRAINT papers_submitted_conf_fkey FOREIGN KEY (submitted_conf) REFERENCES public.conferences(conf_id)
+);
+CREATE TABLE public.proceedings_configs (
+  conf_id integer NOT NULL,
+  proceedings_title text,
+  foreword text,
+  venue_details text,
+  registration_hours text,
+  gala_info text,
+  isbn character varying,
+  publisher character varying DEFAULT 'Springer'::character varying,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+  template_name character varying,
+  pdf_url text,
+  break_info text,
+  internet_info text,
+  room_map_url text,
+  committee_selection jsonb,
+  sponsor_logos jsonb,
+  organizer_logos jsonb,
+  keynotes_json jsonb DEFAULT '[]'::jsonb,
+  room_assignments text,
+  CONSTRAINT proceedings_configs_pkey PRIMARY KEY (conf_id),
+  CONSTRAINT proceedings_configs_conf_id_fkey FOREIGN KEY (conf_id) REFERENCES public.conferences(conf_id)
+);
+CREATE TABLE public.registrations (
+  registration_id integer NOT NULL DEFAULT nextval('registrations_registration_id_seq'::regclass),
+  user_id integer,
+  ticket_id integer,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT registrations_pkey PRIMARY KEY (registration_id),
+  CONSTRAINT registrations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id),
+  CONSTRAINT registrations_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.ticket_configs(ticket_id)
+);
+CREATE TABLE public.review_ai_metrics (
+  metric_id integer NOT NULL DEFAULT nextval('review_ai_metrics_metric_id_seq'::regclass),
+  review_id integer,
+  ai_depth_score numeric,
+  ai_sentiment jsonb,
+  analyzed_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT review_ai_metrics_pkey PRIMARY KEY (metric_id),
+  CONSTRAINT review_ai_metrics_review_id_fkey FOREIGN KEY (review_id) REFERENCES public.reviews(review_id)
+);
+CREATE TABLE public.reviewer_assignments (
+  assignment_id integer NOT NULL DEFAULT nextval('reviewer_assignments_assignment_id_seq'::regclass),
+  paper_id integer,
+  reviewer_id integer,
+  assigned_by integer,
+  assigned_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT reviewer_assignments_pkey PRIMARY KEY (assignment_id),
+  CONSTRAINT reviewer_assignments_paper_id_fkey FOREIGN KEY (paper_id) REFERENCES public.papers(paper_id),
+  CONSTRAINT reviewer_assignments_reviewer_id_fkey FOREIGN KEY (reviewer_id) REFERENCES public.users(user_id),
+  CONSTRAINT reviewer_assignments_assigned_by_fkey FOREIGN KEY (assigned_by) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.reviews (
+  review_id integer NOT NULL DEFAULT nextval('reviews_review_id_seq'::regclass),
+  paper_id integer,
+  reviewer_id integer,
+  status character varying DEFAULT 'PENDING'::character varying CHECK (status::text = ANY (ARRAY['PENDING'::character varying, 'COMPLETED'::character varying]::text[])),
+  recommendation character varying CHECK (recommendation::text = ANY (ARRAY['ACCEPT'::character varying, 'REJECT'::character varying, 'WEAK_ACCEPT'::character varying, 'REVISION'::character varying]::text[])),
+  score numeric,
+  comments text,
+  review_date timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT reviews_pkey PRIMARY KEY (review_id),
+  CONSTRAINT reviews_paper_id_fkey FOREIGN KEY (paper_id) REFERENCES public.papers(paper_id),
+  CONSTRAINT reviews_reviewer_id_fkey FOREIGN KEY (reviewer_id) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.roles (
+  role_id integer NOT NULL DEFAULT nextval('roles_role_id_seq'::regclass),
+  role_name character varying NOT NULL UNIQUE,
+  CONSTRAINT roles_pkey PRIMARY KEY (role_id)
+);
+CREATE TABLE public.session_papers (
+  session_id integer NOT NULL,
+  paper_id integer NOT NULL,
+  presentation_order integer,
+  start_time timestamp without time zone,
+  end_time timestamp without time zone,
+  CONSTRAINT session_papers_pkey PRIMARY KEY (session_id, paper_id),
+  CONSTRAINT session_papers_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.sessions(session_id),
+  CONSTRAINT session_papers_paper_id_fkey FOREIGN KEY (paper_id) REFERENCES public.papers(paper_id)
+);
+CREATE TABLE public.sessions (
+  session_id integer NOT NULL DEFAULT nextval('sessions_session_id_seq'::regclass),
+  session_name character varying,
+  start_time timestamp without time zone,
+  end_time timestamp without time zone,
+  room_location character varying,
+  is_ai_generated boolean DEFAULT false,
+  chair_person_id integer,
+  conf_id integer,
+  session_type character varying DEFAULT 'Technical'::character varying,
+  CONSTRAINT sessions_pkey PRIMARY KEY (session_id),
+  CONSTRAINT sessions_chair_person_id_fkey FOREIGN KEY (chair_person_id) REFERENCES public.users(user_id),
+  CONSTRAINT sessions_conf_id_fkey FOREIGN KEY (conf_id) REFERENCES public.conferences(conf_id)
+);
+CREATE TABLE public.ticket_configs (
+  ticket_id integer NOT NULL DEFAULT nextval('ticket_configs_ticket_id_seq'::regclass),
+  ticket_name character varying NOT NULL,
+  currency character varying DEFAULT 'VND'::character varying,
+  quantity_limit integer,
+  sold_quantity integer DEFAULT 0,
+  open_time timestamp without time zone NOT NULL,
+  close_time timestamp without time zone NOT NULL,
+  is_active boolean DEFAULT true,
+  description text,
+  price numeric,
+  CONSTRAINT ticket_configs_pkey PRIMARY KEY (ticket_id)
+);
+CREATE TABLE public.ticket_session (
+  ticket_id integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+  session_id integer NOT NULL,
+  price numeric,
+  CONSTRAINT ticket_session_pkey PRIMARY KEY (ticket_id, session_id),
+  CONSTRAINT ticket_session_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.ticket_configs(ticket_id),
+  CONSTRAINT ticket_session_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.sessions(session_id)
+);
+CREATE TABLE public.transactions (
+  trans_id integer NOT NULL DEFAULT nextval('transactions_trans_id_seq'::regclass),
+  registration_id integer,
+  payment_gateway character varying CHECK (payment_gateway::text = ANY (ARRAY['MOMO'::character varying::text, 'VNPAY'::character varying::text, 'STRIPE'::character varying::text, 'PAYOS'::character varying::text, 'BANK_TRANSFER'::character varying::text])),
+  amount numeric,
+  created_at timestamp with time zone,
+  order_code text,
+  status USER-DEFINED DEFAULT 'PENDING'::"TRANS_TYPE",
+  provider_tx_ref text,
+  updated_at timestamp with time zone,
+  ticket_data jsonb,
+  CONSTRAINT transactions_pkey PRIMARY KEY (trans_id),
+  CONSTRAINT transactions_registration_id_fkey FOREIGN KEY (registration_id) REFERENCES public.registrations(registration_id)
+);
+CREATE TABLE public.user_roles (
+  user_id integer NOT NULL,
+  role_id integer NOT NULL,
+  CONSTRAINT user_roles_pkey PRIMARY KEY (user_id, role_id),
+  CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id),
+  CONSTRAINT user_roles_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(role_id)
+);
+CREATE TABLE public.users (
+  user_id integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+  full_name character varying NOT NULL,
+  email character varying NOT NULL UNIQUE,
+  password_hash character varying NOT NULL,
+  organization character varying,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  description text,
+  description_embed USER-DEFINED,
+  avatar_url text,
+  CONSTRAINT users_pkey PRIMARY KEY (user_id)
+);

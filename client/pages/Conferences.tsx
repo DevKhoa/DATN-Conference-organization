@@ -33,6 +33,7 @@ interface Conference {
   banner_urls: string[] | null;
   keywords: string[] | null;
   open_for_papers: boolean;
+  create_time: string;
 }
 
 const Conferences: React.FC<ConferencesProps> = ({
@@ -48,7 +49,9 @@ const Conferences: React.FC<ConferencesProps> = ({
   // Filter States
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [sortOrder, setSortOrder] = useState<"UPCOMING" | "AZ">("UPCOMING");
+  const [sortOrder, setSortOrder] = useState<"NEWEST" | "UPCOMING" | "AZ">(
+    "NEWEST",
+  );
   const [selectedKeyword, setSelectedKeyword] = useState<string>("");
 
   // NEW STATE: Dùng để search trong list topics
@@ -88,7 +91,8 @@ const Conferences: React.FC<ConferencesProps> = ({
       const { data, error } = await supabase
         .from("conferences")
         .select("*")
-        .eq("is_active", true);
+        .eq("is_active", true)
+        .order("create_time", { ascending: false });
 
       if (error) throw error;
       setConferences(data || []);
@@ -145,7 +149,11 @@ const Conferences: React.FC<ConferencesProps> = ({
       return matchesSearch && matchesStatus && matchesKeyword;
     })
     .sort((a, b) => {
-      if (sortOrder === "UPCOMING") {
+      if (sortOrder === "NEWEST") {
+        return (
+          new Date(b.create_time).getTime() - new Date(a.create_time).getTime()
+        );
+      } else if (sortOrder === "UPCOMING") {
         return (
           new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
         );
@@ -237,9 +245,10 @@ const Conferences: React.FC<ConferencesProps> = ({
                   className="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-brand-500 outline-none bg-white"
                   value={sortOrder}
                   onChange={(e) =>
-                    setSortOrder(e.target.value as "UPCOMING" | "AZ")
+                    setSortOrder(e.target.value as "NEWEST" | "UPCOMING" | "AZ")
                   }
                 >
+                  <option value="NEWEST">Newly Added</option>
                   <option value="UPCOMING">Upcoming Dates</option>
                   <option value="AZ">Alphabetical (A-Z)</option>
                 </select>
