@@ -1,5 +1,5 @@
-import React from "react";
-import Button from "./ui/Button";
+import React from 'react';
+import Button from './ui/Button';
 
 interface CallToActionProps {
   onNavigateRegister: () => void;
@@ -17,20 +17,14 @@ const CallToAction: React.FC<CallToActionProps> = ({ onNavigateRegister }) => {
           Ready to host your best conference yet?
         </h2>
         <p className="text-lg lg:text-xl text-brand-100 mb-10 max-w-2xl mx-auto">
-          Join thousands of organizers who trust Conf-Org to streamline their
-          academic events. Start your free trial today.
+          Join thousands of organizers who trust Conf-Org to streamline their academic events. Start your free trial today.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Button
-            variant="secondary"
-            size="lg"
-            className="w-full sm:w-auto"
-            onClick={onNavigateRegister}
-          >
+          <Button variant="secondary" size="lg" className="w-full sm:w-auto" onClick={onNavigateRegister}>
             Create Conference
           </Button>
-          <Button
-            className="bg-brand-800 text-white border border-brand-700 hover:bg-brand-700 w-full sm:w-auto"
+          <Button 
+            className="bg-brand-800 text-white border border-brand-700 hover:bg-brand-700 w-full sm:w-auto" 
             size="lg"
             onClick={onNavigateRegister}
           >
