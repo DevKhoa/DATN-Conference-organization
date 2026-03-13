@@ -1,6 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Menu, X, GraduationCap, User, LogOut, Settings, Sparkles } from 'lucide-react';
-import Button from './ui/Button';
+import React, { useState, useRef, useEffect } from "react";
+import {
+  Menu,
+  X,
+  GraduationCap,
+  User,
+  LogOut,
+  Settings,
+  Sparkles,
+} from "lucide-react";
+import Button from "./ui/Button";
 
 interface NavbarProps {
   onNavigateRegister: () => void;
@@ -20,8 +28,8 @@ interface NavbarProps {
   userAvatar?: string;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ 
-  onNavigateRegister, 
+const Navbar: React.FC<NavbarProps> = ({
+  onNavigateRegister,
   onNavigateLogin,
   onNavigateProfile,
   onNavigateConferences,
@@ -29,13 +37,13 @@ const Navbar: React.FC<NavbarProps> = ({
   onNavigatePapers,
   onNavigateAiAssistant,
   onNavigateAttendences,
-  onLogout, 
-  isLoggedIn = false, 
-  userName = '',
-  userEmail = '',
-  userRole = '',
+  onLogout,
+  isLoggedIn = false,
+  userName = "",
+  userEmail = "",
+  userRole = "",
   userRoleId = 0,
-  userAvatar = ''
+  userAvatar = "",
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -47,28 +55,31 @@ const Navbar: React.FC<NavbarProps> = ({
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsProfileOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   // Define Navigation Items
   const baseLinks = [
-    { name: 'Home', href: '#' },
-    { name: 'Papers', href: '#papers' },
-    { name: 'Conferences', href: '#conferences' },
-    { name: 'AI Assistant', href: '#ai-assistant', icon: Sparkles }, // Added AI Assistant
-    { name: 'News', href: '#news' },
-    { name: 'Proceedings', href: '#proceedings' },
+    { name: "Home", href: "#" },
+    { name: "Papers", href: "#papers" },
+    { name: "Conferences", href: "#conferences" },
+    { name: "AI Assistant", href: "#ai-assistant", icon: Sparkles }, // Added AI Assistant
+    { name: "News", href: "#news" },
+    { name: "Proceedings", href: "#proceedings" },
   ];
 
-const adminLinks = [
-  { name: 'Users Management', href: '#users-management' },
-  { name: 'Attendances', href: '#attendances' }
-];
+  const adminLinks = [
+    { name: "Users Management", href: "#users-management" },
+    { name: "Attendances", href: "#attendances" },
+  ];
 
   // Determine which links to show based on role_id
   let navLinks = [...baseLinks];
@@ -79,8 +90,13 @@ const adminLinks = [
   }
 
   const getInitials = (name: string) => {
-    if (!name) return 'U';
-    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+    if (!name) return "U";
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .substring(0, 2)
+      .toUpperCase();
   };
 
   const handleProfileClick = () => {
@@ -90,40 +106,42 @@ const adminLinks = [
     }
   };
 
-  const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, linkName: string) => {
-    if (linkName === 'Conferences') {
+  const handleLinkClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    linkName: string,
+  ) => {
+    if (linkName === "Conferences") {
       e.preventDefault();
       setIsOpen(false);
       if (onNavigateConferences) {
         onNavigateConferences();
       }
-    } else if (linkName === 'Home') {
+    } else if (linkName === "Home") {
       e.preventDefault();
       setIsOpen(false);
       if (onNavigateHome) {
         onNavigateHome();
       }
-    } else if (linkName === 'Papers') {
+    } else if (linkName === "Papers") {
       e.preventDefault();
       setIsOpen(false);
       if (onNavigatePapers) {
         onNavigatePapers();
       }
-    } else if (linkName === 'AI Assistant') {
+    } else if (linkName === "AI Assistant") {
       e.preventDefault();
       setIsOpen(false);
       if (onNavigateAiAssistant) {
         onNavigateAiAssistant();
       }
-    } else if (linkName === 'Attendances') { 
+    } else if (linkName === "Attendances") {
       e.preventDefault();
       setIsOpen(false);
       if (onNavigateAttendences) {
-        onNavigateAttendences(); 
+        onNavigateAttendences();
       }
     }
     // For other links like #about, let default anchor behavior happen for now
-    
   };
 
   const handleLogoClick = () => {
@@ -139,11 +157,16 @@ const adminLinks = [
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <div className="flex-shrink-0 flex items-center gap-2 cursor-pointer" onClick={handleLogoClick}>
+          <div
+            className="flex-shrink-0 flex items-center gap-2 cursor-pointer"
+            onClick={handleLogoClick}
+          >
             <div className="bg-brand-700 p-1.5 rounded-lg">
               <GraduationCap className="h-6 w-6 text-white" />
             </div>
-            <span className="font-bold text-xl tracking-tight text-slate-900">Conf-Org</span>
+            <span className="font-bold text-xl tracking-tight text-slate-900">
+              Conf-Org
+            </span>
           </div>
 
           {/* Desktop Navigation */}
@@ -154,7 +177,9 @@ const adminLinks = [
                 href={link.href}
                 onClick={(e) => handleLinkClick(e, link.name)}
                 className={`text-sm font-medium transition-colors flex items-center gap-1.5 ${
-                  link.name === 'AI Assistant' ? 'text-indigo-600 hover:text-indigo-800' : 'text-slate-600 hover:text-brand-700'
+                  link.name === "AI Assistant"
+                    ? "text-indigo-600 hover:text-indigo-800"
+                    : "text-slate-600 hover:text-brand-700"
                 }`}
               >
                 {link.icon && <link.icon className="w-4 h-4" />}
@@ -167,17 +192,25 @@ const adminLinks = [
           <div className="hidden md:flex items-center space-x-4">
             {isLoggedIn ? (
               <div className="relative" ref={dropdownRef}>
-                <button 
+                <button
                   onClick={toggleProfile}
                   className="flex items-center gap-3 pl-4 border-l border-slate-200 focus:outline-none group"
                 >
                   <div className="text-right hidden lg:block">
-                    <p className="text-sm font-medium text-slate-900 leading-none group-hover:text-brand-700 transition-colors">{userName}</p>
-                    <p className="text-xs text-slate-500 mt-0.5 capitalize">{userRole || 'User'}</p>
+                    <p className="text-sm font-medium text-slate-900 leading-none group-hover:text-brand-700 transition-colors">
+                      {userName}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5 capitalize">
+                      {userRole || "User"}
+                    </p>
                   </div>
                   <div className="h-10 w-10 rounded-full bg-brand-100 border border-brand-200 flex items-center justify-center text-brand-700 font-bold shadow-sm group-hover:bg-brand-200 transition-colors overflow-hidden">
                     {userAvatar ? (
-                      <img src={userAvatar} alt={userName} className="w-full h-full object-cover" />
+                      <img
+                        src={userAvatar}
+                        alt={userName}
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
                       getInitials(userName)
                     )}
@@ -188,17 +221,24 @@ const adminLinks = [
                 {isProfileOpen && (
                   <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg ring-1 ring-black ring-opacity-5 py-2 animate-in fade-in zoom-in-95 duration-200 origin-top-right z-50">
                     <div className="px-4 py-3 border-b border-slate-100 mb-1">
-                      <p className="text-sm font-medium text-slate-900">{userName}</p>
-                      <p className="text-xs text-slate-500 truncate">{userEmail}</p>
+                      <p className="text-sm font-medium text-slate-900">
+                        {userName}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {userEmail}
+                      </p>
                     </div>
-                    <button 
+                    <button
                       onClick={handleProfileClick}
                       className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-brand-700 transition-colors"
                     >
                       <User className="w-4 h-4 mr-3" />
                       Your Profile
                     </button>
-                    <a href="#settings" className="flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-brand-700 transition-colors">
+                    <a
+                      href="#settings"
+                      className="flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-brand-700 transition-colors"
+                    >
                       <Settings className="w-4 h-4 mr-3" />
                       Settings
                     </a>
@@ -218,8 +258,16 @@ const adminLinks = [
               </div>
             ) : (
               <>
-                <Button variant="ghost" size="sm" onClick={onNavigateLogin}>Sign In</Button>
-                <Button variant="primary" size="sm" onClick={onNavigateRegister}>Get Started</Button>
+                <Button variant="ghost" size="sm" onClick={onNavigateLogin}>
+                  Sign In
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={onNavigateRegister}
+                >
+                  Get Started
+                </Button>
               </>
             )}
           </div>
@@ -231,7 +279,11 @@ const adminLinks = [
               className="inline-flex items-center justify-center p-2 rounded-md text-slate-600 hover:text-brand-700 hover:bg-slate-100 focus:outline-none"
             >
               <span className="sr-only">Open main menu</span>
-              {isOpen ? <X className="block h-6 w-6" /> : <Menu className="block h-6 w-6" />}
+              {isOpen ? (
+                <X className="block h-6 w-6" />
+              ) : (
+                <Menu className="block h-6 w-6" />
+              )}
             </button>
           </div>
         </div>
@@ -247,7 +299,9 @@ const adminLinks = [
                 href={link.href}
                 onClick={(e) => handleLinkClick(e, link.name)}
                 className={`block px-3 py-2 rounded-md text-base font-medium hover:bg-slate-50 flex items-center gap-2 ${
-                  link.name === 'AI Assistant' ? 'text-indigo-600 hover:text-indigo-800' : 'text-slate-700 hover:text-brand-700'
+                  link.name === "AI Assistant"
+                    ? "text-indigo-600 hover:text-indigo-800"
+                    : "text-slate-700 hover:text-brand-700"
                 }`}
               >
                 {link.icon && <link.icon className="w-5 h-5" />}
@@ -261,15 +315,23 @@ const adminLinks = [
                 <div className="space-y-3">
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
                     <div className="h-10 w-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold overflow-hidden border border-brand-200">
-                        {userAvatar ? (
-                          <img src={userAvatar} alt={userName} className="w-full h-full object-cover" />
-                        ) : (
-                          getInitials(userName)
-                        )}
+                      {userAvatar ? (
+                        <img
+                          src={userAvatar}
+                          alt={userName}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        getInitials(userName)
+                      )}
                     </div>
                     <div className="overflow-hidden">
-                      <p className="text-sm font-medium text-slate-900">{userName}</p>
-                      <p className="text-xs text-slate-500 capitalize truncate">{userRole || 'User'} • {userEmail}</p>
+                      <p className="text-sm font-medium text-slate-900">
+                        {userName}
+                      </p>
+                      <p className="text-xs text-slate-500 capitalize truncate">
+                        {userRole || "User"} • {userEmail}
+                      </p>
                     </div>
                   </div>
                   <button
@@ -292,8 +354,22 @@ const adminLinks = [
                 </div>
               ) : (
                 <>
-                  <Button variant="ghost" size="sm" className="w-full justify-start" onClick={onNavigateLogin}>Sign In</Button>
-                  <Button variant="primary" size="sm" className="w-full justify-center" onClick={onNavigateRegister}>Get Started</Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={onNavigateLogin}
+                  >
+                    Sign In
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="w-full justify-center"
+                    onClick={onNavigateRegister}
+                  >
+                    Get Started
+                  </Button>
                 </>
               )}
             </div>
