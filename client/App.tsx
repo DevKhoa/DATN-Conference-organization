@@ -43,7 +43,7 @@ type Page =
   | "ai-assistant"
   | "attendences-management"
   | "checkin-scanner"
-  | "proceedings-management";
+  | "proceedings-management"
   | "agenda";
 
 interface UserSession {
@@ -72,6 +72,7 @@ const App: React.FC = () => {
     confId: number;
     sessionId: number;
   } | null>(null);
+
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(
     null,
   );
@@ -261,6 +262,8 @@ const App: React.FC = () => {
   const navigateToProceedings = () => {
     window.scrollTo(0, 0);
     setCurrentPage("proceedings-management");
+  };
+
   const navigateToAgenda = () => {
     window.scrollTo(0, 0);
     setCurrentPage("agenda");
@@ -585,7 +588,7 @@ const App: React.FC = () => {
     );
   }
 
-  // Render My Papers Page (NEW)
+  // Render My Papers Page
   if (currentPage === "my-papers") {
     return (
       <>
@@ -618,7 +621,7 @@ const App: React.FC = () => {
     );
   }
 
-  // Render My Paper Detail Page (NEW)
+  // Render My Paper Detail Page
   if (currentPage === "my-paper-detail") {
     return (
       <>
@@ -650,7 +653,7 @@ const App: React.FC = () => {
     );
   }
 
-  // Render AI Assistant Page (NEW)
+  // Render AI Assistant Page
   if (currentPage === "ai-assistant") {
     return (
       <>
@@ -703,12 +706,11 @@ const App: React.FC = () => {
           userAvatar={userAvatar}
         />
         <AttendancesManagement
-          userRoleId={userRoleId} // Truyền quyền để kiểm tra Admin/Secretary [cite: 262, 588]
+          userRoleId={userRoleId}
           onNavigateBack={() => {
             if (attendanceContext) {
               setSelectedConferenceId(attendanceContext.confId);
               setCurrentPage("conference-detail");
-              // setAttendanceContext(null); // Tùy chọn: Xóa context sau khi quay về
             } else {
               navigateToHome();
             }
@@ -735,7 +737,38 @@ const App: React.FC = () => {
     );
   }
 
+  // Render Proceedings Management Page
   if (currentPage === "proceedings-management") {
+    return (
+      <>
+        <Navbar
+          onNavigateRegister={navigateToRegister}
+          onNavigateLogin={navigateToLogin}
+          onNavigateProfile={navigateToProfile}
+          onNavigateConferences={navigateToConferences}
+          onNavigateHome={navigateToHome}
+          onNavigatePapers={navigateToPapers}
+          onNavigateAiAssistant={navigateToAiAssistant}
+          onNavigateAttendences={navigateToAttendences}
+          onNavigateProceedings={navigateToProceedings}
+          onNavigateAgenda={navigateToAgenda}
+          onLogout={handleLogout}
+          isLoggedIn={isLoggedIn}
+          userName={userName}
+          userEmail={userEmail}
+          userRole={userRole}
+          userRoleId={userRoleId}
+          userAvatar={userAvatar}
+        />
+        <ProceedingsManagement
+          userRoleId={userRoleId}
+          onNavigateBack={navigateToConferences}
+        />
+        <Footer />
+      </>
+    );
+  }
+
   // Render Agenda Page
   if (currentPage === "agenda") {
     return (
@@ -759,14 +792,6 @@ const App: React.FC = () => {
           userRoleId={userRoleId}
           userAvatar={userAvatar}
         />
-
-        <main className="flex-grow">
-          <ProceedingsManagement
-            userRoleId={userRoleId}
-            onNavigateBack={navigateToConferences}
-          />
-        </main>
-
         <MyAgenda onNavigateConferenceDetail={navigateToConferenceDetail} />
         <Footer />
       </>

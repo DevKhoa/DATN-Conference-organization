@@ -160,8 +160,6 @@ const Navbar: React.FC<NavbarProps> = ({
         onNavigateProceedings();
       }
     }
-      }
-    }
     // For other links like #about, let default anchor behavior happen for now
   };
 

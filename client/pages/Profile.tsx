@@ -18,11 +18,8 @@ import {
   Link as LinkIcon,
   PenTool,
   BookOpen,
-  RefreshCw,
 } from "lucide-react";
-import Button from "../components/ui/Button";
-import { supabase } from "../lib/supabase";
-} from "lucide-react";
+import { /* Icon1, Icon2 */ } from "lucide-react";
 import Button from "../components/ui/Button";
 import { supabase } from "../lib/supabase";
 import ReactMarkdown from "react-markdown"; // Thêm thư viện render Markdown
@@ -94,75 +91,6 @@ const Profile: React.FC<ProfileProps> = ({
     }
   }, [userEmail]);
 
-  const formatBioDirectly = (text: string): string => {
-    if (!text) return "";
-
-    let formatted = text;
-
-    // 1. Chuẩn hóa whitespace
-    formatted = formatted
-      .replace(/\r/g, "")
-      .replace(/\t+/g, " ")
-      .replace(/ {2,}/g, " ")
-      .trim();
-
-    // 2. Chuẩn hóa bullet (PDF hay dùng • ◦)
-    formatted = formatted.replace(/•/g, "\n• ").replace(/◦/g, "\n  ◦ ");
-
-    // 3. Tách SECTION rõ ràng
-    const sections = [
-      "Objective",
-      "Education",
-      "Experience",
-      "Projects",
-      "Research",
-      "Skills",
-    ];
-
-    sections.forEach((section) => {
-      const regex = new RegExp(`\\b(${section})\\b`, "gi");
-      formatted = formatted.replace(regex, `\n\n**$1**\n`);
-    });
-
-    // 4. Fix các chỗ bullet bị dính sau dấu :
-    formatted = formatted.replace(/:\s*(?=[A-Z])/g, ":\n");
-
-    // 5. Ngắt dòng an toàn cho mô tả dài (chỉ khi có dấu . + space + chữ hoa + >= 80 ký tự phía trước)
-    formatted = formatted.replace(/(.{80,}?[.!?])\s+(?=[A-Z])/g, "$1\n");
-
-    // 6. Dọn dẹp dòng trống
-    formatted = formatted.replace(/\n{3,}/g, "\n\n").replace(/[ \t]+\n/g, "\n");
-
-    return formatted.trim();
-  };
-
-  const handleRefreshBio = async () => {
-    if (!profile || !profile.description) return;
-
-    setBioSaving(true);
-    try {
-      // XỬ LÝ TRỰC TIẾP TẠI ĐÂY
-      const newFormattedBio = formatBioDirectly(profile.description);
-
-      // Lưu thẳng vào cột description_reformat trong Supabase [cite: 575]
-      const { error: updateError } = await supabase
-        .from("users")
-        .update({ description_reformat: newFormattedBio })
-        .eq("user_id", profile.user_id);
-
-      if (updateError) throw updateError;
-
-      // Cập nhật State để UI hiển thị nội dung mới ngay lập tức
-      setProfile({ ...profile, description_reformat: newFormattedBio });
-      setSuccessMsg("Profile reformatted successfully!");
-    } catch (err: any) {
-      setError("Failed to reformat bio.");
-    } finally {
-      setBioSaving(false);
-      setTimeout(() => setSuccessMsg(""), 3000);
-    }
-  };
-
   // --- DATA FETCHING ---
   const fetchProfile = async () => {
     setLoading(true);
@@ -173,7 +101,7 @@ const Profile: React.FC<ProfileProps> = ({
         .from("users")
         .select(
           `
-          user_id, full_name, email, organization, description, description_reformat,created_at, avatar_url,
+          user_id, full_name, email, organization, description, created_at, avatar_url,
           user_roles ( role_id, roles ( role_name ) )
         `,
         )
@@ -428,11 +356,11 @@ const Profile: React.FC<ProfileProps> = ({
   const getInitials = (name: string) => {
     return name
       ? name
-          .split(" ")
-          .map((n) => n[0])
-          .join("")
-          .substring(0, 2)
-          .toUpperCase()
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .substring(0, 2)
+        .toUpperCase()
       : "U";
   };
 
@@ -601,11 +529,10 @@ const Profile: React.FC<ProfileProps> = ({
                             full_name: e.target.value,
                           })
                         }
-                        className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${
-                          basicEditMode
+                        className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${basicEditMode
                             ? "border-slate-300 focus:ring-2 focus:ring-brand-500 bg-white"
                             : "border-slate-200 bg-slate-50 text-slate-600"
-                        }`}
+                          }`}
                       />
                     </div>
                   </div>
@@ -627,11 +554,10 @@ const Profile: React.FC<ProfileProps> = ({
                           })
                         }
                         placeholder="University / Institute"
-                        className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${
-                          basicEditMode
+                        className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${basicEditMode
                             ? "border-slate-300 focus:ring-2 focus:ring-brand-500 bg-white"
                             : "border-slate-200 bg-slate-50 text-slate-600"
-                        }`}
+                          }`}
                       />
                     </div>
                   </div>
@@ -691,14 +617,8 @@ const Profile: React.FC<ProfileProps> = ({
               <div className="p-6">
                 {bioMode === "VIEW" && (
                   <div className="space-y-4">
-                    {/* Ưu tiên hiển thị description_reformat */}
-                    <div className="prose prose-slate max-w-none text-slate-700 leading-relaxed whitespace-pre-line text-sm italic">
-                      {profile?.description_reformat ||
-                        profile?.description ||
-                        "No professional summary available yet."}
                     {/* KHU VỰC ĐÃ CẬP NHẬT RENDER MARKDOWN */}
                     <div className="text-slate-700 leading-relaxed text-sm">
-                      {" "}
                       {/* Bỏ class prose đi nếu không dùng */}
                       {profile?.description ? (
                         <ReactMarkdown
@@ -766,18 +686,6 @@ const Profile: React.FC<ProfileProps> = ({
                       >
                         <LinkIcon className="w-4 h-4 mr-2" /> Import Scholar
                       </Button>
-                      {bioMode === "VIEW" && profile?.description && (
-                        <button
-                          onClick={handleRefreshBio}
-                          disabled={bioSaving}
-                          className="p-2 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-full transition-all group"
-                          title="Reformat existing bio using AI"
-                        >
-                          <RefreshCw
-                            className={`w-5 h-5 ${bioSaving ? "animate-spin text-brand-600" : "group-hover:rotate-180 duration-500"}`}
-                          />
-                        </button>
-                      )}
                     </div>
                   </div>
                 )}
