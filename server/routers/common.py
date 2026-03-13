@@ -75,22 +75,3 @@ async def upload_generic_file_api(
     except Exception as e:
         logger.error(f"Generic Upload Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/proxy-image")
-async def proxy_image(url: str):
-    """Fetch an external image URL server-side (bypass CORS) and return as base64 data URL."""
-    import requests
-    import base64
-
-    try:
-        resp = requests.get(url, timeout=10, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        })
-        resp.raise_for_status()
-        content_type = resp.headers.get("content-type", "image/png").split(";")[0].strip()
-        b64 = base64.b64encode(resp.content).decode("utf-8")
-        return {"data_url": f"data:{content_type};base64,{b64}"}
-    except Exception as e:
-        logger.error(f"Proxy image error for {url}: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Failed to fetch image: {str(e)}")

@@ -18,19 +18,44 @@ import {
   CheckCircle2,
   QrCode,
   X,
+  Ticket,
+  AlertCircle,
+  CreditCard,
+  CheckCircle,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import { supabase } from "../lib/supabase";
 
+const BASE_API_URL = import.meta.env.VITE_API_BASE_URL as string;
+
 // --- INTERFACES ---
+
+interface TicketOption {
+  ticket_id: number;
+  ticket_name: string;
+  price: number | null;
+  currency: string;
+  description: string | null;
+  is_active: boolean;
+  quantity_limit: number | null;
+  sold_quantity: number;
+  sessions: Array<{
+    session_id: number;
+    session_name: string;
+    start_time: string;
+    room_location: string;
+  }>;
+}
 
 interface ConferenceDetailProps {
   conferenceId: number;
   onNavigateBack: () => void;
-  onNavigateAssignSessions?: (sessionId?: number) => void;
+  onNavigateAssignSessions?: () => void;
   onNavigateAttendance?: (confId: number, sessionId: number) => void;
   onNavigateCheckinScanner?: (sessionIds: number[]) => void;
+  onNavigateTicketManagement?: () => void;
   userRoleId?: number;
+  userEmail?: string;
 }
 
 interface Author {
@@ -46,8 +71,6 @@ interface Paper {
 
 interface SessionPaper {
   presentation_order: number;
-  start_time?: string;
-  end_time?: string;
   paper: Paper;
 }
 
@@ -196,7 +219,9 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({
   onNavigateAssignSessions,
   onNavigateAttendance,
   onNavigateCheckinScanner,
+  onNavigateTicketManagement,
   userRoleId = 0,
+  userEmail = "",
 }) => {
   // --- State ---
   const [conference, setConference] = useState<ConferenceData | null>(null);
@@ -206,7 +231,6 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({
 
   // UI State
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
-  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [expandedSessions, setExpandedSessions] = useState<Set<number>>(
     new Set(),
   );
@@ -216,6 +240,17 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({
   const [selectedSessionsForCheckin, setSelectedSessionsForCheckin] = useState<
     number[]
   >([]);
+
+  // Registration Modal State
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [registerStep, setRegisterStep] = useState<"tickets" | "checkout">(
+    "tickets",
+  );
+  const [availableTickets, setAvailableTickets] = useState<TicketOption[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const [registerError, setRegisterError] = useState("");
 
   const canEdit = userRoleId === 1 || userRoleId === 2;
 
@@ -256,7 +291,7 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({
           *,
           chair:users!chair_person_id ( user_id, full_name, email, description, avatar_url ),
           session_papers (
-            presentation_order, start_time, end_time,
+            presentation_order,
             paper:papers (
               paper_id, title, abstract,
               author:users!primary_author_id ( full_name )
@@ -280,10 +315,6 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({
 
       // Expand first session
       if (processedSessions.length > 0) {
-        const firstDay = new Date(
-          processedSessions[0].start_time,
-        ).toDateString();
-        setExpandedDays(new Set([firstDay]));
         setExpandedSessions(new Set([processedSessions[0].session_id]));
       }
     } catch (err: any) {
@@ -301,28 +332,6 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({
     setExpandedSessions(newSet);
   };
 
-  const toggleDay = (dateStr: string) => {
-    const newSet = new Set(expandedDays);
-    if (newSet.has(dateStr)) newSet.delete(dateStr);
-    else newSet.add(dateStr);
-    setExpandedDays(newSet);
-  };
-
-  // Memoized grouped sessions
-  const groupedSessions = React.useMemo(() => {
-    const groups: { dateStr: string; sessions: Session[] }[] = [];
-    sessions.forEach((s) => {
-      const dStr = new Date(s.start_time).toDateString();
-      let group = groups.find((g) => g.dateStr === dStr);
-      if (!group) {
-        group = { dateStr: dStr, sessions: [] };
-        groups.push(group);
-      }
-      group.sessions.push(s);
-    });
-    return groups;
-  }, [sessions]);
-
   const getBannerImage = () => {
     if (conference?.banner_urls && conference.banner_urls.length > 0) {
       return conference.banner_urls[currentBannerIndex];
@@ -336,6 +345,117 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({
 
     setIsCheckinModalOpen(false);
     onNavigateCheckinScanner(selectedSessionsForCheckin);
+  };
+
+  const handleOpenRegisterModal = async () => {
+    setIsRegisterModalOpen(true);
+    setRegisterStep("tickets");
+    setSelectedTicketId(null);
+    setRegisterError("");
+    setTicketsLoading(true);
+    try {
+      // 1. Get sessions for this conference
+      const { data: sessionData } = await supabase
+        .from("sessions")
+        .select("session_id, session_name, start_time, room_location")
+        .eq("conf_id", conferenceId);
+
+      const sessionIds = (sessionData || []).map((s: any) => s.session_id);
+      const sessionMap: Record<number, any> = {};
+      (sessionData || []).forEach((s: any) => {
+        sessionMap[s.session_id] = s;
+      });
+
+      if (sessionIds.length === 0) {
+        setAvailableTickets([]);
+        return;
+      }
+
+      // 2. Get ticket → session mappings
+      const { data: tsData } = await supabase
+        .from("ticket_session")
+        .select("ticket_id, session_id")
+        .in("session_id", sessionIds);
+
+      const ticketSessions: Record<number, number[]> = {};
+      (tsData || []).forEach((row: any) => {
+        if (!ticketSessions[row.ticket_id]) ticketSessions[row.ticket_id] = [];
+        ticketSessions[row.ticket_id].push(row.session_id);
+      });
+
+      const ticketIds = Object.keys(ticketSessions).map(Number);
+      if (ticketIds.length === 0) {
+        setAvailableTickets([]);
+        return;
+      }
+
+      // 3. Fetch active ticket configs
+      const { data: ticketData } = await supabase
+        .from("ticket_configs")
+        .select(
+          "ticket_id, ticket_name, price, currency, description, is_active, quantity_limit, sold_quantity",
+        )
+        .in("ticket_id", ticketIds)
+        .eq("is_active", true);
+
+      // 4. Assemble with their sessions
+      const tickets: TicketOption[] = (ticketData || []).map((t: any) => ({
+        ...t,
+        sessions: (ticketSessions[t.ticket_id] || [])
+          .map((sid) => sessionMap[sid])
+          .filter(Boolean)
+          .sort(
+            (a: any, b: any) =>
+              new Date(a.start_time).getTime() -
+              new Date(b.start_time).getTime(),
+          ),
+      }));
+
+      setAvailableTickets(tickets);
+    } catch {
+      setRegisterError("Failed to load tickets. Please try again.");
+    } finally {
+      setTicketsLoading(false);
+    }
+  };
+
+  const handleProceedToCheckout = async () => {
+    if (!selectedTicketId) return;
+    setRegisterLoading(true);
+    setRegisterError("");
+    try {
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("user_id")
+        .eq("email", userEmail)
+        .single();
+
+      if (userError || !userData) {
+        throw new Error("User not found. Please log in again.");
+      }
+
+      const response = await fetch(`${BASE_API_URL}/registrations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userData.user_id,
+          ticket_id: selectedTicketId,
+          provider: "PAYOS",
+          returnUrl: window.location.href,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.detail || "Failed to create registration.");
+      }
+
+      window.location.href = result.checkout_url;
+    } catch (err: any) {
+      setRegisterError(err.message || "An error occurred. Please try again.");
+    } finally {
+      setRegisterLoading(false);
+    }
   };
 
   if (loading) {
@@ -436,10 +556,22 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({
                 </div>
               )}
 
+            {/* ADMIN ACTION: Manage Tickets */}
+            {canEdit && onNavigateTicketManagement && (
+              <Button
+                onClick={onNavigateTicketManagement}
+                variant="white-outline"
+                icon={Ticket}
+                className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20"
+              >
+                Tickets
+              </Button>
+            )}
+
             {/* ADMIN ACTION: Assign Sessions */}
             {canEdit && onNavigateAssignSessions && (
               <Button
-                onClick={() => onNavigateAssignSessions()}
+                onClick={onNavigateAssignSessions}
                 variant="white-outline"
                 icon={Settings}
                 className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20"
@@ -576,7 +708,7 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({
               </div>
 
               <div className="space-y-0 relative">
-                {groupedSessions.length === 0 ? (
+                {sessions.length === 0 ? (
                   <div className="bg-white p-12 text-center rounded-2xl border-2 border-dashed border-slate-200">
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-50 mb-4">
                       <Calendar className="w-8 h-8 text-slate-300" />
@@ -586,26 +718,26 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({
                     </p>
                   </div>
                 ) : (
-                  <div className="relative">
-                    {/* Continuous vertical timeline connector for the entire event */}
-                    <div className="absolute left-[29px] top-8 bottom-4 w-[2px] bg-slate-200/80 z-0 hidden sm:block"></div>
-                    {groupedSessions.map((group, groupIdx) => {
-                      const isDayExpanded = expandedDays.has(group.dateStr);
-                      const dateInfo = formatDateHeader(
-                        group.sessions[0].start_time,
-                      );
+                  sessions.map((session, index) => {
+                    const isExpanded = expandedSessions.has(session.session_id);
+                    const startTime = formatTimeOnly(session.start_time);
+                    const endTime = formatTimeOnly(session.end_time);
 
-                      return (
-                        <div key={group.dateStr} className="mb-4 relative">
-                          {/* --- DATE HEADER --- */}
-                          <div
-                            className="relative pt-4 pb-4 cursor-pointer group/dayheader"
-                            onClick={() => toggleDay(group.dateStr)}
-                          >
-                            <div className="flex items-center gap-4 relative z-10 hover:bg-slate-100/50 p-2 rounded-xl transition-colors -ml-2">
-                              <div
-                                className={`flex flex-col items-center justify-center text-white rounded-xl shadow-lg w-16 h-16 shrink-0 border-4 border-slate-50 transition-colors ${isDayExpanded ? "bg-brand-600 shadow-brand-200" : "bg-slate-400 shadow-slate-200"}`}
-                              >
+                    // Logic for Date Headers
+                    const prevSession = index > 0 ? sessions[index - 1] : null;
+                    const isNewDay =
+                      !prevSession ||
+                      !isSameDay(session.start_time, prevSession.start_time);
+                    const dateInfo = formatDateHeader(session.start_time);
+
+                    return (
+                      <React.Fragment key={session.session_id}>
+                        {/* --- DATE HEADER --- */}
+                        {isNewDay && (
+                          <div className="relative pt-4 pb-8">
+                            {/* Date Badge */}
+                            <div className="flex items-center gap-4 relative z-10">
+                              <div className="flex flex-col items-center justify-center bg-brand-600 text-white rounded-xl shadow-lg shadow-brand-200 w-16 h-16 shrink-0 border-4 border-slate-50">
                                 <span className="text-xs font-bold uppercase tracking-wider opacity-80">
                                   {dateInfo.weekday.substring(0, 3)}
                                 </span>
@@ -613,244 +745,172 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({
                                   {dateInfo.day}
                                 </span>
                               </div>
-                              <div className="flex-grow">
-                                <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                              <div>
+                                <h3 className="text-xl font-bold text-slate-800">
                                   {dateInfo.weekday}
-                                  {isDayExpanded ? (
-                                    <ChevronUp className="w-5 h-5 text-slate-400" />
-                                  ) : (
-                                    <ChevronDown className="w-5 h-5 text-slate-400" />
-                                  )}
                                 </h3>
                                 <p className="text-slate-500 font-medium">
                                   {dateInfo.monthYear}
                                 </p>
                               </div>
+                              <div className="flex-grow h-px bg-gradient-to-r from-slate-200 to-transparent ml-4"></div>
                             </div>
+                            {/* Connecting Line Start */}
+                            <div className="absolute left-8 top-16 bottom-0 w-0.5 bg-slate-200 -z-0"></div>
+                          </div>
+                        )}
+
+                        {/* --- SESSION ITEM --- */}
+                        <div className="group flex gap-4 md:gap-6 relative mb-6">
+                          {/* Timeline Left Column */}
+                          <div className="flex flex-col items-center flex-shrink-0 w-16 md:w-16 pt-2 z-10 bg-slate-50">
+                            <span
+                              className={`text-sm font-bold font-mono tracking-tight ${isExpanded ? "text-brand-600" : "text-slate-500"}`}
+                            >
+                              {startTime}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              {endTime}
+                            </span>
+
+                            {/* Dot */}
+                            <div
+                              className={`mt-2 w-3 h-3 rounded-full border-2 transition-all duration-300 ${
+                                isExpanded
+                                  ? "bg-brand-600 border-brand-200 shadow-[0_0_0_4px_rgba(37,99,235,0.1)] scale-110"
+                                  : "bg-white border-slate-300 group-hover:border-brand-400"
+                              }`}
+                            />
                           </div>
 
-                          {/* --- SESSIONS LIST --- */}
-                          {isDayExpanded && (
-                            <div className="relative mt-2 pb-8">
-                              {/* Single continuous line for all sessions in this day */}
-                              <div className="absolute left-[29px] top-[0px] bottom-12 w-[2px] bg-slate-200 z-0"></div>
+                          {/* Connecting Line (Vertical) */}
+                          <div className="absolute left-8 top-0 bottom-[-24px] w-0.5 bg-slate-200 group-hover:bg-slate-300 transition-colors -z-0 ml-[1px]"></div>
 
-                              {group.sessions.map((session, index) => {
-                                const isExpanded = expandedSessions.has(
-                                  session.session_id,
-                                );
-                                const startTime = formatTimeOnly(
-                                  session.start_time,
-                                );
-                                const endTime = formatTimeOnly(
-                                  session.end_time,
-                                );
-
-                                return (
-                                  <div
-                                    key={session.session_id}
-                                    className="group flex gap-4 md:gap-6 relative mb-8 last:mb-0"
-                                  >
-                                    {/* Timeline Left Column */}
-                                    <div className="flex flex-col items-center flex-shrink-0 w-16 z-10">
-                                      <div className="bg-slate-50 py-2 flex flex-col items-center w-full">
-                                        <span
-                                          className={`text-sm font-bold font-mono tracking-tight ${isExpanded ? "text-brand-600" : "text-slate-500"}`}
-                                        >
-                                          {startTime}
-                                        </span>
-                                        <span className="text-[10px] text-slate-400 font-medium mb-3">
-                                          {endTime}
-                                        </span>
-                                        {/* Dot */}
-                                        <div
-                                          className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-300 relative bg-white ${
-                                            isExpanded
-                                              ? "border-brand-600 shadow-[0_0_0_4px_rgba(37,99,235,0.1)] scale-110"
-                                              : "border-slate-300 group-hover:border-brand-400"
-                                          }`}
-                                        >
-                                          {isExpanded && (
-                                            <div className="absolute inset-0.5 rounded-full bg-brand-600" />
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    {/* Content Card */}
-                                    <div
-                                      className={`flex-grow bg-white rounded-2xl transition-all duration-300 border relative z-10 ${
-                                        isExpanded
-                                          ? "shadow-lg border-brand-200 ring-1 ring-brand-100 translate-x-1"
-                                          : "shadow-sm border-slate-200 hover:shadow-md hover:border-slate-300"
-                                      }`}
-                                    >
-                                      {/* Header (Clickable) */}
-                                      <div
-                                        onClick={() =>
-                                          toggleSession(session.session_id)
-                                        }
-                                        className="p-5 md:p-6 cursor-pointer"
-                                      >
-                                        <div className="flex justify-between items-start gap-4">
-                                          <div className="space-y-2">
-                                            {/* Badges */}
-                                            <div className="flex flex-wrap items-center gap-2">
-                                              <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                                                <MapPin className="w-3 h-3 mr-1" />{" "}
-                                                {session.room_location}
-                                              </span>
-                                            </div>
-
-                                            <h3
-                                              className={`text-lg md:text-xl font-bold transition-colors ${isExpanded ? "text-brand-700" : "text-slate-900 group-hover:text-brand-600"}`}
-                                            >
-                                              {session.session_name}
-                                            </h3>
-                                          </div>
-
-                                          <div className="flex items-center gap-3 shrink-0">
-                                            {canEdit &&
-                                              onNavigateAssignSessions && (
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onNavigateAssignSessions(
-                                                      session.session_id,
-                                                    );
-                                                  }}
-                                                  className="text-xs font-bold text-slate-600 bg-slate-100 hover:bg-brand-50 hover:text-brand-600 px-3 py-1.5 rounded-lg transition-colors border border-slate-200"
-                                                >
-                                                  Edit Session
-                                                </button>
-                                              )}
-                                            <div
-                                              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${isExpanded ? "bg-brand-100 text-brand-600 rotate-180" : "bg-slate-50 text-slate-400"}`}
-                                            >
-                                              <ChevronDown className="w-5 h-5" />
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        {/* Chair Teaser (Collapsed View) */}
-                                        {!isExpanded && session.chair && (
-                                          <div className="mt-3 flex items-center gap-2 text-sm text-slate-500 animate-in fade-in duration-300">
-                                            <span className="text-xs font-semibold uppercase text-slate-400">
-                                              Chair:
-                                            </span>
-                                            <div className="flex items-center gap-2">
-                                              {session.chair.avatar_url ? (
-                                                <img
-                                                  src={session.chair.avatar_url}
-                                                  className="w-5 h-5 rounded-full object-cover"
-                                                  alt=""
-                                                />
-                                              ) : (
-                                                <div className="w-5 h-5 rounded-full bg-brand-100 text-brand-600 text-[10px] flex items-center justify-center font-bold">
-                                                  {session.chair.full_name.charAt(
-                                                    0,
-                                                  )}
-                                                </div>
-                                              )}
-                                              <span className="font-medium text-slate-700">
-                                                {session.chair.full_name}
-                                              </span>
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-
-                                      {/* Expanded Body */}
-                                      {isExpanded && (
-                                        <div className="px-5 md:px-6 pb-6 animate-in slide-in-from-top-2 duration-300">
-                                          <hr className="border-slate-100 mb-6" />
-
-                                          {session.chair && (
-                                            <ChairSection
-                                              chair={session.chair}
-                                            />
-                                          )}
-
-                                          {/* Papers List */}
-                                          <div>
-                                            <h4 className="flex items-center text-sm font-bold text-slate-900 uppercase tracking-wide mb-4">
-                                              <FileText className="w-4 h-4 mr-2 text-brand-500" />
-                                              Presentations
-                                            </h4>
-
-                                            <div className="space-y-4">
-                                              {session.session_papers &&
-                                              session.session_papers.length >
-                                                0 ? (
-                                                session.session_papers.map(
-                                                  (sp, idx) => (
-                                                    <div
-                                                      key={sp.paper.paper_id}
-                                                      className="bg-slate-50 hover:bg-white border border-transparent hover:border-slate-200 hover:shadow-sm rounded-xl p-4 transition-all duration-200 group/paper"
-                                                    >
-                                                      <div className="flex gap-4">
-                                                        <div className="hidden sm:flex flex-col items-center justify-center w-8 pt-1">
-                                                          <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-500 text-xs font-bold flex items-center justify-center group-hover/paper:bg-brand-500 group-hover/paper:text-white transition-colors">
-                                                            {idx + 1}
-                                                          </div>
-                                                        </div>
-                                                        <div className="flex-grow">
-                                                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 mb-1">
-                                                            <h5 className="text-base font-bold text-slate-900 group-hover/paper:text-brand-700 transition-colors">
-                                                              {sp.paper.title}
-                                                            </h5>
-                                                            {(sp.start_time ||
-                                                              sp.end_time) && (
-                                                              <span className="text-[10px] font-mono font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded border border-brand-100 shrink-0 whitespace-nowrap">
-                                                                {sp.start_time
-                                                                  ? formatTimeOnly(
-                                                                      sp.start_time,
-                                                                    )
-                                                                  : ""}{" "}
-                                                                -{" "}
-                                                                {sp.end_time
-                                                                  ? formatTimeOnly(
-                                                                      sp.end_time,
-                                                                    )
-                                                                  : ""}
-                                                              </span>
-                                                            )}
-                                                          </div>
-                                                          <div className="flex items-center text-sm text-slate-600 mb-2">
-                                                            <User className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
-                                                            <span className="font-medium">
-                                                              {sp.paper.author
-                                                                ?.full_name ||
-                                                                "Unknown Author"}
-                                                            </span>
-                                                          </div>
-                                                          <p className="text-sm text-slate-500 leading-relaxed">
-                                                            {sp.paper.abstract}
-                                                          </p>
-                                                        </div>
-                                                      </div>
-                                                    </div>
-                                                  ),
-                                                )
-                                              ) : (
-                                                <div className="text-sm text-slate-400 italic px-4">
-                                                  No papers assigned yet.
-                                                </div>
-                                              )}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
+                          {/* Content Card */}
+                          <div
+                            className={`flex-grow bg-white rounded-2xl transition-all duration-300 border relative z-10 ${
+                              isExpanded
+                                ? "shadow-lg border-brand-200 ring-1 ring-brand-100 translate-x-1"
+                                : "shadow-sm border-slate-200 hover:shadow-md hover:border-slate-300"
+                            }`}
+                          >
+                            {/* Header (Clickable) */}
+                            <div
+                              onClick={() => toggleSession(session.session_id)}
+                              className="p-5 md:p-6 cursor-pointer"
+                            >
+                              <div className="flex justify-between items-start gap-4">
+                                <div className="space-y-2">
+                                  {/* Badges */}
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                                      <MapPin className="w-3 h-3 mr-1" />{" "}
+                                      {session.room_location}
+                                    </span>
                                   </div>
-                                );
-                              })}
+
+                                  <h3
+                                    className={`text-lg md:text-xl font-bold transition-colors ${isExpanded ? "text-brand-700" : "text-slate-900 group-hover:text-brand-600"}`}
+                                  >
+                                    {session.session_name}
+                                  </h3>
+                                </div>
+
+                                <div
+                                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 flex-shrink-0 ${isExpanded ? "bg-brand-100 text-brand-600 rotate-180" : "bg-slate-50 text-slate-400"}`}
+                                >
+                                  <ChevronDown className="w-5 h-5" />
+                                </div>
+                              </div>
+
+                              {/* Chair Teaser (Collapsed View) */}
+                              {!isExpanded && session.chair && (
+                                <div className="mt-3 flex items-center gap-2 text-sm text-slate-500 animate-in fade-in duration-300">
+                                  <span className="text-xs font-semibold uppercase text-slate-400">
+                                    Chair:
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    {session.chair.avatar_url ? (
+                                      <img
+                                        src={session.chair.avatar_url}
+                                        className="w-5 h-5 rounded-full object-cover"
+                                        alt=""
+                                      />
+                                    ) : (
+                                      <div className="w-5 h-5 rounded-full bg-brand-100 text-brand-600 text-[10px] flex items-center justify-center font-bold">
+                                        {session.chair.full_name.charAt(0)}
+                                      </div>
+                                    )}
+                                    <span className="font-medium text-slate-700">
+                                      {session.chair.full_name}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          )}
+
+                            {/* Expanded Body */}
+                            {isExpanded && (
+                              <div className="px-5 md:px-6 pb-6 animate-in slide-in-from-top-2 duration-300">
+                                <hr className="border-slate-100 mb-6" />
+
+                                {session.chair && (
+                                  <ChairSection chair={session.chair} />
+                                )}
+
+                                {/* Papers List */}
+                                <div>
+                                  <h4 className="flex items-center text-sm font-bold text-slate-900 uppercase tracking-wide mb-4">
+                                    <FileText className="w-4 h-4 mr-2 text-brand-500" />
+                                    Presentations
+                                  </h4>
+
+                                  <div className="space-y-4">
+                                    {session.session_papers &&
+                                    session.session_papers.length > 0 ? (
+                                      session.session_papers.map((sp, idx) => (
+                                        <div
+                                          key={sp.paper.paper_id}
+                                          className="bg-slate-50 hover:bg-white border border-transparent hover:border-slate-200 hover:shadow-sm rounded-xl p-4 transition-all duration-200 group/paper"
+                                        >
+                                          <div className="flex gap-4">
+                                            <div className="hidden sm:flex flex-col items-center justify-center w-8 pt-1">
+                                              <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-500 text-xs font-bold flex items-center justify-center group-hover/paper:bg-brand-500 group-hover/paper:text-white transition-colors">
+                                                {idx + 1}
+                                              </div>
+                                            </div>
+                                            <div className="flex-grow">
+                                              <h5 className="text-base font-bold text-slate-900 mb-1 group-hover/paper:text-brand-700 transition-colors">
+                                                {sp.paper.title}
+                                              </h5>
+                                              <div className="flex items-center text-sm text-slate-600 mb-2">
+                                                <User className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
+                                                <span className="font-medium">
+                                                  {sp.paper.author?.full_name ||
+                                                    "Unknown Author"}
+                                                </span>
+                                              </div>
+                                              <p className="text-sm text-slate-500 leading-relaxed">
+                                                {sp.paper.abstract}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <div className="text-sm text-slate-400 italic px-4">
+                                        No papers assigned yet.
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
+                      </React.Fragment>
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -871,7 +931,10 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({
                   {new Date(conference.start_date).toLocaleDateString()}.
                 </p>
 
-                <Button className="w-full justify-center bg-white text-brand-700 hover:bg-brand-50 border-none shadow-none font-bold">
+                <Button
+                  onClick={handleOpenRegisterModal}
+                  className="w-full justify-center bg-white text-brand-700 hover:bg-brand-50 border-none shadow-none font-bold"
+                >
                   Register Now <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
               </div>
@@ -905,6 +968,317 @@ const ConferenceDetail: React.FC<ConferenceDetailProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Registration Modal */}
+      {isRegisterModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center flex-shrink-0">
+              <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                <Ticket className="w-5 h-5 text-brand-600" />
+                {registerStep === "tickets"
+                  ? "Choose Your Ticket"
+                  : "Confirm & Pay"}
+              </h3>
+              <button
+                onClick={() => setIsRegisterModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 rounded-full p-1 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 overflow-y-auto flex-grow">
+              {!userEmail ? (
+                <div className="text-center py-10">
+                  <AlertCircle className="w-12 h-12 mx-auto text-amber-400 mb-4" />
+                  <p className="font-bold text-slate-800 text-lg mb-1">
+                    Login Required
+                  </p>
+                  <p className="text-slate-500 text-sm">
+                    Please log in to register for this conference.
+                  </p>
+                </div>
+              ) : ticketsLoading ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-brand-600 animate-spin mb-3" />
+                  <p className="text-slate-500 text-sm">
+                    Loading available tickets…
+                  </p>
+                </div>
+              ) : registerStep === "tickets" ? (
+                <>
+                  {availableTickets.length === 0 ? (
+                    <div className="text-center py-10">
+                      <Ticket className="w-12 h-12 mx-auto text-slate-300 mb-4" />
+                      <p className="font-semibold text-slate-700 mb-1">
+                        No tickets available
+                      </p>
+                      <p className="text-slate-500 text-sm">
+                        There are no active tickets for this conference yet.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <p className="text-sm text-slate-500 mb-2">
+                        Select the ticket you'd like to purchase.
+                      </p>
+                      {availableTickets.map((ticket) => {
+                        const soldOut =
+                          ticket.quantity_limit !== null &&
+                          (ticket.sold_quantity || 0) >= ticket.quantity_limit;
+                        const isSelected =
+                          selectedTicketId === ticket.ticket_id;
+                        const remaining =
+                          ticket.quantity_limit !== null
+                            ? ticket.quantity_limit -
+                              (ticket.sold_quantity || 0)
+                            : null;
+
+                        return (
+                          <div
+                            key={ticket.ticket_id}
+                            onClick={() =>
+                              !soldOut && setSelectedTicketId(ticket.ticket_id)
+                            }
+                            className={`rounded-xl border-2 p-4 transition-all ${
+                              soldOut
+                                ? "border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed"
+                                : isSelected
+                                  ? "border-brand-500 bg-brand-50 cursor-pointer shadow-md"
+                                  : "border-slate-200 hover:border-brand-300 hover:bg-slate-50 cursor-pointer"
+                            }`}
+                          >
+                            <div className="flex justify-between items-start gap-3">
+                              <div className="flex items-start gap-3 flex-grow min-w-0">
+                                <div
+                                  className={`mt-0.5 w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                                    isSelected
+                                      ? "border-brand-500 bg-brand-500"
+                                      : "border-slate-300"
+                                  }`}
+                                >
+                                  {isSelected && (
+                                    <CheckCircle className="w-3 h-3 text-white" />
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-bold text-slate-900">
+                                    {ticket.ticket_name}
+                                  </p>
+                                  {ticket.description && (
+                                    <p className="text-sm text-slate-500 mt-0.5 line-clamp-2">
+                                      {ticket.description}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <p className="font-extrabold text-brand-600 text-lg">
+                                  {ticket.price
+                                    ? new Intl.NumberFormat("vi-VN", {
+                                        style: "currency",
+                                        currency: "VND",
+                                      }).format(ticket.price)
+                                    : "Free"}
+                                </p>
+                                {soldOut ? (
+                                  <span className="text-xs font-semibold text-red-500">
+                                    Sold Out
+                                  </span>
+                                ) : remaining !== null ? (
+                                  <span className="text-xs text-slate-400">
+                                    {remaining} left
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            {ticket.sessions.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-slate-200">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                                  Included Sessions
+                                </p>
+                                <div className="space-y-1.5">
+                                  {ticket.sessions.map((s) => (
+                                    <div
+                                      key={s.session_id}
+                                      className="flex items-center gap-2 text-xs text-slate-600"
+                                    >
+                                      <Clock className="w-3 h-3 text-brand-400 flex-shrink-0" />
+                                      <span className="font-medium truncate">
+                                        {s.session_name}
+                                      </span>
+                                      <span className="text-slate-300">·</span>
+                                      <span className="text-slate-400 whitespace-nowrap">
+                                        {formatTimeOnly(s.start_time)}
+                                      </span>
+                                      {s.room_location && (
+                                        <>
+                                          <span className="text-slate-300">
+                                            ·
+                                          </span>
+                                          <span className="text-slate-400 truncate">
+                                            {s.room_location}
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              ) : (
+                // ── Checkout step ──
+                (() => {
+                  const ticket = availableTickets.find(
+                    (t) => t.ticket_id === selectedTicketId,
+                  );
+                  return ticket ? (
+                    <div className="space-y-5">
+                      {/* Ticket summary */}
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
+                          Order Summary
+                        </p>
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="font-bold text-slate-900">
+                              {ticket.ticket_name}
+                            </p>
+                            {ticket.description && (
+                              <p className="text-sm text-slate-500 mt-0.5">
+                                {ticket.description}
+                              </p>
+                            )}
+                          </div>
+                          <p className="font-extrabold text-brand-600 text-xl ml-4">
+                            {ticket.price
+                              ? new Intl.NumberFormat("vi-VN", {
+                                  style: "currency",
+                                  currency: "VND",
+                                }).format(ticket.price)
+                              : "Free"}
+                          </p>
+                        </div>
+                        {ticket.sessions.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-slate-200 space-y-1">
+                            {ticket.sessions.map((s) => (
+                              <div
+                                key={s.session_id}
+                                className="flex items-center gap-2 text-xs text-slate-500"
+                              >
+                                <Clock className="w-3 h-3 text-brand-400 flex-shrink-0" />
+                                <span>{s.session_name}</span>
+                                <span className="text-slate-300">·</span>
+                                <span>{formatTimeOnly(s.start_time)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Payment method */}
+                      <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0">
+                          <CreditCard className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-800">
+                            Pay via PayOS
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            You'll be redirected to PayOS secure checkout to
+                            complete your payment.
+                          </p>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-slate-400 text-center">
+                        After successful payment, a confirmation email with your
+                        QR code will be sent to{" "}
+                        <span className="font-medium text-slate-600">
+                          {userEmail}
+                        </span>
+                        .
+                      </p>
+                    </div>
+                  ) : null;
+                })()
+              )}
+
+              {registerError && (
+                <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {registerError}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-5 border-t border-slate-100 flex gap-3 flex-shrink-0">
+              {!userEmail ? (
+                <Button
+                  onClick={() => setIsRegisterModalOpen(false)}
+                  className="w-full justify-center"
+                >
+                  Close
+                </Button>
+              ) : registerStep === "checkout" ? (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setRegisterStep("tickets")}
+                    className="flex-1 justify-center"
+                    disabled={registerLoading}
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    onClick={handleProceedToCheckout}
+                    className="flex-1 justify-center"
+                    disabled={registerLoading}
+                  >
+                    {registerLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <CreditCard className="w-4 h-4 mr-2" />
+                    )}
+                    Pay with PayOS
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsRegisterModalOpen(false)}
+                    className="flex-1 justify-center"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => setRegisterStep("checkout")}
+                    className="flex-1 justify-center"
+                    disabled={
+                      !selectedTicketId || availableTickets.length === 0
+                    }
+                  >
+                    Continue <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Check-in Scanner Modal */}
       {isCheckinModalOpen && (

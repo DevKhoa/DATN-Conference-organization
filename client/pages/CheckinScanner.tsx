@@ -19,6 +19,8 @@ interface ScanResult {
   message: string;
 }
 
+const BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
+
 const CheckinScanner: React.FC<CheckinScannerProps> = ({
   onNavigateBack,
   sessionIds,
@@ -104,7 +106,7 @@ const CheckinScanner: React.FC<CheckinScannerProps> = ({
 
   const processCheckin = async (registrationId: number) => {
     try {
-      const response = await fetch("http://localhost:8080/checkin", {
+      const response = await fetch(`${BASE_URL}/checkin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

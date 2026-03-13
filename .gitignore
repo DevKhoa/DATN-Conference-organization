@@ -246,3 +246,4 @@ Credentials/
 Test/
 *Test*
 *test*
+.vscode

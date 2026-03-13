@@ -24,7 +24,7 @@ interface CreateConferenceProps {
   userRoleId: number;
 }
 
-const BASE_API_URL = "http://localhost:8080";
+const BASE_API_URL = import.meta.env.VITE_API_BASE_URL as string;
 
 const CreateConference: React.FC<CreateConferenceProps> = ({
   onNavigateBack,
@@ -112,7 +112,6 @@ const CreateConference: React.FC<CreateConferenceProps> = ({
         ...restData, // Bao gồm cả open_for_papers
         keywords: keywords,
         banner_urls: [],
-        create_time: new Date().toISOString(),
       };
 
       const { data, error } = await supabase
