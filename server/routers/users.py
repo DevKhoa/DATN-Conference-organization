@@ -10,9 +10,9 @@ from fastapi import APIRouter, HTTPException, File, UploadFile
 from google.genai import types
 import serpapi
 
-from schema import UserDescriptionRequest, ScholarImportRequest, ScholarAuthor
-from utils import logger, supabase_client, genai_client, storage_client, EMBEDDING_MODEL_NAME, VECTOR_DIMENSION, MAX_CV_SIZE_MB, ALLOWED_IMAGE_EXTENSIONS, SERP_API_KEY, SCHOLAR_PROMPT, BUCKET_NAME
-from utils import valid_check, clean_text, extract_text_from_pdf, is_image_file
+from schema import UserDescriptionRequest, ScholarImportRequest, ScholarAuthor, CVBaseModel
+from utils import logger, supabase_client, genai_client, storage_client, EMBEDDING_MODEL_NAME, VECTOR_DIMENSION, MAX_CV_SIZE_MB, ALLOWED_IMAGE_EXTENSIONS, SERP_API_KEY, SCHOLAR_PROMPT, BUCKET_NAME, CV_RETRIEVER
+from utils import valid_check, clean_text, extract_text_from_pdf, is_image_file, format_cv_profile
 from file_storage import StorageClient
 
 router = APIRouter(tags=["users"])
@@ -93,18 +93,12 @@ async def upload_user_cv(
             validation = valid_check(temp_file_path, MAX_CV_SIZE_MB, ['.pdf'])
             if not validation['valid']:
                 logger.warning(f"Invalid file: {validation['code']}")
-                return {
-                    "status": "error",
-                    "message": f"File validation failed: {validation['code']}"
-                }
+                raise HTTPException(status_code=400, detail=f"File validation failed: {validation['code']}")
 
             raw_text = extract_text_from_pdf(temp_file_path)
             
             if not raw_text.strip():
-                return {
-                    "status": "error", 
-                    "message": "Could not extract text from PDF. The file might be an image-only PDF."
-                }
+                raise HTTPException(status_code=400, detail="Could not extract text from PDF. The file might be an image-only PDF.")
                 
             description_text = clean_text(raw_text)
 
@@ -122,36 +116,54 @@ async def upload_user_cv(
 
             except Exception as e:
                 logger.error(f"GenAI Embedding Failed: {e}")
-                return {
-                    "status": "error",
-                    "message": f"Failed to generate embedding: {str(e)}"
-                }
+                raise HTTPException(status_code=500, detail=f"Failed to generate embedding: {str(e)}")
+            
+            final_description = description_text 
+            
+            logger.info("Attempting to reformat CV description with AI...")
+            try:
+                AI_response = genai_client.models.generate_content(
+                    model='gemini-2.5-flash', 
+                    contents=[CV_RETRIEVER, description_text],
+                    config={
+                        "response_mime_type": "application/json",
+                        "response_json_schema": CVBaseModel.model_json_schema(),
+                    },
+                )
+
+                response_json = json.loads(AI_response.text)
+                cv_reformat = format_cv_profile(response_json)
+                
+                if cv_reformat: 
+                    final_description = cv_reformat
+                    logger.info("Successfully reformatted CV with AI.")
+                
+            except Exception as e:
+                logger.warning(f"GenAI Reformat Failed, falling back to raw text. Error: {e}")
 
             response = supabase_client.table("users").update({
-                "description": description_text,
+                "description": final_description, 
                 "description_embed": embedding_vector 
             }).eq("user_id", user_id).execute()
 
             if not response.data:
-                return {
-                    "status": "error",
-                    "message": f"User ID {user_id} not found."
-                }
+                raise HTTPException(status_code=404, detail=f"User ID {user_id} not found.")
 
             logger.info(f"Updated description and embedding for User {user_id}")
 
             return {
                 "status": "success",
-                "message": "CV uploaded, text extracted, and embedding updated successfully.",
-                "extracted_length": len(description_text)
+                "message": "CV uploaded and processed successfully.",
+                "ai_reformatted": final_description != description_text, 
+                "extracted_length": len(description_text),
+                "final_length": len(final_description)
             }
 
+    except HTTPException as he:
+        raise he
     except Exception as e:
         logger.error(f"API Error Upload CV: {str(e)}")
-        return {
-            "status": "error", 
-            "message": f"Internal Server Error: {str(e)}"
-        }
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 @router.post("/users/{user_id}/upload-avatar")
 async def upload_user_avatar_api(
@@ -268,29 +280,29 @@ async def import_scholar_profile(user_id: int, request: ScholarImportRequest):
         research_bio = json.loads(AI_response.text)
 
         author_profile = f"""
-        {author_name.upper()}
-        Affiliations: {author_affiliations}
+            ## {author_name.upper()}
 
-        Research Interests
-        {', '.join(interests).title()}
+            **Affiliations:** {author_affiliations}
 
-        Research Fields:
-        {'\n'.join([f"- {field}" for field in research_bio.get('research_fields', [])])}
+            ### Research Interests
+            {', '.join(interests).title()}
 
-        Research Directions
-        {'\n'.join([f"- {direction}" for direction in research_bio.get('research_directions', [])])}
+            ### Research Fields
+            {'\n'.join([f"- {field}" for field in research_bio.get('research_fields', [])])}
 
-        Research Themes
-        {'\n'.join([f"- {theme}" for theme in research_bio.get('research_themes', [])])}
-        """
-        cleaned_profile = author_profile.replace('-', '').replace('\n', ' ').strip()
-        
-        cleaned_profile = re.sub(r'\s+', ' ', cleaned_profile)
+            ### Research Directions
+            {'\n'.join([f"- {direction}" for direction in research_bio.get('research_directions', [])])}
+
+            ### Research Themes
+            {'\n'.join([f"- {theme}" for theme in research_bio.get('research_themes', [])])}
+            """.strip()
+
+        cleaned_text = '\n'.join([line.strip() for line in author_profile.strip().split('\n')])
 
         logger.info("Generating embedding for the cleaned profile...")
         embed_response = genai_client.models.embed_content(
             model=EMBEDDING_MODEL_NAME, 
-            contents=cleaned_profile,
+            contents=cleaned_text,
             config=types.EmbedContentConfig(
                 task_type="SEMANTIC_SIMILARITY",
                 output_dimensionality=VECTOR_DIMENSION 
@@ -300,7 +312,7 @@ async def import_scholar_profile(user_id: int, request: ScholarImportRequest):
 
         logger.info(f"Updating Supabase for User {user_id}...")
         update_res = supabase_client.table("users").update({
-            "description": author_profile.strip(),
+            "description": cleaned_text.strip(),
             "description_embed": embedding_vector
         }).eq("user_id", user_id).execute()
 
@@ -315,7 +327,7 @@ async def import_scholar_profile(user_id: int, request: ScholarImportRequest):
             "message": "Google Scholar profile analyzed and saved successfully.",
             "user_id": user_id,
             "author_name": author_name,
-            "profile_length": len(author_profile.strip())
+            "profile_length": len(cleaned_text.strip())
         }
 
     except HTTPException as he:
