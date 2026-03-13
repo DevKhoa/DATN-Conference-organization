@@ -821,41 +821,63 @@ interface TablePdfExportProps {
 export const TablePdfExport: React.FC<TablePdfExportProps> = ({
     tableData: td, elX, elY, elW, elH, px2pt,
 }) => {
-    const totalCW = td.colWidths.reduce((s, w) => s + w, 0);
-    const sc = totalCW > 0 ? elW / totalCW : 1;
-    const sCW = td.colWidths.map(w => w * sc);
-    const totalRH = td.rowHeights.reduce((s, h) => s + h, 0);
-    const rs = totalRH > 0 ? elH / totalRH : 1;
-    const sRH = td.rowHeights.map(h => h * rs);
-    const bw = td.borderOn ? td.borderThickness : 0;
+    const totalCW = td.colWidths?.reduce((s, w) => s + w, 0) || 0;
+    const sc = (totalCW > 0 && elW > 0) ? elW / totalCW : 1;
+    const sCW = (td.colWidths || []).map(w => w * sc);
+    const totalRH = td.rowHeights?.reduce((s, h) => s + h, 0) || 0;
+    const rs = (totalRH > 0 && elH > 0) ? elH / totalRH : 1;
+    const sRH = (td.rowHeights || []).map(h => h * rs);
+    const tableBw = td.borderOn ? (td.borderThickness ?? 1) : 0;
 
     const xP: number[] = [0]; for (let i = 0; i < sCW.length; i++) xP.push(xP[i] + sCW[i]);
     const yP: number[] = [0]; for (let i = 0; i < sRH.length; i++) yP.push(yP[i] + sRH[i]);
 
     return (
-        <View style={{ position: 'absolute', left: px2pt(elX, 'x'), top: px2pt(elY, 'y'), width: px2pt(elW, 'x'), height: px2pt(elH, 'y') }}>
-            {td.cells.map((row, ri) => row.map((cell, ci) => {
-                if (cell.hidden) return null;
+        <View style={{ position: 'absolute', left: px2pt(elX, 'x') || 0, top: px2pt(elY, 'y') || 0, width: px2pt(elW, 'x') || 0, height: px2pt(elH, 'y') || 0 }}>
+            {(td.cells || []).map((row, ri) => (row || []).map((cell, ci) => {
+                if (!cell || cell.hidden) return null;
                 const x = xP[ci], y = yP[ri];
-                const w = xP[ci + cell.colSpan] - x, h = yP[ri + cell.rowSpan] - y;
+                const w = (xP[ci + cell.colSpan] || 0) - x, h = (yP[ri + cell.rowSpan] || 0) - y;
                 const isHdr = td.headerHighlight && ri === 0;
                 const bg = cell.bgColor || (isHdr ? td.headerBgColor : undefined);
                 const tc = cell.fontColor || (isHdr ? '#fff' : '#1a202c');
                 const fs = cell.fontSize ?? (isHdr ? 9 : 8);
                 const isBold = cell.bold ?? isHdr;
+                const isItalic = cell.italic ?? false;
+                
+                // Borders logic: use per-cell borders if defined, else table default
+                const bt = (cell.borderTop ?? td.borderOn) ? (cell.borderWidth ?? tableBw) : 0;
+                const br = (cell.borderRight ?? td.borderOn) ? (cell.borderWidth ?? tableBw) : 0;
+                const bb = (cell.borderBottom ?? td.borderOn) ? (cell.borderWidth ?? tableBw) : 0;
+                const bl = (cell.borderLeft ?? td.borderOn) ? (cell.borderWidth ?? tableBw) : 0;
+
+                const isCustomFont = cell.fontFamily === 'Inter' || cell.fontFamily === 'Roboto';
+
                 return (
                     <View key={cell.id} style={{
-                        position: 'absolute', left: px2pt(x, 'x'), top: px2pt(y, 'y'),
-                        width: px2pt(w, 'x'), height: px2pt(h, 'y'),
-                        backgroundColor: bg, borderWidth: bw,
-                        borderColor: td.borderOn ? td.borderColor : 'transparent',
-                        padding: td.cellPadding * 0.75,
+                        position: 'absolute',
+                        left: px2pt(x, 'x') || 0,
+                        top: px2pt(y, 'y') || 0,
+                        width: px2pt(w, 'x') || 0,
+                        height: px2pt(h, 'y') || 0,
+                        backgroundColor: bg,
+                        borderTopWidth: px2pt(bt, 'y') || 0,
+                        borderRightWidth: px2pt(br, 'x') || 0,
+                        borderBottomWidth: px2pt(bb, 'y') || 0,
+                        borderLeftWidth: px2pt(bl, 'x') || 0,
+                        borderColor: cell.borderColor ?? td.borderColor,
+                        padding: px2pt((td.cellPadding || 4) * 0.75, 'y') || 0,
+                        overflow: 'hidden',
                     }}>
                         <PdfText style={{
-                            fontSize: fs,
-                            fontFamily: isBold ? 'Helvetica-Bold' : cell.italic ? 'Helvetica-Oblique' : 'Helvetica',
-                            color: tc, textAlign: cell.align,
-                        }}>{cell.text}</PdfText>
+                            fontSize: px2pt(fs, 'y') || 8,
+                            fontFamily: isCustomFont ? cell.fontFamily : 
+                                       (isBold ? 'Helvetica-Bold' : isItalic ? 'Helvetica-Oblique' : 'Helvetica'),
+                            fontWeight: (isCustomFont && isBold) ? 'bold' : 'normal',
+                            fontStyle: (isCustomFont && isItalic) ? 'italic' : 'normal',
+                            color: tc,
+                            textAlign: cell.align || 'left',
+                        }}>{cell.text ?? ''}</PdfText>
                     </View>
                 );
             }))}

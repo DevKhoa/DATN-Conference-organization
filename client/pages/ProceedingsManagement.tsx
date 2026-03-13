@@ -9,8 +9,28 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Button from '../components/ui/Button';
-import { Document, Page, Text, View, StyleSheet, Image, PDFViewer, PDFDownloadLink, pdf } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Image, PDFViewer, PDFDownloadLink, pdf, Font } from '@react-pdf/renderer';
 import { v4 as uuidv4 } from 'uuid';
+
+// Register fonts for Vietnamese support
+Font.register({
+    family: 'Inter',
+    fonts: [
+        { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfMZfOkw.ttf', fontWeight: 'normal' },
+        { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYMZfOkw.ttf', fontWeight: 'bold' },
+        { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFuYMZfOkw.ttf', fontStyle: 'italic' },
+    ]
+});
+
+// Also register Roboto just in case it's selected (standard in FontManager)
+Font.register({
+    family: 'Roboto',
+    fonts: [
+        { src: 'https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxKKTU1Kg.ttf', fontWeight: 'normal' },
+        { src: 'https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmWUlfBBc4AMP6lQ.ttf', fontWeight: 'bold' },
+        { src: 'https://fonts.gstatic.com/s/roboto/v30/KFOkCnqEu92Fr1Mu51xIIzIXKMny.ttf', fontStyle: 'italic' },
+    ]
+});
 import {
     TableData, CellCoord, createEmptyTable, TableEditorCanvas, TablePropertiesPanel,
     InsertTableModal, TablePdfExport, renderTableToCanvas,
@@ -34,10 +54,10 @@ interface KeynoteSpeaker {
 
 // ─── PDF Styles ────────────────────────────────────────────────────────────────
 const pdfStyles = StyleSheet.create({
-    page: { padding: '50pt 55pt', fontFamily: 'Helvetica', fontSize: 10, lineHeight: 1.5, color: '#1a202c' },
+    page: { padding: '50pt 55pt', fontFamily: 'Inter', fontSize: 10, lineHeight: 1.5, color: '#1a202c' },
     coverPage: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: '#1a3a6b', padding: 60 },
-    coverTag: { fontSize: 11, color: '#93c5fd', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 20, fontFamily: 'Helvetica' },
-    coverTitle: { fontSize: 30, fontFamily: 'Helvetica-Bold', color: '#ffffff', textAlign: 'center', lineHeight: 1.3, marginBottom: 16 },
+    coverTag: { fontSize: 11, color: '#93c5fd', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 20, fontFamily: 'Inter' },
+    coverTitle: { fontSize: 30, fontFamily: 'Inter', fontWeight: 'bold', color: '#ffffff', textAlign: 'center', lineHeight: 1.3, marginBottom: 16 },
     coverSubtitle: { fontSize: 13, color: '#bfdbfe', textAlign: 'center', marginBottom: 8 },
     coverDateLoc: { fontSize: 11, color: '#93c5fd', textAlign: 'center', marginBottom: 50 },
     coverDivider: { width: 60, height: 2, backgroundColor: '#60a5fa', marginBottom: 50 },
@@ -45,22 +65,22 @@ const pdfStyles = StyleSheet.create({
     coverLogos: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' },
 
     // TOC (SOICT 2025 style)
-    tocTitle: { fontSize: 24, fontFamily: 'Helvetica-Bold', color: '#2b5797', textAlign: 'center', marginBottom: 30, letterSpacing: 1 },
+    tocTitle: { fontSize: 24, fontFamily: 'Inter', fontWeight: 'bold', color: '#2b5797', textAlign: 'center', marginBottom: 30, letterSpacing: 1 },
     tocEntryRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 28, paddingLeft: 10 },
-    tocPageNum: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: '#3b6cb5', width: 48, marginRight: 14 },
-    tocLabel: { fontSize: 12, color: '#3b6cb5', fontFamily: 'Helvetica' },
+    tocPageNum: { fontSize: 22, fontFamily: 'Inter', fontWeight: 'bold', color: '#3b6cb5', width: 48, marginRight: 14 },
+    tocLabel: { fontSize: 12, color: '#3b6cb5', fontFamily: 'Inter' },
 
     // Section headings
-    sectionTitle: { fontSize: 15, fontFamily: 'Helvetica-Bold', marginTop: 0, marginBottom: 18, color: '#1a3a6b', textTransform: 'uppercase', letterSpacing: 1 },
+    sectionTitle: { fontSize: 15, fontFamily: 'Inter', fontWeight: 'bold', marginTop: 0, marginBottom: 18, color: '#1a3a6b', textTransform: 'uppercase', letterSpacing: 1 },
     sectionDivider: { height: 2, backgroundColor: '#1a3a6b', marginBottom: 18 },
     // Committee
-    roleHeader: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#1a3a6b', textTransform: 'uppercase', letterSpacing: 1, marginTop: 14, marginBottom: 4 },
+    roleHeader: { fontSize: 10, fontFamily: 'Inter', fontWeight: 'bold', color: '#1a3a6b', textTransform: 'uppercase', letterSpacing: 1, marginTop: 14, marginBottom: 4 },
     memberLine: { fontSize: 9.5, color: '#2d3748', marginBottom: 3, paddingLeft: 8 },
 
     // Program at a Glance — day bar
     glanceDayBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#1a3a6b', paddingVertical: 7, paddingHorizontal: 10, marginTop: 18, marginBottom: 0 },
-    glanceDayLeft: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#ffffff', textTransform: 'uppercase' },
-    glanceDayRight: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#ffffff' },
+    glanceDayLeft: { fontSize: 11, fontFamily: 'Inter', fontWeight: 'bold', color: '#ffffff', textTransform: 'uppercase' },
+    glanceDayRight: { fontSize: 11, fontFamily: 'Inter', fontWeight: 'bold', color: '#ffffff' },
     // Program at a Glance — table rows
     glanceRow: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#cbd5e0', paddingVertical: 6, paddingHorizontal: 4, alignItems: 'flex-start' },
     glanceColTime: { width: '18%', fontSize: 9, color: '#2d3748' },
@@ -69,27 +89,27 @@ const pdfStyles = StyleSheet.create({
 
     // Keynotes
     keynoteCard: { marginBottom: 30, padding: '16pt 0', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-    keynoteTitle: { fontSize: 13, fontFamily: 'Helvetica-Bold', color: '#1a3a6b', marginBottom: 6 },
+    keynoteTitle: { fontSize: 13, fontFamily: 'Inter', fontWeight: 'bold', color: '#1a3a6b', marginBottom: 6 },
     keynoteHeader: { flexDirection: 'row', marginBottom: 12, alignItems: 'flex-start' },
-    keynoteSpeaker: { fontSize: 11, fontFamily: 'Helvetica-Oblique', color: '#4a5568', marginBottom: 12 },
+    keynoteSpeaker: { fontSize: 11, fontFamily: 'Inter', fontStyle: 'italic', color: '#4a5568', marginBottom: 12 },
     keynotePhoto: { width: 90, height: 90, borderRadius: 45, marginRight: 15, objectFit: 'cover' },
     keynoteInfo: { flex: 1 },
-    abstractLabel: { fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: '#718096', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
+    abstractLabel: { fontSize: 8.5, fontFamily: 'Inter', fontWeight: 'bold', color: '#718096', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
     abstractText: { marginTop: 4, width: '100%', fontSize: 9.5, color: '#2d3748', lineHeight: 1.65, textAlign: 'justify' },
-    bioText: { fontSize: 9, color: '#4a5568', lineHeight: 1.6, textAlign: 'justify', marginTop: 8, fontFamily: 'Helvetica-Oblique' },
+    bioText: { fontSize: 9, color: '#4a5568', lineHeight: 1.6, textAlign: 'justify', marginTop: 8, fontFamily: 'Inter', fontStyle: 'italic' },
 
     // Detailed papers
     sessionHeader: { backgroundColor: '#eef2f7', padding: '8pt 10pt', marginBottom: 10, marginTop: 20 },
-    sessionName: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#1a3a6b' },
+    sessionName: { fontSize: 11, fontFamily: 'Inter', fontWeight: 'bold', color: '#1a3a6b' },
     sessionMeta: { fontSize: 8.5, color: '#718096', marginTop: 2 },
     paperBlock: { marginBottom: 20, paddingLeft: 12, borderLeftWidth: 3, borderLeftColor: '#93c5fd', width: '100%' },
-    paperTitle: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#1a202c', marginBottom: 3 },
-    paperAuthors: { fontSize: 9, fontFamily: 'Helvetica-Oblique', color: '#4a5568', marginBottom: 6 },
+    paperTitle: { fontSize: 11, fontFamily: 'Inter', fontWeight: 'bold', color: '#1a202c', marginBottom: 3 },
+    paperAuthors: { fontSize: 9, fontFamily: 'Inter', fontStyle: 'italic', color: '#4a5568', marginBottom: 6 },
 
     // General info
     infoSection: { marginBottom: 16 },
     infoLabelBar: { backgroundColor: '#3b5488', paddingVertical: 4, paddingHorizontal: 6, marginBottom: 4 },
-    infoLabelText: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#ffffff', textTransform: 'uppercase' },
+    infoLabelText: { fontSize: 10, fontFamily: 'Inter', fontWeight: 'bold', color: '#ffffff', textTransform: 'uppercase' },
     infoText: { fontSize: 10, color: '#1a202c', lineHeight: 1.5, paddingHorizontal: 2 },
 
     footerContainer: {
@@ -107,7 +127,7 @@ const pdfStyles = StyleSheet.create({
     footerTitle: {
         fontSize: 8,
         color: '#718096',
-        fontFamily: 'Helvetica',
+        fontFamily: 'Inter',
         maxWidth: '80%',
     },
     pageNumber: {
@@ -163,14 +183,14 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                 <Text style={pdfStyles.coverSubtitle}>{data.cover.conferenceName}</Text>
                 <Text style={pdfStyles.coverDateLoc}>{data.cover.date}  ·  {data.cover.location}</Text>
 
-                {data.cover.sponsorLogos?.length > 0 && (() => {
+                {data.cover.sponsorLogos?.length > 0 ? (() => {
                     const count = data.cover.sponsorLogos.length;
                     // Tính kích thước logo tự động để vừa 1 hàng (max width ~475pt với padding 60 mỗi bên)
                     const logoW = Math.min(80, Math.floor((475 - (count - 1) * 10) / count));
                     const logoH = Math.round(logoW * 0.75);
                     return (
                         <>
-                            <Text style={pdfStyles.coverSponsorLabel}>Sponsors &amp; Partners</Text>
+                            <Text style={pdfStyles.coverSponsorLabel}>Sponsors & Partners</Text>
                             <View style={pdfStyles.coverLogos}>
                                 {data.cover.sponsorLogos.map((logo: string, i: number) => (
                                     <Image key={i} src={logo} style={{ width: logoW, height: logoH, objectFit: 'contain', marginRight: i < count - 1 ? 10 : 0 }} />
@@ -178,7 +198,7 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                             </View>
                         </>
                     );
-                })()}
+                })() : null}
             </Page>
 
             {/* ── TABLE OF CONTENTS */}
@@ -188,13 +208,13 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                     const cn = data.cover.conferenceName || 'CONFERENCE';
                     const len = cn.length;
                     // Auto-scale to fill ~800pt height
-                    const fs = Math.max(16, Math.min(140, 800 / (len * 0.65)));
+                    const fs = Math.max(16, Math.min(140, 800 / (Math.max(1, len) * 0.65)));
                     // Fixed width 800
                     const tw = 800;
                     // Visual center x ≈ 40pt (left margin)
                     const lft = Math.round(40 - tw / 2);
                     // Visual center y ≈ 421 (A4 half height 842/2)
-                    const lineH = Math.round(fs * 1.4);
+                    const lineH = Math.round(Math.max(1, fs) * 1.4);
                     const tp = Math.round(421 - lineH / 2);
                     return (
                         <Text style={{
@@ -228,7 +248,7 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                     ? data.foreword.split('\n').filter((p: string) => p.trim()).map((p: string, i: number) => (
                         <Text key={i} style={{ marginBottom: 10, textAlign: 'justify', fontSize: 10, lineHeight: 1.7, color: '#2d3748' }}>{p.trim()}</Text>
                     ))
-                    : <Text style={{ color: '#718096', fontFamily: 'Helvetica-Oblique' }}>No foreword provided.</Text>
+                    : <Text style={{ color: '#718096', fontFamily: 'Inter', fontStyle: 'italic' }}>No foreword provided.</Text>
                 }
                 <View style={pdfStyles.footerContainer} fixed>
                     <Text style={pdfStyles.footerTitle}>{data.cover.conferenceName} </Text>
@@ -241,7 +261,7 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                 <Text style={pdfStyles.sectionTitle}>Organizing Committee</Text>
                 <View style={pdfStyles.sectionDivider} />
                 {Object.keys(committeeByRole).length === 0
-                    ? <Text style={{ color: '#718096', fontFamily: 'Helvetica-Oblique' }}>No committee members added.</Text>
+                    ? <Text style={{ color: '#718096', fontFamily: 'Inter', fontStyle: 'italic' }}>No committee members added.</Text>
                     : Object.entries(committeeByRole).map(([role, members], i) => (
                         <View key={i} >
                             <Text style={pdfStyles.roleHeader}>{role}</Text>
@@ -332,7 +352,7 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
             </Page>
 
             {/* ── KEYNOTE SPEAKERS ── */}
-            {data.keynotes?.length > 0 && (
+            {data.keynotes?.length > 0 ? (
                 <Page size="A4" style={pdfStyles.page}>
                     <Text style={pdfStyles.sectionTitle}>Keynote Speakers</Text>
                     <View style={pdfStyles.sectionDivider} />
@@ -340,22 +360,22 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                         <View key={i} style={pdfStyles.keynoteCard} wrap={false}>
                             {/* THÊM KHỐI HEADER NÀY ĐỂ HIỆN ẢNH KẾ BÊN TÊN */}
                             <View style={pdfStyles.keynoteHeader}>
-                                {k.photo && <Image src={k.photo} style={pdfStyles.keynotePhoto} />}
+                                {k.photo ? <Image src={k.photo} style={pdfStyles.keynotePhoto} /> : null}
                                 <View style={pdfStyles.keynoteInfo}>
                                     <Text style={pdfStyles.keynoteTitle}>{k.presentationTitle || 'Untitled Keynote'}</Text>
-                                    <Text style={pdfStyles.keynoteSpeaker}>{k.name}</Text>
+                                    <Text style={pdfStyles.keynoteSpeaker}>{k.name || 'Unknown Speaker'}</Text>
                                 </View>
                             </View>
 
-                            {k.abstract && (
-                                <>
+                            {k.abstract ? (
+                                <View>
                                     <Text style={pdfStyles.abstractLabel}>Abstract</Text>
                                     <Text style={pdfStyles.abstractText}>{k.abstract}</Text>
-                                </>
-                            )}
-                            {k.bio && (
+                                </View>
+                            ) : null}
+                            {k.bio ? (
                                 <Text style={pdfStyles.bioText}>{k.bio}</Text>
-                            )}
+                            ) : null}
                         </View>
                     ))}
                     <View style={pdfStyles.footerContainer} fixed>
@@ -363,7 +383,7 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                         <Text style={pdfStyles.pageNumber} render={({ pageNumber }) => `${pageNumber}`} />
                     </View>
                 </Page>
-            )}
+            ) : null}
 
             {/* ── DETAILED PROGRAM WITH ABSTRACTS ── */}
             <Page size="A4" style={pdfStyles.page}>
@@ -497,8 +517,9 @@ const EditorExportDoc = ({ pages, hf }: { pages: EditorPage[]; hf: HFConfig }) =
                             left: px2pt(el.x, 'x'), top: px2pt(el.y, 'y'),
                             width: px2pt(el.w, 'x'),
                             fontSize: px2pt(el.fontSize ?? 12, 'y'),
-                            fontFamily: el.bold ? 'Helvetica-Bold'
-                                : el.italic ? 'Helvetica-Oblique' : 'Helvetica',
+                            fontFamily: el.fontFamily === 'Inter' || el.fontFamily === 'Roboto' ? el.fontFamily : 'Inter',
+                            fontWeight: el.bold ? 'bold' : 'normal',
+                            fontStyle: el.italic ? 'italic' : 'normal',
                             color: el.color ?? '#000000',
                             textAlign: (el.align ?? 'left') as any,
                             ...(el.rotation ? { transform: `rotate(${el.rotation}deg)` } : {}),
@@ -632,6 +653,7 @@ const buildEditorPages = (data: any): EditorPage[] => {
             fontSize: opts.fontSize ?? Math.round(10 * scY),
             bold: opts.bold ?? false, italic: opts.italic ?? false,
             color: opts.color ?? '#1a202c', align: opts.align ?? 'left',
+            fontFamily: opts.fontFamily ?? 'Inter',
             zIndex: opts.zIndex !== undefined ? opts.zIndex : nzTxt(),
             isTocEntry: opts.isTocEntry ?? false, tocLabel: opts.tocLabel,
         };
@@ -654,6 +676,7 @@ const buildEditorPages = (data: any): EditorPage[] => {
             fontSize: opts.fontSize ?? Math.round(9 * scY),
             bold: opts.bold ?? false, italic: opts.italic ?? false,
             color: opts.color ?? '#1a202c', align: opts.align ?? 'left',
+            fontFamily: opts.fontFamily ?? 'Inter',
             zIndex: opts.zIndex !== undefined ? opts.zIndex : nzTxt(),
         };
         els.push(el); return el;
@@ -817,8 +840,8 @@ const buildEditorPages = (data: any): EditorPage[] => {
             const cells: any[][] = [];
             // Row 0: Day Header (top outer borders, inner bottom border as separator)
             const hr: any[] = [];
-            hr.push({ id: uuidv4(), text: dayLabel, align: 'left', colSpan: 1, rowSpan: 1, hidden: false, bgColor: '#2a4365', fontColor: '#ffffff', bold: true, fontSize: Math.round(12 * scY), borderBottom: true, borderRight: false, borderTop: true, borderLeft: true });
-            hr.push({ id: uuidv4(), text: dateLabel, align: 'right', colSpan: 2, rowSpan: 1, hidden: false, bgColor: '#2a4365', fontColor: '#ffffff', bold: true, fontSize: Math.round(12 * scY), borderBottom: true, borderLeft: false, borderTop: true, borderRight: true });
+            hr.push({ id: uuidv4(), text: dayLabel, align: 'left', colSpan: 1, rowSpan: 1, hidden: false, bgColor: '#2a4365', fontColor: '#ffffff', bold: true, fontSize: Math.round(12 * scY), borderBottom: true, borderRight: false, borderTop: true, borderLeft: true, fontFamily: 'Inter' });
+            hr.push({ id: uuidv4(), text: dateLabel, align: 'right', colSpan: 2, rowSpan: 1, hidden: false, bgColor: '#2a4365', fontColor: '#ffffff', bold: true, fontSize: Math.round(12 * scY), borderBottom: true, borderLeft: false, borderTop: true, borderRight: true, fontFamily: 'Inter' });
             hr.push({ id: uuidv4(), text: '', align: 'right', colSpan: 1, rowSpan: 1, hidden: true }); // covered by colSpan 2
             cells.push(hr);
 
@@ -831,16 +854,16 @@ const buildEditorPages = (data: any): EditorPage[] => {
 
                     // Time cell (merged if first of group, hidden otherwise)
                     if (si === 0) {
-                        r.push({ id: uuidv4(), text: group.time, align: 'left', colSpan: 1, rowSpan: sLen, hidden: false, fontColor: '#1a3a6b', bold: true, fontSize: Math.round(9 * scY), borderTop: false, borderRight: false, borderBottom: (gi === timeGroups.length - 1), borderLeft: true });
+                        r.push({ id: uuidv4(), text: group.time, align: 'left', colSpan: 1, rowSpan: sLen, hidden: false, fontColor: '#1a3a6b', bold: true, fontSize: Math.round(9 * scY), borderTop: false, borderRight: false, borderBottom: (gi === timeGroups.length - 1), borderLeft: true, fontFamily: 'Inter' });
                     } else {
                         r.push({ id: uuidv4(), text: '', align: 'left', colSpan: 1, rowSpan: 1, hidden: true });
                     }
 
                     // Topic
-                    r.push({ id: uuidv4(), text: s.topic || '', align: 'left', colSpan: 1, rowSpan: 1, hidden: false, fontColor: '#4a5568', fontSize: Math.round(9 * scY), borderTop: false, borderRight: false, borderLeft: false, borderBottom: isLastRow });
+                    r.push({ id: uuidv4(), text: s.topic || '', align: 'left', colSpan: 1, rowSpan: 1, hidden: false, fontColor: '#4a5568', fontSize: Math.round(9 * scY), borderTop: false, borderRight: false, borderLeft: false, borderBottom: isLastRow, fontFamily: 'Inter' });
 
                     // Location
-                    r.push({ id: uuidv4(), text: s.location || '', align: 'right', colSpan: 1, rowSpan: 1, hidden: false, fontColor: '#a0aec0', fontSize: Math.round(9 * scY), borderTop: false, borderLeft: false, borderRight: true, borderBottom: isLastRow });
+                    r.push({ id: uuidv4(), text: s.location || '', align: 'right', colSpan: 1, rowSpan: 1, hidden: false, fontColor: '#a0aec0', fontSize: Math.round(9 * scY), borderTop: false, borderLeft: false, borderRight: true, borderBottom: isLastRow, fontFamily: 'Inter' });
 
                     cells.push(r);
                 });
@@ -999,6 +1022,7 @@ const regenerateToc = (pages: EditorPage[]): EditorPage[] => {
         fontSize: vertFontSize,
         bold: true, italic: false,
         color: '#3b6cb5', align: 'center',
+        fontFamily: 'Inter',
         zIndex: nzTxt(),
         rotation: -90,
     });
@@ -1012,6 +1036,7 @@ const regenerateToc = (pages: EditorPage[]): EditorPage[] => {
         fontSize: Math.round(20 * scY),
         bold: true, italic: false,
         color: '#2b5797', align: 'center',
+        fontFamily: 'Inter',
         zIndex: nzTxt(),
     });
 
@@ -1029,6 +1054,7 @@ const regenerateToc = (pages: EditorPage[]): EditorPage[] => {
             fontSize: Math.round(18 * scY),
             bold: true, italic: false,
             color: '#3b6cb5', align: 'left',
+            fontFamily: 'Inter',
             zIndex: nzTxt(),
         });
         // Label
@@ -1040,6 +1066,7 @@ const regenerateToc = (pages: EditorPage[]): EditorPage[] => {
             fontSize: Math.round(10 * scY),
             bold: false, italic: false,
             color: '#3b6cb5', align: 'left',
+            fontFamily: 'Inter',
             zIndex: nzTxt(),
         });
         y += rowH;
@@ -1121,6 +1148,17 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState('cover');
+
+    // ── Autocomplete states ───────────────────────────────────────────────────
+    const [userSearchQuery, setUserSearchQuery] = useState('');
+    const [userSearchResults, setUserSearchResults] = useState<any[]>([]);
+    const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+    const [activeKeynoteId, setActiveKeynoteId] = useState<string | null>(null);
+
+    const [paperSearchQuery, setPaperSearchQuery] = useState('');
+    const [paperSearchResults, setPaperSearchResults] = useState<any[]>([]);
+    const [isSearchingPapers, setIsSearchingPapers] = useState(false);
+    const [activePaperKeynoteId, setActivePaperKeynoteId] = useState<string | null>(null);
 
     // ── PDF Editor state ──────────────────────────────────────────────────────
     const [edPages, setEdPages] = useState<EditorPage[]>([]);
@@ -1463,8 +1501,16 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
 
     const editorPdfDoc = useMemo(() => {
         const pagesToRender = debouncedEdPages.length > 0 ? debouncedEdPages : edPages;
+        // Avoid crashing if no pages exist yet
+        if (pagesToRender.length === 0) {
+            return (
+                <Document>
+                    <Page size="A4"><View style={{ padding: 40 }}><Text>No pages generated yet.</Text></View></Page>
+                </Document>
+            );
+        }
         return <EditorExportDoc pages={pagesToRender} hf={hf} />;
-    }, [debouncedEdPages, edPages.length === 0, hf]);
+    }, [debouncedEdPages, edPages, hf]);
 
     const procPdfDoc = useMemo(() => {
         return <ProceedingsDocument data={procData} />;
@@ -1654,6 +1700,75 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
     const removeKeynote = (id: string) => updateKeynotes(procData.keynotes.filter(k => k.id !== id));
     const patchKeynote = (id: string, patch: Partial<KeynoteSpeaker>) =>
         updateKeynotes(procData.keynotes.map(k => k.id === id ? { ...k, ...patch } : k));
+
+    const handleUserSearch = async (query: string) => {
+        setUserSearchQuery(query);
+        if (!query.trim()) {
+            setUserSearchResults([]);
+            return;
+        }
+        setIsSearchingUsers(true);
+        try {
+            const { data } = await supabase
+                .from('users')
+                .select('user_id, full_name, email, avatar_url, description')
+                .ilike('full_name', `%${query}%`)
+                .limit(10);
+            setUserSearchResults(data || []);
+        } catch (err) {
+            console.error('Failed to search users:', err);
+        } finally {
+            setIsSearchingUsers(false);
+        }
+    };
+
+    const handleUserSelect = async (kId: string, user: any) => {
+        let photoDataUrl = '';
+        if (user.avatar_url) {
+            try {
+                // Sử dụng hàm proxy có sẵn của tác giả để vượt qua CORS
+                photoDataUrl = await urlToBase64(user.avatar_url);
+            } catch (err) {
+                console.warn('Failed to fetch avatar for PDF. Clearing photo to prevent crash.', err);
+                photoDataUrl = '';
+            }
+        }
+
+        patchKeynote(kId, {
+            name: user.full_name || '',
+            photo: photoDataUrl,
+            bio: user.description || ''
+        });
+        setUserSearchQuery('');
+        setUserSearchResults([]);
+        setActiveKeynoteId(null);
+    };
+
+    const handlePaperSearch = (query: string) => {
+        setPaperSearchQuery(query);
+        if (!query.trim()) {
+            setPaperSearchResults([]);
+            return;
+        }
+        setIsSearchingPapers(true);
+
+        const results = procData.detailedSchedule.filter(p =>
+            (p.paperTitle || '').toLowerCase().includes(query.toLowerCase())
+        ).slice(0, 10);
+
+        setPaperSearchResults(results);
+        setIsSearchingPapers(false);
+    };
+
+    const handlePaperSelect = (kId: string, paper: any) => {
+        patchKeynote(kId, {
+            presentationTitle: paper.paperTitle || '',
+            abstract: paper.abstract || ''
+        });
+        setPaperSearchQuery('');
+        setPaperSearchResults([]);
+        setActivePaperKeynoteId(null);
+    };
 
     // Committee helpers
     const addCommitteeMember = () => updateCommittee([
@@ -2026,15 +2141,111 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                             className="block w-full text-[11px] text-slate-500 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-medium file:bg-indigo-50 file:text-indigo-600" />
                                                     </div>
                                                     <div className="col-span-2 space-y-3">
-                                                        <div>
+                                                        <div className="relative">
                                                             <label className={labelCls}>Speaker Name</label>
-                                                            <input className={fieldCls} value={k.name} placeholder="e.g. Prof. Vincent Wong"
-                                                                onChange={e => patchKeynote(k.id, { name: e.target.value })} />
+                                                            <input
+                                                                className={fieldCls}
+                                                                value={activeKeynoteId === k.id ? userSearchQuery : k.name}
+                                                                placeholder="e.g. Prof. Vincent Wong"
+                                                                onChange={e => {
+                                                                    if (activeKeynoteId !== k.id) {
+                                                                        setActiveKeynoteId(k.id);
+                                                                    }
+                                                                    handleUserSearch(e.target.value);
+                                                                    patchKeynote(k.id, { name: e.target.value });
+                                                                }}
+                                                                onFocus={() => {
+                                                                    setActiveKeynoteId(k.id);
+                                                                    setUserSearchQuery(k.name);
+                                                                }}
+                                                                onBlur={() => {
+                                                                    // Delay hiding to allow click on dropdown
+                                                                    setTimeout(() => {
+                                                                        if (activeKeynoteId === k.id) {
+                                                                            setActiveKeynoteId(null);
+                                                                            setUserSearchResults([]);
+                                                                        }
+                                                                    }, 200);
+                                                                }}
+                                                            />
+                                                            {activeKeynoteId === k.id && (userSearchResults.length > 0 || isSearchingUsers) && (
+                                                                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+                                                                    {isSearchingUsers ? (
+                                                                        <div className="px-4 py-3 text-xs text-slate-500 flex items-center gap-2">
+                                                                            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Searching users...
+                                                                        </div>
+                                                                    ) : (
+                                                                        <ul className="py-1">
+                                                                            {userSearchResults.map(user => (
+                                                                                <li
+                                                                                    key={user.user_id}
+                                                                                    className="px-4 py-2 hover:bg-indigo-50 cursor-pointer transition-colors"
+                                                                                    onClick={() => handleUserSelect(k.id, user)}
+                                                                                >
+                                                                                    <div className="flex items-center gap-2.5">
+                                                                                        <div className="w-6 h-6 rounded-full bg-slate-100 overflow-hidden shrink-0">
+                                                                                            {user.avatar_url ? (
+                                                                                                <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
+                                                                                            ) : (
+                                                                                                <Users className="w-3 h-3 m-auto text-slate-400 mt-1.5" />
+                                                                                            )}
+                                                                                        </div>
+                                                                                        <div className="min-w-0">
+                                                                                            <p className="text-sm font-medium text-slate-900 truncate">{user.full_name}</p>
+                                                                                            <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                        <div>
+                                                        <div className="relative">
                                                             <label className={labelCls}>Presentation Title</label>
-                                                            <input className={fieldCls} value={k.presentationTitle} placeholder="e.g. Machine Learning for Integrated Sensing and Communication"
-                                                                onChange={e => patchKeynote(k.id, { presentationTitle: e.target.value })} />
+                                                            <input
+                                                                className={fieldCls}
+                                                                value={activePaperKeynoteId === k.id ? paperSearchQuery : k.presentationTitle}
+                                                                placeholder="e.g. Machine Learning for Integrated Sensing and Communication"
+                                                                onChange={e => {
+                                                                    if (activePaperKeynoteId !== k.id) {
+                                                                        setActivePaperKeynoteId(k.id);
+                                                                    }
+                                                                    handlePaperSearch(e.target.value);
+                                                                    patchKeynote(k.id, { presentationTitle: e.target.value });
+                                                                }}
+                                                                onFocus={() => {
+                                                                    setActivePaperKeynoteId(k.id);
+                                                                    setPaperSearchQuery(k.presentationTitle);
+                                                                }}
+                                                                onBlur={() => {
+                                                                    setTimeout(() => {
+                                                                        if (activePaperKeynoteId === k.id) {
+                                                                            setActivePaperKeynoteId(null);
+                                                                            setPaperSearchResults([]);
+                                                                        }
+                                                                    }, 200);
+                                                                }}
+                                                            />
+                                                            {activePaperKeynoteId === k.id && paperSearchResults.length > 0 && (
+                                                                <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+                                                                    <ul className="py-1">
+                                                                        {paperSearchResults.map(paper => (
+                                                                            <li
+                                                                                key={paper.paper_id}
+                                                                                className="px-4 py-2.5 hover:bg-indigo-50 cursor-pointer transition-colors"
+                                                                                onClick={() => handlePaperSelect(k.id, paper)}
+                                                                            >
+                                                                                <div className="min-w-0">
+                                                                                    <p className="text-sm border-slate-900 font-medium line-clamp-2 leading-tight mb-1">{paper.paperTitle}</p>
+                                                                                    <p className="text-[10px] text-slate-500 truncate italic">{paper.authors}</p>
+                                                                                </div>
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                     <div className="col-span-3">
@@ -2171,7 +2382,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                 <p className="text-sm font-medium text-slate-600">
                                                     Render the current PDF into the visual editor
                                                 </p>
-                                                <button onClick={initEditor}
+                                                <button onClick={() => initEditor()}
                                                     className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-indigo-200">
                                                     Open in Editor
                                                 </button>
@@ -2525,10 +2736,10 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({ userRoleI
                                                                 {selEl.type === 'text' && (<>
                                                                     <div>
                                                                         <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Font Family & Size</label>
-                                                                        <FontSelector 
-                                                                            value={selEl.fontFamily ?? ''} 
-                                                                            onChange={f => patchEl(selEl.id, el => ({ ...el, fontFamily: f }))} 
-                                                                            className="mb-1.5" 
+                                                                        <FontSelector
+                                                                            value={selEl.fontFamily ?? ''}
+                                                                            onChange={f => patchEl(selEl.id, el => ({ ...el, fontFamily: f }))}
+                                                                            className="mb-1.5"
                                                                         />
                                                                         <input type="number" min={6} max={96} value={selEl.fontSize ?? 14}
                                                                             onChange={e => patchEl(selEl.id, el => ({ ...el, fontSize: Number(e.target.value) }))}
