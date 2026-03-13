@@ -18,14 +18,22 @@ import {
   Search,
   UserCheck,
   GripVertical,
+  Search as SearchIcon,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import Button from "../components/ui/Button";
 import { supabase } from "../lib/supabase";
+import dayjs from "dayjs";
+import customParseFormat from "dayjs/plugin/customParseFormat";
+
+dayjs.extend(customParseFormat);
 
 // --- Interfaces ---
 interface AssignSessionsProps {
   conferenceId: number;
   userRoleId: number;
+  initialSessionId?: number | null;
   onNavigateBack: () => void;
 }
 
@@ -36,6 +44,12 @@ interface Paper {
   author_name?: string;
 }
 
+interface SessionPaperDetail {
+  paper_id: number;
+  start_time: string;
+  end_time: string;
+}
+
 interface LocalSession {
   temp_id: string;
   db_id?: number;
@@ -44,7 +58,7 @@ interface LocalSession {
   end_time: string;
   room_location: string;
   is_ai_generated: boolean;
-  assigned_paper_ids: number[];
+  assigned_papers: SessionPaperDetail[];
   chair_person_id?: number;
 }
 
@@ -62,6 +76,7 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({
   conferenceId,
   userRoleId,
   onNavigateBack,
+  initialSessionId,
 }) => {
   const isAuthorized = userRoleId === 1 || userRoleId === 2;
 
@@ -69,6 +84,11 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  const [paperSearchQuery, setPaperSearchQuery] = useState("");
+  const [chairSearchQueries, setChairSearchQueries] = useState<
+    Record<string, string>
+  >({});
 
   const [acceptedPapers, setAcceptedPapers] = useState<Paper[]>([]);
   const [sessions, setSessions] = useState<LocalSession[]>([]);
@@ -92,12 +112,100 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({
     Record<string, ChairCandidate[]>
   >({});
 
+  const [expandedSessions, setExpandedSessions] = useState<
+    Record<string, boolean>
+  >({}); // Full view vs Partial (show 5)
+  const [hiddenPresentations, setHiddenPresentations] = useState<
+    Record<string, boolean>
+  >({}); // Totally hidden state
+
   useEffect(() => {
     if (isAuthorized && conferenceId) {
-      fetchAcceptedPapers();
-      fetchChairCandidates();
+      const loadInitialData = async () => {
+        setLoading(true);
+        await Promise.all([
+          fetchAcceptedPapers(),
+          fetchChairCandidates(),
+          fetchExistingSessions(),
+        ]);
+        setLoading(false);
+      };
+      loadInitialData();
     }
   }, [conferenceId, isAuthorized]);
+
+  const fetchExistingSessions = async () => {
+    try {
+      let query = supabase
+        .from("sessions")
+        .select(
+          `
+          *,
+          session_papers (
+            paper_id, presentation_order, start_time, end_time
+          )
+        `,
+        )
+        .eq("conf_id", conferenceId);
+
+      if (initialSessionId) {
+        query = query.eq("session_id", initialSessionId);
+      }
+
+      const { data: sessionData, error: sessionError } = await query.order(
+        "start_time",
+        { ascending: true },
+      );
+
+      if (sessionError) throw sessionError;
+
+      if (sessionData && sessionData.length > 0) {
+        const formattedSessions: LocalSession[] = sessionData.map((s) => {
+          let st = "";
+          if (s.start_time) {
+            const date = dayjs(s.start_time);
+            if (date.isValid()) {
+              st = date.format("YYYY-MM-DDTHH:mm");
+            }
+          }
+          let et = "";
+          if (s.end_time) {
+            const date = dayjs(s.end_time);
+            if (date.isValid()) {
+              et = date.format("YYYY-MM-DDTHH:mm");
+            }
+          }
+
+          const ap = (s.session_papers || [])
+            .sort(
+              (a: any, b: any) => a.presentation_order - b.presentation_order,
+            )
+            .map((p: any) => ({
+              paper_id: p.paper_id,
+              start_time: p.start_time
+                ? dayjs(p.start_time).format("HH:mm")
+                : "",
+              end_time: p.end_time ? dayjs(p.end_time).format("HH:mm") : "",
+            }));
+
+          return {
+            temp_id: Math.random().toString(36).substr(2, 9),
+            db_id: s.session_id,
+            session_name: s.session_name,
+            start_time: st,
+            end_time: et,
+            room_location: s.room_location,
+            is_ai_generated: s.is_ai_generated,
+            chair_person_id: s.chair_person_id,
+            assigned_papers: ap,
+          };
+        });
+        setSessions(formattedSessions);
+      }
+    } catch (err: any) {
+      console.error("Error fetching existing sessions:", err);
+    }
+  };
 
   const fetchAcceptedPapers = async () => {
     setLoading(true);
@@ -161,7 +269,7 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({
       end_time: "",
       room_location: "",
       is_ai_generated: false,
-      assigned_paper_ids: [],
+      assigned_papers: [],
     };
     setSessions([...sessions, newSession]);
   };
@@ -169,6 +277,25 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({
   const updateSession = (id: string, field: keyof LocalSession, value: any) => {
     setSessions((prev) =>
       prev.map((s) => (s.temp_id === id ? { ...s, [field]: value } : s)),
+    );
+  };
+
+  const updateSessionPaper = (
+    sessionId: string,
+    paperId: number,
+    field: keyof SessionPaperDetail,
+    value: string,
+  ) => {
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.temp_id !== sessionId) return s;
+        return {
+          ...s,
+          assigned_papers: s.assigned_papers.map((p) =>
+            p.paper_id === paperId ? { ...p, [field]: value } : p,
+          ),
+        };
+      }),
     );
   };
 
@@ -183,15 +310,134 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({
         if (s.temp_id !== sessionId) return s;
         return {
           ...s,
-          assigned_paper_ids: s.assigned_paper_ids.filter(
-            (id) => id !== paperId,
+          assigned_papers: s.assigned_papers.filter(
+            (p) => p.paper_id !== paperId,
           ),
         };
       }),
     );
   };
 
-  // --- DRAG AND DROP HANDLERS ---
+  // --- DRAG AND DROP// --- CUSTOM DATE/TIME PICKERS ---
+
+  const SimpleDateTimePicker = ({
+    value,
+    onChange,
+    placeholder,
+    className,
+  }: {
+    value: string;
+    onChange: (val: string) => void;
+    placeholder: string;
+    className?: string;
+  }) => {
+    // Try to parse the text value to a format suitable for datetime-local (YYYY-MM-DDTHH:mm)
+    let isoValue = "";
+    if (value) {
+      const parsed = dayjs(
+        value,
+        [
+          "DD/MM/YYYY hh:mmA",
+          "DD/MM/YYYY hh:mm A",
+          "DD/MM/YYYY HH:mm",
+          "YYYY-MM-DDTHH:mm",
+        ],
+        true,
+      );
+      if (parsed.isValid()) {
+        isoValue = parsed.format("YYYY-MM-DDTHH:mm");
+      }
+    }
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const rawVal = e.target.value; // YYYY-MM-DDTHH:mm
+      if (!rawVal) {
+        onChange("");
+        return;
+      }
+      const d = dayjs(rawVal);
+      if (d.isValid()) {
+        onChange(d.format("DD/MM/YYYY hh:mm A"));
+      } else {
+        onChange(rawVal);
+      }
+    };
+
+    return (
+      <div className="relative group w-full">
+        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
+        <input
+          type="datetime-local"
+          className={`w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all ${className || ""}`}
+          value={isoValue}
+          onChange={handleChange}
+          title={placeholder}
+        />
+        {/* Hidden text input just to hold custom string if user types it manually (not strictly needed if we enforce datetime-local) */}
+      </div>
+    );
+  };
+
+  const SimpleTimePicker = ({
+    value,
+    onChange,
+    placeholder,
+    className,
+  }: {
+    value: string;
+    onChange: (val: string) => void;
+    placeholder: string;
+    className?: string;
+  }) => {
+    // Try to parse time (hh:mmA, hh:mm A, HH:mm)
+    let timeValue = "";
+    if (value) {
+      const parsed = dayjs(
+        value,
+        ["hh:mmA", "hh:mm A", "HH:mm", "HH:mm:ss"],
+        true,
+      );
+      if (parsed.isValid()) {
+        timeValue = parsed.format("HH:mm");
+      } else {
+        // fallback try to parse just the time part if it has date
+        const parsedWithDate = dayjs(
+          value,
+          [
+            "DD/MM/YYYY hh:mmA",
+            "DD/MM/YYYY hh:mm A",
+            "DD/MM/YYYY HH:mm",
+            "YYYY-MM-DDTHH:mm",
+          ],
+          true,
+        );
+        if (parsedWithDate.isValid()) {
+          timeValue = parsedWithDate.format("HH:mm");
+        }
+      }
+    }
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const rawVal = e.target.value; // HH:mm
+      if (!rawVal) {
+        onChange("");
+        return;
+      }
+      onChange(rawVal);
+    };
+
+    return (
+      <input
+        type="time"
+        placeholder={placeholder}
+        className={`px-2 py-1 text-xs border border-slate-200 rounded-md focus:ring-1 focus:ring-indigo-500 outline-none ${className || ""}`}
+        value={timeValue}
+        onChange={handleChange}
+      />
+    );
+  };
+
+  // --- HELPERS ---
   const handleDragStart = (e: React.DragEvent, paperId: number) => {
     setDraggedPaperId(paperId);
     e.dataTransfer.setData("paperId", paperId.toString());
@@ -224,28 +470,43 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({
     const paperId = parseInt(e.dataTransfer.getData("paperId"), 10);
 
     if (!isNaN(paperId)) {
+      setHiddenPresentations((prev) => ({ ...prev, [targetSessionId]: false }));
+      const targetSession = sessions.find((s) => s.temp_id === targetSessionId);
+      if (targetSession && targetSession.assigned_papers.length >= 5) {
+        setExpandedSessions((prev) => ({ ...prev, [targetSessionId]: true }));
+      }
       setSessions((prev) =>
         prev.map((s) => {
           // Xóa paper khỏi session cũ nếu nó đang nằm ở session khác
           if (s.temp_id !== targetSessionId) {
             return {
               ...s,
-              assigned_paper_ids: s.assigned_paper_ids.filter(
-                (id) => id !== paperId,
+              assigned_papers: s.assigned_papers.filter(
+                (p) => p.paper_id !== paperId,
               ),
             };
           }
           // Thêm paper vào session đích (nếu chưa có)
-          if (!s.assigned_paper_ids.includes(paperId)) {
+          if (!s.assigned_papers.some((p) => p.paper_id === paperId)) {
             return {
               ...s,
-              assigned_paper_ids: [...s.assigned_paper_ids, paperId],
+              assigned_papers: [
+                ...s.assigned_papers,
+                { paper_id: paperId, start_time: "", end_time: "" },
+              ],
             };
           }
           return s;
         }),
       );
     }
+  };
+  const toggleExpand = (tempId: string) => {
+    setExpandedSessions((prev) => ({ ...prev, [tempId]: !prev[tempId] }));
+  };
+
+  const toggleHidden = (tempId: string) => {
+    setHiddenPresentations((prev) => ({ ...prev, [tempId]: !prev[tempId] }));
   };
   // -----------------------------
 
@@ -298,7 +559,11 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({
           end_time: "",
           room_location: "",
           is_ai_generated: true,
-          assigned_paper_ids: mappedIds,
+          assigned_papers: mappedIds.map((id) => ({
+            paper_id: id,
+            start_time: "",
+            end_time: "",
+          })),
         };
       });
 
@@ -314,9 +579,51 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({
   };
 
   const handleSaveSessions = async () => {
+    const formatToLocal = (dateStr: string) => {
+      if (!dateStr) return null;
+      // Tránh việc parse lệch múi giờ, datetime-local trả về YYYY-MM-DDTHH:mm
+      // Sử dụng format cố định để lưu thẳng vào TIMESTAMP (without timezone)
+      const parsed = dayjs(
+        dateStr,
+        [
+          "YYYY-MM-DDTHH:mm",
+          "DD/MM/YYYY hh:mmA",
+          "DD/MM/YYYY hh:mm A",
+          "DD/MM/YYYY HH:mm",
+        ],
+        true,
+      );
+      return parsed.isValid() ? parsed.format("YYYY-MM-DD HH:mm:ss") : dateStr;
+    };
+
+    const formatPaperTime = (timeStr: string, sessionLocalStart: string) => {
+      if (!timeStr) return null;
+      // timeStr từ native time picker sẽ có dạng HH:mm
+      const timeParsed = dayjs(
+        timeStr,
+        ["HH:mm", "hh:mmA", "hh:mm A", "HH:mm:ss"],
+        true,
+      );
+      if (timeParsed.isValid() && sessionLocalStart) {
+        const baseDate = dayjs(sessionLocalStart).format("YYYY-MM-DD");
+        return dayjs(`${baseDate} ${timeParsed.format("HH:mm:ss")}`).format(
+          "YYYY-MM-DD HH:mm:ss",
+        );
+      }
+      return timeStr;
+    };
+
     for (const s of sessions) {
       if (!s.session_name || !s.start_time || !s.end_time || !s.room_location) {
         setError(`Please fill in all details for session: ${s.session_name}`);
+        return;
+      }
+      const localStart = formatToLocal(s.start_time);
+      const localEnd = formatToLocal(s.end_time);
+      if (!dayjs(localStart).isValid() || !dayjs(localEnd).isValid()) {
+        setError(
+          `Invalid date format for session ${s.session_name}. Please use explicit format like 14/11/2025 08:30PM`,
+        );
         return;
       }
     }
@@ -330,13 +637,16 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({
       for (const s of sessions) {
         let currentDbId = s.db_id;
 
+        const localStart = formatToLocal(s.start_time);
+        const localEnd = formatToLocal(s.end_time);
+
         if (currentDbId) {
           const { error: uError } = await supabase
             .from("sessions")
             .update({
               session_name: s.session_name,
-              start_time: s.start_time,
-              end_time: s.end_time,
+              start_time: localStart,
+              end_time: localEnd,
               room_location: s.room_location,
               conf_id: conferenceId,
             })
@@ -356,8 +666,8 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({
               {
                 conf_id: conferenceId,
                 session_name: s.session_name,
-                start_time: s.start_time,
-                end_time: s.end_time,
+                start_time: localStart,
+                end_time: localEnd,
                 room_location: s.room_location,
                 is_ai_generated: s.is_ai_generated,
                 chair_person_id: null,
@@ -370,11 +680,17 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({
           currentDbId = sData.session_id;
         }
 
-        if (s.assigned_paper_ids.length > 0) {
-          const paperInserts = s.assigned_paper_ids.map((pid, idx) => ({
+        if (s.assigned_papers.length > 0) {
+          const paperInserts = s.assigned_papers.map((p, idx) => ({
             session_id: currentDbId,
-            paper_id: pid,
+            paper_id: p.paper_id,
             presentation_order: idx + 1,
+            start_time: p.start_time
+              ? formatPaperTime(p.start_time, localStart)
+              : null,
+            end_time: p.end_time
+              ? formatPaperTime(p.end_time, localStart)
+              : null,
           }));
           const { error: pError } = await supabase
             .from("session_papers")
@@ -617,49 +933,74 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({
 
               {/* Unassigned Papers Pool */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden h-[600px]">
-                <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                  <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-slate-400" />
-                    Accepted Papers
-                  </h4>
-                  <span className="bg-slate-200 text-slate-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                    {acceptedPapers.length}
-                  </span>
+                <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col gap-3">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-slate-400" />
+                      Accepted Papers
+                    </h4>
+                    <span className="bg-slate-200 text-slate-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                      {acceptedPapers.length}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search papers by title or author..."
+                      className="w-full pl-9 pr-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-100 outline-none"
+                      value={paperSearchQuery}
+                      onChange={(e) => setPaperSearchQuery(e.target.value)}
+                    />
+                  </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                  {acceptedPapers.map((p) => {
-                    const isAssigned = sessions.some((s) =>
-                      s.assigned_paper_ids.includes(p.paper_id),
-                    );
-                    return (
-                      <div
-                        key={p.paper_id}
-                        draggable={!isAssigned}
-                        onDragStart={(e) => handleDragStart(e, p.paper_id)}
-                        onDragEnd={handleDragEnd}
-                        className={`p-4 rounded-xl border transition-all ${
-                          isAssigned
-                            ? "bg-slate-50 border-transparent opacity-50"
-                            : "bg-white border-slate-200 shadow-sm cursor-grab hover:shadow-md hover:border-indigo-300 active:cursor-grabbing"
-                        } ${draggedPaperId === p.paper_id ? "opacity-50 scale-95" : ""}`}
-                      >
-                        <div className="flex items-start gap-2">
-                          {!isAssigned && (
-                            <GripVertical className="w-4 h-4 text-slate-300 mt-0.5 shrink-0" />
-                          )}
-                          <div>
-                            <p className="font-medium text-slate-900 text-sm line-clamp-2 leading-tight mb-1.5">
-                              {p.title}
-                            </p>
-                            <p className="text-xs text-slate-500 font-medium">
-                              {p.author_name}
-                            </p>
+                  {acceptedPapers
+                    .filter(
+                      (p) =>
+                        !paperSearchQuery ||
+                        p.title
+                          .toLowerCase()
+                          .includes(paperSearchQuery.toLowerCase()) ||
+                        p.author_name
+                          ?.toLowerCase()
+                          .includes(paperSearchQuery.toLowerCase()),
+                    )
+                    .map((p) => {
+                      const isAssigned = sessions.some((s) =>
+                        s.assigned_papers.some(
+                          (ap) => ap.paper_id === p.paper_id,
+                        ),
+                      );
+                      return (
+                        <div
+                          key={p.paper_id}
+                          draggable={!isAssigned}
+                          onDragStart={(e) => handleDragStart(e, p.paper_id)}
+                          onDragEnd={handleDragEnd}
+                          className={`p-4 rounded-xl border transition-all ${
+                            isAssigned
+                              ? "bg-slate-50 border-transparent opacity-50"
+                              : "bg-white border-slate-200 shadow-sm cursor-grab hover:shadow-md hover:border-indigo-300 active:cursor-grabbing"
+                          } ${draggedPaperId === p.paper_id ? "opacity-50 scale-95" : ""}`}
+                        >
+                          <div className="flex items-start gap-2">
+                            {!isAssigned && (
+                              <GripVertical className="w-4 h-4 text-slate-300 mt-0.5 shrink-0" />
+                            )}
+                            <div>
+                              <p className="font-medium text-slate-900 text-sm line-clamp-2 leading-tight mb-1.5">
+                                {p.title}
+                              </p>
+                              <p className="text-xs text-slate-500 font-medium">
+                                {p.author_name}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
                   {acceptedPapers.length === 0 && (
                     <div className="text-center py-10 text-slate-400 text-sm">
                       No papers available.
@@ -732,35 +1073,29 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({
 
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 xl:ml-11">
                             <div className="relative group">
-                              <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
-                              <input
-                                type="datetime-local"
-                                className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
-                                value={session.start_time}
-                                onChange={(e) =>
+                              <SimpleDateTimePicker
+                                placeholder="Start Time"
+                                value={session.start_time || ""}
+                                onChange={(val) =>
                                   updateSession(
                                     session.temp_id,
                                     "start_time",
-                                    e.target.value,
+                                    val,
                                   )
                                 }
-                                title="Start Time"
                               />
                             </div>
                             <div className="relative group">
-                              <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
-                              <input
-                                type="datetime-local"
-                                className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
-                                value={session.end_time}
-                                onChange={(e) =>
+                              <SimpleDateTimePicker
+                                placeholder="End Time"
+                                value={session.end_time || ""}
+                                onChange={(val) =>
                                   updateSession(
                                     session.temp_id,
                                     "end_time",
-                                    e.target.value,
+                                    val,
                                   )
                                 }
-                                title="End Time"
                               />
                             </div>
                             <div className="relative group">
@@ -791,57 +1126,175 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({
 
                       {/* Papers List inside Session */}
                       <div
-                        className={`p-6 transition-colors ${dragOverSessionId === session.temp_id ? "bg-indigo-50/30" : ""}`}
+                        className={`transition-all duration-300 ${dragOverSessionId === session.temp_id ? "bg-indigo-50/20" : ""}`}
                       >
-                        <div className="flex items-center justify-between mb-4">
-                          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                            Presentations ({session.assigned_paper_ids.length})
-                          </p>
-                        </div>
-
-                        {session.assigned_paper_ids.length === 0 ? (
-                          <div className="py-8 border-2 border-dashed border-slate-200 rounded-xl text-center pointer-events-none">
-                            <p className="text-sm text-slate-400 font-medium">
-                              Drop papers here to assign to this session
+                        <div className="px-6 py-4 flex items-center justify-between border-t border-slate-100 bg-slate-50/30">
+                          <div className="flex items-center gap-2">
+                            <Layers className="w-4 h-4 text-slate-400" />
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                              Presentations ({session.assigned_papers.length})
                             </p>
                           </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {session.assigned_paper_ids.map((pid, pIdx) => {
-                              const p = acceptedPapers.find(
-                                (ap) => ap.paper_id === pid,
-                              );
-                              return p ? (
-                                <div
-                                  key={pid}
-                                  className="group flex justify-between items-center text-sm bg-white p-3 rounded-xl border border-slate-200 hover:border-slate-300 shadow-sm transition-all"
-                                  draggable
-                                  onDragStart={(e) => handleDragStart(e, pid)}
-                                  onDragEnd={handleDragEnd}
-                                >
-                                  <div className="flex items-start gap-3 overflow-hidden cursor-grab active:cursor-grabbing">
-                                    <GripVertical className="w-4 h-4 text-slate-300 shrink-0 mt-0.5" />
-                                    <span className="text-slate-400 font-medium text-xs mt-0.5">
-                                      {pIdx + 1}.
-                                    </span>
-                                    <span className="font-medium text-slate-700 truncate">
-                                      {p.title}
-                                    </span>
-                                  </div>
-                                  <button
-                                    onClick={() =>
-                                      removePaperFromSession(
-                                        session.temp_id,
-                                        pid,
-                                      )
-                                    }
-                                    className="text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 shrink-0 ml-2"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              ) : null;
-                            })}
+                          {session.assigned_papers.length > 0 && (
+                            <button
+                              onClick={() => toggleHidden(session.temp_id)}
+                              className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors uppercase"
+                            >
+                              {hiddenPresentations[session.temp_id] ? (
+                                <>
+                                  Show <ChevronDown className="w-3.5 h-3.5" />
+                                </>
+                              ) : (
+                                <>
+                                  Hide <ChevronUp className="w-3.5 h-3.5" />
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
+
+                        {!hiddenPresentations[session.temp_id] && (
+                          <div className="p-6 pt-2">
+                            {session.assigned_papers.length === 0 ? (
+                              <div className="py-10 border-2 border-dashed border-slate-200 rounded-2xl text-center bg-white/50 group/drop">
+                                <FileText className="w-8 h-8 text-slate-200 mx-auto mb-3 group-hover/drop:text-indigo-200 transition-colors" />
+                                <p className="text-sm text-slate-400 font-medium px-4">
+                                  Drag & drop papers from the sidebar to assign
+                                  them to this session
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {(() => {
+                                  const isExpanded =
+                                    expandedSessions[session.temp_id] ||
+                                    session.assigned_papers.length <= 5;
+                                  const papersToShow = isExpanded
+                                    ? session.assigned_papers
+                                    : session.assigned_papers.slice(0, 5);
+
+                                  return (
+                                    <>
+                                      {papersToShow.map((ap, pIdx) => {
+                                        const p = acceptedPapers.find(
+                                          (acc) => acc.paper_id === ap.paper_id,
+                                        );
+                                        return p ? (
+                                          <div
+                                            key={ap.paper_id}
+                                            className="group flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 hover:border-indigo-200 hover:shadow-md hover:shadow-indigo-500/5 transition-all duration-200"
+                                            draggable
+                                            onDragStart={(e) =>
+                                              handleDragStart(e, ap.paper_id)
+                                            }
+                                            onDragEnd={handleDragEnd}
+                                          >
+                                            <div className="flex items-start gap-4 overflow-hidden cursor-grab active:cursor-grabbing w-full lg:w-auto flex-grow group">
+                                              <div className="mt-1 bg-slate-50 text-slate-400 p-1.5 rounded-lg group-hover:bg-indigo-50 group-hover:text-indigo-400 transition-colors">
+                                                <GripVertical className="w-4 h-4 shrink-0" />
+                                              </div>
+                                              <div className="flex-grow min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                  <span className="text-indigo-600 font-bold text-xs uppercase bg-indigo-50 px-2 py-0.5 rounded-full">
+                                                    Paper #{pIdx + 1}
+                                                  </span>
+                                                  <span className="text-[10px] font-medium text-slate-400">
+                                                    ID: {p.paper_id}
+                                                  </span>
+                                                </div>
+                                                <h4 className="font-semibold text-slate-800 text-sm line-clamp-2 pr-2 leading-snug">
+                                                  {p.title}
+                                                </h4>
+                                                {p.author_name && (
+                                                  <p className="text-[11px] text-slate-500 mt-1 font-medium">
+                                                    By: {p.author_name}
+                                                  </p>
+                                                )}
+                                              </div>
+                                            </div>
+                                            <div className="flex items-center gap-3 w-full lg:w-auto shrink-0 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                                              <div className="flex items-center gap-1.5">
+                                                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                                <SimpleTimePicker
+                                                  placeholder="Start"
+                                                  className="w-16 h-8 !text-[11px]"
+                                                  value={ap.start_time || ""}
+                                                  onChange={(val) =>
+                                                    updateSessionPaper(
+                                                      session.temp_id,
+                                                      ap.paper_id,
+                                                      "start_time",
+                                                      val,
+                                                    )
+                                                  }
+                                                />
+                                                <span className="text-slate-300">
+                                                  -
+                                                </span>
+                                                <SimpleTimePicker
+                                                  placeholder="End"
+                                                  className="w-16 h-8 !text-[11px]"
+                                                  value={ap.end_time || ""}
+                                                  onChange={(val) =>
+                                                    updateSessionPaper(
+                                                      session.temp_id,
+                                                      ap.paper_id,
+                                                      "end_time",
+                                                      val,
+                                                    )
+                                                  }
+                                                />
+                                              </div>
+                                              <div className="w-px h-6 bg-slate-200 mx-1 hidden lg:block" />
+                                              <button
+                                                onClick={() =>
+                                                  removePaperFromSession(
+                                                    session.temp_id,
+                                                    ap.paper_id,
+                                                  )
+                                                }
+                                                className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-2 rounded-xl transition-all"
+                                                title="Remove paper"
+                                              >
+                                                <X className="w-4 h-4" />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ) : null;
+                                      })}
+
+                                      {session.assigned_papers.length > 5 && (
+                                        <div className="pt-2 flex justify-center">
+                                          <button
+                                            onClick={() =>
+                                              toggleExpand(session.temp_id)
+                                            }
+                                            className="group flex items-center gap-2 px-6 py-2.5 bg-white border border-slate-200 rounded-full text-xs font-bold text-slate-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all shadow-sm active:scale-95"
+                                          >
+                                            {expandedSessions[
+                                              session.temp_id
+                                            ] ? (
+                                              <>
+                                                Show Less{" "}
+                                                <ChevronUp className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" />
+                                              </>
+                                            ) : (
+                                              <>
+                                                Show{" "}
+                                                {session.assigned_papers
+                                                  .length - 5}{" "}
+                                                More Papers{" "}
+                                                <ChevronDown className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
+                                              </>
+                                            )}
+                                          </button>
+                                        </div>
+                                      )}
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -900,24 +1353,136 @@ const AssignSessions: React.FC<AssignSessionsProps> = ({
                       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                         Select Chair
                       </label>
-                      <select
-                        className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all cursor-pointer font-medium text-slate-700"
-                        value={session.chair_person_id || ""}
-                        onChange={(e) =>
-                          updateSession(
-                            session.temp_id,
-                            "chair_person_id",
-                            Number(e.target.value),
-                          )
-                        }
-                      >
-                        <option value="">-- Choose a candidate --</option>
-                        {availableChairs.map((c) => (
-                          <option key={c.user_id} value={c.user_id}>
-                            {c.full_name} • {c.organization}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="relative group">
+                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Search chair by name..."
+                          className="w-full pl-9 pr-3 py-2.5 text-sm font-medium bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
+                          value={
+                            // Hiển thị tên chair đã chọn nếu query trống và đã chọn
+                            chairSearchQueries[session.temp_id] !== undefined
+                              ? chairSearchQueries[session.temp_id]
+                              : session.chair_person_id
+                                ? availableChairs.find(
+                                    (c) =>
+                                      c.user_id === session.chair_person_id,
+                                  )?.full_name || ""
+                                : ""
+                          }
+                          onChange={(e) => {
+                            setChairSearchQueries({
+                              ...chairSearchQueries,
+                              [session.temp_id]: e.target.value,
+                            });
+                            // Nếu người dùng chủ động xóa trống, thì gỡ chair đang chọn
+                            if (e.target.value === "") {
+                              updateSession(
+                                session.temp_id,
+                                "chair_person_id",
+                                null,
+                              );
+                            }
+                          }}
+                          onFocus={() => {
+                            // Khi Focus, tự động clear Tên đang hiển thị để search cái mới
+                            if (
+                              session.chair_person_id &&
+                              chairSearchQueries[session.temp_id] === undefined
+                            ) {
+                              setChairSearchQueries({
+                                ...chairSearchQueries,
+                                [session.temp_id]: "",
+                              });
+                            }
+                          }}
+                        />
+
+                        {/* Autocomplete Dropdown */}
+                        {chairSearchQueries[session.temp_id] !== undefined && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 max-h-48 overflow-y-auto">
+                            {availableChairs.filter((c) =>
+                              c.full_name
+                                .toLowerCase()
+                                .includes(
+                                  chairSearchQueries[
+                                    session.temp_id
+                                  ].toLowerCase(),
+                                ),
+                            ).length === 0 ? (
+                              <div className="p-3 text-sm text-slate-500 text-center">
+                                No chairs found
+                              </div>
+                            ) : (
+                              availableChairs
+                                .filter((c) =>
+                                  c.full_name
+                                    .toLowerCase()
+                                    .includes(
+                                      chairSearchQueries[
+                                        session.temp_id
+                                      ].toLowerCase(),
+                                    ),
+                                )
+                                .map((c) => (
+                                  <div
+                                    key={c.user_id}
+                                    className="p-3 hover:bg-indigo-50 cursor-pointer flex justify-between items-center group transition-colors"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault(); // Ngăn input mất focus ngay lập tức
+                                      updateSession(
+                                        session.temp_id,
+                                        "chair_person_id",
+                                        c.user_id,
+                                      );
+                                      // Clear query, giữ trạng thái undefined để hiện tên
+                                      const newQ = { ...chairSearchQueries };
+                                      delete newQ[session.temp_id];
+                                      setChairSearchQueries(newQ);
+                                    }}
+                                  >
+                                    <div>
+                                      <div className="text-sm font-bold text-slate-700 group-hover:text-indigo-700">
+                                        {c.full_name}
+                                      </div>
+                                      <div className="text-xs text-slate-500">
+                                        {c.organization}
+                                      </div>
+                                    </div>
+                                    {session.chair_person_id === c.user_id && (
+                                      <CheckCircle className="w-4 h-4 text-indigo-600" />
+                                    )}
+                                  </div>
+                                ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Selected Badge */}
+                      {session.chair_person_id &&
+                        chairSearchQueries[session.temp_id] === undefined && (
+                          <div className="mt-3 inline-flex items-center gap-2 bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-sm font-medium animate-in fade-in transition-all">
+                            <UserCheck className="w-4 h-4" />
+                            {
+                              availableChairs.find(
+                                (c) => c.user_id === session.chair_person_id,
+                              )?.full_name
+                            }
+                            <button
+                              className="ml-1 text-indigo-400 hover:text-indigo-600"
+                              onClick={() =>
+                                updateSession(
+                                  session.temp_id,
+                                  "chair_person_id",
+                                  null,
+                                )
+                              }
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
                     </div>
                   </div>
 

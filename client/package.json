@@ -11,6 +11,7 @@
   "dependencies": {
     "@supabase/supabase-js": "2.39.7",
     "date-fns": "^4.1.0",
+    "dayjs": "^1.11.20",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.563.0",
     "react": "^19.2.4",
