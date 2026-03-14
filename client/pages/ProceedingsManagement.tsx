@@ -47,7 +47,6 @@ import {
   View,
   StyleSheet,
   Image,
-  PDFViewer,
   PDFDownloadLink,
   pdf,
   Font,
@@ -467,35 +466,35 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
 
         {data.cover.sponsorLogos?.length > 0
           ? (() => {
-              const count = data.cover.sponsorLogos.length;
-              // Tính kích thước logo tự động để vừa 1 hàng (max width ~475pt với padding 60 mỗi bên)
-              const logoW = Math.min(
-                80,
-                Math.floor((475 - (count - 1) * 10) / count),
-              );
-              const logoH = Math.round(logoW * 0.75);
-              return (
-                <>
-                  <Text style={pdfStyles.coverSponsorLabel}>
-                    Sponsors & Partners
-                  </Text>
-                  <View style={pdfStyles.coverLogos}>
-                    {data.cover.sponsorLogos.map((logo: string, i: number) => (
-                      <Image
-                        key={i}
-                        src={logo}
-                        style={{
-                          width: logoW,
-                          height: logoH,
-                          objectFit: "contain",
-                          marginRight: i < count - 1 ? 10 : 0,
-                        }}
-                      />
-                    ))}
-                  </View>
-                </>
-              );
-            })()
+            const count = data.cover.sponsorLogos.length;
+            // Tính kích thước logo tự động để vừa 1 hàng (max width ~475pt với padding 60 mỗi bên)
+            const logoW = Math.min(
+              80,
+              Math.floor((475 - (count - 1) * 10) / count),
+            );
+            const logoH = Math.round(logoW * 0.75);
+            return (
+              <>
+                <Text style={pdfStyles.coverSponsorLabel}>
+                  Sponsors & Partners
+                </Text>
+                <View style={pdfStyles.coverLogos}>
+                  {data.cover.sponsorLogos.map((logo: string, i: number) => (
+                    <Image
+                      key={i}
+                      src={logo}
+                      style={{
+                        width: logoW,
+                        height: logoH,
+                        objectFit: "contain",
+                        marginRight: i < count - 1 ? 10 : 0,
+                      }}
+                    />
+                  ))}
+                </View>
+              </>
+            );
+          })()
           : null}
       </Page>
 
@@ -760,36 +759,63 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
 
       {/* ── PROGRAM AT A GLANCE ── */}
       <Page size="A4" style={pdfStyles.page}>
-        <Text
-          style={{
-            fontSize: 22,
-            fontFamily: "Helvetica-Bold",
-            color: "#1a3a6b",
-            textTransform: "uppercase",
-            letterSpacing: 1,
-            textAlign: "center",
-            marginBottom: 14,
-          }}
-        >
+        <Text style={{ fontSize: 22, fontFamily: "Helvetica-Bold", color: "#1a3a6b", textTransform: "uppercase", letterSpacing: 1, textAlign: "center", marginBottom: 14 }}>
           Program at a Glance
         </Text>
 
-        {/* The Program at a Glance is now generated as 'table' elements within the editor pages. */}
-        {/* We no longer render it manually here. Provide a placeholder if there are no pages that were generated. */}
-        {Object.keys(scheduleByDate).length === 0 && (
-          <Text style={{ color: "#718096", fontFamily: "Helvetica-Oblique" }}>
-            No schedule data loaded.
-          </Text>
+        {Object.keys(scheduleByDate).length === 0 ? (
+          <Text style={{ color: "#718096", fontFamily: "Helvetica-Oblique" }}>No schedule data loaded.</Text>
+        ) : (
+          Object.entries(scheduleByDate).map(([dateStr, items], di) => {
+            // Group sessions by time slot (same as buildEditorPages)
+            const timeGroups: { time: string; sessions: any[] }[] = [];
+            (items as any[]).forEach((s: any) => {
+              const ex = timeGroups.find(g => g.time === s.time);
+              if (ex) ex.sessions.push(s);
+              else timeGroups.push({ time: s.time || "", sessions: [s] });
+            });
+            const parts = dateStr.split(" - ");
+            const dayLabel = (parts[0] || "").toUpperCase();
+            const dateLabel = parts.slice(1).join(" - ");
+            const borderC = "#e2e8f0";
+            const pad = { paddingVertical: 6, paddingHorizontal: 6 };
+            return (
+              <View key={di} style={{ marginBottom: 18, marginTop: di === 0 ? 0 : 6 }}>
+                {/* ── Day header: dark blue, dayLabel left / dateLabel right ── */}
+                <View style={{ flexDirection: "row", backgroundColor: "#2a4365", borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderColor: borderC }}>
+                  <Text style={{ width: "25%", color: "#ffffff", fontFamily: "Helvetica-Bold", fontSize: 9, ...pad }}>{dayLabel}</Text>
+                  <Text style={{ width: "75%", color: "#ffffff", fontFamily: "Helvetica-Bold", fontSize: 9, textAlign: "right", ...pad }}>{dateLabel}</Text>
+                </View>
+                {/* ── Session rows ── */}
+                {timeGroups.map((group, gi) =>
+                  group.sessions.map((s: any, si: number) => {
+                    const isLastRow = gi === timeGroups.length - 1 && si === group.sessions.length - 1;
+                    return (
+                      <View key={`${gi}-${si}`} wrap={false} style={{ flexDirection: "row", borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: isLastRow ? 1 : 0, borderColor: borderC }}>
+                        {/* Time — only show on first session of time group */}
+                        <Text style={{ width: "25%", color: "#1a3a6b", fontFamily: "Helvetica-Bold", fontSize: 8, ...pad }}>
+                          {si === 0 ? group.time : ""}
+                        </Text>
+                        {/* Topic */}
+                        <Text style={{ width: "55%", color: "#4a5568", fontFamily: "Helvetica", fontSize: 8, ...pad }}>
+                          {s.topic || ""}
+                        </Text>
+                        {/* Location */}
+                        <Text style={{ width: "20%", color: "#a0aec0", fontFamily: "Helvetica", fontSize: 8, textAlign: "right", ...pad }}>
+                          {s.location || ""}
+                        </Text>
+                      </View>
+                    );
+                  })
+                )}
+              </View>
+            );
+          })
         )}
 
         <View style={pdfStyles.footerContainer} fixed>
-          <Text style={pdfStyles.footerTitle}>
-            {data.cover.conferenceName}{" "}
-          </Text>
-          <Text
-            style={pdfStyles.pageNumber}
-            render={({ pageNumber }) => `${pageNumber}`}
-          />
+          <Text style={pdfStyles.footerTitle}>{data.cover.conferenceName}{" "}</Text>
+          <Text style={pdfStyles.pageNumber} render={({ pageNumber }) => `${pageNumber}`} />
         </View>
       </Page>
 
@@ -1194,14 +1220,19 @@ const handlePos = (dir: string): React.CSSProperties => ({
 });
 
 // ─── Shared canvas helper ─────────────────────────────────────────────────────
+// Module-level cache — tất cả các lần gọi giống nhau trả về string đã có sẵn
+const _solidColorCache = new Map<string, string>();
+
 const solidColorImg = (color: string, w: number, h: number): string => {
-  const c = document.createElement("canvas");
-  c.width = Math.max(1, Math.round(w));
-  c.height = Math.max(1, Math.round(h));
-  const ctx = c.getContext("2d")!;
-  ctx.fillStyle = color;
-  ctx.fillRect(0, 0, c.width, c.height);
-  return c.toDataURL("image/png");
+  const key = `${color}_${Math.round(w)}_${Math.round(h)}`;
+  if (_solidColorCache.has(key)) return _solidColorCache.get(key)!;
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h));
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = color; ctx.fillRect(0, 0, c.width, c.height);
+  const dataUrl = c.toDataURL('image/png');
+  _solidColorCache.set(key, dataUrl);
+  return dataUrl;
 };
 
 /** Convert an external image URL to base64 data URL (qua server proxy để bypass CORS) */
@@ -1990,7 +2021,7 @@ const buildEditorPages = (data: any): EditorPage[] => {
         const tH = Math.round(Math.max(tLines * 12 * scY, 14));
         const abText = p.abstract
           ? "ABSTRACT. " +
-            p.abstract.replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim()
+          p.abstract.replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim()
           : "";
         const abH = abText
           ? Math.round((Math.ceil(abText.length / 88) + 1) * 12 * scY)
@@ -2271,6 +2302,11 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("cover");
 
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
+  const [previewGenerating, setPreviewGenerating] = useState(false);
+  const prevBlobRef = useRef<string | null>(null); //  revoke URL c
+  const bgGenAbortRef = useRef<boolean>(false);
+
   // ── Autocomplete states ───────────────────────────────────────────────────
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [userSearchResults, setUserSearchResults] = useState<any[]>([]);
@@ -2294,9 +2330,11 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
   const [history, setHistory] = useState<EditorPage[][]>([]);
   // Hàm helper để lưu lại trạng thái trước khi thay đổi
   const saveHistory = () => {
-    setHistory((prev) =>
-      [JSON.parse(JSON.stringify(edPages)), ...prev].slice(0, 20),
-    ); // Lưu tối đa 20 bước
+    const snapshot = {
+      pageIndex: selPage,
+      page: JSON.parse(JSON.stringify(edPages[selPage])),
+    };
+    setHistory(prev => [snapshot as any, ...prev].slice(0, 20));
   };
 
   // Hàm để cuộn đến trang cụ thể khi click thumbnail
@@ -2343,6 +2381,8 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     sy: number;
     orig: EditorEl;
   } | null>(null);
+  /** Vị trí đang drag — không dùng state để tránh re-render 60fps */
+  const dragPosRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const cropDragRef = useRef<{
     active: boolean;
     mode: string;
@@ -2395,8 +2435,13 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
   }, []);
 
   useEffect(() => {
-    if (selectedConfId) loadFullConferenceData(selectedConfId);
-  }, [selectedConfId]);
+    if (selectedConfId) {
+      bgGenAbortRef.current = true;
+      setPreviewBlobUrl(null);
+      setPreviewGenerating(false);
+      loadFullConferenceData(selectedConfId);
+    }
+  }, [selectedConfId])
 
   useEffect(() => {
     if (!edReady || !scrollAreaRef.current) return;
@@ -2498,7 +2543,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
         /* ignore */
       }
 
-      setProcData({
+      const newProcData = {
         cover: {
           title:
             config?.proceedings_title ||
@@ -2515,7 +2560,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
           const dayDiff =
             Math.floor(
               (currentSlot.getTime() - confStart.getTime()) /
-                (1000 * 3600 * 24),
+              (1000 * 3600 * 24),
             ) + 1;
           return {
             id: uuidv4(),
@@ -2544,10 +2589,10 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
           // Time-only string (HH:MM) to show next to title
           const timeStr = sp?.start_time
             ? new Date(sp.start_time).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-              })
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            })
             : "";
 
           // Day label for grouping, e.g. "DAY 1 - FRIDAY, 12 DECEMBER 2025"
@@ -2582,7 +2627,8 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
             paper_id: p.paper_id,
           };
         }),
-      });
+      };
+      setProcData(newProcData);
 
       if (new Date(conf.end_date) > new Date()) {
         setError(
@@ -2592,16 +2638,10 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
 
       // Convert sponsor logo URLs thành base64 (tránh lỗi CORS trong react-pdf)
       const bannerUrls: string[] = Array.isArray(conf.banner_urls)
-        ? conf.banner_urls
-        : [];
+        ? conf.banner_urls : [];
       if (bannerUrls.length > 0) {
-        const base64Logos = await Promise.all(
-          bannerUrls.map((url) => urlToBase64(url)),
-        );
-        setProcData((d) => ({
-          ...d,
-          cover: { ...d.cover, sponsorLogos: base64Logos },
-        }));
+        const base64Logos = await Promise.all(bannerUrls.map(url => urlToBase64(url)));
+        setProcData(d => ({ ...d, cover: { ...d.cover, sponsorLogos: base64Logos } }));
       }
     } catch (err) {
       console.error(err);
@@ -2633,6 +2673,33 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     }
   };
 
+  // ✅ SAU — render toàn bộ, không chunk, không auto-trigger
+  const generateBlobInBackground = async (
+    data: typeof procData,
+    pages?: EditorPage[],
+  ) => {
+    bgGenAbortRef.current = false;
+    setPreviewGenerating(true);
+    try {
+      // Nếu có editor pages (edReady) → dùng EditorExportDoc để giữ inserted pages
+      // Nếu không → dùng ProceedingsDocument với toàn bộ papers (không cắt)
+      const doc = (pages && pages.length > 0)
+        ? <EditorExportDoc pages={pages} hf={hf} />
+        : <ProceedingsDocument data={data} />;
+
+      const blob = await pdf(doc).toBlob();
+      if (bgGenAbortRef.current) return;
+
+      if (prevBlobRef.current) URL.revokeObjectURL(prevBlobRef.current);
+      const url = URL.createObjectURL(blob);
+      prevBlobRef.current = url;
+      setPreviewBlobUrl(url);
+    } catch (e) {
+      console.error('Preview generation failed', e);
+    } finally {
+      if (!bgGenAbortRef.current) setPreviewGenerating(false);
+    }
+  };
   // ── Editor helpers ────────────────────────────────────────────────────────
 
   /** Build pages from procData, regenerate TOC, render thumbnails */
@@ -2642,12 +2709,16 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     try {
       let pages = buildEditorPages(procData);
       pages = regenerateToc(pages);
-      const pagesWithThumbs = await Promise.all(
-        pages.map(async (pg) => ({
-          ...pg,
-          bg: pg.bg || (await renderThumbnail(pg)),
-        })),
-      );
+      // Render tuần tự, update sidebar từng trang một (user thấy progress)
+      const pagesWithThumbs: EditorPage[] = [];
+      for (const pg of pages) {
+        const thumb = pg.bg || await renderThumbnail(pg);
+        pagesWithThumbs.push({ ...pg, bg: thumb });
+        // Update UI sau mỗi 3 trang để sidebar hiện dần
+        if (pagesWithThumbs.length % 3 === 0) {
+          setEdPages([...pagesWithThumbs]);
+        }
+      }
       setEdPages(pagesWithThumbs);
       setSelPage(0);
       setEdReady(true);
@@ -2659,15 +2730,13 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
   };
 
   // Auto-sync: Khi procData thay đổi và editor đã mở, rebuild lại editor pages
-  const procDataJson = JSON.stringify(procData);
+  const procDataRef = useRef(procData);
   useEffect(() => {
+    procDataRef.current = procData;
     if (!edReady) return;
-    const timer = setTimeout(() => {
-      initEditor(true);
-    }, 500); // debounce 500ms để tránh rebuild liên tục khi gõ
+    const timer = setTimeout(() => { initEditor(true); }, 500);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [procDataJson]);
+  }, [procData]);
 
   /** Regenerate TOC page and refresh its thumbnail */
   const syncToc = async () => {
@@ -2676,9 +2745,13 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     setEdPages(synced.map((pg, i) => (i === 1 ? { ...pg, bg: tocThumb } : pg)));
   };
 
-  /** Patch the currently selected page */
+  /** Patch the currently selected page — O(1), không iterate toàn bộ array */
   const patchPage = (fn: (p: EditorPage) => EditorPage) =>
-    setEdPages((ps) => ps.map((p, i) => (i === selPage ? fn(p) : p)));
+    setEdPages((ps) => {
+      const next = [...ps];
+      next[selPage] = fn(next[selPage]);
+      return next;
+    });
 
   /** Patch a specific element on the current page */
   const patchEl = (id: string, fn: (e: EditorEl) => EditorEl) =>
@@ -2752,9 +2825,18 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     return <EditorExportDoc pages={pagesToRender} hf={hf} />;
   }, [debouncedEdPages, edPages, hf]);
 
-  const procPdfDoc = useMemo(() => {
-    return <ProceedingsDocument data={procData} />;
+  // Thêm state debounced riêng cho Preview (tách khỏi procData live)
+  const [debouncedProcData, setDebouncedProcData] = useState(procData);
+
+  useEffect(() => {
+    // Chỉ rebuild PDF Preview sau khi user dừng chỉnh sửa 2s
+    const timer = setTimeout(() => setDebouncedProcData(procData), 2000);
+    return () => clearTimeout(timer);
   }, [procData]);
+
+  const procPdfDoc = useMemo(() => {
+    return <ProceedingsDocument data={debouncedProcData} />;
+  }, [debouncedProcData]);
 
   // Logic Del + Ctrl Z
   useEffect(() => {
@@ -2901,28 +2983,33 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     }
   };
 
-  /** Pointer move/resize on canvas */
+  /** Pointer move/resize — cập nhật DOM trực tiếp, KHÔNG setState (tránh re-render 60fps) */
   const onCanvasPointerMove = (e: React.PointerEvent) => {
     const d = dragRef.current;
     if (!d) return;
     const dx = e.clientX - d.sx,
       dy = e.clientY - d.sy;
-    patchEl(d.elId, (el) => {
-      if (d.type === "move")
-        return { ...el, x: d.orig.x + dx, y: d.orig.y + dy };
-      let { x, y, w, h } = d.orig;
-      if (d.dir.includes("e")) w = Math.max(30, d.orig.w + dx);
-      if (d.dir.includes("s")) h = Math.max(20, d.orig.h + dy);
-      if (d.dir.includes("w")) {
-        x = d.orig.x + dx;
-        w = Math.max(30, d.orig.w - dx);
-      }
-      if (d.dir.includes("n")) {
-        y = d.orig.y + dy;
-        h = Math.max(20, d.orig.h - dy);
-      }
-      return { ...el, x, y, w, h };
-    });
+
+    let newX = d.orig.x, newY = d.orig.y, newW = d.orig.w, newH = d.orig.h;
+    if (d.type === "move") {
+      newX = Math.max(0, d.orig.x + dx);
+      newY = Math.max(0, d.orig.y + dy);
+    } else {
+      if (d.dir.includes("e")) newW = Math.max(30, d.orig.w + dx);
+      if (d.dir.includes("s")) newH = Math.max(20, d.orig.h + dy);
+      if (d.dir.includes("w")) { newX = d.orig.x + dx; newW = Math.max(30, d.orig.w - dx); }
+      if (d.dir.includes("n")) { newY = d.orig.y + dy; newH = Math.max(20, d.orig.h - dy); }
+    }
+    dragPosRef.current = { x: newX, y: newY, w: newW, h: newH };
+
+    // Cập nhật DOM trực tiếp — không qua React state, 0 re-render
+    const elDom = document.getElementById(`editor-el-${d.elId}`);
+    if (elDom) {
+      elDom.style.left = newX + "px";
+      elDom.style.top = newY + "px";
+      elDom.style.width = newW + "px";
+      elDom.style.height = newH + "px";
+    }
   };
 
   const onElPointerDown = (
@@ -3230,11 +3317,10 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                      active
-                        ? "bg-indigo-50 text-indigo-700"
-                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                    }`}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${active
+                      ? "bg-indigo-50 text-indigo-700"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      }`}
                   >
                     <Icon
                       className={`w-4 h-4 shrink-0 ${active ? "text-indigo-600" : "text-slate-400"}`}
@@ -4028,40 +4114,71 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                   </div>
                 )}
 
-                {/* ─── PREVIEW ─── */}
-                {activeTab === "preview" && (
+                {activeTab === 'preview' && (
                   <div className="space-y-4">
-                    {/* Thêm nút Export PDF ngay trong tab Preview */}
-                    <div className="flex justify-end">
-                      <PDFDownloadLink
-                        document={edReady ? editorPdfDoc : procPdfDoc}
-                        fileName="conference-proceedings.pdf"
-                      >
-                        {({ loading }) => (
-                          <Button
-                            variant="primary"
-                            icon={Download}
-                            disabled={loading}
-                            className="shadow-md shadow-indigo-200"
-                          >
-                            {loading ? "Preparing Document..." : "Export PDF"}
-                          </Button>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                        {previewGenerating && <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />}
+                        {previewGenerating
+                          ? `Rendering ${procData.detailedSchedule.length} papers...`
+                          : previewBlobUrl
+                            ? 'Preview ready. Edit in PDF Editor, then click Sync View to update.'
+                            : 'Click Sync View to generate preview.'}
+                      </p>
+                      <div className="flex gap-2">
+                        {/* Sync View — explicit trigger, không auto-update khi edit */}
+                        <button
+                          onClick={() => generateBlobInBackground(procData, edReady ? edPages : undefined)}
+                          disabled={previewGenerating}
+                          className="flex items-center gap-1.5 px-3 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg disabled:opacity-50 transition-all shadow-md shadow-indigo-200"
+                        >
+                          {previewGenerating
+                            ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Rendering...</>
+                            : <><RefreshCw className="w-3.5 h-3.5" /> Sync View</>}
+                        </button>
+                        {previewBlobUrl && (
+                          <a href={previewBlobUrl} download="proceedings.pdf"
+                            className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-lg transition-all">
+                            <Download className="w-3.5 h-3.5" /> Export PDF
+                          </a>
                         )}
-                      </PDFDownloadLink>
+                      </div>
                     </div>
 
                     <div className="h-[720px] rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
-                      <PDFViewer
-                        width="100%"
-                        height="100%"
-                        className="border-none"
-                      >
-                        {/* Đồng bộ: Nếu người dùng đã mở Editor (edReady = true), Preview sẽ 
-                                                hiển thị EditorExportDoc (chứa các thay đổi visual). 
-                                                Nếu chưa, hiển thị bản ProceedingsDocument mặc định.
-                                                */}
-                        {edReady ? editorPdfDoc : procPdfDoc}
-                      </PDFViewer>
+                      {previewGenerating ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-slate-50">
+                          <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+                          <p className="text-sm text-slate-500">
+                            Rendering {procData.detailedSchedule.length} papers
+                            {edReady ? ` across ${edPages.length} pages` : ''}...
+                          </p>
+                          <p className="text-xs text-slate-400">UI remains responsive</p>
+                        </div>
+                      ) : previewBlobUrl ? (
+                        <iframe src={previewBlobUrl} width="100%" height="100%"
+                          className="border-none" title="PDF Preview" />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center gap-4 bg-slate-50">
+                          <FileText className="w-12 h-12 text-slate-300" />
+                          <p className="text-sm text-slate-500">
+                            {procData.detailedSchedule.length} papers
+                            · {procData.keynotes.length} keynotes
+                            {edReady ? ` · ${edPages.length} editor pages` : ''}
+                          </p>
+                          <button
+                            onClick={() => generateBlobInBackground(procData, edReady ? edPages : undefined)}
+                            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg flex items-center gap-2 transition-all shadow-md shadow-indigo-200"
+                          >
+                            <Eye className="w-4 h-4" /> Sync View
+                          </button>
+                          {edReady && (
+                            <p className="text-xs text-slate-400 text-center max-w-xs">
+                              Includes {edPages.length} pages from PDF Editor (with your inserted pages)
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -4105,10 +4222,9 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                       edPages.length > 0 &&
                       (() => {
                         const btnCls = (on: boolean) =>
-                          `p-2 rounded-lg border transition-all text-sm ${
-                            on
-                              ? "bg-indigo-600 border-indigo-600 text-white"
-                              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                          `p-2 rounded-lg border transition-all text-sm ${on
+                            ? "bg-indigo-600 border-indigo-600 text-white"
+                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
                           }`;
 
                         return (
@@ -4387,305 +4503,222 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                 </div>
                               )}
 
-                              {/* canvas scroll area */}
                               {/* Vùng cuộn chính của Editor */}
                               <div
                                 ref={scrollAreaRef}
                                 className="flex-1 overflow-auto flex flex-col items-center pt-6 pb-10 gap-10 bg-slate-300 transition-all"
+                                onPointerMove={onCanvasPointerMove}
+                                onPointerUp={() => {
+                                  // Commit vị trí cuối vào state khi thả chuột
+                                  if (dragRef.current && dragPosRef.current) {
+                                    const { x, y, w, h } = dragPosRef.current;
+                                    patchEl(dragRef.current.elId, el => ({ ...el, x, y, w, h }));
+                                  }
+                                  dragRef.current = null;
+                                  dragPosRef.current = null;
+                                }}
                                 onClick={() => {
                                   setSelElId(null);
                                   setEditingTxtId(null);
                                   setTableSelectedCells([]);
                                 }}
                               >
-                                {edPages.map((pg, idx) => (
-                                  <div
-                                    key={pg.id}
-                                    id={`editor-page-${idx}`} // ID để scroll Area tìm đến khi click thumbnail
-                                    data-page-index={idx} // Thuộc tính để IntersectionObserver nhận diện trang hiện tại
-                                    className={`editor-page-container relative shadow-2xl flex-shrink-0`}
-                                    style={{
-                                      width: CANVAS_W,
-                                      height: CANVAS_H,
-                                      backgroundColor: pg.bgColor || "#ffffff",
-                                    }}
-                                    onPointerMove={onCanvasPointerMove}
-                                    onPointerUp={() => {
-                                      dragRef.current = null;
-                                    }}
-                                  >
-                                    {/* 1. Page Background */}
+                                {edPages.map((pg, idx) => {
+                                  const isNearby = Math.abs(idx - selPage) <= 2;
+                                  return (
                                     <div
-                                      className="absolute inset-0"
+                                      key={pg.id}
+                                      id={`editor-page-${idx}`}
+                                      data-page-index={idx}
+                                      className="editor-page-container relative shadow-2xl flex-shrink-0"
                                       style={{
-                                        zIndex: 0,
-                                        backgroundColor:
-                                          pg.bgColor || "#ffffff",
+                                        width: CANVAS_W,
+                                        height: CANVAS_H,
+                                        backgroundColor: pg.bgColor || "#ffffff",
                                       }}
-                                    />
-
-                                    {/* 2. Header Preview (Dùng dữ liệu của từng trang pg) */}
-                                    {hf.headerText.trim() && idx > 1 && (
-                                      <div
-                                        className="absolute top-3 left-12 right-12 text-center text-[9px] text-slate-400 border-b border-slate-200 pb-0.5 pointer-events-none"
-                                        style={{ zIndex: 10 }}
-                                      >
-                                        {hf.headerText}
-                                      </div>
-                                    )}
-
-                                    {/* 3. Footer Preview (Số trang tính theo index idx của vòng lặp) */}
-                                    {(hf.footerText.trim() || hf.showPageNum) &&
-                                      idx > 1 && (
-                                        <div
-                                          className={`absolute bottom-3 left-12 right-12 flex items-center text-[9px] text-slate-400 border-t border-slate-200 pt-0.5 pointer-events-none ${hf.pageNumPos === "right" ? "justify-between" : hf.pageNumPos === "center" ? "justify-center gap-4" : "justify-start gap-4"}`}
-                                          style={{ zIndex: 10 }}
-                                        >
-                                          {hf.footerText.trim() && (
-                                            <span>{hf.footerText}</span>
-                                          )}
-                                          {hf.showPageNum && (
-                                            <span>{hf.startFrom + idx}</span>
-                                          )}
-                                        </div>
-                                      )}
-
-                                    {/* 4. Overlay Elements (Các phần tử text/image trên trang pg) */}
-                                    {[...pg.els]
-                                      .sort(
-                                        (a, b) =>
-                                          (a.zIndex ?? 0) - (b.zIndex ?? 0),
-                                      )
-                                      .map((el) => {
-                                        const isSel = selElId === el.id;
-                                        return (
+                                    >
+                                      {/* Trang xa: chỉ hiện thumbnail, không mount elements */}
+                                      {!isNearby ? (
+                                        pg.bg
+                                          ? <img
+                                            src={pg.bg}
+                                            alt=""
+                                            draggable={false}
+                                            className="absolute inset-0 w-full h-full select-none cursor-pointer"
+                                            onClick={() => jumpToPage(idx)}
+                                          />
+                                          : <div
+                                            className="absolute inset-0 cursor-pointer"
+                                            style={{ backgroundColor: pg.bgColor || "#ffffff" }}
+                                            onClick={() => jumpToPage(idx)}
+                                          />
+                                      ) : (
+                                        <>
+                                          {/* 1. Page Background */}
                                           <div
-                                            key={el.id}
-                                            className={`absolute group ${isSel ? "ring-2 ring-indigo-500" : "hover:ring-1 hover:ring-indigo-300"}`}
+                                            className="absolute inset-0"
                                             style={{
-                                              left:
-                                                el.x -
-                                                (isSel && el.type === "table"
-                                                  ? 22
-                                                  : 0),
-                                              top:
-                                                el.y -
-                                                (isSel && el.type === "table"
-                                                  ? 16
-                                                  : 0),
-                                              width:
-                                                el.w +
-                                                (isSel && el.type === "table"
-                                                  ? 22
-                                                  : 0),
-                                              height:
-                                                el.h +
-                                                (isSel && el.type === "table"
-                                                  ? 16
-                                                  : 0),
-                                              cursor:
-                                                el.type === "table"
-                                                  ? isSel
-                                                    ? "default"
-                                                    : "pointer"
-                                                  : "move",
-                                              userSelect: "none",
-                                              zIndex: el.zIndex ?? 10,
-                                              transform: el.rotation
-                                                ? `rotate(${el.rotation}deg)`
-                                                : undefined,
-                                              transformOrigin: "center center",
-                                              overflow:
-                                                el.type === "table"
-                                                  ? "visible"
-                                                  : undefined,
+                                              zIndex: 0,
+                                              backgroundColor: pg.bgColor || "#ffffff",
                                             }}
-                                            onPointerDown={(e) => {
-                                              setSelPage(idx);
-                                              onElPointerDown(e, el, "move");
-                                            }}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setSelPage(idx);
-                                              setSelElId(el.id);
-                                            }}
-                                            onDoubleClick={(e) => {
-                                              e.stopPropagation();
-                                              if (el.type === "text")
-                                                setEditingTxtId(el.id);
-                                            }}
-                                          >
-                                            {el.type === "text" &&
-                                              (editingTxtId === el.id ? (
-                                                <textarea
-                                                  autoFocus
-                                                  className="w-full h-full bg-transparent outline-none resize-none p-0 border-none"
-                                                  style={{
-                                                    fontSize: el.fontSize,
-                                                    fontWeight: el.bold
-                                                      ? "bold"
-                                                      : "normal",
-                                                    fontStyle: el.italic
-                                                      ? "italic"
-                                                      : "normal",
-                                                    color: el.color,
-                                                    textAlign: el.align as any,
-                                                    lineHeight: 1.4,
-                                                    fontFamily: el.fontFamily
-                                                      ? cssFontFamily(
-                                                          el.fontFamily,
-                                                        )
-                                                      : "inherit",
-                                                  }}
-                                                  value={el.text ?? ""}
-                                                  onChange={(ev) =>
-                                                    patchEl(el.id, (e2) => ({
-                                                      ...e2,
-                                                      text: ev.target.value,
-                                                    }))
-                                                  }
-                                                  onBlur={() =>
-                                                    setEditingTxtId(null)
-                                                  }
-                                                  onKeyDown={(ev) =>
-                                                    ev.key === "Escape" &&
-                                                    setEditingTxtId(null)
-                                                  }
-                                                  onClick={(ev) =>
-                                                    ev.stopPropagation()
-                                                  }
-                                                  onPointerDown={(ev) =>
-                                                    ev.stopPropagation()
-                                                  }
-                                                />
-                                              ) : (
+                                          />
+
+                                          {/* 2. Header Preview */}
+                                          {hf.headerText.trim() && idx > 1 && (
+                                            <div
+                                              className="absolute top-3 left-12 right-12 text-center text-[9px] text-slate-400 border-b border-slate-200 pb-0.5 pointer-events-none"
+                                              style={{ zIndex: 10 }}
+                                            >
+                                              {hf.headerText}
+                                            </div>
+                                          )}
+
+                                          {/* 3. Footer Preview */}
+                                          {(hf.footerText.trim() || hf.showPageNum) && idx > 1 && (
+                                            <div
+                                              className={`absolute bottom-3 left-12 right-12 flex items-center text-[9px] text-slate-400 border-t border-slate-200 pt-0.5 pointer-events-none ${hf.pageNumPos === "right" ? "justify-between" : hf.pageNumPos === "center" ? "justify-center gap-4" : "justify-start gap-4"}`}
+                                              style={{ zIndex: 10 }}
+                                            >
+                                              {hf.footerText.trim() && <span>{hf.footerText}</span>}
+                                              {hf.showPageNum && <span>{hf.startFrom + idx}</span>}
+                                            </div>
+                                          )}
+
+                                          {/* 4. Overlay Elements */}
+                                          {[...pg.els]
+                                            .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
+                                            .map((el) => {
+                                              const isSel = selElId === el.id;
+                                              return (
                                                 <div
-                                                  className="w-full h-full overflow-hidden pointer-events-none"
+                                                  id={`editor-el-${el.id}`}
+                                                  key={el.id}
+                                                  className={`absolute group ${isSel ? "ring-2 ring-indigo-500" : "hover:ring-1 hover:ring-indigo-300"}`}
                                                   style={{
-                                                    fontSize: el.fontSize,
-                                                    fontWeight: el.bold
-                                                      ? "bold"
-                                                      : "normal",
-                                                    fontStyle: el.italic
-                                                      ? "italic"
-                                                      : "normal",
-                                                    color: el.color,
-                                                    textAlign: el.align as any,
-                                                    lineHeight: 1.4,
-                                                    whiteSpace: "pre-wrap",
-                                                    fontFamily: el.fontFamily
-                                                      ? cssFontFamily(
-                                                          el.fontFamily,
-                                                        )
-                                                      : "inherit",
+                                                    left: el.x - (isSel && el.type === "table" ? 22 : 0),
+                                                    top: el.y - (isSel && el.type === "table" ? 16 : 0),
+                                                    width: el.w + (isSel && el.type === "table" ? 22 : 0),
+                                                    height: el.h + (isSel && el.type === "table" ? 16 : 0),
+                                                    cursor: el.type === "table" ? (isSel ? "default" : "pointer") : "move",
+                                                    userSelect: "none",
+                                                    zIndex: el.zIndex ?? 10,
+                                                    transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
+                                                    transformOrigin: "center center",
+                                                    overflow: el.type === "table" ? "visible" : undefined,
+                                                  }}
+                                                  onPointerDown={(e) => {
+                                                    setSelPage(idx);
+                                                    onElPointerDown(e, el, "move");
+                                                  }}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelPage(idx);
+                                                    setSelElId(el.id);
+                                                  }}
+                                                  onDoubleClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (el.type === "text") setEditingTxtId(el.id);
                                                   }}
                                                 >
-                                                  {el.text}
+                                                  {el.type === "text" && (
+                                                    editingTxtId === el.id ? (
+                                                      <textarea
+                                                        autoFocus
+                                                        className="w-full h-full bg-transparent outline-none resize-none p-0 border-none"
+                                                        style={{
+                                                          fontSize: el.fontSize,
+                                                          fontWeight: el.bold ? "bold" : "normal",
+                                                          fontStyle: el.italic ? "italic" : "normal",
+                                                          color: el.color,
+                                                          textAlign: el.align as any,
+                                                          lineHeight: 1.4,
+                                                          fontFamily: el.fontFamily ? cssFontFamily(el.fontFamily) : "inherit",
+                                                        }}
+                                                        value={el.text ?? ""}
+                                                        onChange={(ev) => patchEl(el.id, (e2) => ({ ...e2, text: ev.target.value }))}
+                                                        onBlur={(ev) => {
+                                                          patchEl(el.id, (e2) => ({ ...e2, text: ev.target.value }));
+                                                          setEditingTxtId(null);
+                                                        }}
+                                                        onKeyDown={(ev) => {
+                                                          if (ev.key === "Escape") {
+                                                            patchEl(el.id, (e2) => ({ ...e2, text: (ev.target as HTMLTextAreaElement).value }));
+                                                            setEditingTxtId(null);
+                                                          }
+                                                        }}
+                                                        onClick={(ev) => ev.stopPropagation()}
+                                                        onPointerDown={(ev) => ev.stopPropagation()}
+                                                      />
+                                                    ) : (
+                                                      <div
+                                                        className="w-full h-full overflow-hidden pointer-events-none"
+                                                        style={{
+                                                          fontSize: el.fontSize,
+                                                          fontWeight: el.bold ? "bold" : "normal",
+                                                          fontStyle: el.italic ? "italic" : "normal",
+                                                          color: el.color,
+                                                          textAlign: el.align as any,
+                                                          lineHeight: 1.4,
+                                                          whiteSpace: "pre-wrap",
+                                                          fontFamily: el.fontFamily ? cssFontFamily(el.fontFamily) : "inherit",
+                                                        }}
+                                                      >
+                                                        {el.text}
+                                                      </div>
+                                                    )
+                                                  )}
+                                                  {el.type === "image" && el.src && (
+                                                    <img
+                                                      src={el.src}
+                                                      alt=""
+                                                      draggable={false}
+                                                      className="w-full h-full object-contain pointer-events-none select-none"
+                                                    />
+                                                  )}
+                                                  {/* Move handles for table */}
+                                                  {isSel && el.type === "table" && (
+                                                    <>
+                                                      <div className="absolute top-[-6px] left-[-6px] right-[-6px] h-[12px] cursor-move z-10" onPointerDown={(e) => onElPointerDown(e, el, "move")} />
+                                                      <div className="absolute bottom-[-6px] left-[-6px] right-[-6px] h-[12px] cursor-move z-10" onPointerDown={(e) => onElPointerDown(e, el, "move")} />
+                                                      <div className="absolute left-[-6px] top-[-6px] bottom-[-6px] w-[12px] cursor-move z-10" onPointerDown={(e) => onElPointerDown(e, el, "move")} />
+                                                      <div className="absolute right-[-6px] top-[-6px] bottom-[-6px] w-[12px] cursor-move z-10" onPointerDown={(e) => onElPointerDown(e, el, "move")} />
+                                                    </>
+                                                  )}
+                                                  {el.type === "table" && el.tableData && (
+                                                    <TableEditorCanvas
+                                                      tableData={el.tableData}
+                                                      elW={el.w}
+                                                      elH={el.h}
+                                                      isSelected={selElId === el.id}
+                                                      selectedCells={selElId === el.id ? tableSelectedCells : []}
+                                                      onSelectCells={(cells) => {
+                                                        setSelElId(el.id);
+                                                        setTableSelectedCells(cells);
+                                                      }}
+                                                      onPatchTable={(td) =>
+                                                        patchEl(el.id, (e2) => ({
+                                                          ...e2,
+                                                          tableData: td,
+                                                          h: td.rowHeights.reduce((s, v) => s + v, 0),
+                                                        }))
+                                                      }
+                                                    />
+                                                  )}
+                                                  {isSel && DIRS.map((dir) => (
+                                                    <div
+                                                      key={dir}
+                                                      style={handlePos(dir)}
+                                                      onPointerDown={(e) => onElPointerDown(e, el, "resize", dir)}
+                                                    />
+                                                  ))}
                                                 </div>
-                                              ))}
-                                            {el.type === "image" && el.src && (
-                                              <img
-                                                src={el.src}
-                                                alt=""
-                                                draggable={false}
-                                                className="w-full h-full object-contain pointer-events-none select-none"
-                                              />
-                                            )}
-                                            {/* Move handles for table */}
-                                            {isSel && el.type === "table" && (
-                                              <>
-                                                <div
-                                                  className="absolute top-[-6px] left-[-6px] right-[-6px] h-[12px] cursor-move z-10"
-                                                  onPointerDown={(e) =>
-                                                    onElPointerDown(
-                                                      e,
-                                                      el,
-                                                      "move",
-                                                    )
-                                                  }
-                                                />
-                                                <div
-                                                  className="absolute bottom-[-6px] left-[-6px] right-[-6px] h-[12px] cursor-move z-10"
-                                                  onPointerDown={(e) =>
-                                                    onElPointerDown(
-                                                      e,
-                                                      el,
-                                                      "move",
-                                                    )
-                                                  }
-                                                />
-                                                <div
-                                                  className="absolute left-[-6px] top-[-6px] bottom-[-6px] w-[12px] cursor-move z-10"
-                                                  onPointerDown={(e) =>
-                                                    onElPointerDown(
-                                                      e,
-                                                      el,
-                                                      "move",
-                                                    )
-                                                  }
-                                                />
-                                                <div
-                                                  className="absolute right-[-6px] top-[-6px] bottom-[-6px] w-[12px] cursor-move z-10"
-                                                  onPointerDown={(e) =>
-                                                    onElPointerDown(
-                                                      e,
-                                                      el,
-                                                      "move",
-                                                    )
-                                                  }
-                                                />
-                                              </>
-                                            )}
-                                            {el.type === "table" &&
-                                              el.tableData && (
-                                                <TableEditorCanvas
-                                                  tableData={el.tableData}
-                                                  elW={el.w}
-                                                  elH={el.h}
-                                                  isSelected={selElId === el.id}
-                                                  selectedCells={
-                                                    selElId === el.id
-                                                      ? tableSelectedCells
-                                                      : []
-                                                  }
-                                                  onSelectCells={(cells) => {
-                                                    setSelElId(el.id);
-                                                    setTableSelectedCells(
-                                                      cells,
-                                                    );
-                                                  }}
-                                                  onPatchTable={(td) =>
-                                                    patchEl(el.id, (e2) => ({
-                                                      ...e2,
-                                                      tableData: td,
-                                                      h: td.rowHeights.reduce(
-                                                        (s, v) => s + v,
-                                                        0,
-                                                      ),
-                                                    }))
-                                                  }
-                                                />
-                                              )}
-                                            {isSel &&
-                                              DIRS.map((dir) => (
-                                                <div
-                                                  key={dir}
-                                                  style={handlePos(dir)}
-                                                  onPointerDown={(e) =>
-                                                    onElPointerDown(
-                                                      e,
-                                                      el,
-                                                      "resize",
-                                                      dir,
-                                                    )
-                                                  }
-                                                />
-                                              ))}
-                                          </div>
-                                        );
-                                      })}
-                                  </div>
-                                ))}
+                                              );
+                                            })}
+                                        </>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
 
@@ -5021,11 +5054,10 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                               rotation: deg,
                                             }))
                                           }
-                                          className={`flex-1 py-1 text-[10px] rounded border transition-all ${
-                                            (selEl.rotation ?? 0) === deg
-                                              ? "bg-indigo-600 border-indigo-600 text-white"
-                                              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                                          }`}
+                                          className={`flex-1 py-1 text-[10px] rounded border transition-all ${(selEl.rotation ?? 0) === deg
+                                            ? "bg-indigo-600 border-indigo-600 text-white"
+                                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                                            }`}
                                         >
                                           {deg}°
                                         </button>
@@ -5170,16 +5202,16 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                                   pi !== selPage
                                                     ? pg
                                                     : {
-                                                        ...pg,
-                                                        els: pg.els.map((el) =>
-                                                          el.id === elId
-                                                            ? {
-                                                                ...el,
-                                                                tocLabel: val,
-                                                              }
-                                                            : el,
-                                                        ),
-                                                      },
+                                                      ...pg,
+                                                      els: pg.els.map((el) =>
+                                                        el.id === elId
+                                                          ? {
+                                                            ...el,
+                                                            tocLabel: val,
+                                                          }
+                                                          : el,
+                                                      ),
+                                                    },
                                               );
                                               return regenerateToc(patched);
                                             });
@@ -5289,22 +5321,22 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                       setCropState((c) =>
                                         c
                                           ? {
-                                              ...c,
-                                              cx: Math.max(
-                                                0,
-                                                Math.min(
-                                                  c.natW - c.cw,
-                                                  d.origCx + dx,
-                                                ),
+                                            ...c,
+                                            cx: Math.max(
+                                              0,
+                                              Math.min(
+                                                c.natW - c.cw,
+                                                d.origCx + dx,
                                               ),
-                                              cy: Math.max(
-                                                0,
-                                                Math.min(
-                                                  c.natH - c.ch,
-                                                  d.origCy + dy,
-                                                ),
+                                            ),
+                                            cy: Math.max(
+                                              0,
+                                              Math.min(
+                                                c.natH - c.ch,
+                                                d.origCy + dy,
                                               ),
-                                            }
+                                            ),
+                                          }
                                           : c,
                                       );
                                     } else {
@@ -5408,7 +5440,8 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                       />
                     )}
                   </div>
-                )}
+                )
+                }
               </div>
             </div>
           )}
