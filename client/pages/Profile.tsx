@@ -19,6 +19,7 @@ import {
   PenTool,
   BookOpen,
 } from "lucide-react";
+import { /* Icon1, Icon2 */ } from "lucide-react";
 import Button from "../components/ui/Button";
 import { supabase } from "../lib/supabase";
 import ReactMarkdown from "react-markdown"; // Thêm thư viện render Markdown
@@ -38,11 +39,11 @@ interface UserProfile {
   description: string | null;
   created_at: string;
   role_name?: string;
-  role_id?: number;
+  role_id?: number; // Added
   avatar_url: string | null;
 }
 
-const BASE_API_URL = "http://localhost:8080";
+const BASE_API_URL = import.meta.env.VITE_API_BASE_URL as string;
 
 const Profile: React.FC<ProfileProps> = ({
   userEmail,
@@ -113,6 +114,7 @@ const Profile: React.FC<ProfileProps> = ({
         let roleName = "Participant";
         let roleId = 5;
 
+        // Sử dụng Type Assertion (as any[]) để thoát khỏi lỗi 'never'
         const rawRoles = data.user_roles as any[];
 
         if (rawRoles && rawRoles.length > 0) {
@@ -121,6 +123,7 @@ const Profile: React.FC<ProfileProps> = ({
 
           if (firstRoleEntry.roles) {
             const rolesData = firstRoleEntry.roles;
+
             if (Array.isArray(rolesData)) {
               roleName = rolesData[0]?.role_name || "Participant";
             } else {
@@ -201,6 +204,7 @@ const Profile: React.FC<ProfileProps> = ({
   };
 
   // --- AVATAR HANDLERS ---
+
   const handleAvatarFileChange = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -288,6 +292,7 @@ const Profile: React.FC<ProfileProps> = ({
       if (!response.ok) throw new Error(result.message || "Upload failed");
 
       setSuccessMsg("CV uploaded & bio extracted successfully.");
+      // Refresh profile to get the extracted description
       await fetchProfile();
       setBioMode("VIEW");
       setCvFile(null);
@@ -323,6 +328,7 @@ const Profile: React.FC<ProfileProps> = ({
       if (!response.ok) throw new Error(result.message || "Import failed");
 
       setSuccessMsg("Scholar profile imported successfully.");
+      // Refresh profile to get the extracted description
       await fetchProfile();
       setBioMode("VIEW");
       setScholarUrl("");
@@ -350,14 +356,15 @@ const Profile: React.FC<ProfileProps> = ({
   const getInitials = (name: string) => {
     return name
       ? name
-          .split(" ")
-          .map((n) => n[0])
-          .join("")
-          .substring(0, 2)
-          .toUpperCase()
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .substring(0, 2)
+        .toUpperCase()
       : "U";
   };
 
+  // Check if user is Author (Role 3 or Name 'Author')
   const isAuthor = profile?.role_id === 3 || profile?.role_name === "Author";
 
   if (loading) {
@@ -522,11 +529,10 @@ const Profile: React.FC<ProfileProps> = ({
                             full_name: e.target.value,
                           })
                         }
-                        className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${
-                          basicEditMode
+                        className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${basicEditMode
                             ? "border-slate-300 focus:ring-2 focus:ring-brand-500 bg-white"
                             : "border-slate-200 bg-slate-50 text-slate-600"
-                        }`}
+                          }`}
                       />
                     </div>
                   </div>
@@ -548,11 +554,10 @@ const Profile: React.FC<ProfileProps> = ({
                           })
                         }
                         placeholder="University / Institute"
-                        className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${
-                          basicEditMode
+                        className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${basicEditMode
                             ? "border-slate-300 focus:ring-2 focus:ring-brand-500 bg-white"
                             : "border-slate-200 bg-slate-50 text-slate-600"
-                        }`}
+                          }`}
                       />
                     </div>
                   </div>
@@ -614,7 +619,6 @@ const Profile: React.FC<ProfileProps> = ({
                   <div className="space-y-4">
                     {/* KHU VỰC ĐÃ CẬP NHẬT RENDER MARKDOWN */}
                     <div className="text-slate-700 leading-relaxed text-sm">
-                      {" "}
                       {/* Bỏ class prose đi nếu không dùng */}
                       {profile?.description ? (
                         <ReactMarkdown

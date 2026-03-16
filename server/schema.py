@@ -116,6 +116,16 @@ class CheckinRequest(BaseModel):
     registration_id: int
     session_ids: List[int]
 
+class RegistrationBeforePaymentRequest(BaseModel):
+    user_id: int = Field(..., description="ID of the user registering")
+    ticket_id: int = Field(..., description="ID of the ticket to register for")
+    provider: str = Field(..., description="Payment provider (only 'PAYOS' accepted)")
+    returnUrl: str = Field(..., description="URL to redirect after payment completion or cancellation")
+
+class RegistrationPaymentRequest(BaseModel):
+    provider: str = Field(..., description="Payment provider (only 'PAYOS' accepted)")
+    returnUrl: str = Field(..., description="URL to redirect after payment completion or cancellation")
+
 class PersonalInformation(BaseModel):
     full_name: str = Field(description="Full name of the candidate")
     email: Optional[str] = Field(None, description="Email address of the candidate")

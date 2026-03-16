@@ -23,7 +23,7 @@ interface SubmitPaperProps {
   onNavigateBack: () => void;
 }
 
-const BASE_API_URL = "http://localhost:8080";
+const BASE_API_URL = import.meta.env.VITE_API_BASE_URL as string;
 
 const SubmitPaper: React.FC<SubmitPaperProps> = ({
   userEmail,
@@ -175,7 +175,7 @@ const SubmitPaper: React.FC<SubmitPaperProps> = ({
 
       setSelectedPaperId(data.paper_id);
       setStep(3);
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
@@ -231,7 +231,7 @@ const SubmitPaper: React.FC<SubmitPaperProps> = ({
       }
       setSuccess(true);
       setTimeout(() => onNavigateBack(), 2000);
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
@@ -400,7 +400,11 @@ const SubmitPaper: React.FC<SubmitPaperProps> = ({
             <div className="flex p-1 bg-slate-100 rounded-lg mb-8">
               <button
                 onClick={() => setSubmissionType("NEW")}
-                className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${submissionType === "NEW" ? "bg-white text-brand-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+                  submissionType === "NEW"
+                    ? "bg-white text-brand-700 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
               >
                 <span className="flex items-center justify-center gap-2">
                   <FileText className="w-4 h-4" /> New Paper
@@ -408,7 +412,11 @@ const SubmitPaper: React.FC<SubmitPaperProps> = ({
               </button>
               <button
                 onClick={() => setSubmissionType("VERSION")}
-                className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${submissionType === "VERSION" ? "bg-white text-brand-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+                  submissionType === "VERSION"
+                    ? "bg-white text-brand-700 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
               >
                 <span className="flex items-center justify-center gap-2">
                   <Layers className="w-4 h-4" /> New Version
@@ -458,7 +466,11 @@ const SubmitPaper: React.FC<SubmitPaperProps> = ({
                         setAuthorSearch(e.target.value);
                         setSelectedAuthorId(null);
                       }}
-                      className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none ${selectedAuthorId ? "border-green-500 bg-green-50" : "border-slate-300 focus:ring-2 focus:ring-brand-500"}`}
+                      className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none ${
+                        selectedAuthorId
+                          ? "border-green-500 bg-green-50"
+                          : "border-slate-300 focus:ring-2 focus:ring-brand-500"
+                      }`}
                       placeholder="Search author by name..."
                     />
                     {selectedAuthorId && (
@@ -618,7 +630,11 @@ const SubmitPaper: React.FC<SubmitPaperProps> = ({
                         setPaperSearch(e.target.value);
                         setSelectedPaperId(null);
                       }}
-                      className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none ${selectedPaperId ? "border-green-500 bg-green-50" : "border-slate-300 focus:ring-2 focus:ring-brand-500"}`}
+                      className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none ${
+                        selectedPaperId
+                          ? "border-green-500 bg-green-50"
+                          : "border-slate-300 focus:ring-2 focus:ring-brand-500"
+                      }`}
                       placeholder="Search paper title..."
                     />
                     {selectedPaperId && (

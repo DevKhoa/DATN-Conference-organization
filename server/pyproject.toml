@@ -6,33 +6,26 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi",
-    "uvicorn", 
+    "uvicorn",
     "pydantic",
     "pydantic[email]",
     "python-multipart",
-
     "pandas",
     "numpy",
     "ipykernel",
     "k-means-constrained",
-
-    "supabase", 
-
+    "supabase",
     "google-genai",
     "google-cloud-language",
     "google-cloud-storage",
-
     "pypdf",
     "langchain",
     "langchain-text-splitters",
     "langchain-community",
     "langchain-google-genai",
-
     "serpapi",
-
     "qrcode[pil]",
     "opencv-python",
-
-    "requests"
-
+    "requests",
+    "payos>=1.1.0",
 ]

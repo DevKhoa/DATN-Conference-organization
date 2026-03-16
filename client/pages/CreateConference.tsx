@@ -24,7 +24,7 @@ interface CreateConferenceProps {
   userRoleId: number;
 }
 
-const BASE_API_URL = "http://localhost:8080";
+const BASE_API_URL = import.meta.env.VITE_API_BASE_URL as string;
 
 const CreateConference: React.FC<CreateConferenceProps> = ({
   onNavigateBack,

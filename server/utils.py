@@ -22,7 +22,7 @@ from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, Te
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 from supabase.client import create_client
-
+from payos import AsyncPayOS
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -110,6 +110,16 @@ storage_client = storage.Client()
 
 embedding_model = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL_NAME, output_dimensionality=VECTOR_DIMENSION)
 supabase_client = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY"))
+
+PAYOS_CLIENT_ID = os.environ.get("PAYOS_CLIENT_ID")
+PAYOS_API_KEY = os.environ.get("PAYOS_API_KEY")
+PAYOS_CHECKSUM_KEY = os.environ.get("PAYOS_CHECKSUM_KEY")
+payos_client = AsyncPayOS(
+    client_id=PAYOS_CLIENT_ID,
+    api_key=PAYOS_API_KEY,
+    checksum_key=PAYOS_CHECKSUM_KEY
+)
+
 
 with open("Prompts/session_title_giver.txt", 'r') as f:
     SESSION_TITLE_GIVER = f.read()
