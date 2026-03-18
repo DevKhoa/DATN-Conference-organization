@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Book,
   FileText,
@@ -47,11 +47,13 @@ import {
   View,
   StyleSheet,
   Image,
-  PDFDownloadLink,
   pdf,
   Font,
 } from "@react-pdf/renderer";
 import { v4 as uuidv4 } from "uuid";
+
+const BASE_API_URL = "http://localhost:8080";
+const PAPERS_PAGE_SIZE = 50;
 
 // Register Inter font using local TTF files in public folder
 Font.register({
@@ -99,6 +101,11 @@ interface KeynoteSpeaker {
   presentationTitle: string;
   abstract: string;
   bio: string;
+  dayLabel?: string;
+  timeSlot?: string;
+  location?: string;
+  keynoteLabel?: string;
+  affiliation?: string;
 }
 
 // ─── PDF Styles ────────────────────────────────────────────────────────────────
@@ -386,21 +393,31 @@ const pdfStyles = StyleSheet.create({
 
   footerContainer: {
     position: "absolute",
-    bottom: 30,
+    bottom: 22,
     left: 55,
     right: 55,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderTopWidth: 0.5,
-    borderTopColor: "#e2e8f0",
-    paddingTop: 10,
   },
   footerTitle: {
     fontSize: 8,
-    color: "#718096",
+    color: "#1a3a6b",
     fontFamily: "Inter",
-    maxWidth: "80%",
+    marginBottom: 4,
+  },
+  footerLine: {
+    height: 0.75,
+    backgroundColor: "#1a3a6b",
+    marginBottom: 4,
+  },
+  footerBottom: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  footerText: {
+    fontSize: 8,
+    color: "#1a3a6b",
+    fontFamily: "Inter",
+    flex: 1,
   },
   pageNumber: {
     fontSize: 10,
@@ -408,6 +425,35 @@ const pdfStyles = StyleSheet.create({
     color: "#1a3a6b",
   },
 });
+
+const formatAbstract = (text?: string) => {
+  if (!text) return "";
+  return text
+    .replace(/\r?\n/g, " ") // bỏ line break
+    .replace(/\s+/g, " ") // bỏ double space
+    .trim();
+};
+
+/** Reusable footer: conferenceName above line, optional footerText below line + page number */
+const PdfFooter: React.FC<{ conferenceName: string; footerText?: string }> = ({ conferenceName, footerText }) => {
+  // Auto-shrink font so conferenceName always fits in one line
+  const nameLen = (conferenceName || "").length;
+  const nameFontSize = nameLen > 80 ? 6.5 : nameLen > 55 ? 7 : 8;
+  return (
+    <View style={pdfStyles.footerContainer} fixed>
+      <Text style={{ ...pdfStyles.footerTitle, fontSize: nameFontSize }}>{conferenceName}</Text>
+      <View style={pdfStyles.footerLine} />
+      <View style={pdfStyles.footerBottom}>
+        {footerText ? (
+          <Text style={pdfStyles.footerText}>{footerText}</Text>
+        ) : (
+          <Text style={pdfStyles.footerText}> </Text>
+        )}
+        <Text style={pdfStyles.pageNumber} render={({ pageNumber }) => `${pageNumber}`} />
+      </View>
+    </View>
+  );
+};
 
 // ─── PDF Document ─────────────────────────────────────────────────────────────
 const ProceedingsDocument = ({ data }: { data: any }) => {
@@ -427,28 +473,20 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
   });
 
   // Trong ProceedingsDocument
+  // Page layout: Cover(1), TOC(2), Foreword(3), Committee(4), Info(5), Schedule(6), [Keynotes(7)], Detailed(7 or 8)
   const tocItems = [
-    { label: "Foreword", page: 1 },
-    { label: "Organizing Committee", page: 2 },
-    { label: "General Information", page: 3 },
-    { label: "Program at a Glance", page: 4 },
+    { label: "Foreword", page: 3 },
+    { label: "Organizing Committee", page: 4 },
+    { label: "General Information", page: 5 },
+    { label: "Program at a Glance", page: 6 },
     ...(data.keynotes?.length > 0
-      ? [{ label: "Keynote Speakers", page: 5 }]
+      ? [{ label: "Keynote Speakers", page: 7 }]
       : []),
     {
       label: "Detailed Program with Abstracts",
-      page: data.keynotes?.length > 0 ? 6 : 5,
+      page: data.keynotes?.length > 0 ? 8 : 7,
     },
   ];
-
-  const formatAbstract = (text?: string) => {
-    if (!text) return "";
-
-    return text
-      .replace(/\r?\n/g, " ") // bỏ line break
-      .replace(/\s+/g, " ") // bỏ double space
-      .trim();
-  };
 
   return (
     <Document>
@@ -456,66 +494,76 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
       <Page size="A4" style={pdfStyles.coverPage}>
         <Text style={pdfStyles.coverTag}>Program Book</Text>
         <View style={pdfStyles.coverDivider} />
-        <Text style={pdfStyles.coverTitle}>
-          {data.cover.title || "CONFERENCE PROCEEDINGS"}
-        </Text>
-        <Text style={pdfStyles.coverSubtitle}>{data.cover.conferenceName}</Text>
-        <Text style={pdfStyles.coverDateLoc}>
-          {data.cover.date} · {data.cover.location}
-        </Text>
+        {(() => {
+          const title = data.cover.title || "CONFERENCE PROCEEDINGS";
+          const titleFs = Math.max(16, Math.min(30, Math.floor(420 / (title.length * 0.55))));
+          const subName = data.cover.conferenceName || "";
+          const dateLoc = `${data.cover.date} · ${data.cover.location}`;
+          const dateFs = Math.max(8, Math.min(11, Math.floor(460 / (dateLoc.length * 0.52))));
+          return (
+            <>
+              <Text style={{ ...pdfStyles.coverTitle, fontSize: titleFs }}>{title}</Text>
+              <Text style={{ ...pdfStyles.coverSubtitle, fontSize: 13, textAlign: "center", lineHeight: 1.4 }}>{subName}</Text>
+              <Text style={{ ...pdfStyles.coverDateLoc, fontSize: dateFs }}>{dateLoc}</Text>
+            </>
+          );
+        })()}
 
-        {data.cover.sponsorLogos?.length > 0
-          ? (() => {
-            const count = data.cover.sponsorLogos.length;
-            // Tính kích thước logo tự động để vừa 1 hàng (max width ~475pt với padding 60 mỗi bên)
-            const logoW = Math.min(
-              80,
-              Math.floor((475 - (count - 1) * 10) / count),
-            );
-            const logoH = Math.round(logoW * 0.75);
-            return (
-              <>
-                <Text style={pdfStyles.coverSponsorLabel}>
-                  Sponsors & Partners
-                </Text>
-                <View style={pdfStyles.coverLogos}>
-                  {data.cover.sponsorLogos.map((logo: string, i: number) => (
-                    <Image
-                      key={i}
-                      src={logo}
-                      style={{
-                        width: logoW,
-                        height: logoH,
-                        objectFit: "contain",
-                        marginRight: i < count - 1 ? 10 : 0,
-                      }}
-                    />
-                  ))}
-                </View>
-              </>
-            );
-          })()
-          : null}
+        {(() => {
+          const selectedLogos = (data.cover.sponsorLogos || []).filter(
+            (l: any) => l.selected,
+          );
+          if (selectedLogos.length === 0) return null;
+
+          const count = selectedLogos.length;
+          // Max width for logos container is ~475pt
+          // Each logo width ~80pt, spacing 10pt
+          const logoW = 80;
+          const logoH = 60;
+          const spacing = 15;
+
+          return (
+            <View style={{ marginTop: 40, alignItems: "center", width: "100%" }}>
+              <Text style={pdfStyles.coverSponsorLabel}>
+                Sponsors & Partners
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: spacing,
+                  width: "100%",
+                }}
+              >
+                {selectedLogos.map((logo: any, i: number) => (
+                  <Image
+                    key={i}
+                    src={logo.src}
+                    style={{
+                      width: logoW,
+                      height: logoH,
+                      objectFit: "contain",
+                    }}
+                  />
+                ))}
+              </View>
+            </View>
+          );
+        })()}
       </Page>
 
       {/* ── TABLE OF CONTENTS */}
       <Page size="A4" style={{ ...pdfStyles.page, position: "relative" }}>
-        {/* Vertical conference name (decorative left side, auto-scaled to fill height) */}
+        {/* Vertical conference name: fixed 18pt, anchored left strip */}
         {(() => {
           const cn = data.cover.conferenceName || "CONFERENCE";
-          const len = cn.length;
-          // Auto-scale to fill ~800pt height
-          const fs = Math.max(
-            16,
-            Math.min(140, 800 / (Math.max(1, len) * 0.65)),
-          );
-          // Fixed width 800
-          const tw = 800;
-          // Visual center x ≈ 40pt (left margin)
-          const lft = Math.round(40 - tw / 2);
-          // Visual center y ≈ 421 (A4 half height 842/2)
-          const lineH = Math.round(Math.max(1, fs) * 1.4);
-          const tp = Math.round(421 - lineH / 2);
+          const fs = 18;
+          const tw = 720; // ~85% of 842pt page height → fills left side
+          const lft = Math.round(28 - tw / 2); // center at x=28pt from left
+          const lineH = Math.round(fs * 1.4);
+          const tp = Math.round(421 - lineH / 2); // center vertically
           return (
             <Text
               style={{
@@ -526,8 +574,8 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                 fontSize: fs,
                 fontFamily: "Helvetica-Bold",
                 color: "#3b6cb5",
-                letterSpacing: Math.max(1, Math.round(fs * 0.05)),
-                opacity: 0.8,
+                letterSpacing: 1,
+                opacity: 0.85,
                 textAlign: "center",
                 transform: "rotate(-90deg)",
               }}
@@ -542,19 +590,30 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
 
         {/* Entries: page number before label */}
         <View style={{ paddingLeft: 120, paddingTop: 15 }}>
-          {tocItems.map((item, i) => (
-            <View key={i} style={pdfStyles.tocEntryRow}>
-              <Text style={pdfStyles.tocPageNum}>{item.page}</Text>
-              <Text style={pdfStyles.tocLabel}>{item.label}</Text>
-            </View>
-          ))}
+          {tocItems.map((item, i) => {
+            const fs = Math.max(9, Math.min(12, Math.floor(350 / (item.label.length * 0.55))));
+            return (
+              <View key={i} style={pdfStyles.tocEntryRow}>
+                <Text style={pdfStyles.tocPageNum}>{item.page}</Text>
+                <Text style={{ ...pdfStyles.tocLabel, fontSize: fs }}>{item.label}</Text>
+              </View>
+            );
+          })}
         </View>
       </Page>
 
       {/* ── FOREWORD ── */}
       <Page size="A4" style={pdfStyles.page}>
-        <Text style={pdfStyles.sectionTitle}>Foreword</Text>
-        <View style={pdfStyles.sectionDivider} />
+        {(() => {
+          const title = "Foreword";
+          const fs = Math.max(12, Math.min(15, Math.floor(450 / (title.length * 0.55))));
+          return (
+            <>
+              <Text style={{ ...pdfStyles.sectionTitle, fontSize: fs }}>{title}</Text>
+              <View style={pdfStyles.sectionDivider} />
+            </>
+          );
+        })()}
         {data.foreword ? (
           data.foreword
             .split("\n")
@@ -584,21 +643,21 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
             No foreword provided.
           </Text>
         )}
-        <View style={pdfStyles.footerContainer} fixed>
-          <Text style={pdfStyles.footerTitle}>
-            {data.cover.conferenceName}{" "}
-          </Text>
-          <Text
-            style={pdfStyles.pageNumber}
-            render={({ pageNumber }) => `${pageNumber}`}
-          />
-        </View>
+        <PdfFooter conferenceName={data.cover.conferenceName} />
       </Page>
 
       {/* ── ORGANIZING COMMITTEE ── */}
       <Page size="A4" style={pdfStyles.page}>
-        <Text style={pdfStyles.sectionTitle}>Organizing Committee</Text>
-        <View style={pdfStyles.sectionDivider} />
+        {(() => {
+          const title = "Organizing Committee";
+          const fs = Math.max(12, Math.min(15, Math.floor(450 / (title.length * 0.55))));
+          return (
+            <>
+              <Text style={{ ...pdfStyles.sectionTitle, fontSize: fs }}>{title}</Text>
+              <View style={pdfStyles.sectionDivider} />
+            </>
+          );
+        })()}
         {Object.keys(committeeByRole).length === 0 ? (
           <Text
             style={{
@@ -622,15 +681,7 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
             </View>
           ))
         )}
-        <View style={pdfStyles.footerContainer} fixed>
-          <Text style={pdfStyles.footerTitle}>
-            {data.cover.conferenceName}{" "}
-          </Text>
-          <Text
-            style={pdfStyles.pageNumber}
-            render={({ pageNumber }) => `${pageNumber}`}
-          />
-        </View>
+        <PdfFooter conferenceName={data.cover.conferenceName} />
       </Page>
 
       {/* ── CONFERENCE INFORMATION ── */}
@@ -639,17 +690,14 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
           const infoTitle = data.cover.conferenceName
             ? `${data.cover.conferenceName.toUpperCase()} INFORMATION`
             : "CONFERENCE INFORMATION";
-          const titleFontSize = Math.max(
-            14,
-            Math.min(24, Math.floor(475 / (infoTitle.length * 0.6))),
-          );
           return (
             <Text
               style={{
-                fontSize: titleFontSize,
+                fontSize: 14,
                 fontFamily: "Helvetica-Bold",
                 color: "#2a4365",
                 textAlign: "center",
+                lineHeight: 1.3,
                 marginBottom: 20,
               }}
             >
@@ -672,7 +720,7 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                 >
                   <Text
                     style={{
-                      fontSize: 9,
+                      fontSize: Math.max(7, Math.min(9, Math.floor(250 / (label.length * 0.55)))),
                       fontFamily: "Helvetica-Bold",
                       color: "#ffffff",
                       textTransform: "uppercase",
@@ -718,8 +766,8 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
               ? `${data.cover.conferenceName.toUpperCase()} LAYOUT`
               : "VENUE LAYOUT";
             const layoutFontSize = Math.max(
-              14,
-              Math.min(24, Math.floor(475 / (layoutTitle.length * 0.6))),
+              10,
+              Math.min(24, Math.floor(460 / (layoutTitle.length * 0.52))),
             );
             return (
               <View style={{ marginTop: 10 }}>
@@ -746,22 +794,20 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
             );
           })()}
 
-        <View style={pdfStyles.footerContainer} fixed>
-          <Text style={pdfStyles.footerTitle}>
-            {data.cover.conferenceName}{" "}
-          </Text>
-          <Text
-            style={pdfStyles.pageNumber}
-            render={({ pageNumber }) => `${pageNumber}`}
-          />
-        </View>
+        <PdfFooter conferenceName={data.cover.conferenceName} />
       </Page>
 
       {/* ── PROGRAM AT A GLANCE ── */}
       <Page size="A4" style={pdfStyles.page}>
-        <Text style={{ fontSize: 22, fontFamily: "Helvetica-Bold", color: "#1a3a6b", textTransform: "uppercase", letterSpacing: 1, textAlign: "center", marginBottom: 14 }}>
-          Program at a Glance
-        </Text>
+        {(() => {
+          const title = "Program at a Glance";
+          const fs = Math.max(16, Math.min(22, Math.floor(400 / (title.length * 0.55))));
+          return (
+            <Text style={{ fontSize: fs, fontFamily: "Helvetica-Bold", color: "#1a3a6b", textTransform: "uppercase", letterSpacing: 1, textAlign: "center", marginBottom: 14 }}>
+              {title}
+            </Text>
+          );
+        })()}
 
         {Object.keys(scheduleByDate).length === 0 ? (
           <Text style={{ color: "#718096", fontFamily: "Helvetica-Oblique" }}>No schedule data loaded.</Text>
@@ -783,8 +829,8 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
               <View key={di} style={{ marginBottom: 18, marginTop: di === 0 ? 0 : 6 }}>
                 {/* ── Day header: dark blue, dayLabel left / dateLabel right ── */}
                 <View style={{ flexDirection: "row", backgroundColor: "#2a4365", borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderColor: borderC }}>
-                  <Text style={{ width: "25%", color: "#ffffff", fontFamily: "Helvetica-Bold", fontSize: 9, ...pad }}>{dayLabel}</Text>
-                  <Text style={{ width: "75%", color: "#ffffff", fontFamily: "Helvetica-Bold", fontSize: 9, textAlign: "right", ...pad }}>{dateLabel}</Text>
+                  <Text style={{ width: "25%", color: "#ffffff", fontFamily: "Helvetica-Bold", fontSize: Math.max(7, Math.min(9, Math.floor((475 * 0.25) / (dayLabel.length * 0.6)))), ...pad }}>{dayLabel}</Text>
+                  <Text style={{ width: "75%", color: "#ffffff", fontFamily: "Helvetica-Bold", fontSize: Math.max(7, Math.min(9, Math.floor((475 * 0.75) / (dateLabel.length * 0.55)))), textAlign: "right", ...pad }}>{dateLabel}</Text>
                 </View>
                 {/* ── Session rows ── */}
                 {timeGroups.map((group, gi) =>
@@ -813,61 +859,149 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
           })
         )}
 
-        <View style={pdfStyles.footerContainer} fixed>
-          <Text style={pdfStyles.footerTitle}>{data.cover.conferenceName}{" "}</Text>
-          <Text style={pdfStyles.pageNumber} render={({ pageNumber }) => `${pageNumber}`} />
-        </View>
+        <PdfFooter conferenceName={data.cover.conferenceName} />
       </Page>
 
       {/* ── KEYNOTE SPEAKERS ── */}
       {data.keynotes?.length > 0 ? (
         <Page size="A4" style={pdfStyles.page}>
-          <Text style={pdfStyles.sectionTitle}>Keynote Speakers</Text>
-          <View style={pdfStyles.sectionDivider} />
           {data.keynotes.map((k: KeynoteSpeaker, i: number) => (
-            <View key={i} style={pdfStyles.keynoteCard} wrap={false}>
-              {/* THÊM KHỐI HEADER NÀY ĐỂ HIỆN ẢNH KẾ BÊN TÊN */}
-              <View style={pdfStyles.keynoteHeader}>
-                {k.photo ? (
-                  <Image src={k.photo} style={pdfStyles.keynotePhoto} />
-                ) : null}
-                <View style={pdfStyles.keynoteInfo}>
-                  <Text style={pdfStyles.keynoteTitle}>
+            // wrap={false} = toàn bộ 1 speaker luôn nằm cùng 1 trang, không bị tách
+            <View key={i} wrap={false} break={i > 0}>
+
+              {/* DAY HEADER */}
+              {k.dayLabel ? (
+                <View
+                  style={{
+                    backgroundColor: "#2a4365",
+                    paddingVertical: 6,
+                    paddingHorizontal: 10,
+                    marginBottom: 20,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#ffffff",
+                      fontFamily: "Helvetica-Bold",
+                      fontSize: 10,
+                      letterSpacing: 1,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {k.dayLabel}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* SPEAKER INFO BLOCK */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  marginBottom: 20,
+                  minHeight: 150,
+                }}
+              >
+                <View style={{ width: 130, flexShrink: 0 }}>
+                  {k.photo ? (
+                    <Image
+                      src={k.photo}
+                      style={{
+                        width: 130,
+                        height: 150,
+                        objectFit: "cover",
+                        objectPosition: "center top",
+                      }}
+                    />
+                  ) : (
+                    <View style={{ width: 130, height: 150, backgroundColor: "#e2e8f0" }} />
+                  )}
+                </View>
+
+                <View
+                  style={{
+                    backgroundColor: "#e8eff5",
+                    flex: 1,
+                    paddingVertical: 15,
+                    paddingLeft: 20,
+                    paddingRight: 15,
+                    justifyContent: "center",
+                  }}
+                >
+                  {(k.timeSlot || k.location) && (
+                    <Text style={{ fontSize: 8.5, color: "#1a202c", marginBottom: 4, fontFamily: "Inter" }}>
+                      {[k.timeSlot, k.location].filter(Boolean).join(" | ")}
+                    </Text>
+                  )}
+                  {k.keynoteLabel && (
+                    <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: "#1a3a6b", marginBottom: 3, textTransform: "uppercase" }}>
+                      {k.keynoteLabel}:
+                    </Text>
+                  )}
+                  <Text
+                    style={{
+                      fontSize: Math.max(9, Math.min(13, Math.floor(370 / (Math.max(1, (k.presentationTitle || "").length) * 0.55)))),
+                      fontFamily: "Inter",
+                      color: "#2d3748",
+                      lineHeight: 1.3,
+                      marginBottom: 4,
+                    }}
+                  >
                     {k.presentationTitle || "Untitled Keynote"}
                   </Text>
-                  <Text style={pdfStyles.keynoteSpeaker}>
+                  <Text style={{ fontSize: 14, fontFamily: "Helvetica-Bold", color: "#1a3a6b", marginBottom: 3, textTransform: "uppercase" }}>
                     {k.name || "Unknown Speaker"}
                   </Text>
+                  {k.affiliation && (
+                    <Text style={{ fontSize: 8.5, fontFamily: "Inter", color: "#4a5568" }}>
+                      {k.affiliation}
+                    </Text>
+                  )}
                 </View>
               </View>
 
+              {/* ABSTRACT */}
               {k.abstract ? (
-                <View>
-                  <Text style={pdfStyles.abstractLabel}>Abstract</Text>
-                  <Text style={pdfStyles.abstractText}>{k.abstract}</Text>
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 10, color: "#1a3a6b", marginBottom: 6, textTransform: "uppercase" }}>
+                    ABSTRACT
+                  </Text>
+                  <Text style={[pdfStyles.abstractText, { textAlign: "justify", lineHeight: 1.6 }]}>
+                    {formatAbstract(k.abstract)}
+                  </Text>
                 </View>
               ) : null}
-              {k.bio ? <Text style={pdfStyles.bioText}>{k.bio}</Text> : null}
+
+              {/* BIOGRAPHY */}
+              {k.bio ? (
+                <View style={{ marginTop: 10 }}>
+                  <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 10, color: "#1a3a6b", marginBottom: 6, textTransform: "uppercase" }}>
+                    BIOGRAPHY
+                  </Text>
+                  <Text style={{ fontSize: 9.5, fontFamily: "Inter", color: "#2d3748", lineHeight: 1.6, textAlign: "justify" }}>
+                    {k.bio}
+                  </Text>
+                </View>
+              ) : null}
+
             </View>
           ))}
-          <View style={pdfStyles.footerContainer} fixed>
-            <Text style={pdfStyles.footerTitle}>
-              {data.cover.conferenceName}{" "}
-            </Text>
-            <Text
-              style={pdfStyles.pageNumber}
-              render={({ pageNumber }) => `${pageNumber}`}
-            />
-          </View>
+
+          <PdfFooter conferenceName={data.cover.conferenceName} />
         </Page>
       ) : null}
 
       {/* ── DETAILED PROGRAM WITH ABSTRACTS ── */}
       <Page size="A4" style={pdfStyles.page}>
-        <Text style={pdfStyles.sectionTitle}>
-          Detailed Program with Abstracts
-        </Text>
-        <View style={pdfStyles.sectionDivider} />
+        {(() => {
+          const title = "Detailed Program with Abstracts";
+          const fs = Math.max(12, Math.min(15, Math.floor(450 / (title.length * 0.55))));
+          return (
+            <>
+              <Text style={{ ...pdfStyles.sectionTitle, fontSize: fs }}>{title}</Text>
+              <View style={pdfStyles.sectionDivider} />
+            </>
+          );
+        })()}
         {(() => {
           const schedule: any[] = data.detailedSchedule || [];
           if (schedule.length === 0) {
@@ -911,7 +1045,7 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
               >
                 <Text
                   style={{
-                    fontSize: 11,
+                    fontSize: Math.max(9, Math.min(11, Math.floor(450 / (day.label.length * 0.55)))),
                     fontFamily: "Helvetica-Bold",
                     color: "#ffffff",
                     letterSpacing: 0.5,
@@ -980,15 +1114,7 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
             </View>
           ));
         })()}
-        <View style={pdfStyles.footerContainer} fixed>
-          <Text style={pdfStyles.footerTitle}>
-            {data.cover.conferenceName}{" "}
-          </Text>
-          <Text
-            style={pdfStyles.pageNumber}
-            render={({ pageNumber }) => `${pageNumber}`}
-          />
-        </View>
+        <PdfFooter conferenceName={data.cover.conferenceName} />
       </Page>
     </Document>
   );
@@ -997,7 +1123,7 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
 // ─── PDF Editor — types ───────────────────────────────────────────────────────
 interface EditorEl {
   id: string;
-  type: "text" | "image" | "table";
+  type: "text" | "image" | "table" | "bar";
   x: number;
   y: number;
   w: number;
@@ -1019,6 +1145,9 @@ interface EditorEl {
   tocLabel?: string;
   // table
   tableData?: TableData;
+  // bar: linked to an abstract element — stretches to match its bottom
+  linkedAbstractId?: string;
+  barColor?: string;
 }
 interface EditorPage {
   id: string;
@@ -1044,147 +1173,172 @@ const THUMB_H = Math.round((THUMB_W * 842) / 595); // ≈ 150
 const px2pt = (v: number, axis: "x" | "y") =>
   axis === "x" ? (v / CANVAS_W) * 595 : (v / CANVAS_H) * 842;
 
+const stripPagesForCache = (pages: EditorPage[]) =>
+  pages.map(({ bg, ...rest }) => ({
+    ...rest,
+    els: rest.els?.map((el) => ({ ...el })),
+  }));
+
+const hashPayload = async (payload: any): Promise<string> => {
+  const data = new TextEncoder().encode(JSON.stringify(payload));
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+};
+
 // ─── Editor export document ──────────────────────────────────────────────────
 const EditorExportDoc = ({
   pages,
   hf,
+  conferenceName = "",
 }: {
   pages: EditorPage[];
   hf: HFConfig;
-}) => (
-  <Document>
-    {pages.map((pg, pi) => (
-      <Page
-        key={pg.id}
-        size="A4"
-        wrap={false}
-        style={{
-          padding: 0,
-          position: "relative",
-          minHeight: 842,
-          backgroundColor: pg.bgColor || "#ffffff",
-        }}
-      >
-        {/* overlay elements */}
-        {[...pg.els]
-          .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
-          .map((el) =>
-            el.type === "table" && el.tableData ? (
-              <TablePdfExport
-                key={el.id}
-                tableData={el.tableData}
-                elX={el.x}
-                elY={el.y}
-                elW={el.w}
-                elH={el.h}
-                px2pt={px2pt}
-              />
-            ) : el.type === "text" ? (
-              <Text
-                key={el.id}
-                style={{
-                  position: "absolute",
-                  left: px2pt(el.x, "x"),
-                  top: px2pt(el.y, "y"),
-                  width: px2pt(el.w, "x"),
-                  fontSize: px2pt(el.fontSize ?? 12, "y"),
-                  fontFamily:
-                    el.fontFamily === "Inter" || el.fontFamily === "Roboto"
-                      ? el.fontFamily
-                      : "Inter",
-                  fontWeight: el.bold ? "bold" : "normal",
-                  fontStyle: el.italic ? "italic" : "normal",
-                  color: el.color ?? "#000000",
-                  textAlign: (el.align ?? "left") as any,
-                  ...(el.rotation
-                    ? { transform: `rotate(${el.rotation}deg)` }
-                    : {}),
-                }}
-              >
-                {el.text ?? ""}
-              </Text>
-            ) : el.type === "image" && el.src ? (
-              <Image
-                key={el.id}
-                src={el.src}
-                style={{
-                  position: "absolute",
-                  left: px2pt(el.x, "x"),
-                  top: px2pt(el.y, "y"),
-                  width: px2pt(el.w, "x"),
-                  height: px2pt(el.h, "y"),
-                  objectFit: "contain",
-                  ...(el.rotation
-                    ? { transform: `rotate(${el.rotation}deg)` }
-                    : {}),
-                }}
-              />
-            ) : null,
-          )}
+  conferenceName?: string;
+}) => {
+  const nameLen = conferenceName.length;
+  const nameFontSize = nameLen > 80 ? 6.5 : nameLen > 55 ? 7 : 8;
+  return (
+    <Document>
+      {pages.map((pg, pi) => (
+        <Page
+          key={pg.id}
+          size="A4"
+          wrap={false}
+          style={{
+            padding: 0,
+            position: "relative",
+            minHeight: 842,
+            backgroundColor: pg.bgColor || "#ffffff",
+          }}
+        >
+          {/* overlay elements */}
+          {[...pg.els]
+            .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
+            .map((el) =>
+              el.type === "table" && el.tableData ? (
+                <TablePdfExport
+                  key={el.id}
+                  tableData={el.tableData}
+                  elX={el.x}
+                  elY={el.y}
+                  elW={el.w}
+                  elH={el.h}
+                  px2pt={px2pt}
+                />
+              ) : el.type === "bar" ? (
+                <View
+                  key={el.id}
+                  style={{
+                    position: "absolute",
+                    left: px2pt(el.x, "x"),
+                    top: px2pt(el.y, "y"),
+                    width: px2pt(el.w, "x"),
+                    height: px2pt(el.h, "y"),
+                    backgroundColor: el.barColor ?? "#93c5fd",
+                  }}
+                />
+              ) : el.type === "text" ? (
+                <Text
+                  key={el.id}
+                  style={{
+                    position: "absolute",
+                    left: px2pt(el.x, "x"),
+                    top: px2pt(el.y, "y"),
+                    width: px2pt(el.w, "x"),
+                    fontSize: px2pt(el.fontSize ?? 12, "y"),
+                    fontFamily:
+                      el.fontFamily === "Inter" || el.fontFamily === "Roboto"
+                        ? el.fontFamily
+                        : "Inter",
+                    fontWeight: el.bold ? "bold" : "normal",
+                    fontStyle: el.italic ? "italic" : "normal",
+                    color: el.color ?? "#000000",
+                    textAlign: (el.align ?? "left") as any,
+                    ...(el.rotation
+                      ? { transform: `rotate(${el.rotation}deg)` }
+                      : {}),
+                  }}
+                >
+                  {el.text ?? ""}
+                </Text>
+              ) : el.type === "image" && el.src ? (
+                <Image
+                  key={el.id}
+                  src={el.src}
+                  style={{
+                    position: "absolute",
+                    left: px2pt(el.x, "x"),
+                    top: px2pt(el.y, "y"),
+                    width: px2pt(el.w, "x"),
+                    height: px2pt(el.h, "y"),
+                    objectFit: "contain",
+                    ...(el.rotation
+                      ? { transform: `rotate(${el.rotation}deg)` }
+                      : {}),
+                  }}
+                />
+              ) : null,
+            )}
 
-        {/* global header */}
-        {hf.headerText.trim() && pi > 1 && (
-          <Text
-            style={{
-              position: "absolute",
-              top: 14,
-              left: 42,
-              right: 42,
-              fontSize: 8,
-              color: "#888",
-              textAlign: "center",
-              fontFamily: "Helvetica",
-            }}
-          >
-            {hf.headerText}
-          </Text>
-        )}
-        {/* global footer */}
-        {(hf.footerText.trim() || hf.showPageNum) && pi > 1 && (
-          <View
-            style={{
-              position: "absolute",
-              bottom: 14,
-              left: 42,
-              right: 42,
-              flexDirection: "row",
-              justifyContent:
-                hf.pageNumPos === "left"
-                  ? "flex-start"
-                  : hf.pageNumPos === "right"
-                    ? "flex-end"
-                    : "center",
-              borderTopWidth: 0.5,
-              borderTopColor: "#ccc",
-              paddingTop: 4,
-              alignItems: "center",
-            }}
-          >
-            {hf.footerText.trim() && (
-              <Text
-                style={{
-                  fontSize: 8,
-                  color: "#888",
-                  fontFamily: "Helvetica",
-                  flex: 1,
-                }}
-              >
-                {hf.footerText}
-              </Text>
-            )}
-            {hf.showPageNum && (
-              <Text
-                style={{ fontSize: 8, color: "#888", fontFamily: "Helvetica" }}
-              >
-                {hf.startFrom + (pi - 2)}
-              </Text>
-            )}
-          </View>
-        )}
-      </Page>
-    ))}
-  </Document>
-);
+          {/* global header */}
+          {hf.headerText.trim() && pi > 1 && (
+            <Text
+              style={{
+                position: "absolute",
+                top: 14,
+                left: 42,
+                right: 42,
+                fontSize: 8,
+                color: "#1a3a6b",
+                textAlign: "center",
+                fontFamily: "Helvetica-Bold",
+              }}
+            >
+              {hf.headerText}
+            </Text>
+          )}
+          {/* global footer: conferenceName above line, footerText+pageNum below */}
+          {pi > 1 && (
+            <View
+              style={{
+                position: "absolute",
+                bottom: 22,
+                left: 42,
+                right: 42,
+              }}
+            >
+              {/* conferenceName above divider */}
+              {conferenceName ? (
+                <Text style={{ fontSize: nameFontSize, color: "#1a3a6b", fontFamily: "Helvetica", marginBottom: 4 }}>
+                  {conferenceName}
+                </Text>
+              ) : null}
+              {/* divider line */}
+              <View style={{ height: 0.75, backgroundColor: "#1a3a6b", marginBottom: 4 }} />
+              {/* footer row */}
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                {hf.footerText.trim() ? (
+                  <Text style={{ fontSize: 8, color: "#1a3a6b", fontFamily: "Helvetica", flex: 1 }}>
+                    {hf.footerText}
+                  </Text>
+                ) : (
+                  <Text style={{ fontSize: 8, color: "#1a3a6b", fontFamily: "Helvetica", flex: 1 }}> </Text>
+                )}
+                {hf.showPageNum && (
+                  <Text style={{ fontSize: 10, color: "#1a3a6b", fontFamily: "Helvetica-Bold" }}>
+                    {hf.startFrom + (pi - 2)}
+                  </Text>
+                )}
+              </View>
+            </View>
+          )}
+        </Page>
+      ))}
+    </Document>
+  );
+};
 
 // ─── Resize handle helpers (used by editor canvas & crop modal) ───────────────
 const DIRS = ["n", "s", "e", "w", "ne", "nw", "se", "sw"] as const;
@@ -1242,7 +1396,7 @@ const urlToBase64 = async (url: string): Promise<string> => {
   try {
     // Gọi server proxy để fetch ảnh (server không bị CORS)
     const resp = await fetch(
-      `http://localhost:8080/proxy-image?url=${encodeURIComponent(url)}`,
+      `${BASE_API_URL}/proxy-image?url=${encodeURIComponent(url)}`,
     );
     if (resp.ok) {
       const json = await resp.json();
@@ -1270,6 +1424,54 @@ const urlToBase64 = async (url: string): Promise<string> => {
     img.onerror = () => resolve(url);
     img.src = url;
   });
+};
+
+// ─── Measure actual wrapped text height using offscreen canvas ────────────────
+/**
+ * Calculate wrapped text height in canvas pixels.
+ * Uses pt-space calculation (font sizes in pt → convert to canvas px via scY).
+ * fontPx: font size already in canvas pixels (= ptSize * scY)
+ * maxWidth: available width in canvas pixels
+ */
+const measureWrappedTextHeight = (
+  text: string,
+  fontPx: number,
+  maxWidth: number,
+  lineHeightMultiplier = 1.6,
+  bold = false,
+): number => {
+  if (!text || maxWidth <= 0) return fontPx * lineHeightMultiplier * 2;
+  let lines = 1;
+  try {
+    // Use real canvas measureText for accurate word-wrap
+    const c = document.createElement("canvas");
+    const ctx = c.getContext("2d")!;
+    ctx.font = `${bold ? "bold " : ""}${fontPx}px Helvetica, Arial, sans-serif`;
+    const words = text.split(" ");
+    let curLine = "";
+    for (const word of words) {
+      const test = curLine ? curLine + " " + word : word;
+      if (ctx.measureText(test).width > maxWidth && curLine) {
+        lines++;
+        curLine = word;
+      } else {
+        curLine = test;
+      }
+    }
+  } catch {
+    // Fallback: char-count heuristic, Helvetica avg ~0.50 * fontSize
+    const charsPerLine = Math.max(1, Math.floor(maxWidth / (fontPx * 0.50)));
+    const words = text.split(" ");
+    let lineLen = 0;
+    lines = 1;
+    for (const word of words) {
+      const wl = word.length + (lineLen > 0 ? 1 : 0);
+      if (lineLen > 0 && lineLen + wl > charsPerLine) { lines++; lineLen = word.length; }
+      else lineLen += wl;
+    }
+  }
+  // Small buffer: +0.3 lines only
+  return Math.ceil((lines + 0.3) * fontPx * lineHeightMultiplier);
 };
 
 // ─── Build editor pages directly from procData (overflow-aware) ───────────────
@@ -1385,7 +1587,7 @@ const buildEditorPages = (data: any): EditorPage[] => {
     opts: Partial<EditorEl> = {},
   ): EditorEl => {
     const el: EditorEl = {
-      id: uuidv4(),
+      id: opts.id ?? uuidv4(),
       type: "text",
       x,
       y,
@@ -1404,9 +1606,10 @@ const buildEditorPages = (data: any): EditorPage[] => {
     return el;
   };
   const addSecHeader = (title: string) => {
+    const fsRaw = Math.max(10, Math.min(13, Math.floor(450 / (title.length * 0.55))));
     const h = Math.round(20 * scY);
     addT(title, ML, CW, h, {
-      fontSize: Math.round(13 * scY),
+      fontSize: Math.round(fsRaw * scY),
       bold: true,
       color: "#1a3a6b",
       isTocEntry: true,
@@ -1452,8 +1655,11 @@ const buildEditorPages = (data: any): EditorPage[] => {
     });
     y += Math.round(22 * scY);
     const title = data.cover?.title || "CONFERENCE PROCEEDINGS";
-    const titleLines = Math.ceil(title.length / 22) + 1;
-    const titleH = Math.round(titleLines * 30 * scY);
+    const titleFs = Math.max(
+      Math.round(12 * scY),
+      Math.min(Math.round(25 * scY), Math.round((CW * 0.85) / (title.length * 0.55)))
+    );
+    const titleH = Math.round(38 * scY);
     addC({
       id: uuidv4(),
       type: "text",
@@ -1462,7 +1668,7 @@ const buildEditorPages = (data: any): EditorPage[] => {
       w: CW,
       h: titleH,
       text: title,
-      fontSize: Math.round(25 * scY),
+      fontSize: titleFs,
       bold: true,
       italic: false,
       color: "#ffffff",
@@ -1470,28 +1676,34 @@ const buildEditorPages = (data: any): EditorPage[] => {
       zIndex: 13,
     });
     y += titleH + Math.round(10 * scY);
+    const nameFs = Math.round(11 * scY); // font cố định, không thu nhỏ
     if (data.cover?.conferenceName) {
+      const nameH = measureWrappedTextHeight(data.cover.conferenceName, nameFs, CW, 1.4);
       addC({
         id: uuidv4(),
         type: "text",
         x: ML,
         y,
         w: CW,
-        h: Math.round(20 * scY),
         text: data.cover.conferenceName,
-        fontSize: Math.round(11 * scY),
+        h: nameH,
+        fontSize: nameFs,
         bold: false,
         italic: false,
         color: "#bfdbfe",
         align: "center",
         zIndex: 14,
       });
-      y += Math.round(22 * scY);
+      y += nameH + Math.round(4 * scY);
     }
     const dl = [data.cover?.date, data.cover?.location]
       .filter(Boolean)
       .join("  ·  ");
     if (dl) {
+      const dlFs = Math.max(
+        Math.round(7 * scY),
+        Math.min(Math.round(10 * scY), Math.round((CW * 0.9) / (dl.length * 0.52)))
+      );
       addC({
         id: uuidv4(),
         type: "text",
@@ -1500,7 +1712,7 @@ const buildEditorPages = (data: any): EditorPage[] => {
         w: CW,
         h: Math.round(18 * scY),
         text: dl,
-        fontSize: Math.round(10 * scY),
+        fontSize: dlFs,
         bold: false,
         italic: false,
         color: "#93c5fd",
@@ -1509,7 +1721,10 @@ const buildEditorPages = (data: any): EditorPage[] => {
       });
       y += Math.round(44 * scY);
     }
-    if (data.cover?.sponsorLogos?.length > 0) {
+    const selectedLogos = (data.cover?.sponsorLogos || []).filter(
+      (l: any) => l.selected,
+    );
+    if (selectedLogos.length > 0) {
       addC({
         id: uuidv4(),
         type: "text",
@@ -1526,22 +1741,33 @@ const buildEditorPages = (data: any): EditorPage[] => {
         zIndex: 16,
       });
       y += Math.round(18 * scY);
-      let lx = ML;
-      data.cover.sponsorLogos.forEach((logo: string) => {
-        const lw = Math.round(80 * scX),
-          lh = Math.round(60 * scY);
-        addC({
-          id: uuidv4(),
-          type: "image",
-          x: lx,
-          y,
-          w: lw,
-          h: lh,
-          src: logo,
-          zIndex: 17,
+
+      const lw = Math.round(75 * scX);
+      const lh = Math.round(55 * scY);
+      const gap = Math.round(15 * scX);
+      const logosPerRow = Math.floor((CW + gap) / (lw + gap)) || 1;
+
+      // Group logos into rows
+      for (let i = 0; i < selectedLogos.length; i += logosPerRow) {
+        const row = selectedLogos.slice(i, i + logosPerRow);
+        const rowW = row.length * lw + (row.length - 1) * gap;
+        let lx = ML + (CW - rowW) / 2; // Center this row
+
+        row.forEach((logo: any) => {
+          addC({
+            id: uuidv4(),
+            type: "image",
+            x: lx,
+            y,
+            w: lw,
+            h: lh,
+            src: logo.src,
+            zIndex: 17,
+          });
+          lx += lw + gap;
         });
-        lx += lw + Math.round(16 * scX);
-      });
+        y += lh + gap;
+      }
     }
     allPages.push({
       id: uuidv4(),
@@ -1615,14 +1841,11 @@ const buildEditorPages = (data: any): EditorPage[] => {
   const infoTitle = data.cover?.conferenceName
     ? `${data.cover.conferenceName.toUpperCase()} INFORMATION`
     : "CONFERENCE INFORMATION";
-  const titleFontSize = Math.max(
-    14,
-    Math.min(24, Math.floor(475 / (infoTitle.length * 0.6))),
-  );
-
-  fit(Math.round(40 * scY));
-  addT(infoTitle, ML, CW, Math.round(32 * scY), {
-    fontSize: Math.round(titleFontSize * scY),
+  const infoTitleFs = Math.round(14 * scY); // font cố định, không thu nhỏ
+  const infoTitleH = measureWrappedTextHeight(infoTitle, infoTitleFs, CW, 1.3);
+  fit(infoTitleH + Math.round(20 * scY));
+  addT(infoTitle, ML, CW, infoTitleH, {
+    fontSize: infoTitleFs,
     bold: true,
     color: "#2a4365",
     align: "center",
@@ -1637,13 +1860,17 @@ const buildEditorPages = (data: any): EditorPage[] => {
     fit(Math.round(40 * scY));
     const bgY = curY;
     addRectFlat("#2a4365", ML, bgY, CW, rH);
+    const labelFs = Math.max(
+      Math.round(7 * scY),
+      Math.min(Math.round(9 * scY), Math.round((CW * 0.9) / (label.length * 0.52)))
+    );
     addTAt(
       label.toUpperCase(),
       ML + Math.round(4 * scX),
       bgY + Math.round(3 * scY),
       CW,
       rH,
-      { fontSize: Math.round(9 * scY), bold: true, color: "#ffffff" },
+      { fontSize: labelFs, bold: true, color: "#ffffff" },
     );
     curY = bgY + rH + Math.round(4 * scY);
 
@@ -1671,11 +1898,7 @@ const buildEditorPages = (data: any): EditorPage[] => {
     const layoutTitle = data.cover?.conferenceName
       ? `${data.cover.conferenceName.toUpperCase()} LAYOUT`
       : "VENUE LAYOUT";
-    const layoutFontSize = Math.max(
-      14,
-      Math.min(24, Math.floor(475 / (layoutTitle.length * 0.6))),
-    );
-
+    const layoutFontSize = Math.max(10, Math.min(24, Math.floor(460 / (layoutTitle.length * 0.52))));
     curY += Math.round(16 * scY);
     addT(layoutTitle, ML, CW, Math.round(32 * scY), {
       fontSize: Math.round(layoutFontSize * scY),
@@ -1726,6 +1949,8 @@ const buildEditorPages = (data: any): EditorPage[] => {
       const cells: any[][] = [];
       // Row 0: Day Header (top outer borders, inner bottom border as separator)
       const hr: any[] = [];
+      const dayFs = Math.max(Math.round(8 * scY), Math.min(Math.round(12 * scY), Math.round((CW * 0.25) / (dayLabel.length * 0.6))));
+      const dateFs = Math.max(Math.round(8 * scY), Math.min(Math.round(12 * scY), Math.round((CW * 0.75) / (dateLabel.length * 0.55))));
       hr.push({
         id: uuidv4(),
         text: dayLabel,
@@ -1736,7 +1961,7 @@ const buildEditorPages = (data: any): EditorPage[] => {
         bgColor: "#2a4365",
         fontColor: "#ffffff",
         bold: true,
-        fontSize: Math.round(12 * scY),
+        fontSize: dayFs,
         borderBottom: true,
         borderRight: false,
         borderTop: true,
@@ -1753,7 +1978,7 @@ const buildEditorPages = (data: any): EditorPage[] => {
         bgColor: "#2a4365",
         fontColor: "#ffffff",
         bold: true,
-        fontSize: Math.round(12 * scY),
+        fontSize: dateFs,
         borderBottom: true,
         borderLeft: false,
         borderTop: true,
@@ -1882,100 +2107,238 @@ const buildEditorPages = (data: any): EditorPage[] => {
 
   // ── KEYNOTE SPEAKERS ──────────────────────────────────────────────────────
   if (data.keynotes?.length > 0) {
-    addSecHeader("KEYNOTE SPEAKERS");
-    (data.keynotes as KeynoteSpeaker[]).forEach((k) => {
-      const photoW = Math.round(72 * scX),
-        photoH = Math.round(72 * scY);
-      const tLines =
-        Math.ceil((k.presentationTitle || "Untitled").length / 40) + 1;
-      const tH = Math.round(tLines * 14 * scY);
-      const abH = k.abstract
-        ? Math.round((Math.ceil(k.abstract.length / 90) + 1) * 14 * scY + 28)
-        : 0;
-      const bioH = k.bio
-        ? Math.round((Math.ceil(k.bio.length / 95) + 1) * 14 * scY + 10)
-        : 0;
-      fit(photoH + abH + bioH + Math.round(40 * scY));
-      const blockY = curY;
-      if (k.photo)
+    (data.keynotes as KeynoteSpeaker[]).forEach((k, idx) => {
+      // Mỗi speaker là 1 page, ta flush output trước khi thêm speaker (trừ speaker đầu tiên vì có thể đã sang trang)
+      // Nếu là speaker đầu tiên thì có thể đang ở trang rỗng do TOC, ta không cần flush nếu curY đang ở đỉnh.
+      if (curY > MT) flushPage();
+
+      const pad = Math.round(10 * scX);
+      const photoW = Math.round(130 * scX);
+      const photoH = Math.round(150 * scY);
+
+      // TOC Entry (Chỉ add label trên hidden element hoặc gán cờ isTocEntry cho phần tử đầu tiên)
+      // Chèn 1 text rỗng để có thẻ TOC
+      els.push({
+        id: uuidv4(),
+        type: "text",
+        x: ML,
+        y: curY,
+        w: 1,
+        h: 1,
+        text: "",
+        fontSize: 1,
+        zIndex: 0,
+        isTocEntry: idx === 0,
+        tocLabel: "Keynote Speakers",
+      });
+
+      // 1. DAY HEADER (Dark Blue Bar)
+      if (k.dayLabel) {
+        const barH = Math.round(25 * scY);
+        addRectFlat("#2a4365", ML, curY, CW, barH);
+        els.push({
+          id: uuidv4(),
+          type: "text",
+          x: ML + pad,
+          y: curY + Math.round(6 * scY),
+          w: CW - pad * 2,
+          h: Math.round(12 * scY),
+          text: k.dayLabel.toUpperCase(),
+          fontSize: Math.round(10 * scY),
+          bold: true,
+          color: "#ffffff",
+          align: "left",
+          zIndex: nzTxt(),
+        });
+        curY += barH + Math.round(20 * scY);
+      } else {
+        curY += Math.round(20 * scY);
+      }
+
+      // 2. SPEAKER INFO BLOCK (Light Blue Background & Photo)
+      const blockStartY = curY;
+
+      // Calculate text content height dynamically
+      const vPad = Math.round(15 * scY);
+      const lineGap = Math.round(4 * scY);
+      let contentH = vPad * 2; // top + bottom padding
+      if (k.timeSlot || k.location) contentH += Math.round(12 * scY) + lineGap;
+      if (k.keynoteLabel) contentH += Math.round(14 * scY) + lineGap;
+      const pTitle = k.presentationTitle || "Untitled Keynote";
+      const pTitleFs = Math.max(9, Math.min(13, Math.floor(370 / (Math.max(1, pTitle.length) * 0.55))));
+      const titleLines = pTitle.length > 55 ? 2 : 1;
+      contentH += Math.round(pTitleFs * scY * 1.3 * titleLines) + lineGap;
+      contentH += Math.round(16 * scY) + lineGap; // speaker name
+      if (k.affiliation) contentH += Math.round(12 * scY);
+
+      // bg height is max of photo height and content height
+      const lightBgH = Math.max(photoH, contentH);
+
+      // Text background starts at same Y as photo, fills to right
+      const textBgX = ML + photoW;
+      const textBgW = CW - photoW;
+      addRectFlat("#e8eff5", textBgX, blockStartY, textBgW, lightBgH);
+
+      // Photo drawn on top
+      if (k.photo) {
         els.push({
           id: uuidv4(),
           type: "image",
           x: ML,
-          y: blockY,
+          y: blockStartY,
           w: photoW,
           h: photoH,
           src: k.photo,
           zIndex: nzImg(),
         });
-      const infoX = k.photo ? ML + photoW + Math.round(12 * scX) : ML;
-      const infoW = k.photo ? CW - photoW - Math.round(12 * scX) : CW;
+      }
+
+      const infoX = textBgX + Math.round(20 * scX);
+      const infoW = textBgW - Math.round(30 * scX);
+      // vertically center content inside the bg
+      const bgCenterOffsetY = Math.round((lightBgH - contentH) / 2);
+      let infoY = blockStartY + bgCenterOffsetY + vPad;
+
+      // Time & Location
+      if (k.timeSlot || k.location) {
+        const timeLoc = [k.timeSlot, k.location].filter(Boolean).join(" | ");
+        els.push({
+          id: uuidv4(),
+          type: "text",
+          x: infoX,
+          y: infoY,
+          w: infoW,
+          h: Math.round(12 * scY),
+          text: timeLoc,
+          fontSize: Math.round(9 * scY),
+          color: "#1a202c",
+          align: "left",
+          fontFamily: "Inter",
+          zIndex: nzTxt(),
+        });
+        infoY += Math.round(12 * scY) + lineGap;
+      }
+
+      // Keynote Label
+      if (k.keynoteLabel) {
+        els.push({
+          id: uuidv4(),
+          type: "text",
+          x: infoX,
+          y: infoY,
+          w: infoW,
+          h: Math.round(14 * scY),
+          text: k.keynoteLabel.toUpperCase() + ":",
+          fontSize: Math.round(11 * scY),
+          bold: true,
+          color: "#1a3a6b",
+          align: "left",
+          zIndex: nzTxt(),
+        });
+        infoY += Math.round(14 * scY) + lineGap;
+      }
+
+      // Presentation Title
+      const titleH = Math.round(pTitleFs * scY * 1.3 * titleLines);
       els.push({
         id: uuidv4(),
         type: "text",
         x: infoX,
-        y: blockY,
+        y: infoY,
         w: infoW,
-        h: tH,
-        text: k.presentationTitle || "Untitled Keynote",
-        fontSize: Math.round(12 * scY),
+        h: titleH,
+        text: pTitle,
+        fontSize: Math.round(pTitleFs * scY),
+        color: "#2d3748",
+        align: "left",
+        fontFamily: "Inter",
+        zIndex: nzTxt(),
+      });
+      infoY += titleH + lineGap;
+
+      // Speaker Name
+      const sName = k.name || "Unknown Speaker";
+      els.push({
+        id: uuidv4(),
+        type: "text",
+        x: infoX,
+        y: infoY,
+        w: infoW,
+        h: Math.round(16 * scY),
+        text: sName.toUpperCase(),
+        fontSize: Math.round(14 * scY),
         bold: true,
-        italic: false,
         color: "#1a3a6b",
         align: "left",
         zIndex: nzTxt(),
       });
-      els.push({
-        id: uuidv4(),
-        type: "text",
-        x: infoX,
-        y: blockY + tH + 4,
-        w: infoW,
-        h: Math.round(18 * scY),
-        text: k.name || "",
-        fontSize: Math.round(10 * scY),
-        bold: false,
-        italic: true,
-        color: "#4a5568",
-        align: "left",
-        zIndex: nzTxt(),
-      });
-      curY += Math.max(photoH, tH + 24) + Math.round(12 * scY);
-      if (k.abstract) {
-        addT("ABSTRACT", ML, CW, Math.round(12 * scY), {
-          fontSize: Math.round(8 * scY),
-          bold: true,
-          color: "#718096",
+      infoY += Math.round(16 * scY) + lineGap;
+
+      // Affiliation
+      if (k.affiliation) {
+        els.push({
+          id: uuidv4(),
+          type: "text",
+          x: infoX,
+          y: infoY,
+          w: infoW,
+          h: Math.round(12 * scY),
+          text: k.affiliation,
+          fontSize: Math.round(8.5 * scY),
+          color: "#4a5568",
+          align: "left",
+          fontFamily: "Inter",
+          zIndex: nzTxt(),
         });
-        curY += Math.round(4 * scY);
-        addT(
-          k.abstract,
-          ML,
-          CW,
-          Math.round((Math.ceil(k.abstract.length / 90) + 1) * 14 * scY),
-          { fontSize: Math.round(9 * scY), color: "#2d3748", align: "justify" },
-        );
+      }
+
+      // Advance curY past the whole block
+      curY = blockStartY + lightBgH + Math.round(15 * scY);
+
+      // 3. ABSTRACT SECTION
+      if (k.abstract) {
+        addT("ABSTRACT", ML, CW, Math.round(16 * scY), {
+          fontSize: Math.round(10 * scY),
+          bold: true,
+          color: "#1a3a6b",
+        });
         curY += Math.round(6 * scY);
+
+        const abText = formatAbstract(k.abstract);
+        const abFontPx = 9.5 * scY;
+        const abH = measureWrappedTextHeight(abText, abFontPx, CW, 1.6);
+        addT(abText, ML, CW, abH, {
+          fontSize: Math.round(abFontPx),
+          color: "#2d3748",
+          align: "justify",
+          fontFamily: "Inter",
+        });
+        curY += Math.round(12 * scY);
       }
+
+      // 4. BIOGRAPHY SECTION
       if (k.bio) {
-        addT(
-          k.bio,
-          ML,
-          CW,
-          Math.round((Math.ceil(k.bio.length / 95) + 1) * 14 * scY),
-          {
-            fontSize: Math.round(9 * scY),
-            italic: true,
-            color: "#4a5568",
-            align: "justify",
-          },
-        );
-        curY += Math.round(8 * scY);
+        addT("BIOGRAPHY", ML, CW, Math.round(16 * scY), {
+          fontSize: Math.round(10 * scY),
+          bold: true,
+          color: "#1a3a6b",
+        });
+        curY += Math.round(6 * scY);
+
+        const bioFontPx = 9.5 * scY;
+        const bioH = measureWrappedTextHeight(k.bio, bioFontPx, CW, 1.6);
+        addT(k.bio, ML, CW, bioH, {
+          fontSize: Math.round(bioFontPx),
+          color: "#2d3748",
+          align: "justify",
+          fontFamily: "Inter",
+        });
+        curY += Math.round(10 * scY);
       }
-      addRectFlat("#e2e8f0", ML, curY, CW, 1);
-      curY += Math.round(24 * scY);
+
+      // Force flush this page for the next speaker/section
+      flushPage();
     });
-    flushPage();
   }
 
   // ── DETAILED PROGRAM WITH ABSTRACTS ───────────────────────────────────────
@@ -2006,13 +2369,17 @@ const buildEditorPages = (data: any): EditorPage[] => {
       const dayH = Math.round(22 * scY);
       fit(dayH + Math.round(40 * scY));
       const dayBgY = addRect("#1a3a6b", ML, CW, dayH);
+      const dayLabelFs = Math.max(
+        Math.round(7 * scY),
+        Math.min(Math.round(10 * scY), Math.round(((CW - 16 * scX) * 0.95) / (day.label.length * 0.55)))
+      );
       addTAt(
         day.label,
         ML + Math.round(8 * scX),
         dayBgY + Math.round(5 * scY),
         CW - Math.round(16 * scX),
         dayH - Math.round(8 * scY),
-        { fontSize: Math.round(10 * scY), bold: true, color: "#ffffff" },
+        { fontSize: dayLabelFs, bold: true, color: "#ffffff" },
       );
       curY += Math.round(10 * scY);
       day.papers.forEach((p) => {
@@ -2023,29 +2390,23 @@ const buildEditorPages = (data: any): EditorPage[] => {
           ? "ABSTRACT. " +
           p.abstract.replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim()
           : "";
-        const abH = abText
-          ? Math.round((Math.ceil(abText.length / 88) + 1) * 12 * scY)
-          : 0;
-        const totalH = authH + tH + abH + Math.round(20 * scY);
-        fit(totalH);
+        const abFontPx = 8.5 * scY;
         const pML = ML + Math.round(12 * scX),
           pCW = CW - Math.round(10 * scX);
         const timeW = p.timeSlot ? Math.round(44 * scX) : 0;
-        const blockStartY = curY;
-        els.push({
-          id: uuidv4(),
-          type: "image",
-          x: ML,
-          y: blockStartY,
-          w: Math.round(2.5 * scX),
-          h: totalH - Math.round(6 * scY),
-          src: solidColorImg(
-            "#93c5fd",
-            Math.round(3 * scX),
-            totalH - Math.round(6 * scY),
-          ),
-          zIndex: nzImg(),
-        });
+        const pCW_for_measure = pCW - timeW;
+        // Use lineHeightMultiplier 1.4 to match DOM render (lineHeight: 1.4)
+        const abH = abText
+          ? measureWrappedTextHeight(abText, abFontPx, pCW_for_measure, 1.4)
+          : 0;
+
+        // Fit the whole block together so it doesn't split mid-paper
+        const totalH = authH + Math.round(2 * scY) + tH + Math.round(2 * scY) + abH + Math.round(3 * scY) + Math.round(14 * scY);
+        fit(totalH);
+
+        // Record exact Y AFTER fit() in case page was flushed
+        const barStartY = curY;
+
         if (p.timeSlot)
           addTAt(p.timeSlot, pML, curY, Math.round(36 * scX), authH, {
             fontSize: Math.round(8.5 * scY),
@@ -2057,22 +2418,41 @@ const buildEditorPages = (data: any): EditorPage[] => {
           italic: true,
           color: "#4a5568",
         });
-        curY += authH + Math.round(2 * scY);
+        curY += authH + Math.round(4 * scY);
+
         addTAt(p.paperTitle || "", pML + timeW, curY, pCW - timeW, tH, {
           fontSize: Math.round(9.5 * scY),
           bold: true,
           color: "#1a202c",
         });
-        curY += tH + Math.round(2 * scY);
+        curY += tH + Math.round(6 * scY);
+
+        const abElId = uuidv4();
         if (abText) {
           addTAt(abText, pML + timeW, curY, pCW - timeW, abH, {
+            id: abElId,
             fontSize: Math.round(8.5 * scY),
             color: "#2d3748",
             align: "justify",
           });
-          curY += abH + Math.round(3 * scY);
+          curY += abH;
         }
-        curY += Math.round(8 * scY);
+
+        // Blue bar: type "bar" — DOM renderer will stretch it to match abstract bottom
+        els.push({
+          id: uuidv4(),
+          type: "bar",
+          x: ML,
+          y: barStartY,
+          w: Math.round(2.5 * scX),
+          h: curY - barStartY,
+          barColor: "#93c5fd",
+          linkedAbstractId: abText ? abElId : undefined,
+          zIndex: nzImg(),
+        });
+
+        // Spacing between papers
+        curY += Math.round(16 * scY);
       });
     });
   }
@@ -2090,10 +2470,10 @@ const regenerateToc = (pages: EditorPage[]): EditorPage[] => {
   const CW = CANVAS_W - ML * 2;
   const entries: { label: string; pageNum: number }[] = [];
   pages.forEach((pg, idx) => {
-    if (idx <= 1) return;
+    if (idx <= 1) return; // skip Cover and TOC
     pg.els.forEach((el) => {
       if (el.isTocEntry && el.text)
-        entries.push({ label: el.tocLabel || el.text, pageNum: idx + 1 });
+        entries.push({ label: el.tocLabel || el.text, pageNum: idx - 1 }); // idx-2+1: skip cover(0)+toc(1), start from 1
     });
   });
   const tocEls: EditorEl[] = [];
@@ -2106,17 +2486,18 @@ const regenerateToc = (pages: EditorPage[]): EditorPage[] => {
   );
   const confName = confNameEl?.text || "CONFERENCE";
 
-  // Vertical conference name (rotated -90deg, decorative left side)
-  const textLen = confName.length;
-  // Auto-scale to fill ~800pt height
-  const rawFont = Math.max(16, Math.min(140, 800 / (textLen * 0.65)));
-  const vertFontSize = Math.round(rawFont * scY);
-  // Width fixed to 800 to avoid wrapping and ensure center rotation alignment
-  const vertW = Math.round(800 * scY);
-  const vertH = Math.round(rawFont * 1.4 * scY);
-  // x: visual center at ~40px from left
-  const cx = Math.round(40 * scX);
-  const cy = Math.round(421 * scY);
+  // Vertical conference name: rotated -90deg, anchored to left strip
+  // vertW = page height in canvas px (so text can fill the full height when rotated)
+  const vertFontSize = Math.round(18 * scY); // fixed readable size
+  const vertW = Math.round(CANVAS_H * 0.85); // 85% of page height as text width
+  const vertH = Math.round(24 * scY);         // single-line height after rotation
+  // After -90 rotation: the element's visual center maps to (cx, cy) on page
+  // We want visual center x ≈ 28px from left edge (center of the left strip)
+  const cx = Math.round(28 * scX);
+  const cy = Math.round(CANVAS_H / 2);
+  // CSS rotation is around element center, so:
+  // rendered center_x = el.x + el.w/2  →  cx = vertX + vertW/2
+  // rendered center_y = el.y + el.h/2  →  cy = vertY + vertH/2
   const vertX = cx - Math.round(vertW / 2);
   const vertY = cy - Math.round(vertH / 2);
   tocEls.push({
@@ -2179,6 +2560,10 @@ const regenerateToc = (pages: EditorPage[]): EditorPage[] => {
       fontFamily: "Inter",
       zIndex: nzTxt(),
     });
+    const labelFs = Math.max(
+      Math.round(8 * scY),
+      Math.min(Math.round(10 * scY), Math.round(((CW - numW - 75 * scX) * 0.95) / (entry.label.length * 0.55)))
+    );
     // Label
     tocEls.push({
       id: uuidv4(),
@@ -2188,7 +2573,7 @@ const regenerateToc = (pages: EditorPage[]): EditorPage[] => {
       w: CW - numW - Math.round(75 * scX),
       h: rowH - Math.round(6 * scY),
       text: entry.label,
-      fontSize: Math.round(10 * scY),
+      fontSize: labelFs,
       bold: false,
       italic: false,
       color: "#3b6cb5",
@@ -2237,6 +2622,11 @@ const renderThumbnail = (page: EditorPage): Promise<string> => {
         renderTableToCanvas(ctx, el.tableData, x, y, w, h, scale);
         if (hasRotation) ctx.restore();
         drawNext(i + 1);
+      } else if (el.type === "bar") {
+        ctx.fillStyle = el.barColor ?? "#93c5fd";
+        ctx.fillRect(x, y, w, h);
+        if (hasRotation) ctx.restore();
+        drawNext(i + 1);
       } else if (el.type === "image" && el.src) {
         const img = new window.Image();
         img.onload = () => {
@@ -2254,17 +2644,38 @@ const renderThumbnail = (page: EditorPage): Promise<string> => {
         const fs = Math.max(1.5, (el.fontSize || 10) * scale);
         ctx.font = `${el.italic ? "italic " : ""}${el.bold ? "bold " : ""}${fs}px Helvetica, Arial, sans-serif`;
         ctx.textBaseline = "top";
-        const lineH = fs * 1.35;
-        el.text.split("\n").forEach((line, li) => {
+        const lineH = fs * 1.4;
+        // Word-wrap: split into lines that fit within w
+        const rawLines = el.text.split("\n");
+        const wrappedLines: string[] = [];
+        for (const rawLine of rawLines) {
+          if (!rawLine.trim()) { wrappedLines.push(""); continue; }
+          const words = rawLine.split(" ");
+          let current = "";
+          for (const word of words) {
+            const test = current ? current + " " + word : word;
+            if (ctx.measureText(test).width > w && current) {
+              wrappedLines.push(current);
+              current = word;
+            } else {
+              current = test;
+            }
+          }
+          if (current) wrappedLines.push(current);
+        }
+        wrappedLines.forEach((line, li) => {
           const ly = y + li * lineH;
-          if (ly > THUMB_H || !line.trim()) return;
+          if (ly + lineH > y + h + lineH) return; // clip to element bounds with 1 line tolerance
+          if (!line.trim()) return;
           if (el.align === "center") {
             const tw = ctx.measureText(line).width;
-            ctx.fillText(line, x + (w - tw) / 2, ly, w);
+            ctx.fillText(line, x + (w - tw) / 2, ly);
           } else if (el.align === "right") {
             const tw = ctx.measureText(line).width;
-            ctx.fillText(line, x + w - tw, ly, w);
-          } else ctx.fillText(line, x, ly, w);
+            ctx.fillText(line, x + w - tw, ly);
+          } else {
+            ctx.fillText(line, x, ly);
+          }
         });
         if (hasRotation) ctx.restore();
         drawNext(i + 1);
@@ -2291,6 +2702,44 @@ const TABS = [
 ];
 
 // ─── Main Component ───────────────────────────────────────────────────────────
+/** Bar element that stretches from its top to the bottom of its linked abstract element */
+const BarElement: React.FC<{ el: EditorEl }> = ({ el }) => {
+  const [height, setHeight] = React.useState(el.h);
+  React.useEffect(() => {
+    if (!el.linkedAbstractId) return;
+    const target = document.getElementById(`editor-el-${el.linkedAbstractId}`);
+    if (!target) return;
+    // Measure once immediately
+    const update = () => {
+      const rect = target.getBoundingClientRect();
+      const parentEl = target.offsetParent as HTMLElement | null;
+      if (!parentEl) return;
+      const parentRect = parentEl.getBoundingClientRect();
+      const abstractBottom = rect.bottom - parentRect.top;
+      const newH = abstractBottom - el.y;
+      if (newH > 0) setHeight(newH);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(target);
+    return () => ro.disconnect();
+  }, [el.linkedAbstractId, el.y]);
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: el.w,
+        height,
+        backgroundColor: el.barColor ?? "#93c5fd",
+        borderRadius: 1,
+      }}
+    />
+  );
+};
+
 const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
   userRoleId,
   onNavigateBack,
@@ -2302,8 +2751,18 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("cover");
 
+  // Auto-generate preview when switching to preview tab (if not already generated)
+  useEffect(() => {
+    if (activeTab === "preview" && !previewBlobUrl && !previewGenerating && selectedConfId) {
+      generateBlobInBackground(procData, edReady ? edPages : undefined);
+    }
+  }, [activeTab]);
+
   const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
   const [previewGenerating, setPreviewGenerating] = useState(false);
+  const [previewCacheKey, setPreviewCacheKey] = useState<string | null>(null);
+  const [previewCacheUrl, setPreviewCacheUrl] = useState<string | null>(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const prevBlobRef = useRef<string | null>(null); //  revoke URL c
   const bgGenAbortRef = useRef<boolean>(false);
 
@@ -2370,9 +2829,9 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     abstract: string;
   } | null>(null);
   const [showInsertTable, setShowInsertTable] = useState(false);
+  const [imageToInsert, setImageToInsert] = useState<string | null>(null);
   const [tableSelectedCells, setTableSelectedCells] = useState<CellCoord[]>([]);
   const [dragFromIdx, setDragFromIdx] = useState<number | null>(null);
-  const [debouncedEdPages, setDebouncedEdPages] = useState<EditorPage[]>([]);
   const dragRef = useRef<{
     type: "move" | "resize";
     elId: string;
@@ -2383,6 +2842,8 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
   } | null>(null);
   /** Vị trí đang drag — không dùng state để tránh re-render 60fps */
   const dragPosRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+  const lastPointerEventRef = useRef<{ clientX: number; clientY: number } | null>(null);
+  const tocDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cropDragRef = useRef<{
     active: boolean;
     mode: string;
@@ -2409,7 +2870,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
       conferenceName: "",
       date: "",
       location: "",
-      sponsorLogos: [] as string[],
+      sponsorLogos: [] as { src: string; selected: boolean }[],
     },
     foreword: "",
     committee: [] as any[],
@@ -2425,6 +2886,11 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     keynotes: [] as KeynoteSpeaker[],
     detailedSchedule: [] as any[],
   });
+  const [papersTotal, setPapersTotal] = useState(0);
+  const [papersLoading, setPapersLoading] = useState(false);
+  const [papersError, setPapersError] = useState<string | null>(null);
+  const procDataRef = useRef(procData);
+  const confStartRef = useRef<Date | null>(null);
 
   useEffect(() => {
     supabase
@@ -2439,6 +2905,8 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
       bgGenAbortRef.current = true;
       setPreviewBlobUrl(null);
       setPreviewGenerating(false);
+      setPreviewCacheKey(null);
+      setPreviewCacheUrl(null);
       loadFullConferenceData(selectedConfId);
     }
   }, [selectedConfId])
@@ -2466,17 +2934,246 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     return () => observer.disconnect();
   }, [edReady, edPages.length]);
 
+  const getObj = (o: any) => (Array.isArray(o) ? o[0] : o);
+
+  const fetchProceedingsPapers = async (
+    confId: number,
+    offset: number,
+    limit: number,
+    includeAbstract = true,
+  ): Promise<{ papers: any[]; total: number }> => {
+    const resp = await fetch(
+      `${BASE_API_URL}/proceedings/${confId}/papers?offset=${offset}&limit=${limit}&include_abstract=${includeAbstract}`,
+    );
+    if (!resp.ok) {
+      const msg = await resp.text();
+      throw new Error(msg || "Failed to load proceedings papers");
+    }
+    const json = await resp.json();
+    return {
+      papers: json.papers || [],
+      total: json.total || 0,
+    };
+  };
+
+  const fetchProceedingsReviewers = async (confId: number): Promise<any[]> => {
+    const resp = await fetch(
+      `${BASE_API_URL}/proceedings/${confId}/reviewers`,
+    );
+    if (!resp.ok) {
+      const msg = await resp.text();
+      throw new Error(msg || "Failed to load reviewers");
+    }
+    const json = await resp.json();
+    return json.reviewers || [];
+  };
+
+  const mapPapersToSchedule = (papers: any[], confStart: Date) =>
+    (papers || []).map((p) => {
+      const a = getObj(p.author);
+      const sp = p.session;
+
+      const timeStr = sp?.start_time
+        ? new Date(sp.start_time).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })
+        : "";
+
+      let sessionDayLabel = "";
+      let sessionDayOrder = 0;
+      if (sp?.start_time) {
+        const spDate = new Date(sp.start_time);
+        const dayDiff =
+          Math.floor(
+            (spDate.getTime() - confStart.getTime()) / (1000 * 3600 * 24),
+          ) + 1;
+        const dayName = spDate
+          .toLocaleDateString("en-GB", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          })
+          .toUpperCase();
+        sessionDayLabel = `DAY ${dayDiff} - ${dayName}`;
+        sessionDayOrder = spDate.getTime();
+      }
+
+      return {
+        id: uuidv4(),
+        paperTitle: p.title,
+        authors: a?.full_name || "",
+        abstract: p.abstract || "",
+        timeSlot: timeStr,
+        location: sp?.room_location || "",
+        sessionDayLabel,
+        sessionDayOrder,
+        paper_id: p.paper_id,
+      };
+    });
+
+  const appendSchedule = (items: any[]) => {
+    if (!items.length) return;
+    setProcData((prev) => {
+      const next = {
+        ...prev,
+        detailedSchedule: [...prev.detailedSchedule, ...items],
+      };
+      procDataRef.current = next;
+      return next;
+    });
+  };
+
+  const loadMorePapers = async () => {
+    if (!selectedConfId || papersLoading) return;
+    const confStart = confStartRef.current;
+    if (!confStart) return;
+    setPapersLoading(true);
+    setPapersError(null);
+    try {
+      const offset = procDataRef.current.detailedSchedule.length;
+      const { papers, total } = await fetchProceedingsPapers(
+        selectedConfId,
+        offset,
+        PAPERS_PAGE_SIZE,
+        true,
+      );
+      const mapped = mapPapersToSchedule(papers, confStart);
+      appendSchedule(mapped);
+      setPapersTotal(total || 0);
+    } catch (e) {
+      console.error(e);
+      setPapersError("Failed to load more papers.");
+    } finally {
+      setPapersLoading(false);
+    }
+  };
+
+  const ensureAllPapersLoaded = async () => {
+    if (!selectedConfId || papersLoading) return;
+    const confStart = confStartRef.current;
+    if (!confStart) return;
+    const total = Math.max(
+      papersTotal,
+      procDataRef.current.detailedSchedule.length,
+    );
+    if (total === 0 || procDataRef.current.detailedSchedule.length >= total)
+      return;
+
+    setPapersLoading(true);
+    setPapersError(null);
+    try {
+      let offset = procDataRef.current.detailedSchedule.length;
+      let knownTotal = total;
+      while (offset < knownTotal) {
+        const { papers, total: newTotal } = await fetchProceedingsPapers(
+          selectedConfId,
+          offset,
+          PAPERS_PAGE_SIZE,
+          true,
+        );
+        if (!papers.length) break;
+        const mapped = mapPapersToSchedule(papers, confStart);
+        appendSchedule(mapped);
+        offset += papers.length;
+        if (newTotal) {
+          knownTotal = newTotal;
+          setPapersTotal(newTotal);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      setPapersError("Failed to load all papers.");
+    } finally {
+      setPapersLoading(false);
+    }
+  };
+
+  const getCachedPdfUrl = async (confId: number, key: string) => {
+    try {
+      const resp = await fetch(
+        `${BASE_API_URL}/proceedings/${confId}/pdf-cache?key=${key}`,
+      );
+      if (!resp.ok) return null;
+      const json = await resp.json();
+      return json.url as string;
+    } catch {
+      return null;
+    }
+  };
+
+  const uploadCachedPdf = async (
+    confId: number,
+    key: string,
+    blob: Blob,
+  ) => {
+    try {
+      const form = new FormData();
+      form.append("key", key);
+      form.append(
+        "file",
+        new File([blob], `proceedings-${confId}.pdf`, {
+          type: "application/pdf",
+        }),
+      );
+      const resp = await fetch(
+        `${BASE_API_URL}/proceedings/${confId}/pdf-cache`,
+        {
+          method: "POST",
+          body: form,
+        },
+      );
+      if (!resp.ok) return null;
+      const json = await resp.json();
+      return json.url as string;
+    } catch {
+      return null;
+    }
+  };
+
+  const downloadPdfFromUrl = async (url: string, filename: string) => {
+    try {
+      if (url.startsWith("blob:")) {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        return;
+      }
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        window.open(url, "_blank");
+        return;
+      }
+      const blob = await resp.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(objUrl);
+    } catch {
+      window.open(url, "_blank");
+    }
+  };
+
   const loadFullConferenceData = async (confId: number) => {
     setLoading(true);
     setError(null);
+    setPapersError(null);
+    setPapersTotal(0);
+    setProcData((prev) => ({ ...prev, detailedSchedule: [] }));
     try {
       const conf = conferences.find((c) => c.conf_id === confId);
+      if (!conf) {
+        throw new Error("Conference not found.");
+      }
 
       const [
         { data: config },
-        { data: papers },
         { data: sessions },
-        { data: sessionPapers },
       ] = await Promise.all([
         supabase
           .from("proceedings_configs")
@@ -2484,34 +3181,23 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
           .eq("conf_id", confId)
           .maybeSingle(),
         supabase
-          .from("papers")
-          .select("*, author:users!primary_author_id(full_name, organization)")
-          .eq("submitted_conf", confId)
-          .eq("status", "ACCEPTED"),
-        supabase
           .from("sessions")
           .select("*, chair:users!chair_person_id(full_name, organization)")
           .eq("conf_id", confId)
           .order("start_time", { ascending: true }),
-        supabase
-          .from("session_papers")
-          .select("session_id, paper_id, start_time, end_time"),
       ]);
+
       const confStart = new Date(conf.start_date);
+      confStartRef.current = confStart;
 
-      // Filter session_papers to only those belonging to this conference's sessions
-      const confSessionIds = new Set((sessions || []).map((s) => s.session_id));
-      const confSessionPapers = (sessionPapers || []).filter((sp) =>
-        confSessionIds.has(sp.session_id),
-      );
-
-      const { data: reviewers } = await supabase
-        .from("reviewer_assignments")
-        .select("paper_id, reviewer:users!reviewer_id(full_name, organization)")
-        .in("paper_id", papers?.map((p) => p.paper_id) || []);
+      setPapersLoading(true);
+      const [{ papers, total }, reviewers] = await Promise.all([
+        fetchProceedingsPapers(confId, 0, PAPERS_PAGE_SIZE, true),
+        fetchProceedingsReviewers(confId),
+      ]);
+      setPapersLoading(false);
 
       // Build committee from chairs + reviewers
-      const getObj = (o: any) => (Array.isArray(o) ? o[0] : o);
       const chairSet = new Map<string, any>();
       sessions?.forEach((s) => {
         const c = getObj(s.chair);
@@ -2524,11 +3210,10 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
           });
       });
       const reviewerSet = new Map<string, any>();
-      reviewers?.forEach((r) => {
-        const rv = getObj(r.reviewer);
+      reviewers?.forEach((rv: any) => {
         if (rv?.full_name && !reviewerSet.has(rv.full_name))
           reviewerSet.set(rv.full_name, {
-            id: uuidv4(),
+            id: rv.id || uuidv4(),
             name: rv.full_name,
             role: "Program Committee",
             affiliation: rv.organization || "",
@@ -2580,55 +3265,11 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
           floorPlan: "",
         },
         keynotes: savedKeynotes,
-        detailedSchedule: (papers || []).map((p) => {
-          const a = getObj(p.author);
-          const sp = confSessionPapers.find(
-            (item) => item.paper_id === p.paper_id,
-          );
-
-          // Time-only string (HH:MM) to show next to title
-          const timeStr = sp?.start_time
-            ? new Date(sp.start_time).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            })
-            : "";
-
-          // Day label for grouping, e.g. "DAY 1 - FRIDAY, 12 DECEMBER 2025"
-          let sessionDayLabel = "";
-          let sessionDayOrder = 0;
-          if (sp?.start_time) {
-            const spDate = new Date(sp.start_time);
-            const dayDiff =
-              Math.floor(
-                (spDate.getTime() - confStart.getTime()) / (1000 * 3600 * 24),
-              ) + 1;
-            const dayName = spDate
-              .toLocaleDateString("en-GB", {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              })
-              .toUpperCase();
-            sessionDayLabel = `DAY ${dayDiff} - ${dayName}`;
-            sessionDayOrder = spDate.getTime();
-          }
-
-          return {
-            id: uuidv4(),
-            paperTitle: p.title,
-            authors: a?.full_name || "",
-            abstract: p.abstract || "",
-            timeSlot: timeStr,
-            sessionDayLabel,
-            sessionDayOrder,
-            paper_id: p.paper_id,
-          };
-        }),
+        detailedSchedule: mapPapersToSchedule(papers || [], confStart),
       };
       setProcData(newProcData);
+      procDataRef.current = newProcData;
+      setPapersTotal(total || (papers?.length ?? 0));
 
       if (new Date(conf.end_date) > new Date()) {
         setError(
@@ -2638,14 +3279,24 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
 
       // Convert sponsor logo URLs thành base64 (tránh lỗi CORS trong react-pdf)
       const bannerUrls: string[] = Array.isArray(conf.banner_urls)
-        ? conf.banner_urls : [];
+        ? (conf.banner_urls as string[])
+        : [];
       if (bannerUrls.length > 0) {
-        const base64Logos = await Promise.all(bannerUrls.map(url => urlToBase64(url)));
-        setProcData(d => ({ ...d, cover: { ...d.cover, sponsorLogos: base64Logos } }));
+        const base64Logos = await Promise.all(
+          bannerUrls.map((url) => urlToBase64(url)),
+        );
+        setProcData((d) => ({
+          ...d,
+          cover: {
+            ...d.cover,
+            sponsorLogos: base64Logos.map((src) => ({ src, selected: true })),
+          },
+        }));
       }
     } catch (err) {
       console.error(err);
       setError("Failed to load conference data. Please try again.");
+      setPapersLoading(false);
     } finally {
       setLoading(false);
     }
@@ -2681,23 +3332,114 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     bgGenAbortRef.current = false;
     setPreviewGenerating(true);
     try {
+      await ensureAllPapersLoaded();
+      const liveData = procDataRef.current ?? data;
+      const livePages = pages && pages.length > 0 ? pages : undefined;
+      const payload = livePages
+        ? { pages: stripPagesForCache(livePages), hf }
+        : { procData: liveData };
+
+      const cacheKey = await hashPayload(payload);
+      if (previewCacheKey === cacheKey && previewCacheUrl) {
+        setPreviewBlobUrl(previewCacheUrl);
+        return;
+      }
+
+      if (selectedConfId) {
+        const cachedUrl = await getCachedPdfUrl(selectedConfId, cacheKey);
+        if (cachedUrl) {
+          if (prevBlobRef.current?.startsWith("blob:")) {
+            URL.revokeObjectURL(prevBlobRef.current);
+            prevBlobRef.current = null;
+          }
+          setPreviewCacheKey(cacheKey);
+          setPreviewCacheUrl(cachedUrl);
+          setPreviewBlobUrl(cachedUrl);
+          return;
+        }
+      }
+
       // Nếu có editor pages (edReady) → dùng EditorExportDoc để giữ inserted pages
       // Nếu không → dùng ProceedingsDocument với toàn bộ papers (không cắt)
-      const doc = (pages && pages.length > 0)
-        ? <EditorExportDoc pages={pages} hf={hf} />
-        : <ProceedingsDocument data={data} />;
+      const doc = livePages
+        ? <EditorExportDoc pages={livePages} hf={hf} conferenceName={procDataRef.current?.cover?.conferenceName ?? ""} />
+        : <ProceedingsDocument data={liveData} />;
 
       const blob = await pdf(doc).toBlob();
       if (bgGenAbortRef.current) return;
 
-      if (prevBlobRef.current) URL.revokeObjectURL(prevBlobRef.current);
-      const url = URL.createObjectURL(blob);
-      prevBlobRef.current = url;
-      setPreviewBlobUrl(url);
+      let uploadedUrl: string | null = null;
+      if (selectedConfId) {
+        uploadedUrl = await uploadCachedPdf(selectedConfId, cacheKey, blob);
+      }
+
+      if (uploadedUrl) {
+        if (prevBlobRef.current?.startsWith("blob:")) {
+          URL.revokeObjectURL(prevBlobRef.current);
+          prevBlobRef.current = null;
+        }
+        setPreviewCacheKey(cacheKey);
+        setPreviewCacheUrl(uploadedUrl);
+        setPreviewBlobUrl(uploadedUrl);
+      } else {
+        if (prevBlobRef.current?.startsWith("blob:"))
+          URL.revokeObjectURL(prevBlobRef.current);
+        const url = URL.createObjectURL(blob);
+        prevBlobRef.current = url;
+        setPreviewBlobUrl(url);
+      }
     } catch (e) {
       console.error('Preview generation failed', e);
     } finally {
       if (!bgGenAbortRef.current) setPreviewGenerating(false);
+    }
+  };
+
+  const exportPdf = async () => {
+    if (exportingPdf) return;
+    setExportingPdf(true);
+    try {
+      await ensureAllPapersLoaded();
+      const liveData = procDataRef.current;
+      const livePages = edPages.length > 0 ? edPages : undefined;
+      const payload = livePages
+        ? { pages: stripPagesForCache(livePages), hf }
+        : { procData: liveData };
+      const cacheKey = await hashPayload(payload);
+
+      let url =
+        previewCacheKey === cacheKey && previewCacheUrl
+          ? previewCacheUrl
+          : null;
+
+      if (!url && selectedConfId) {
+        url = await getCachedPdfUrl(selectedConfId, cacheKey);
+      }
+
+      if (!url) {
+        const doc = livePages
+          ? <EditorExportDoc pages={livePages} hf={hf} conferenceName={procDataRef.current?.cover?.conferenceName ?? ""} />
+          : <ProceedingsDocument data={liveData} />;
+        const blob = await pdf(doc).toBlob();
+        if (selectedConfId) {
+          url = await uploadCachedPdf(selectedConfId, cacheKey, blob);
+        }
+        if (!url) {
+          const localUrl = URL.createObjectURL(blob);
+          await downloadPdfFromUrl(localUrl, "proceedings-edited.pdf");
+          URL.revokeObjectURL(localUrl);
+          return;
+        }
+      }
+
+      setPreviewCacheKey(cacheKey);
+      setPreviewCacheUrl(url);
+      setPreviewBlobUrl(url);
+      await downloadPdfFromUrl(url, "proceedings-edited.pdf");
+    } catch (e) {
+      console.error("Export PDF failed", e);
+    } finally {
+      setExportingPdf(false);
     }
   };
   // ── Editor helpers ────────────────────────────────────────────────────────
@@ -2707,7 +3449,8 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     if ((!forceRebuild && edReady) || edLoading) return;
     setEdLoading(true);
     try {
-      let pages = buildEditorPages(procData);
+      await ensureAllPapersLoaded();
+      let pages = buildEditorPages(procDataRef.current);
       pages = regenerateToc(pages);
       // Render tuần tự, update sidebar từng trang một (user thấy progress)
       const pagesWithThumbs: EditorPage[] = [];
@@ -2730,7 +3473,6 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
   };
 
   // Auto-sync: Khi procData thay đổi và editor đã mở, rebuild lại editor pages
-  const procDataRef = useRef(procData);
   useEffect(() => {
     procDataRef.current = procData;
     if (!edReady) return;
@@ -2798,45 +3540,6 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selEl, clipboard, selPage]);
-
-  // Debounce edPages for PDF Export to prevent lag during rapid updates
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedEdPages(edPages);
-    }, 1500); // 1.5s delay after user stops typing/dragging
-    return () => clearTimeout(timer);
-  }, [edPages]);
-
-  const editorPdfDoc = useMemo(() => {
-    const pagesToRender =
-      debouncedEdPages.length > 0 ? debouncedEdPages : edPages;
-    // Avoid crashing if no pages exist yet
-    if (pagesToRender.length === 0) {
-      return (
-        <Document>
-          <Page size="A4">
-            <View style={{ padding: 40 }}>
-              <Text>No pages generated yet.</Text>
-            </View>
-          </Page>
-        </Document>
-      );
-    }
-    return <EditorExportDoc pages={pagesToRender} hf={hf} />;
-  }, [debouncedEdPages, edPages, hf]);
-
-  // Thêm state debounced riêng cho Preview (tách khỏi procData live)
-  const [debouncedProcData, setDebouncedProcData] = useState(procData);
-
-  useEffect(() => {
-    // Chỉ rebuild PDF Preview sau khi user dừng chỉnh sửa 2s
-    const timer = setTimeout(() => setDebouncedProcData(procData), 2000);
-    return () => clearTimeout(timer);
-  }, [procData]);
-
-  const procPdfDoc = useMemo(() => {
-    return <ProceedingsDocument data={debouncedProcData} />;
-  }, [debouncedProcData]);
 
   // Logic Del + Ctrl Z
   useEffect(() => {
@@ -2920,15 +3623,38 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     setEditingTxtId(id);
   };
 
-  const addImage = (src: string) => {
+  const addImage = (src: string, isBackground: boolean = false) => {
     const img = new window.Image();
     img.onload = () => {
       const id = uuidv4();
-      const aspect = img.naturalHeight / img.naturalWidth;
-      const w = 200;
       const maxImgZ = curPg.els
         .filter((e) => e.type === "image")
         .reduce((m, e) => Math.max(m, e.zIndex ?? 10), 10);
+
+      let imageProps: Partial<EditorEl>;
+
+      if (isBackground) {
+        // Chế độ Ảnh nền: Full trang, đẩy về lớp dưới cùng
+        imageProps = {
+          x: 0,
+          y: 0,
+          w: CANVAS_W, //
+          h: CANVAS_H, //
+          zIndex: 1, // Đảm bảo nằm dưới các text/table (thường là 100+)
+        };
+      } else {
+        // Chế độ Ảnh bình thường: Giữ nguyên logic cũ
+        const aspect = img.naturalHeight / img.naturalWidth;
+        const w = 200;
+        imageProps = {
+          x: 60,
+          y: 80,
+          w,
+          h: Math.round(w * aspect),
+          zIndex: maxImgZ + 1,
+        };
+      }
+
       patchPage((p) => ({
         ...p,
         els: [
@@ -2936,13 +3662,9 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
           {
             id,
             type: "image",
-            x: 60,
-            y: 80,
-            w,
-            h: Math.round(w * aspect),
             src,
-            zIndex: maxImgZ + 1,
-          },
+            ...imageProps,
+          } as EditorEl,
         ],
       }));
       setSelElId(id);
@@ -2985,6 +3707,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
 
   /** Pointer move/resize — cập nhật DOM trực tiếp, KHÔNG setState (tránh re-render 60fps) */
   const onCanvasPointerMove = (e: React.PointerEvent) => {
+    lastPointerEventRef.current = { clientX: e.clientX, clientY: e.clientY };
     const d = dragRef.current;
     if (!d) return;
     const dx = e.clientX - d.sx,
@@ -3118,7 +3841,10 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
   const updateKeynotes = (list: KeynoteSpeaker[]) =>
     setProcData((d) => ({ ...d, keynotes: list }));
 
-  const addKeynote = () =>
+  const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+
+  const addKeynote = () => {
+    const nextIndex = procData.keynotes.length;
     updateKeynotes([
       ...procData.keynotes,
       {
@@ -3128,8 +3854,14 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
         presentationTitle: "",
         abstract: "",
         bio: "",
+        dayLabel: "",
+        timeSlot: "",
+        location: "",
+        keynoteLabel: `KEYNOTE ${ROMAN[nextIndex] || nextIndex + 1}`,
+        affiliation: "",
       },
     ]);
+  };
   const removeKeynote = (id: string) =>
     updateKeynotes(procData.keynotes.filter((k) => k.id !== id));
   const patchKeynote = (id: string, patch: Partial<KeynoteSpeaker>) =>
@@ -3147,7 +3879,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     try {
       const { data } = await supabase
         .from("users")
-        .select("user_id, full_name, email, avatar_url, description")
+        .select("user_id, full_name, email, avatar_url, description, organization")
         .ilike("full_name", `%${query}%`)
         .limit(10);
       setUserSearchResults(data || []);
@@ -3177,6 +3909,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
       name: user.full_name || "",
       photo: photoDataUrl,
       bio: user.description || "",
+      affiliation: user.organization || "",
     });
     setUserSearchQuery("");
     setUserSearchResults([]);
@@ -3205,6 +3938,9 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     patchKeynote(kId, {
       presentationTitle: paper.paperTitle || "",
       abstract: paper.abstract || "",
+      dayLabel: paper.sessionDayLabel || "",
+      timeSlot: paper.timeSlot || "",
+      location: paper.location || "",
     });
     setPaperSearchQuery("");
     setPaperSearchResults([]);
@@ -3339,7 +4075,13 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                 Summary
               </p>
               {[
-                { label: "Papers", count: procData.detailedSchedule.length },
+                {
+                  label: "Papers",
+                  count: Math.max(
+                    papersTotal,
+                    procData.detailedSchedule.length,
+                  ),
+                },
                 { label: "Sessions", count: procData.summarySchedule.length },
                 { label: "Committee", count: procData.committee.length },
                 { label: "Keynotes", count: procData.keynotes.length },
@@ -3462,7 +4204,10 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                       ...d.cover,
                                       sponsorLogos: [
                                         ...d.cover.sponsorLogos,
-                                        ...loadedBase64,
+                                        ...loadedBase64.map((src) => ({
+                                          src,
+                                          selected: true,
+                                        })),
                                       ],
                                     },
                                   }));
@@ -3479,12 +4224,32 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                           {procData.cover.sponsorLogos.map((logo, idx) => (
                             <div
                               key={idx}
-                              className="relative w-20 h-16 border border-slate-200 rounded-lg bg-slate-50 flex items-center justify-center"
+                              className={`relative w-24 h-20 border rounded-lg bg-slate-50 flex items-center justify-center transition-all ${logo.selected ? "border-indigo-400 ring-2 ring-indigo-100" : "border-slate-200 opacity-60"}`}
                             >
                               <img
-                                src={logo}
+                                src={logo.src}
                                 alt=""
-                                className="max-w-full max-h-full object-contain p-1"
+                                className="max-w-full max-h-full object-contain p-1.5"
+                              />
+                              {/* Selection checkbox */}
+                              <input
+                                type="checkbox"
+                                checked={logo.selected}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  updateCover({
+                                    sponsorLogos:
+                                      procData.cover.sponsorLogos.map((lg, i) =>
+                                        i === idx
+                                          ? { ...lg, selected: checked }
+                                          : lg,
+                                      ),
+                                  });
+                                }}
+                                className="absolute -top-2 -left-2 w-4 h-4 accent-indigo-600 rounded cursor-pointer z-10"
+                                title={
+                                  logo.selected ? "Deselect" : "Select to show"
+                                }
                               />
                               <button
                                 onClick={() =>
@@ -3495,7 +4260,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                       ),
                                   })
                                 }
-                                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full text-xs flex items-center justify-center"
+                                className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full text-xs flex items-center justify-center shadow-sm z-10"
                               >
                                 ×
                               </button>
@@ -3955,6 +4720,75 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                   </div>
                                 )}
                             </div>
+                            <div className="grid grid-cols-2 gap-4 mt-3">
+                              <div>
+                                <label className={labelCls}>Keynote Label</label>
+                                <input
+                                  className={fieldCls}
+                                  value={k.keynoteLabel || ""}
+                                  placeholder="e.g. KEYNOTE I"
+                                  onChange={(e) =>
+                                    patchKeynote(k.id, {
+                                      keynoteLabel: e.target.value,
+                                    })
+                                  }
+                                />
+                              </div>
+                              <div>
+                                <label className={labelCls}>Affiliation</label>
+                                <input
+                                  className={fieldCls}
+                                  value={k.affiliation || ""}
+                                  placeholder="e.g. The University of British Columbia, Canada"
+                                  onChange={(e) =>
+                                    patchKeynote(k.id, {
+                                      affiliation: e.target.value,
+                                    })
+                                  }
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4 mt-3">
+                              <div>
+                                <label className={labelCls}>Day Label</label>
+                                <input
+                                  className={fieldCls}
+                                  value={k.dayLabel || ""}
+                                  placeholder="e.g. DAY 1 - FRIDAY, 12 DECEMBER 2025"
+                                  onChange={(e) =>
+                                    patchKeynote(k.id, {
+                                      dayLabel: e.target.value,
+                                    })
+                                  }
+                                />
+                              </div>
+                              <div>
+                                <label className={labelCls}>Time Slot</label>
+                                <input
+                                  className={fieldCls}
+                                  value={k.timeSlot || ""}
+                                  placeholder="e.g. 08:50 - 09:30"
+                                  onChange={(e) =>
+                                    patchKeynote(k.id, {
+                                      timeSlot: e.target.value,
+                                    })
+                                  }
+                                />
+                              </div>
+                              <div>
+                                <label className={labelCls}>Location</label>
+                                <input
+                                  className={fieldCls}
+                                  value={k.location || ""}
+                                  placeholder="e.g. Grand Ballroom - 2F"
+                                  onChange={(e) =>
+                                    patchKeynote(k.id, {
+                                      location: e.target.value,
+                                    })
+                                  }
+                                />
+                              </div>
+                            </div>
                           </div>
                           <div className="col-span-3">
                             <label className={labelCls}>Abstract</label>
@@ -4060,10 +4894,28 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                         </tbody>
                       </table>
                     </div>
-                    <p className="text-xs text-slate-400">
-                      Papers are auto-loaded from the database (status =
-                      ACCEPTED).
-                    </p>
+                    <div className="flex flex-col gap-2">
+                      <p className="text-xs text-slate-400">
+                        Loaded {procData.detailedSchedule.length}/
+                        {Math.max(
+                          papersTotal,
+                          procData.detailedSchedule.length,
+                        )}{" "}
+                        papers (status = ACCEPTED).
+                      </p>
+                      {papersError && (
+                        <p className="text-xs text-rose-500">{papersError}</p>
+                      )}
+                      {procData.detailedSchedule.length < papersTotal && (
+                        <button
+                          onClick={loadMorePapers}
+                          disabled={papersLoading}
+                          className="self-start px-3 py-2 text-xs bg-white border border-slate-200 hover:bg-slate-50 rounded-lg text-slate-700 disabled:opacity-50"
+                        >
+                          {papersLoading ? "Loading…" : "Load more papers"}
+                        </button>
+                      )}
+                    </div>
 
                     {/* Abstract modal */}
                     {abstractModal && (
@@ -4120,27 +4972,48 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                       <p className="text-xs text-slate-400 flex items-center gap-1.5">
                         {previewGenerating && <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />}
                         {previewGenerating
-                          ? `Rendering ${procData.detailedSchedule.length} papers...`
+                          ? `Rendering ${Math.max(
+                            papersTotal,
+                            procData.detailedSchedule.length,
+                          )} papers...`
                           : previewBlobUrl
-                            ? 'Preview ready. Edit in PDF Editor, then click Sync View to update.'
-                            : 'Click Sync View to generate preview.'}
+                            ? "Preview ready. Edit in PDF Editor, then click Sync View to update."
+                            : procData.detailedSchedule.length <
+                              Math.max(
+                                papersTotal,
+                                procData.detailedSchedule.length,
+                              )
+                              ? `Loaded ${procData.detailedSchedule.length}/${Math.max(
+                                papersTotal,
+                                procData.detailedSchedule.length,
+                              )} papers. Click Sync View to load remaining and render.`
+                              : "Click Sync View to generate preview."}
                       </p>
                       <div className="flex gap-2">
                         {/* Sync View — explicit trigger, không auto-update khi edit */}
                         <button
                           onClick={() => generateBlobInBackground(procData, edReady ? edPages : undefined)}
-                          disabled={previewGenerating}
+                          disabled={previewGenerating || papersLoading}
                           className="flex items-center gap-1.5 px-3 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg disabled:opacity-50 transition-all shadow-md shadow-indigo-200"
                         >
-                          {previewGenerating
-                            ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Rendering...</>
+                          {previewGenerating || papersLoading
+                            ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                {papersLoading ? "Loading papers..." : "Rendering..."}
+                              </>
+                            )
                             : <><RefreshCw className="w-3.5 h-3.5" /> Sync View</>}
                         </button>
                         {previewBlobUrl && (
-                          <a href={previewBlobUrl} download="proceedings.pdf"
-                            className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-lg transition-all">
+                          <button
+                            onClick={() =>
+                              downloadPdfFromUrl(previewBlobUrl, "proceedings.pdf")
+                            }
+                            className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-lg transition-all"
+                          >
                             <Download className="w-3.5 h-3.5" /> Export PDF
-                          </a>
+                          </button>
                         )}
                       </div>
                     </div>
@@ -4150,10 +5023,12 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                         <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-slate-50">
                           <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
                           <p className="text-sm text-slate-500">
-                            Rendering {procData.detailedSchedule.length} papers
-                            {edReady ? ` across ${edPages.length} pages` : ''}...
+                            Rendering {Math.max(
+                              papersTotal,
+                              procData.detailedSchedule.length,
+                            )} papers
+                            {edReady ? ` across ${edPages.length} pages` : ""}...
                           </p>
-                          <p className="text-xs text-slate-400">UI remains responsive</p>
                         </div>
                       ) : previewBlobUrl ? (
                         <iframe src={previewBlobUrl} width="100%" height="100%"
@@ -4162,15 +5037,28 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                         <div className="w-full h-full flex flex-col items-center justify-center gap-4 bg-slate-50">
                           <FileText className="w-12 h-12 text-slate-300" />
                           <p className="text-sm text-slate-500">
-                            {procData.detailedSchedule.length} papers
+                            {Math.max(
+                              papersTotal,
+                              procData.detailedSchedule.length,
+                            )} papers
                             · {procData.keynotes.length} keynotes
-                            {edReady ? ` · ${edPages.length} editor pages` : ''}
+                            {edReady ? ` · ${edPages.length} editor pages` : ""}
                           </p>
                           <button
                             onClick={() => generateBlobInBackground(procData, edReady ? edPages : undefined)}
+                            disabled={previewGenerating || papersLoading}
                             className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg flex items-center gap-2 transition-all shadow-md shadow-indigo-200"
                           >
-                            <Eye className="w-4 h-4" /> Sync View
+                            {previewGenerating || papersLoading ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                {papersLoading ? "Loading papers..." : "Rendering..."}
+                              </>
+                            ) : (
+                              <>
+                                <Eye className="w-4 h-4" /> Sync View
+                              </>
+                            )}
                           </button>
                           {edReady && (
                             <p className="text-xs text-slate-400 text-center max-w-xs">
@@ -4195,9 +5083,10 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                         </p>
                         <button
                           onClick={() => initEditor()}
+                          disabled={papersLoading}
                           className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-indigo-200"
                         >
-                          Open in Editor
+                          {papersLoading ? "Loading papers..." : "Open in Editor"}
                         </button>
                         <p className="text-xs text-slate-400 max-w-xs text-center">
                           All pages are rasterised from your current data.
@@ -4336,7 +5225,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                       if (!f) return;
                                       const r = new FileReader();
                                       r.onload = (ev) =>
-                                        addImage(ev.target!.result as string);
+                                        setImageToInsert(ev.target!.result as string);
                                       r.readAsDataURL(f);
                                     };
                                     inp.click();
@@ -4389,30 +5278,19 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                   <RefreshCw className="w-4 h-4" />
                                 </button>
 
-                                {/* Sync TOC */}
-                                <button
-                                  onClick={syncToc}
-                                  title="Sync Table of Contents from TOC-entry elements"
-                                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 text-xs font-medium transition-all"
-                                >
-                                  <List className="w-3.5 h-3.5" /> Sync TOC
-                                </button>
-
                                 {/* Export */}
-                                <PDFDownloadLink
-                                  document={editorPdfDoc}
-                                  fileName="proceedings-edited.pdf"
+                                <button
+                                  onClick={exportPdf}
+                                  disabled={exportingPdf || papersLoading}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-all"
                                 >
-                                  {({ loading: dl }) => (
-                                    <button
-                                      disabled={dl}
-                                      className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-all"
-                                    >
-                                      <Download className="w-3.5 h-3.5" />
-                                      {dl ? "Generating…" : "Export PDF"}
-                                    </button>
-                                  )}
-                                </PDFDownloadLink>
+                                  <Download className="w-3.5 h-3.5" />
+                                  {exportingPdf
+                                    ? "Exporting…"
+                                    : papersLoading
+                                      ? "Loading papers…"
+                                      : "Export PDF"}
+                                </button>
                               </div>
 
                               {/* Header/Footer config panel */}
@@ -4508,11 +5386,49 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                 ref={scrollAreaRef}
                                 className="flex-1 overflow-auto flex flex-col items-center pt-6 pb-10 gap-10 bg-slate-300 transition-all"
                                 onPointerMove={onCanvasPointerMove}
-                                onPointerUp={() => {
-                                  // Commit vị trí cuối vào state khi thả chuột
+                                onPointerUp={(e) => {
                                   if (dragRef.current && dragPosRef.current) {
                                     const { x, y, w, h } = dragPosRef.current;
-                                    patchEl(dragRef.current.elId, el => ({ ...el, x, y, w, h }));
+                                    const elId = dragRef.current.elId;
+                                    const fromPage = selPage;
+
+                                    // Find which page the pointer is over using clientY
+                                    const pageEls = document.querySelectorAll(".editor-page-container");
+                                    let targetPageIdx = fromPage;
+                                    pageEls.forEach((pageEl, idx) => {
+                                      const rect = pageEl.getBoundingClientRect();
+                                      if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                                        targetPageIdx = idx;
+                                      }
+                                    });
+
+                                    if (targetPageIdx !== fromPage) {
+                                      // Cross-page move: calculate y relative to target page
+                                      const targetPageEl = document.getElementById(`editor-page-${targetPageIdx}`);
+                                      let newY = y;
+                                      if (targetPageEl) {
+                                        const fromPageEl = document.getElementById(`editor-page-${fromPage}`);
+                                        const fromRect = fromPageEl?.getBoundingClientRect();
+                                        const toRect = targetPageEl.getBoundingClientRect();
+                                        if (fromRect && toRect) {
+                                          // Convert y from fromPage coords to toPage coords
+                                          newY = y + (fromRect.top - toRect.top);
+                                        }
+                                      }
+                                      setEdPages((prev) => {
+                                        const el = prev[fromPage].els.find((e) => e.id === elId);
+                                        if (!el) return prev;
+                                        return prev.map((pg, pi) => {
+                                          if (pi === fromPage) return { ...pg, els: pg.els.filter((e) => e.id !== elId) };
+                                          if (pi === targetPageIdx) return { ...pg, els: [...pg.els, { ...el, x: Math.max(0, x), y: Math.max(0, newY), w, h }] };
+                                          return pg;
+                                        });
+                                      });
+                                      setSelPage(targetPageIdx);
+                                      setSelElId(elId);
+                                    } else {
+                                      patchEl(elId, el => ({ ...el, x: Math.max(0, x), y: Math.max(0, y), w, h }));
+                                    }
                                   }
                                   dragRef.current = null;
                                   dragPosRef.current = null;
@@ -4566,21 +5482,46 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                           {/* 2. Header Preview */}
                                           {hf.headerText.trim() && idx > 1 && (
                                             <div
-                                              className="absolute top-3 left-12 right-12 text-center text-[9px] text-slate-400 border-b border-slate-200 pb-0.5 pointer-events-none"
-                                              style={{ zIndex: 10 }}
+                                              className="absolute top-3 left-12 right-12 text-center text-[9px] font-semibold border-b pb-0.5 pointer-events-none"
+                                              style={{ zIndex: 10, color: "#1a3a6b", borderColor: "#1a3a6b" }}
                                             >
                                               {hf.headerText}
                                             </div>
                                           )}
 
                                           {/* 3. Footer Preview */}
-                                          {(hf.footerText.trim() || hf.showPageNum) && idx > 1 && (
+                                          {idx > 1 && (
                                             <div
-                                              className={`absolute bottom-3 left-12 right-12 flex items-center text-[9px] text-slate-400 border-t border-slate-200 pt-0.5 pointer-events-none ${hf.pageNumPos === "right" ? "justify-between" : hf.pageNumPos === "center" ? "justify-center gap-4" : "justify-start gap-4"}`}
-                                              style={{ zIndex: 10 }}
+                                              className="absolute pointer-events-none"
+                                              style={{ bottom: 10, left: 48, right: 48, zIndex: 10 }}
                                             >
-                                              {hf.footerText.trim() && <span>{hf.footerText}</span>}
-                                              {hf.showPageNum && <span>{hf.startFrom + idx}</span>}
+                                              {/* conferenceName above line — shrink font if too long */}
+                                              {procData.cover.conferenceName && (
+                                                <div style={{
+                                                  fontSize: procData.cover.conferenceName.length > 80 ? 6.5 : procData.cover.conferenceName.length > 55 ? 7 : 8,
+                                                  color: "#1a3a6b",
+                                                  fontFamily: "Helvetica, Arial, sans-serif",
+                                                  whiteSpace: "nowrap",
+                                                  overflow: "hidden",
+                                                  textOverflow: "ellipsis",
+                                                  marginBottom: 3,
+                                                }}>
+                                                  {procData.cover.conferenceName}
+                                                </div>
+                                              )}
+                                              {/* divider */}
+                                              <div style={{ height: 1, backgroundColor: "#1a3a6b", marginBottom: 3 }} />
+                                              {/* footerText + page number */}
+                                              <div className="flex items-center justify-between">
+                                                <span style={{ fontSize: 8, color: "#1a3a6b", fontFamily: "Helvetica, Arial, sans-serif" }}>
+                                                  {hf.footerText.trim() || "\u00a0"}
+                                                </span>
+                                                {hf.showPageNum && (
+                                                  <span style={{ fontSize: 10, color: "#1a3a6b", fontWeight: "bold", fontFamily: "Helvetica, Arial, sans-serif" }}>
+                                                    {hf.startFrom + (idx - 2)}
+                                                  </span>
+                                                )}
+                                              </div>
                                             </div>
                                           )}
 
@@ -4598,7 +5539,13 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                                     left: el.x - (isSel && el.type === "table" ? 22 : 0),
                                                     top: el.y - (isSel && el.type === "table" ? 16 : 0),
                                                     width: el.w + (isSel && el.type === "table" ? 22 : 0),
-                                                    height: el.h + (isSel && el.type === "table" ? 16 : 0),
+                                                    // Text: auto height. Bar: handled by BarElement. Others: fixed.
+                                                    height: el.type === "text"
+                                                      ? "auto"
+                                                      : el.type === "bar"
+                                                        ? "auto"
+                                                        : el.h + (isSel && el.type === "table" ? 16 : 0),
+                                                    minHeight: (el.type === "text" || el.type === "bar") ? el.h : undefined,
                                                     cursor: el.type === "table" ? (isSel ? "default" : "pointer") : "move",
                                                     userSelect: "none",
                                                     zIndex: el.zIndex ?? 10,
@@ -4620,6 +5567,9 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                                     if (el.type === "text") setEditingTxtId(el.id);
                                                   }}
                                                 >
+                                                  {el.type === "bar" && (
+                                                    <BarElement el={el} />
+                                                  )}
                                                   {el.type === "text" && (
                                                     editingTxtId === el.id ? (
                                                       <textarea
@@ -4635,7 +5585,22 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                                           fontFamily: el.fontFamily ? cssFontFamily(el.fontFamily) : "inherit",
                                                         }}
                                                         value={el.text ?? ""}
-                                                        onChange={(ev) => patchEl(el.id, (e2) => ({ ...e2, text: ev.target.value }))}
+                                                        onChange={(ev) => {
+                                                          const val = ev.target.value;
+                                                          patchEl(el.id, (e2) => ({ ...e2, text: val }));
+                                                          if (el.isTocEntry) {
+                                                            if (tocDebounceRef.current) clearTimeout(tocDebounceRef.current);
+                                                            tocDebounceRef.current = setTimeout(() => {
+                                                              setEdPages((prev) => {
+                                                                const synced = regenerateToc(prev);
+                                                                renderThumbnail(synced[1]).then((thumb) => {
+                                                                  setEdPages((p) => p.map((pg, i) => i === 1 ? { ...pg, bg: thumb } : pg));
+                                                                });
+                                                                return synced;
+                                                              });
+                                                            }, 2000);
+                                                          }
+                                                        }}
                                                         onBlur={(ev) => {
                                                           patchEl(el.id, (e2) => ({ ...e2, text: ev.target.value }));
                                                           setEditingTxtId(null);
@@ -4651,7 +5616,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                                       />
                                                     ) : (
                                                       <div
-                                                        className="w-full h-full overflow-hidden pointer-events-none"
+                                                        className="w-full pointer-events-none"
                                                         style={{
                                                           fontSize: el.fontSize,
                                                           fontWeight: el.bold ? "bold" : "normal",
@@ -4660,6 +5625,8 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                                           textAlign: el.align as any,
                                                           lineHeight: 1.4,
                                                           whiteSpace: "pre-wrap",
+                                                          wordBreak: "break-word",
+                                                          overflowWrap: "break-word",
                                                           fontFamily: el.fontFamily ? cssFontFamily(el.fontFamily) : "inherit",
                                                         }}
                                                       >
@@ -4892,15 +5859,6 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                           />
                                         </div>
                                       </div>
-                                      <button
-                                        onClick={() =>
-                                          setEditingTxtId(selEl.id)
-                                        }
-                                        className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all"
-                                      >
-                                        <Type className="w-3.5 h-3.5" /> Edit
-                                        text content
-                                      </button>
                                     </>
                                   )}
 
@@ -5115,7 +6073,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                         <input
                                           type="checkbox"
                                           checked={selEl.isTocEntry ?? false}
-                                          onChange={(e) => {
+                                          onChange={async (e) => {
                                             const checked = e.target.checked;
                                             const elId = selEl.id;
                                             const scX = CANVAS_W / 595;
@@ -5123,64 +6081,59 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                             const ML = Math.round(55 * scX);
                                             const CW = CANVAS_W - ML * 2;
 
-                                            saveHistory(); // Lưu lại để có thể Ctrl Z nếu bấm nhầm
+                                            saveHistory();
 
-                                            setEdPages((prev) =>
-                                              prev.map((pg, pi) => {
+                                            setEdPages((prev) => {
+                                              let newPages = prev.map((pg, pi) => {
                                                 if (pi !== selPage) return pg;
 
-                                                let newEls = pg.els.map(
-                                                  (el) => {
-                                                    if (el.id === elId) {
-                                                      return {
-                                                        ...el,
-                                                        isTocEntry: checked,
-                                                        // Tự động format text chuẩn Header (Ảnh 2)
-                                                        fontSize: checked
-                                                          ? Math.round(13 * scY)
-                                                          : el.fontSize,
-                                                        bold: checked
-                                                          ? true
-                                                          : el.bold,
-                                                        color: checked
-                                                          ? "#1a3a6b"
-                                                          : el.color,
-                                                        text: checked
-                                                          ? el.text?.toUpperCase()
-                                                          : el.text,
-                                                        tocLabel: checked
-                                                          ? el.text
-                                                          : "",
-                                                      };
-                                                    }
-                                                    return el;
-                                                  },
-                                                );
+                                                let newEls = pg.els.map((el) => {
+                                                  if (el.id === elId) {
+                                                    return {
+                                                      ...el,
+                                                      isTocEntry: checked,
+                                                      fontSize: checked ? Math.round(13 * scY) : el.fontSize,
+                                                      bold: checked ? true : el.bold,
+                                                      color: checked ? "#1a3a6b" : el.color,
+                                                      text: checked ? el.text?.toUpperCase() : el.text,
+                                                      tocLabel: checked ? el.text : "",
+                                                    };
+                                                  }
+                                                  return el;
+                                                });
 
-                                                // NẾU TÍCH CHỌN: Thêm element thanh ngang ngay bên dưới
+                                                // Add divider line below when ticked
                                                 if (checked) {
-                                                  const lineY =
-                                                    selEl.y + selEl.h + 4;
-                                                  const lineId = uuidv4();
+                                                  const lineY = selEl.y + selEl.h + 4;
                                                   newEls.push({
-                                                    id: lineId,
+                                                    id: uuidv4(),
                                                     type: "image",
-                                                    x: ML, // Căn lề trái theo nội dung
+                                                    x: ML,
                                                     y: lineY,
-                                                    w: CW, // Kéo dài hết chiều ngang nội dung
+                                                    w: CW,
                                                     h: Math.round(2 * scY),
-                                                    src: solidColorImg(
-                                                      "#1a3a6b",
-                                                      CW,
-                                                      2,
-                                                    ),
+                                                    src: solidColorImg("#1a3a6b", CW, 2),
                                                     zIndex: selEl.zIndex,
                                                   });
                                                 }
 
                                                 return { ...pg, els: newEls };
-                                              }),
-                                            );
+                                              });
+
+                                              // Auto-sync TOC immediately
+                                              return regenerateToc(newPages);
+                                            });
+
+                                            // Re-render TOC thumbnail
+                                            setTimeout(async () => {
+                                              setEdPages((prev) => {
+                                                const synced = regenerateToc(prev);
+                                                renderThumbnail(synced[1]).then((thumb) => {
+                                                  setEdPages((p) => p.map((pg, i) => i === 1 ? { ...pg, bg: thumb } : pg));
+                                                });
+                                                return synced;
+                                              });
+                                            }, 50);
                                           }}
                                           className="accent-indigo-600 w-3.5 h-3.5"
                                         />
@@ -5205,10 +6158,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                                       ...pg,
                                                       els: pg.els.map((el) =>
                                                         el.id === elId
-                                                          ? {
-                                                            ...el,
-                                                            tocLabel: val,
-                                                          }
+                                                          ? { ...el, tocLabel: val }
                                                           : el,
                                                       ),
                                                     },
@@ -5218,12 +6168,6 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                           }}
                                           className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-400"
                                         />
-                                      )}
-                                      {selEl.isTocEntry && (
-                                        <p className="text-[10px] text-indigo-500 mt-1.5 flex items-center gap-1">
-                                          <List className="w-3 h-3" /> Click
-                                          "Sync TOC" to update thumbnail
-                                        </p>
                                       )}
                                     </div>
                                   )}
@@ -5439,9 +6383,69 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                         onClose={() => setShowInsertTable(false)}
                       />
                     )}
+
+                    {/* ──── Insert Image Options Modal ──── */}
+                    {imageToInsert && (
+                      <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[9999]" onClick={() => setImageToInsert(null)}>
+                        <div className="bg-white rounded-2xl shadow-2xl p-6 flex flex-col gap-5 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-bold text-slate-900 flex items-center gap-2 text-lg">
+                              <ImagePlus className="w-5 h-5 text-indigo-600" />
+                              Add Image
+                            </h3>
+                            <button onClick={() => setImageToInsert(null)} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+                              <X className="w-4 h-4 text-slate-500" />
+                            </button>
+                          </div>
+
+                          <div className="space-y-3">
+                            <button
+                              onClick={() => {
+                                addImage(imageToInsert, false);
+                                setImageToInsert(null);
+                              }}
+                              className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left"
+                            >
+                              <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 grow-0 shrink-0">
+                                <ImagePlus className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <div className="font-semibold text-slate-900">Normal Image</div>
+                                <div className="text-xs text-slate-500">Insert at current cursor position (manual resize)</div>
+                              </div>
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                addImage(imageToInsert, true);
+                                setImageToInsert(null);
+                              }}
+                              className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left"
+                            >
+                              <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 grow-0 shrink-0">
+                                <LayoutTemplate className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <div className="font-semibold text-slate-900">Background Image</div>
+                                <div className="text-xs text-slate-500">Auto-scale to fit the entire page</div>
+                              </div>
+                            </button>
+                          </div>
+
+                          <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg flex gap-2">
+                            <div className="text-amber-500 shrink-0 mt-0.5">
+                              <Settings2 className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="text-[10.5px] text-amber-800 leading-relaxed font-medium">
+                              <strong className="block mb-0.5 uppercase tracking-wide opacity-70">Recommended Size:</strong>
+                              For background, use 1240 × 1754 (A4 @ 150dpi) or any portrait image (e.g., 1920x2715) for best quality.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )
-                }
+                )}
               </div>
             </div>
           )}
