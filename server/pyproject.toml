@@ -19,6 +19,8 @@ dependencies = [
     "google-cloud-language",
     "google-cloud-storage",
     "pypdf",
+    "reportlab",
+    "pillow",
     "langchain",
     "langchain-text-splitters",
     "langchain-community",

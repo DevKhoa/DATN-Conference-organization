@@ -12,6 +12,9 @@ import {
   Loader2,
   AlertCircle,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  UserCheck,
   Image as ImageLucide,
   ArrowLeft,
   Save,
@@ -37,6 +40,7 @@ import {
   LayoutTemplate,
   RotateCw,
   Grid3X3,
+  Sparkles,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import Button from "../components/ui/Button";
@@ -47,7 +51,6 @@ import {
   View,
   StyleSheet,
   Image,
-  pdf,
   Font,
 } from "@react-pdf/renderer";
 import { v4 as uuidv4 } from "uuid";
@@ -429,8 +432,25 @@ const pdfStyles = StyleSheet.create({
 const formatAbstract = (text?: string) => {
   if (!text) return "";
   return text
-    .replace(/\r?\n/g, " ") // bỏ line break
-    .replace(/\s+/g, " ") // bỏ double space
+    // 0. Decompose typographic ligatures from PDF extraction (e.g. ﬀ→ff, ﬁ→fi, ﬂ→fl)
+    //    These appear as blank/replacement chars in fonts that don't support them
+    .replace(/\uFB00/g, "ff")
+    .replace(/\uFB01/g, "fi")
+    .replace(/\uFB02/g, "fl")
+    .replace(/\uFB03/g, "ffi")
+    .replace(/\uFB04/g, "ffl")
+    .replace(/\uFB05/g, "st")
+    .replace(/\uFB06/g, "st")
+    // 1. Remove soft-hyphens (U+00AD) and other invisible chars
+    .replace(/[\u00ad\u200b\u200c\u200d\ufeff]/g, "")
+    // 2. Reconnect hyphenated line-breaks: "word-\n" → "word"
+    .replace(/-[ \t]*\r?\n[ \t]*/g, "")
+    // 3. Replace remaining line breaks with space
+    .replace(/\r?\n/g, " ")
+    // 4. Fix "word-  word" artifacts
+    .replace(/-\s{2,}/g, "")
+    // 5. Collapse multiple spaces
+    .replace(/\s{2,}/g, " ")
     .trim();
 };
 
@@ -542,7 +562,6 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                     key={i}
                     src={logo.src}
                     style={{
-                      width: logoW,
                       height: logoH,
                       objectFit: "contain",
                     }}
@@ -787,7 +806,7 @@ const ProceedingsDocument = ({ data }: { data: any }) => {
                   style={{
                     width: "100%",
                     maxHeight: 220,
-                    objectFit: "contain",
+                    objectFit: "fill",
                   }}
                 />
               </View>
@@ -1165,7 +1184,245 @@ interface HFConfig {
 
 /** A4 canvas size in display-pixels (matches 595×842 pt at ~1.24× scale) */
 const CANVAS_W = 744;
-const CANVAS_H = Math.round((CANVAS_W * 842) / 595); // ≈ 1052
+
+// ─── Preset background images (100 images for conference proceedings) ─────────
+const makeSolidBg = (id: string, label: string, color: string, cat: string) => ({ id, label, color, cat });
+
+const PRESET_BACKGROUNDS = [
+  // ── Light / White (priority) ──
+  makeSolidBg("lt01", "Pure White", "#FFFFFF", "light"),
+  makeSolidBg("lt02", "Off White", "#F8F9FA", "light"),
+  makeSolidBg("lt03", "Ivory", "#FFFFF0", "light"),
+  makeSolidBg("lt04", "Snow", "#FFFAFA", "light"),
+  makeSolidBg("lt05", "Ghost White", "#F8F8FF", "light"),
+  makeSolidBg("lt06", "Seashell", "#FFF5EE", "light"),
+  makeSolidBg("lt07", "Linen", "#FAF0E6", "light"),
+  makeSolidBg("lt08", "Floral White", "#FFFAF0", "light"),
+  makeSolidBg("lt09", "Alice Blue", "#F0F8FF", "light"),
+  makeSolidBg("lt10", "Lavender Blush", "#FFF0F5", "light"),
+  makeSolidBg("lt11", "Mint Cream", "#F5FFFA", "light"),
+  makeSolidBg("lt12", "Azure", "#F0FFFF", "light"),
+  // ── Blue family ──
+  makeSolidBg("bl01", "Baby Blue", "#89CFF0", "blue"),
+  makeSolidBg("bl02", "Periwinkle", "#CCCCFF", "blue"),
+  makeSolidBg("bl03", "Powder Blue", "#B0E0E6", "blue"),
+  makeSolidBg("bl04", "Light Blue", "#ADD8E6", "blue"),
+  makeSolidBg("bl05", "Light Sky Blue", "#87CEEB", "blue"),
+  makeSolidBg("bl06", "Cornflower Blue", "#6495ED", "blue"),
+  makeSolidBg("bl07", "Dodger Blue", "#1E90FF", "blue"),
+  makeSolidBg("bl08", "Deep Sky Blue", "#00BFFF", "blue"),
+  makeSolidBg("bl09", "Steel Blue", "#4682B4", "blue"),
+  makeSolidBg("bl10", "Royal Blue", "#4169E1", "blue"),
+  makeSolidBg("bl11", "Cadet Blue", "#5F9EA0", "blue"),
+  makeSolidBg("bl12", "Slate Blue", "#6A5ACD", "blue"),
+  makeSolidBg("bl13", "Midnight Blue", "#191970", "blue"),
+  makeSolidBg("bl14", "Navy", "#001F5B", "blue"),
+  makeSolidBg("bl15", "Dark Blue", "#00008B", "blue"),
+  makeSolidBg("bl16", "Oxford Blue", "#002147", "blue"),
+  // ── Purple / Violet ──
+  makeSolidBg("pu01", "Lavender", "#E6E6FA", "purple"),
+  makeSolidBg("pu02", "Thistle", "#D8BFD8", "purple"),
+  makeSolidBg("pu03", "Mauve", "#E0B0FF", "purple"),
+  makeSolidBg("pu04", "Wisteria", "#C9A0DC", "purple"),
+  makeSolidBg("pu05", "Plum", "#DDA0DD", "purple"),
+  makeSolidBg("pu06", "Violet", "#EE82EE", "purple"),
+  makeSolidBg("pu07", "Medium Purple", "#9370DB", "purple"),
+  makeSolidBg("pu08", "Blue Violet", "#8A2BE2", "purple"),
+  makeSolidBg("pu09", "Dark Orchid", "#9932CC", "purple"),
+  makeSolidBg("pu10", "Rebecca Purple", "#663399", "purple"),
+  makeSolidBg("pu11", "Indigo", "#4B0082", "purple"),
+  makeSolidBg("pu12", "Dark Violet", "#9400D3", "purple"),
+  // ── Green ──
+  makeSolidBg("gn01", "Honeydew", "#F0FFF0", "green"),
+  makeSolidBg("gn02", "Mint Green", "#98FF98", "green"),
+  makeSolidBg("gn03", "Pale Green", "#98FB98", "green"),
+  makeSolidBg("gn04", "Light Green", "#90EE90", "green"),
+  makeSolidBg("gn05", "Emerald", "#50C878", "green"),
+  makeSolidBg("gn06", "Jade", "#00A86B", "green"),
+  makeSolidBg("gn07", "Sea Green", "#2E8B57", "green"),
+  makeSolidBg("gn08", "Teal", "#008080", "green"),
+  makeSolidBg("gn09", "Forest Green", "#228B22", "green"),
+  makeSolidBg("gn10", "Sage", "#B2AC88", "green"),
+  makeSolidBg("gn11", "Olive", "#808000", "green"),
+  makeSolidBg("gn12", "Dark Teal", "#003333", "green"),
+  // ── Warm (Red / Orange / Yellow) ──
+  makeSolidBg("wm01", "Cream", "#FFFDD0", "warm"),
+  makeSolidBg("wm02", "Lemon", "#FFF44F", "warm"),
+  makeSolidBg("wm03", "Peach", "#FFCBA4", "warm"),
+  makeSolidBg("wm04", "Apricot", "#FBCEB1", "warm"),
+  makeSolidBg("wm05", "Gold", "#FFD700", "warm"),
+  makeSolidBg("wm06", "Amber", "#FFBF00", "warm"),
+  makeSolidBg("wm07", "Sandy Brown", "#F4A460", "warm"),
+  makeSolidBg("wm08", "Coral", "#FF7F50", "warm"),
+  makeSolidBg("wm09", "Salmon", "#FA8072", "warm"),
+  makeSolidBg("wm10", "Tomato", "#FF6347", "warm"),
+  makeSolidBg("wm11", "Orange Red", "#FF4500", "warm"),
+  makeSolidBg("wm12", "Burnt Sienna", "#E97451", "warm"),
+  // ── Neutral / Gray ──
+  makeSolidBg("gy01", "White Smoke", "#F5F5F5", "gray"),
+  makeSolidBg("gy02", "Gainsboro", "#DCDCDC", "gray"),
+  makeSolidBg("gy03", "Platinum", "#E5E4E2", "gray"),
+  makeSolidBg("gy04", "Light Gray", "#D3D3D3", "gray"),
+  makeSolidBg("gy05", "Silver", "#C0C0C0", "gray"),
+  makeSolidBg("gy06", "Ash", "#B2BEB5", "gray"),
+  makeSolidBg("gy07", "Dark Gray", "#A9A9A9", "gray"),
+  makeSolidBg("gy08", "Slate Gray", "#708090", "gray"),
+  makeSolidBg("gy09", "Dim Gray", "#696969", "gray"),
+  makeSolidBg("gy10", "Battleship Gray", "#848482", "gray"),
+  // ── Dark ──
+  makeSolidBg("dk01", "Charcoal", "#36454F", "dark"),
+  makeSolidBg("dk02", "Dark Slate", "#2F4F4F", "dark"),
+  makeSolidBg("dk03", "Gunmetal", "#2A3439", "dark"),
+  makeSolidBg("dk04", "Outer Space", "#414A4C", "dark"),
+  makeSolidBg("dk05", "Oxford Navy", "#002147", "dark"),
+  makeSolidBg("dk06", "Dark Navy", "#0A0A2E", "dark"),
+  makeSolidBg("dk07", "Rich Black", "#004040", "dark"),
+  makeSolidBg("dk08", "Jet Black", "#343434", "dark"),
+  makeSolidBg("dk09", "Eerie Black", "#1B1B1B", "dark"),
+  makeSolidBg("dk10", "Dark Jungle", "#1A2421", "dark"),
+  // ── Pink / Rose ──
+  makeSolidBg("pk01", "Misty Rose", "#FFE4E1", "pink"),
+  makeSolidBg("pk02", "Lavender Blush", "#FFF0F5", "pink"),
+  makeSolidBg("pk03", "Baby Pink", "#F4C2C2", "pink"),
+  makeSolidBg("pk04", "Pastel Pink", "#FFD1DC", "pink"),
+  makeSolidBg("pk05", "Carnation", "#FFA6C9", "pink"),
+  makeSolidBg("pk06", "Flamingo", "#FC8EAC", "pink"),
+  makeSolidBg("pk07", "Blush", "#DE5D83", "pink"),
+  makeSolidBg("pk08", "Hot Pink", "#FF69B4", "pink"),
+  makeSolidBg("pk09", "Rose", "#FF007F", "pink"),
+  makeSolidBg("pk10", "Cerise", "#DE3163", "pink"),
+];
+
+const BG_CATEGORIES = [
+  { key: "all", label: "All" },
+  { key: "light", label: "Light" },
+  { key: "blue", label: "Blue" },
+  { key: "purple", label: "Purple" },
+  { key: "green", label: "Green" },
+  { key: "warm", label: "Warm" },
+  { key: "gray", label: "Gray" },
+  { key: "dark", label: "Dark" },
+  { key: "pink", label: "Pink" },
+];
+
+// ─── Aesthetic gradient backgrounds (CSS linear/radial gradients) ─────────────
+const makeGradBg = (id: string, label: string, css: string) => ({ id, label, css });
+const GRADIENT_BACKGROUNDS = [
+  // ── Blue / Purple vibes ──
+  makeGradBg("g01", "Twilight Dream", "linear-gradient(135deg,#667eea 0%,#764ba2 100%)"),
+  makeGradBg("g02", "Ocean Breeze", "linear-gradient(135deg,#2193b0 0%,#6dd5ed 100%)"),
+  makeGradBg("g03", "Deep Purple", "linear-gradient(135deg,#4776E6 0%,#8E54E9 100%)"),
+  makeGradBg("g04", "Midnight City", "linear-gradient(135deg,#232526 0%,#414345 100%)"),
+  makeGradBg("g05", "Celestial", "linear-gradient(135deg,#C33764 0%,#1D2671 100%)"),
+  makeGradBg("g06", "Blueberry", "linear-gradient(135deg,#4568DC 0%,#B06AB3 100%)"),
+  makeGradBg("g07", "Indigo Fade", "linear-gradient(180deg,#4B79A1 0%,#283E51 100%)"),
+  makeGradBg("g08", "Cosmic Blue", "linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%)"),
+  makeGradBg("g09", "Azure Glow", "linear-gradient(135deg,#00c6ff 0%,#0072ff 100%)"),
+  makeGradBg("g10", "Purple Haze", "linear-gradient(135deg,#DA22FF 0%,#9733EE 100%)"),
+  // ── Pink / Rose ──
+  makeGradBg("g11", "Blushing Sun", "linear-gradient(135deg,#f093fb 0%,#f5576c 100%)"),
+  makeGradBg("g12", "Rose Gold", "linear-gradient(135deg,#f7971e 0%,#ffd200 50%,#f7971e 100%)"),
+  makeGradBg("g13", "Cherry Blossom", "linear-gradient(135deg,#FDA7DF 0%,#D83EF1 100%)"),
+  makeGradBg("g14", "Flamingo", "linear-gradient(135deg,#fd7eb3 0%,#f97 100%)"),
+  makeGradBg("g15", "Peach Dream", "linear-gradient(135deg,#FFECD2 0%,#FCB69F 100%)"),
+  makeGradBg("g16", "Cotton Candy", "linear-gradient(135deg,#f7cac9 0%,#92a8d1 100%)"),
+  makeGradBg("g17", "Berry Smoothie", "linear-gradient(135deg,#e96c8b 0%,#6a3093 100%)"),
+  makeGradBg("g18", "Neon Pink", "linear-gradient(135deg,#FF6CAB 0%,#7366FF 100%)"),
+  // ── Warm / Orange ──
+  makeGradBg("g19", "Golden Hour", "linear-gradient(135deg,#F7971E 0%,#FFD200 100%)"),
+  makeGradBg("g20", "Sunrise", "linear-gradient(135deg,#FF512F 0%,#F09819 100%)"),
+  makeGradBg("g21", "Desert Sand", "linear-gradient(135deg,#EDC272 0%,#B06031 100%)"),
+  makeGradBg("g22", "Mango Tango", "linear-gradient(135deg,#FFB75E 0%,#ED8F03 100%)"),
+  makeGradBg("g23", "Autumn", "linear-gradient(135deg,#DA8559 0%,#C55A2C 100%)"),
+  makeGradBg("g24", "Warm Sunset", "linear-gradient(135deg,#f6d365 0%,#fda085 100%)"),
+  // ── Green / Teal ──
+  makeGradBg("g25", "Emerald Sea", "linear-gradient(135deg,#43C6AC 0%,#191654 100%)"),
+  makeGradBg("g26", "Mint Fresh", "linear-gradient(135deg,#96fbc4 0%,#f9f586 100%)"),
+  makeGradBg("g27", "Forest Path", "linear-gradient(135deg,#134E5E 0%,#71B280 100%)"),
+  makeGradBg("g28", "Tropical", "linear-gradient(135deg,#00B09B 0%,#96C93D 100%)"),
+  makeGradBg("g29", "Jade Wave", "linear-gradient(135deg,#11998e 0%,#38ef7d 100%)"),
+  makeGradBg("g30", "Teal Twist", "linear-gradient(135deg,#00d2ff 0%,#3a7bd5 100%)"),
+  // ── Pastel / Light aesthetic ──
+  makeGradBg("g31", "Cotton Mist", "linear-gradient(135deg,#e0c3fc 0%,#8ec5fc 100%)"),
+  makeGradBg("g32", "Soft Lavender", "linear-gradient(135deg,#a18cd1 0%,#fbc2eb 100%)"),
+  makeGradBg("g33", "Baby Sky", "linear-gradient(135deg,#a1c4fd 0%,#c2e9fb 100%)"),
+  makeGradBg("g34", "Powder Puff", "linear-gradient(135deg,#ffecd2 0%,#fcb69f 100%)"),
+  makeGradBg("g35", "Morning Dew", "linear-gradient(135deg,#d4fc79 0%,#96e6a1 100%)"),
+  makeGradBg("g36", "Lilac Haze", "linear-gradient(135deg,#d299c2 0%,#fef9d7 100%)"),
+  makeGradBg("g37", "Peach Fuzz", "linear-gradient(135deg,#fbc2eb 0%,#a6c1ee 100%)"),
+  makeGradBg("g38", "Iceberg", "linear-gradient(135deg,#9be2fe 0%,#67d4f8 100%)"),
+  makeGradBg("g39", "Soft Sunrise", "linear-gradient(135deg,#f8ffae 0%,#43c6ac 100%)"),
+  makeGradBg("g40", "Sakura", "linear-gradient(135deg,#fddb92 0%,#d1fdff 100%)"),
+  // ── Dark / Dramatic ──
+  makeGradBg("g41", "Dark Matter", "linear-gradient(135deg,#1f1c2c 0%,#928DAB 100%)"),
+  makeGradBg("g42", "Abyss", "linear-gradient(135deg,#000000 0%,#434343 100%)"),
+  makeGradBg("g43", "Midnight Navy", "linear-gradient(135deg,#000428 0%,#004e92 100%)"),
+  makeGradBg("g44", "Obsidian", "linear-gradient(135deg,#16213e 0%,#0f3460 100%)"),
+  makeGradBg("g45", "Dark Violet", "linear-gradient(135deg,#0d0d1a 0%,#2e1760 100%)"),
+  makeGradBg("g46", "Space Gray", "linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)"),
+  // ── Multi-color / Vibrant ──
+  makeGradBg("g47", "Rainbow Soft", "linear-gradient(135deg,#f9ca24 0%,#f0932b 25%,#6ab04c 50%,#22a6b3 75%,#be2edd 100%)"),
+  makeGradBg("g48", "Aurora", "linear-gradient(135deg,#1488CC 0%,#2B32B2 100%)"),
+  makeGradBg("g49", "Northern Lights", "linear-gradient(135deg,#43e97b 0%,#38f9d7 50%,#667eea 100%)"),
+  makeGradBg("g50", "Prism", "linear-gradient(135deg,#f093fb 0%,#f5576c 33%,#4facfe 66%,#43e97b 100%)"),
+  makeGradBg("g51", "Spectrum", "linear-gradient(135deg,#FF6B6B 0%,#FFA07A 25%,#FFD700 50%,#90EE90 75%,#87CEEB 100%)"),
+  makeGradBg("g52", "Confetti", "linear-gradient(135deg,#ffeaa7 0%,#fd79a8 33%,#74b9ff 66%,#55efc4 100%)"),
+  // ── Radial glow ──
+  makeGradBg("g53", "Purple Glow", "radial-gradient(ellipse at top,#7b2ff7 0%,#3b0f8a 50%,#0d0d1a 100%)"),
+  makeGradBg("g54", "Blue Halo", "radial-gradient(ellipse at center,#1a73e8 0%,#0d47a1 50%,#000428 100%)"),
+  makeGradBg("g55", "Sunrise Glow", "radial-gradient(ellipse at bottom,#ffd200 0%,#f7971e 50%,#FF512F 100%)"),
+  makeGradBg("g56", "Rose Bloom", "radial-gradient(ellipse at center,#FF6CAB 0%,#7366FF 100%)"),
+  makeGradBg("g57", "Aurora Borealis", "radial-gradient(ellipse at top left,#43e97b 0%,#38f9d7 40%,#4facfe 100%)"),
+  makeGradBg("g58", "Cosmic Glow", "radial-gradient(ellipse at bottom right,#f093fb 0%,#764ba2 50%,#000 100%)"),
+  makeGradBg("g59", "Warm Bloom", "radial-gradient(ellipse at center,#FCE38A 0%,#F38181 100%)"),
+  makeGradBg("g60", "Arctic Light", "radial-gradient(ellipse at top,#e0f7fa 0%,#b2ebf2 50%,#4dd0e1 100%)"),
+  // ── Conference / Professional ──
+  makeGradBg("g61", "Navy Pro", "linear-gradient(180deg,#0A1628 0%,#1a3a6b 100%)"),
+  makeGradBg("g62", "Slate Pro", "linear-gradient(180deg,#2C3E50 0%,#4CA1AF 100%)"),
+  makeGradBg("g63", "Silver Pro", "linear-gradient(180deg,#bdc3c7 0%,#2c3e50 100%)"),
+  makeGradBg("g64", "Deep Ocean", "linear-gradient(180deg,#1A2980 0%,#26D0CE 100%)"),
+  makeGradBg("g65", "Tech Blue", "linear-gradient(180deg,#0575E6 0%,#021B79 100%)"),
+  makeGradBg("g66", "Corporate", "linear-gradient(135deg,#1c3c6b 0%,#2e6dab 100%)"),
+  makeGradBg("g67", "Executive", "linear-gradient(135deg,#373B44 0%,#4286f4 100%)"),
+  makeGradBg("g68", "Academic", "linear-gradient(135deg,#2c5364 0%,#203a43 50%,#0f2027 100%)"),
+  // ── Light pastel pro ──
+  makeGradBg("g69", "Pearl", "linear-gradient(135deg,#FFFFFF 0%,#ECE9E6 100%)"),
+  makeGradBg("g70", "Silk", "linear-gradient(135deg,#f5f5f5 0%,#e0e0e0 100%)"),
+  makeGradBg("g71", "Cream Pro", "linear-gradient(135deg,#FFFDE7 0%,#FFF9C4 100%)"),
+  makeGradBg("g72", "Blue Mist", "linear-gradient(135deg,#E3F2FD 0%,#BBDEFB 100%)"),
+  makeGradBg("g73", "Mint Pro", "linear-gradient(135deg,#E8F5E9 0%,#C8E6C9 100%)"),
+  makeGradBg("g74", "Lavender Pro", "linear-gradient(135deg,#EDE7F6 0%,#D1C4E9 100%)"),
+  makeGradBg("g75", "Blush Pro", "linear-gradient(135deg,#FCE4EC 0%,#F8BBD0 100%)"),
+  makeGradBg("g76", "Sky Wash", "linear-gradient(135deg,#E1F5FE 0%,#B3E5FC 100%)"),
+  // ── Trendy / Gen Z ──
+  makeGradBg("g77", "Vaporwave", "linear-gradient(135deg,#fc466b 0%,#3f5efb 100%)"),
+  makeGradBg("g78", "Cyberpunk", "linear-gradient(135deg,#FF0099 0%,#493240 100%)"),
+  makeGradBg("g79", "Lo-fi", "linear-gradient(135deg,#c471ed 0%,#12c2e9 100%)"),
+  makeGradBg("g80", "Synthwave", "linear-gradient(135deg,#fc5c7d 0%,#6a3093 100%)"),
+  makeGradBg("g81", "Glass Morphism", "linear-gradient(135deg,rgba(255,255,255,0.2) 0%,rgba(255,255,255,0.05) 100%)"),
+  makeGradBg("g82", "Holographic", "linear-gradient(135deg,#a8edea 0%,#fed6e3 50%,#a8edea 100%)"),
+  makeGradBg("g83", "Dreamy", "linear-gradient(135deg,#e0c3fc 0%,#8ec5fc 50%,#f093fb 100%)"),
+  makeGradBg("g84", "Bubblegum", "linear-gradient(135deg,#FF9DE2 0%,#9FD6FF 100%)"),
+  // ── Nature inspired ──
+  makeGradBg("g85", "Meadow", "linear-gradient(135deg,#56ab2f 0%,#a8e063 100%)"),
+  makeGradBg("g86", "Deep Forest", "linear-gradient(135deg,#093028 0%,#237A57 100%)"),
+  makeGradBg("g87", "Ocean Deep", "linear-gradient(135deg,#1CB5E0 0%,#000851 100%)"),
+  makeGradBg("g88", "Sandy Shore", "linear-gradient(135deg,#c9d6ff 0%,#e2e2e2 100%)"),
+  makeGradBg("g89", "Mountain Mist", "linear-gradient(135deg,#4b6cb7 0%,#182848 100%)"),
+  makeGradBg("g90", "Desert Dusk", "linear-gradient(135deg,#DE6262 0%,#FFB88C 100%)"),
+  makeGradBg("g91", "Waterfall", "linear-gradient(135deg,#43C6AC 0%,#F8FFAE 100%)"),
+  makeGradBg("g92", "Starfield", "linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%)"),
+  makeGradBg("g93", "Foggy Morning", "linear-gradient(135deg,#C9D6FF 0%,#E2E2E2 100%)"),
+  makeGradBg("g94", "Dusk", "linear-gradient(135deg,#2C5364 0%,#203A43 50%,#0F2027 100%)"),
+  makeGradBg("g95", "Wildfire", "linear-gradient(135deg,#f7b733 0%,#fc4a1a 100%)"),
+  makeGradBg("g96", "Ice Cave", "linear-gradient(135deg,#e8f8f5 0%,#a8d8e8 50%,#72b4d0 100%)"),
+  makeGradBg("g97", "Lavender Fields", "linear-gradient(135deg,#d7d2cc 0%,#304352 100%)"),
+  makeGradBg("g98", "Tropical Storm", "linear-gradient(135deg,#00b4db 0%,#0083b0 100%)"),
+  makeGradBg("g99", "Neon Nights", "linear-gradient(135deg,#08E1AE 0%,#98DE5B 100%)"),
+  makeGradBg("g100", "Electric Violet", "linear-gradient(135deg,#4776E6 0%,#8E54E9 100%)"),
+];
+
+const CANVAS_H = Math.round((CANVAS_W * 842) / 595); // ≈ 1052 // ≈ 1052
 const THUMB_W = 106;
 const THUMB_H = Math.round((THUMB_W * 842) / 595); // ≈ 150
 
@@ -1201,141 +1458,192 @@ const EditorExportDoc = ({
   const nameFontSize = nameLen > 80 ? 6.5 : nameLen > 55 ? 7 : 8;
   return (
     <Document>
-      {pages.map((pg, pi) => (
-        <Page
-          key={pg.id}
-          size="A4"
-          wrap={false}
-          style={{
-            padding: 0,
-            position: "relative",
-            minHeight: 842,
-            backgroundColor: pg.bgColor || "#ffffff",
-          }}
-        >
-          {/* overlay elements */}
-          {[...pg.els]
-            .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
-            .map((el) =>
-              el.type === "table" && el.tableData ? (
-                <TablePdfExport
-                  key={el.id}
-                  tableData={el.tableData}
-                  elX={el.x}
-                  elY={el.y}
-                  elW={el.w}
-                  elH={el.h}
-                  px2pt={px2pt}
-                />
-              ) : el.type === "bar" ? (
-                <View
-                  key={el.id}
-                  style={{
-                    position: "absolute",
-                    left: px2pt(el.x, "x"),
-                    top: px2pt(el.y, "y"),
-                    width: px2pt(el.w, "x"),
-                    height: px2pt(el.h, "y"),
-                    backgroundColor: el.barColor ?? "#93c5fd",
-                  }}
-                />
-              ) : el.type === "text" ? (
-                <Text
-                  key={el.id}
-                  style={{
-                    position: "absolute",
-                    left: px2pt(el.x, "x"),
-                    top: px2pt(el.y, "y"),
-                    width: px2pt(el.w, "x"),
-                    fontSize: px2pt(el.fontSize ?? 12, "y"),
-                    fontFamily:
-                      el.fontFamily === "Inter" || el.fontFamily === "Roboto"
-                        ? el.fontFamily
-                        : "Inter",
-                    fontWeight: el.bold ? "bold" : "normal",
-                    fontStyle: el.italic ? "italic" : "normal",
-                    color: el.color ?? "#000000",
-                    textAlign: (el.align ?? "left") as any,
-                    ...(el.rotation
-                      ? { transform: `rotate(${el.rotation}deg)` }
-                      : {}),
-                  }}
-                >
-                  {el.text ?? ""}
-                </Text>
-              ) : el.type === "image" && el.src ? (
-                <Image
-                  key={el.id}
-                  src={el.src}
-                  style={{
-                    position: "absolute",
-                    left: px2pt(el.x, "x"),
-                    top: px2pt(el.y, "y"),
-                    width: px2pt(el.w, "x"),
-                    height: px2pt(el.h, "y"),
-                    objectFit: "contain",
-                    ...(el.rotation
-                      ? { transform: `rotate(${el.rotation}deg)` }
-                      : {}),
-                  }}
-                />
-              ) : null,
+      {pages.map((pg, pi) => {
+        // react-pdf doesn't support CSS gradients in backgroundColor.
+        // For gradient pages: render to canvas dataURL and inject as full-page Image.
+        const bgStr = pg.bgColor || "#ffffff";
+        const isGradient = bgStr.includes("gradient");
+        let gradientDataUrl: string | null = null;
+        if (isGradient) {
+          try {
+            const W = 595, H = 842;
+            const c = document.createElement("canvas");
+            c.width = W; c.height = H;
+            const ctx = c.getContext("2d")!;
+            const stopColors: string[] = [];
+            const hexPat = /#[0-9a-fA-F]{3,8}\b/g;
+            const rgbPat = /rgba?\([^)]+\)/g;
+            let m: RegExpExecArray | null;
+            while ((m = hexPat.exec(bgStr)) !== null) stopColors.push(m[0]);
+            while ((m = rgbPat.exec(bgStr)) !== null) stopColors.push(m[0]);
+            if (stopColors.length >= 2) {
+              const isRadial = bgStr.includes("radial-gradient");
+              let grad: CanvasGradient;
+              if (isRadial) {
+                grad = ctx.createRadialGradient(W / 2, H * 0.3, 0, W / 2, H / 2, Math.max(W, H));
+              } else {
+                const angleMatch = bgStr.match(/linear-gradient\(\s*(-?\d+)deg/);
+                const deg = angleMatch ? parseInt(angleMatch[1]) : 135;
+                const rad = (deg - 90) * Math.PI / 180;
+                const r = Math.sqrt(W * W + H * H) / 2;
+                grad = ctx.createLinearGradient(
+                  W / 2 - Math.cos(rad) * r, H / 2 - Math.sin(rad) * r,
+                  W / 2 + Math.cos(rad) * r, H / 2 + Math.sin(rad) * r
+                );
+              }
+              stopColors.forEach((color, i) => grad.addColorStop(i / (stopColors.length - 1), color));
+              ctx.fillStyle = grad;
+            } else {
+              ctx.fillStyle = stopColors[0] || "#667eea";
+            }
+            ctx.fillRect(0, 0, W, H);
+            gradientDataUrl = c.toDataURL("image/jpeg", 0.92);
+          } catch { /* ignore */ }
+        }
+        return (
+          <Page
+            key={pg.id}
+            size="A4"
+            wrap={false}
+            style={{
+              padding: 0,
+              position: "relative",
+              minHeight: 842,
+              backgroundColor: isGradient ? "#ffffff" : bgStr,
+            }}
+          >
+            {isGradient && gradientDataUrl && (
+              <Image
+                src={gradientDataUrl}
+                style={{ position: "absolute", left: 0, top: 0, width: 595, height: 842 }}
+              />
             )}
+            {/* overlay elements */}
+            {[...pg.els]
+              .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
+              .map((el) =>
+                el.type === "table" && el.tableData ? (
+                  <TablePdfExport
+                    key={el.id}
+                    tableData={el.tableData}
+                    elX={el.x}
+                    elY={el.y}
+                    elW={el.w}
+                    elH={el.h}
+                    px2pt={px2pt}
+                  />
+                ) : el.type === "bar" ? (
+                  <View
+                    key={el.id}
+                    style={{
+                      position: "absolute",
+                      left: px2pt(el.x, "x"),
+                      top: px2pt(el.y, "y"),
+                      width: px2pt(el.w, "x"),
+                      height: px2pt(el.h, "y"),
+                      backgroundColor: el.barColor ?? "#93c5fd",
+                    }}
+                  />
+                ) : el.type === "text" ? (
+                  <Text
+                    key={el.id}
+                    style={{
+                      position: "absolute",
+                      left: px2pt(el.x, "x"),
+                      top: px2pt(el.y, "y"),
+                      width: px2pt(el.w, "x"),
+                      fontSize: px2pt(el.fontSize ?? 12, "y"),
+                      fontFamily:
+                        el.fontFamily === "Inter" || el.fontFamily === "Roboto"
+                          ? el.fontFamily
+                          : "Inter",
+                      fontWeight: el.bold ? "bold" : "normal",
+                      fontStyle: el.italic ? "italic" : "normal",
+                      color: el.color ?? "#000000",
+                      textAlign: (el.align ?? "left") as any,
+                      ...(el.rotation
+                        ? { transform: `rotate(${el.rotation}deg)` }
+                        : {}),
+                    }}
+                  >
+                    {el.text ?? ""}
+                  </Text>
+                ) : el.type === "image" && el.src ? (
+                  <Image
+                    key={el.id}
+                    src={el.src}
+                    style={{
+                      position: "absolute",
+                      left: px2pt(el.x, "x"),
+                      top: px2pt(el.y, "y"),
+                      width: px2pt(el.w, "x"),
+                      height: px2pt(el.h, "y"),
+                      // Background images (zIndex=1, full page): fill to cover page
+                      // Normal images (logos, photos, etc.): contain to preserve aspect ratio
+                      objectFit: (el.zIndex === 1 && el.x === 0 && el.y === 0) ? "fill" : "contain",
+                      ...(el.rotation
+                        ? { transform: `rotate(${el.rotation}deg)` }
+                        : {}),
+                    }}
+                  />
+                ) : null,
+              )}
 
-          {/* global header */}
-          {hf.headerText.trim() && pi > 1 && (
-            <Text
-              style={{
-                position: "absolute",
-                top: 14,
-                left: 42,
-                right: 42,
-                fontSize: 8,
-                color: "#1a3a6b",
-                textAlign: "center",
-                fontFamily: "Helvetica-Bold",
-              }}
-            >
-              {hf.headerText}
-            </Text>
-          )}
-          {/* global footer: conferenceName above line, footerText+pageNum below */}
-          {pi > 1 && (
-            <View
-              style={{
-                position: "absolute",
-                bottom: 22,
-                left: 42,
-                right: 42,
-              }}
-            >
-              {/* conferenceName above divider */}
-              {conferenceName ? (
-                <Text style={{ fontSize: nameFontSize, color: "#1a3a6b", fontFamily: "Helvetica", marginBottom: 4 }}>
-                  {conferenceName}
-                </Text>
-              ) : null}
-              {/* divider line */}
-              <View style={{ height: 0.75, backgroundColor: "#1a3a6b", marginBottom: 4 }} />
-              {/* footer row */}
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                {hf.footerText.trim() ? (
-                  <Text style={{ fontSize: 8, color: "#1a3a6b", fontFamily: "Helvetica", flex: 1 }}>
-                    {hf.footerText}
+            {/* global header */}
+            {hf.headerText.trim() && pi > 1 && (
+              <Text
+                style={{
+                  position: "absolute",
+                  top: 14,
+                  left: 42,
+                  right: 42,
+                  fontSize: 8,
+                  color: "#1a3a6b",
+                  textAlign: "center",
+                  fontFamily: "Helvetica-Bold",
+                }}
+              >
+                {hf.headerText}
+              </Text>
+            )}
+            {/* global footer: conferenceName above line, footerText+pageNum below */}
+            {pi > 1 && (
+              <View
+                style={{
+                  position: "absolute",
+                  bottom: 22,
+                  left: 42,
+                  right: 42,
+                }}
+              >
+                {/* conferenceName above divider */}
+                {conferenceName ? (
+                  <Text style={{ fontSize: nameFontSize, color: "#1a3a6b", fontFamily: "Helvetica", marginBottom: 4 }}>
+                    {conferenceName}
                   </Text>
-                ) : (
-                  <Text style={{ fontSize: 8, color: "#1a3a6b", fontFamily: "Helvetica", flex: 1 }}> </Text>
-                )}
-                {hf.showPageNum && (
-                  <Text style={{ fontSize: 10, color: "#1a3a6b", fontFamily: "Helvetica-Bold" }}>
-                    {hf.startFrom + (pi - 2)}
-                  </Text>
-                )}
+                ) : null}
+                {/* divider line */}
+                <View style={{ height: 0.75, backgroundColor: "#1a3a6b", marginBottom: 4 }} />
+                {/* footer row */}
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  {hf.footerText.trim() ? (
+                    <Text style={{ fontSize: 8, color: "#1a3a6b", fontFamily: "Helvetica", flex: 1 }}>
+                      {hf.footerText}
+                    </Text>
+                  ) : (
+                    <Text style={{ fontSize: 8, color: "#1a3a6b", fontFamily: "Helvetica", flex: 1 }}> </Text>
+                  )}
+                  {hf.showPageNum && (
+                    <Text style={{ fontSize: 10, color: "#1a3a6b", fontFamily: "Helvetica-Bold" }}>
+                      {hf.startFrom + (pi - 2)}
+                    </Text>
+                  )}
+                </View>
               </View>
-            </View>
-          )}
-        </Page>
-      ))}
+            )}
+          </Page>
+        );
+      })}
     </Document>
   );
 };
@@ -1501,6 +1809,94 @@ const buildEditorPages = (data: any): EditorPage[] => {
   };
   const fit = (h: number) => {
     if (curY + h > MAX_Y) flushPage();
+  };
+
+  /**
+   * Like addT but splits long text across pages if height exceeds remaining space.
+   * Uses canvas measureText at the actual rendered pixel size for accurate word-wrap.
+   */
+  const addTMultiPage = (
+    text: string,
+    x: number,
+    w: number,
+    opts: Partial<EditorEl> = {},
+  ) => {
+    // fontPx is already in canvas pixels (passed as Math.round(N * scY))
+    const fontPx = opts.fontSize ?? Math.round(10 * scY);
+    const lineHeightMultiplier = 1.6;
+    const lineH = fontPx * lineHeightMultiplier;
+
+    // Word-wrap using canvas measureText at exact pixel size
+    const allLines: string[] = [];
+    try {
+      const c2 = document.createElement("canvas");
+      const ctx2 = c2.getContext("2d")!;
+      // Use same font string as renderThumbnail for consistency
+      ctx2.font = `${opts.bold ? "bold " : ""}${opts.italic ? "italic " : ""}${fontPx}px Helvetica, Arial, sans-serif`;
+      for (const para of text.split("\n")) {
+        const trimmed = para.trimEnd();
+        if (!trimmed) { allLines.push(""); continue; }
+        const words = trimmed.split(/\s+/).filter(Boolean);
+        let cur = "";
+        for (const word of words) {
+          const test = cur ? cur + " " + word : word;
+          if (cur && ctx2.measureText(test).width > w) {
+            allLines.push(cur);
+            cur = word;
+          } else {
+            cur = test;
+          }
+        }
+        if (cur) allLines.push(cur);
+      }
+    } catch {
+      // fallback: naive char-count split
+      const charsPerLine = Math.max(1, Math.floor(w / (fontPx * 0.50)));
+      const words = text.split(/\s+/);
+      let cur = "";
+      for (const word of words) {
+        if (cur && (cur + " " + word).length > charsPerLine) { allLines.push(cur); cur = word; }
+        else cur = cur ? cur + " " + word : word;
+      }
+      if (cur) allLines.push(cur);
+    }
+
+    if (allLines.length === 0) return;
+
+    // Emit lines in page-sized chunks, flushing when needed
+    let i = 0;
+    while (i < allLines.length) {
+      const available = MAX_Y - curY;
+      // How many lines fit in remaining space (minimum 1)
+      const linesThisPage = Math.max(1, Math.floor(available / lineH));
+      const chunk = allLines.slice(i, i + linesThisPage);
+      // Height = exact line count × lineH, with small buffer to prevent clipping
+      const chunkH = Math.ceil(chunk.length * lineH) + Math.round(2 * scY);
+
+      const el: EditorEl = {
+        id: uuidv4(),
+        type: "text",
+        x,
+        y: curY,
+        w,
+        h: chunkH,
+        // Join with space NOT \n: server and DOM both do their own word-wrap from clean text
+        // \n would cause server to split-then-rewrap (double-wrapping) -> "o  ering" artifacts
+        text: chunk.join(" "),
+        fontSize: fontPx,
+        bold: opts.bold ?? false,
+        italic: opts.italic ?? false,
+        color: opts.color ?? "#1a202c",
+        align: opts.align ?? "left",
+        fontFamily: opts.fontFamily ?? "Inter",
+        zIndex: opts.zIndex !== undefined ? opts.zIndex : nzTxt(),
+      };
+      els.push(el);
+      curY += chunkH;
+      i += linesThisPage;
+      // If more lines remain, flush to next page
+      if (i < allLines.length) flushPage();
+    }
   };
 
   const addT = (
@@ -2166,8 +2562,11 @@ const buildEditorPages = (data: any): EditorPage[] => {
       if (k.keynoteLabel) contentH += Math.round(14 * scY) + lineGap;
       const pTitle = k.presentationTitle || "Untitled Keynote";
       const pTitleFs = Math.max(9, Math.min(13, Math.floor(370 / (Math.max(1, pTitle.length) * 0.55))));
-      const titleLines = pTitle.length > 55 ? 2 : 1;
-      contentH += Math.round(pTitleFs * scY * 1.3 * titleLines) + lineGap;
+      // Use measureWrappedTextHeight for accurate multi-line title measurement
+      // infoW at this point: CW - photoW - 30*scX (margins), computed inline
+      const _infoWForMeasure = CW - Math.round(130 * scX) - Math.round(30 * scX);
+      const titleH_measured = measureWrappedTextHeight(pTitle, Math.round(pTitleFs * scY), _infoWForMeasure, 1.3);
+      contentH += titleH_measured + lineGap;
       contentH += Math.round(16 * scY) + lineGap; // speaker name
       if (k.affiliation) contentH += Math.round(12 * scY);
 
@@ -2238,8 +2637,8 @@ const buildEditorPages = (data: any): EditorPage[] => {
         infoY += Math.round(14 * scY) + lineGap;
       }
 
-      // Presentation Title
-      const titleH = Math.round(pTitleFs * scY * 1.3 * titleLines);
+      // Presentation Title — height already measured above
+      const titleH = titleH_measured;
       els.push({
         id: uuidv4(),
         type: "text",
@@ -2297,6 +2696,7 @@ const buildEditorPages = (data: any): EditorPage[] => {
 
       // 3. ABSTRACT SECTION
       if (k.abstract) {
+        fit(Math.round(40 * scY)); // ensure label fits
         addT("ABSTRACT", ML, CW, Math.round(16 * scY), {
           fontSize: Math.round(10 * scY),
           bold: true,
@@ -2305,10 +2705,9 @@ const buildEditorPages = (data: any): EditorPage[] => {
         curY += Math.round(6 * scY);
 
         const abText = formatAbstract(k.abstract);
-        const abFontPx = 9.5 * scY;
-        const abH = measureWrappedTextHeight(abText, abFontPx, CW, 1.6);
-        addT(abText, ML, CW, abH, {
-          fontSize: Math.round(abFontPx),
+        const abFontPx = Math.round(9.5 * scY);
+        addTMultiPage(abText, ML, CW, {
+          fontSize: abFontPx,
           color: "#2d3748",
           align: "justify",
           fontFamily: "Inter",
@@ -2318,6 +2717,7 @@ const buildEditorPages = (data: any): EditorPage[] => {
 
       // 4. BIOGRAPHY SECTION
       if (k.bio) {
+        fit(Math.round(40 * scY)); // ensure label fits
         addT("BIOGRAPHY", ML, CW, Math.round(16 * scY), {
           fontSize: Math.round(10 * scY),
           bold: true,
@@ -2325,10 +2725,9 @@ const buildEditorPages = (data: any): EditorPage[] => {
         });
         curY += Math.round(6 * scY);
 
-        const bioFontPx = 9.5 * scY;
-        const bioH = measureWrappedTextHeight(k.bio, bioFontPx, CW, 1.6);
-        addT(k.bio, ML, CW, bioH, {
-          fontSize: Math.round(bioFontPx),
+        const bioFontPx = Math.round(9.5 * scY);
+        addTMultiPage(formatAbstract(k.bio), ML, CW, {
+          fontSize: bioFontPx,
           color: "#2d3748",
           align: "justify",
           fontFamily: "Inter",
@@ -2387,8 +2786,7 @@ const buildEditorPages = (data: any): EditorPage[] => {
         const tLines = Math.ceil((p.paperTitle || "").length / 65) + 1;
         const tH = Math.round(Math.max(tLines * 12 * scY, 14));
         const abText = p.abstract
-          ? "ABSTRACT. " +
-          p.abstract.replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim()
+          ? "ABSTRACT. " + formatAbstract(p.abstract)
           : "";
         const abFontPx = 8.5 * scY;
         const pML = ML + Math.round(12 * scX),
@@ -2587,105 +2985,135 @@ const regenerateToc = (pages: EditorPage[]): EditorPage[] => {
 };
 
 // ─── Render page elements to a thumbnail JPEG ────────────────────────────────
-const renderThumbnail = (page: EditorPage): Promise<string> => {
+const renderThumbnail = async (page: EditorPage): Promise<string> => {
   const scale = THUMB_W / CANVAS_W;
-  return new Promise((resolve) => {
-    const c = document.createElement("canvas");
-    c.width = THUMB_W;
-    c.height = THUMB_H;
-    const ctx = c.getContext("2d")!;
-    ctx.fillStyle = page.bgColor || "#ffffff";
+  const c = document.createElement("canvas");
+  c.width = THUMB_W;
+  c.height = THUMB_H;
+  const ctx = c.getContext("2d")!;
+  const bgStr = page.bgColor || "#ffffff";
+
+  if (bgStr.includes("gradient")) {
+    try {
+      // Parse color stops from CSS gradient string
+      const stopColors: string[] = [];
+      const hexPattern = /#[0-9a-fA-F]{3,8}\b/g;
+      const rgbPattern = /rgba?\([^)]+\)/g;
+      let m: RegExpExecArray | null;
+      while ((m = hexPattern.exec(bgStr)) !== null) stopColors.push(m[0]);
+      while ((m = rgbPattern.exec(bgStr)) !== null) stopColors.push(m[0]);
+
+      if (stopColors.length >= 2) {
+        // Detect direction from CSS: linear-gradient(angle, ...) or radial
+        const isRadial = bgStr.includes("radial-gradient");
+        let grad: CanvasGradient;
+        if (isRadial) {
+          const cx = THUMB_W / 2, cy = THUMB_H / 2;
+          grad = ctx.createRadialGradient(cx, cy * 0.3, 0, cx, cy, Math.max(THUMB_W, THUMB_H));
+        } else {
+          // Parse angle: default 135deg → top-left to bottom-right
+          const angleMatch = bgStr.match(/linear-gradient\(\s*(-?\d+)deg/);
+          const deg = angleMatch ? parseInt(angleMatch[1]) : 135;
+          const rad = (deg - 90) * Math.PI / 180;
+          const cx = THUMB_W / 2, cy = THUMB_H / 2;
+          const r = Math.sqrt(THUMB_W * THUMB_W + THUMB_H * THUMB_H) / 2;
+          grad = ctx.createLinearGradient(
+            cx - Math.cos(rad) * r, cy - Math.sin(rad) * r,
+            cx + Math.cos(rad) * r, cy + Math.sin(rad) * r
+          );
+        }
+        stopColors.forEach((color, i) => {
+          grad.addColorStop(i / (stopColors.length - 1), color);
+        });
+        ctx.fillStyle = grad;
+      } else {
+        ctx.fillStyle = stopColors[0] || "#667eea";
+      }
+      ctx.fillRect(0, 0, THUMB_W, THUMB_H);
+    } catch {
+      ctx.fillStyle = "#667eea";
+      ctx.fillRect(0, 0, THUMB_W, THUMB_H);
+    }
+  } else {
+    ctx.fillStyle = bgStr;
     ctx.fillRect(0, 0, THUMB_W, THUMB_H);
-    const sorted = [...page.els].sort(
-      (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0),
-    );
-    const drawNext = (i: number) => {
-      if (i >= sorted.length) {
-        resolve(c.toDataURL("image/jpeg", 0.82));
-        return;
-      }
-      const el = sorted[i];
-      const x = el.x * scale,
-        y = el.y * scale;
-      const w = Math.max(1, el.w * scale),
-        h = Math.max(1, el.h * scale);
-      const hasRotation = el.rotation && el.rotation !== 0;
-      if (hasRotation) {
-        const cx = x + w / 2,
-          cy = y + h / 2;
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate((el.rotation! * Math.PI) / 180);
-        ctx.translate(-cx, -cy);
-      }
-      if (el.type === "table" && el.tableData) {
-        renderTableToCanvas(ctx, el.tableData, x, y, w, h, scale);
-        if (hasRotation) ctx.restore();
-        drawNext(i + 1);
-      } else if (el.type === "bar") {
-        ctx.fillStyle = el.barColor ?? "#93c5fd";
-        ctx.fillRect(x, y, w, h);
-        if (hasRotation) ctx.restore();
-        drawNext(i + 1);
-      } else if (el.type === "image" && el.src) {
+  }
+  const sorted = [...page.els].sort(
+    (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0),
+  );
+  for (const el of sorted) {
+    const x = el.x * scale,
+      y = el.y * scale;
+    const w = Math.max(1, el.w * scale),
+      h = Math.max(1, el.h * scale);
+    const hasRotation = el.rotation && el.rotation !== 0;
+    if (hasRotation) {
+      const cx = x + w / 2,
+        cy = y + h / 2;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate((el.rotation! * Math.PI) / 180);
+      ctx.translate(-cx, -cy);
+    }
+    if (el.type === "table" && el.tableData) {
+      renderTableToCanvas(ctx, el.tableData, x, y, w, h, scale);
+    } else if (el.type === "bar") {
+      ctx.fillStyle = el.barColor ?? "#93c5fd";
+      ctx.fillRect(x, y, w, h);
+    } else if (el.type === "image" && el.src) {
+      await new Promise<void>((resolve) => {
         const img = new window.Image();
         img.onload = () => {
           ctx.drawImage(img, x, y, w, h);
-          if (hasRotation) ctx.restore();
-          drawNext(i + 1);
+          resolve();
         };
-        img.onerror = () => {
-          if (hasRotation) ctx.restore();
-          drawNext(i + 1);
-        };
-        img.src = el.src;
-      } else if (el.type === "text" && el.text) {
-        ctx.fillStyle = el.color || "#1a202c";
-        const fs = Math.max(1.5, (el.fontSize || 10) * scale);
-        ctx.font = `${el.italic ? "italic " : ""}${el.bold ? "bold " : ""}${fs}px Helvetica, Arial, sans-serif`;
-        ctx.textBaseline = "top";
-        const lineH = fs * 1.4;
-        // Word-wrap: split into lines that fit within w
-        const rawLines = el.text.split("\n");
-        const wrappedLines: string[] = [];
-        for (const rawLine of rawLines) {
-          if (!rawLine.trim()) { wrappedLines.push(""); continue; }
-          const words = rawLine.split(" ");
-          let current = "";
-          for (const word of words) {
-            const test = current ? current + " " + word : word;
-            if (ctx.measureText(test).width > w && current) {
-              wrappedLines.push(current);
-              current = word;
-            } else {
-              current = test;
-            }
-          }
-          if (current) wrappedLines.push(current);
+        img.onerror = () => resolve();
+        img.src = el.src!;
+      });
+    } else if (el.type === "text" && el.text) {
+      ctx.fillStyle = el.color || "#1a202c";
+      const fs = Math.max(1.5, (el.fontSize || 10) * scale);
+      ctx.font = `${el.italic ? "italic " : ""}${el.bold ? "bold " : ""}${fs}px Helvetica, Arial, sans-serif`;
+      ctx.textBaseline = "top";
+      const lineH = fs * 1.6; // match addTMultiPage and DOM lineHeight
+      const rawLines = el.text.split("\n");
+      const wrappedLines: string[] = [];
+      for (const rawLine of rawLines) {
+        if (!rawLine.trim()) {
+          wrappedLines.push("");
+          continue;
         }
-        wrappedLines.forEach((line, li) => {
-          const ly = y + li * lineH;
-          if (ly + lineH > y + h + lineH) return; // clip to element bounds with 1 line tolerance
-          if (!line.trim()) return;
-          if (el.align === "center") {
-            const tw = ctx.measureText(line).width;
-            ctx.fillText(line, x + (w - tw) / 2, ly);
-          } else if (el.align === "right") {
-            const tw = ctx.measureText(line).width;
-            ctx.fillText(line, x + w - tw, ly);
+        const words = rawLine.split(" ");
+        let current = "";
+        for (const word of words) {
+          const test = current ? current + " " + word : word;
+          if (ctx.measureText(test).width > w && current) {
+            wrappedLines.push(current);
+            current = word;
           } else {
-            ctx.fillText(line, x, ly);
+            current = test;
           }
-        });
-        if (hasRotation) ctx.restore();
-        drawNext(i + 1);
-      } else {
-        if (hasRotation) ctx.restore();
-        drawNext(i + 1);
+        }
+        if (current) wrappedLines.push(current);
       }
-    };
-    drawNext(0);
-  });
+      wrappedLines.forEach((line, li) => {
+        const ly = y + li * lineH;
+        if (ly + lineH > y + h + lineH) return;
+        if (!line.trim()) return;
+        if (el.align === "center") {
+          const tw = ctx.measureText(line).width;
+          ctx.fillText(line, x + (w - tw) / 2, ly);
+        } else if (el.align === "right") {
+          const tw = ctx.measureText(line).width;
+          ctx.fillText(line, x + w - tw, ly);
+        } else {
+          ctx.fillText(line, x, ly);
+        }
+      });
+    }
+    if (hasRotation) ctx.restore();
+  }
+  return c.toDataURL("image/jpeg", 0.82);
 };
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
@@ -2751,10 +3179,11 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("cover");
 
-  // Auto-generate preview when switching to preview tab (if not already generated)
+
+
   useEffect(() => {
-    if (activeTab === "preview" && !previewBlobUrl && !previewGenerating && selectedConfId) {
-      generateBlobInBackground(procData, edReady ? edPages : undefined);
+    if (activeTab === "cover") {
+      ensureCoverLogosLoaded();
     }
   }, [activeTab]);
 
@@ -2763,37 +3192,57 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
   const [previewCacheKey, setPreviewCacheKey] = useState<string | null>(null);
   const [previewCacheUrl, setPreviewCacheUrl] = useState<string | null>(null);
   const [exportingPdf, setExportingPdf] = useState(false);
+
+  // Auto-generate preview when switching to preview tab OR when procData changes (previewBlobUrl reset to null)
+  // Always build from procDataRef.current for reliability — no stale edPages race condition.
+  // Manual "Sync View" button passes edPages explicitly for editor-change sync.
+  useEffect(() => {
+    if (activeTab !== "preview" || previewBlobUrl || previewGenerating || !selectedConfId) return;
+    generateBlobInBackground(procDataRef.current, undefined);
+  }, [activeTab, previewBlobUrl]);
+
+  // Committee UI state
+  const COMMITTEE_ROLES = [
+    "Honorary Chair", "General Chair", "Program Chair", "Track Chair",
+    "Organizing Chair", "Publication Chair", "Session Chair",
+    "Program Committee", "Tutorial Chair",
+  ] as const;
+  const [committeeActiveRole, setCommitteeActiveRole] = useState<string>("All");
+  const [committeeCollapsed, setCommitteeCollapsed] = useState<Record<string, boolean>>({});
   const prevBlobRef = useRef<string | null>(null); //  revoke URL c
   const bgGenAbortRef = useRef<boolean>(false);
 
   // ── Autocomplete states ───────────────────────────────────────────────────
-  const [userSearchQuery, setUserSearchQuery] = useState("");
-  const [userSearchResults, setUserSearchResults] = useState<any[]>([]);
-  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
-  const [activeKeynoteId, setActiveKeynoteId] = useState<string | null>(null);
+  // Per-keynote search state — use type alias to avoid JSX parser confusion with nested generics
+  type KSearchState = { userQuery: string; userResults: any[]; userSearching: boolean; paperQuery: string; paperResults: any[]; paperSearching: boolean; isEditingTitle: boolean; };
+  const kSearchDefault: KSearchState = { userQuery: "", userResults: [], userSearching: false, paperQuery: "", paperResults: [], paperSearching: false, isEditingTitle: false };
+  const [keynoteSearchState, setKeynoteSearchState] = useState<Record<string, KSearchState>>({});
+  const getKState = (kId: string): KSearchState => keynoteSearchState[kId] ?? kSearchDefault;
+  // Use prev in functional update to avoid stale closure on rapid calls
+  const patchKState = (kId: string, patch: Partial<KSearchState>) =>
+    setKeynoteSearchState(prev => ({ ...prev, [kId]: { ...(prev[kId] ?? kSearchDefault), ...patch } }));
 
-  const [paperSearchQuery, setPaperSearchQuery] = useState("");
-  const [paperSearchResults, setPaperSearchResults] = useState<any[]>([]);
-  const [isSearchingPapers, setIsSearchingPapers] = useState(false);
-  const [activePaperKeynoteId, setActivePaperKeynoteId] = useState<
-    string | null
-  >(null);
+  // (paper/user search state moved to per-keynote keynoteSearchState)
 
   // ── PDF Editor state ──────────────────────────────────────────────────────
   const [edPages, setEdPages] = useState<EditorPage[]>([]);
+  const edPagesRef = useRef<EditorPage[]>([]); // always-current ref for use in effects
   const [edReady, setEdReady] = useState(false);
+  const edReadyRef = useRef(false); // always-current ref for use in effects
   const [edLoading, setEdLoading] = useState(false);
   const [selPage, setSelPage] = useState(0);
   const scrollAreaRef = useRef<HTMLDivElement>(null); // Thêm ref này
   const [clipboard, setClipboard] = useState<EditorEl | null>(null);
   const [history, setHistory] = useState<EditorPage[][]>([]);
-  // Hàm helper để lưu lại trạng thái trước khi thay đổi
+  const historyRef = useRef<EditorPage[][]>([]); // undo stack — never stale
+  const redoRef = useRef<EditorPage[][]>([]); // redo stack
+
+  // Snapshot toàn bộ edPages trước mỗi action (đồng thời clear redo stack)
   const saveHistory = () => {
-    const snapshot = {
-      pageIndex: selPage,
-      page: JSON.parse(JSON.stringify(edPages[selPage])),
-    };
-    setHistory(prev => [snapshot as any, ...prev].slice(0, 20));
+    const snapshot = JSON.parse(JSON.stringify(edPages)) as EditorPage[];
+    historyRef.current = [snapshot, ...historyRef.current].slice(0, 50);
+    redoRef.current = []; // any new action clears redo
+    setHistory(historyRef.current);
   };
 
   // Hàm để cuộn đến trang cụ thể khi click thumbnail
@@ -2813,23 +3262,18 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
   });
   const [showHFPanel, setShowHFPanel] = useState(false);
   const [showPagesSidebar, setShowPagesSidebar] = useState(true);
-  const [cropState, setCropState] = useState<{
-    elId: string;
-    src: string;
-    natW: number;
-    natH: number;
-    cx: number;
-    cy: number;
-    cw: number;
-    ch: number;
-  } | null>(null);
-  const [abstractModal, setAbstractModal] = useState<{
-    title: string;
-    authors: string;
-    abstract: string;
-  } | null>(null);
+  type CropState = { elId: string; src: string; natW: number; natH: number; cx: number; cy: number; cw: number; ch: number; };
+  const [cropState, setCropState] = useState<CropState | null>(null);
+  type AbstractModal = { title: string; authors: string; abstract: string; };
+  const [abstractModal, setAbstractModal] = useState<AbstractModal | null>(null);
   const [showInsertTable, setShowInsertTable] = useState(false);
   const [imageToInsert, setImageToInsert] = useState<string | null>(null);
+  const [showBgPicker, setShowBgPicker] = useState(false);
+  const [bgPickerCategory, setBgPickerCategory] = useState("all");
+  const [bgPickerSearch, setBgPickerSearch] = useState("");
+  const [bgApplyScope, setBgApplyScope] = useState<"current" | "all">("current");
+  const [bgPickerTab, setBgPickerTab] = useState<"gradients" | "solid">("gradients");
+  const [customBgColor, setCustomBgColor] = useState("#4f46e5");
   const [tableSelectedCells, setTableSelectedCells] = useState<CellCoord[]>([]);
   const [dragFromIdx, setDragFromIdx] = useState<number | null>(null);
   const dragRef = useRef<{
@@ -2844,6 +3288,9 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
   const dragPosRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const lastPointerEventRef = useRef<{ clientX: number; clientY: number } | null>(null);
   const tocDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const thumbRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track which pages need thumbnail refresh (by index)
+  const thumbDirtyRef = useRef<Set<number>>(new Set());
   const cropDragRef = useRef<{
     active: boolean;
     mode: string;
@@ -2891,6 +3338,9 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
   const [papersError, setPapersError] = useState<string | null>(null);
   const procDataRef = useRef(procData);
   const confStartRef = useRef<Date | null>(null);
+  const pendingBannerUrlsRef = useRef<string[]>([]);
+  const bannerLogosPendingRef = useRef(false);
+  const coverLogosLoadingRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     supabase
@@ -2935,6 +3385,20 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
   }, [edReady, edPages.length]);
 
   const getObj = (o: any) => (Array.isArray(o) ? o[0] : o);
+
+  const fetchProceedingsBootstrap = async (
+    confId: number,
+    limit: number = PAPERS_PAGE_SIZE,
+  ): Promise<any> => {
+    const resp = await fetch(
+      `${BASE_API_URL}/proceedings/${confId}/bootstrap?limit=${limit}`,
+    );
+    if (!resp.ok) {
+      const msg = await resp.text();
+      throw new Error(msg || "Failed to load proceedings data");
+    }
+    return resp.json();
+  };
 
   const fetchProceedingsPapers = async (
     confId: number,
@@ -3133,6 +3597,28 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     }
   };
 
+  const renderProceedingsPdf = async (
+    confId: number,
+    payload: Record<string, any>,
+  ): Promise<{ url?: string; blob?: Blob }> => {
+    const resp = await fetch(`${BASE_API_URL}/proceedings/${confId}/render`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      const msg = await resp.text();
+      throw new Error(msg || "Failed to render PDF");
+    }
+    const contentType = resp.headers.get("content-type") || "";
+    if (contentType.includes("application/pdf")) {
+      const blob = await resp.blob();
+      return { blob };
+    }
+    const json = await resp.json();
+    return { url: json.url as string };
+  };
+
   const downloadPdfFromUrl = async (url: string, filename: string) => {
     try {
       if (url.startsWith("blob:")) {
@@ -3159,43 +3645,77 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     }
   };
 
+  const ensureCoverLogosLoaded = async () => {
+    if (!bannerLogosPendingRef.current) return;
+    if (coverLogosLoadingRef.current) return coverLogosLoadingRef.current;
+    const urls = pendingBannerUrlsRef.current;
+    if (!urls.length) {
+      bannerLogosPendingRef.current = false;
+      return;
+    }
+    coverLogosLoadingRef.current = (async () => {
+      const base64Logos = await Promise.all(urls.map((url) => urlToBase64(url)));
+      const validLogos = base64Logos.filter(Boolean) as string[];
+      if (!validLogos.length) return;
+      setProcData((d) => {
+        const next = {
+          ...d,
+          cover: {
+            ...d.cover,
+            sponsorLogos: [
+              ...d.cover.sponsorLogos,
+              ...validLogos.map((src) => ({ src, selected: true })),
+            ],
+          },
+        };
+        procDataRef.current = next;
+        return next;
+      });
+    })().finally(() => {
+      bannerLogosPendingRef.current = false;
+      coverLogosLoadingRef.current = null;
+    });
+    return coverLogosLoadingRef.current;
+  };
+
+  const buildPagesForRender = async (
+    pages?: EditorPage[],
+  ): Promise<EditorPage[]> => {
+    if (pages && pages.length > 0) return pages;
+    await ensureAllPapersLoaded();
+    await ensureCoverLogosLoaded();
+    const base = procDataRef.current;
+    let built = buildEditorPages(base);
+    built = regenerateToc(built);
+    return built;
+  };
+
   const loadFullConferenceData = async (confId: number) => {
     setLoading(true);
     setError(null);
     setPapersError(null);
     setPapersTotal(0);
     setProcData((prev) => ({ ...prev, detailedSchedule: [] }));
+    pendingBannerUrlsRef.current = [];
+    bannerLogosPendingRef.current = false;
+    coverLogosLoadingRef.current = null;
     try {
       const conf = conferences.find((c) => c.conf_id === confId);
       if (!conf) {
         throw new Error("Conference not found.");
       }
 
-      const [
-        { data: config },
-        { data: sessions },
-      ] = await Promise.all([
-        supabase
-          .from("proceedings_configs")
-          .select("*")
-          .eq("conf_id", confId)
-          .maybeSingle(),
-        supabase
-          .from("sessions")
-          .select("*, chair:users!chair_person_id(full_name, organization)")
-          .eq("conf_id", confId)
-          .order("start_time", { ascending: true }),
-      ]);
+      setPapersLoading(true);
+      const bootstrap = await fetchProceedingsBootstrap(confId, PAPERS_PAGE_SIZE);
+      setPapersLoading(false);
+      const config = bootstrap?.config;
+      const sessions = bootstrap?.sessions || [];
+      const reviewers = bootstrap?.reviewers || [];
+      const papers = bootstrap?.papers || [];
+      const total = bootstrap?.total || 0;
 
       const confStart = new Date(conf.start_date);
       confStartRef.current = confStart;
-
-      setPapersLoading(true);
-      const [{ papers, total }, reviewers] = await Promise.all([
-        fetchProceedingsPapers(confId, 0, PAPERS_PAGE_SIZE, true),
-        fetchProceedingsReviewers(confId),
-      ]);
-      setPapersLoading(false);
 
       // Build committee from chairs + reviewers
       const chairSet = new Map<string, any>();
@@ -3277,21 +3797,12 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
         );
       }
 
-      // Convert sponsor logo URLs thành base64 (tránh lỗi CORS trong react-pdf)
       const bannerUrls: string[] = Array.isArray(conf.banner_urls)
         ? (conf.banner_urls as string[])
         : [];
       if (bannerUrls.length > 0) {
-        const base64Logos = await Promise.all(
-          bannerUrls.map((url) => urlToBase64(url)),
-        );
-        setProcData((d) => ({
-          ...d,
-          cover: {
-            ...d.cover,
-            sponsorLogos: base64Logos.map((src) => ({ src, selected: true })),
-          },
-        }));
+        pendingBannerUrlsRef.current = bannerUrls;
+        bannerLogosPendingRef.current = true;
       }
     } catch (err) {
       console.error(err);
@@ -3332,13 +3843,9 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     bgGenAbortRef.current = false;
     setPreviewGenerating(true);
     try {
-      await ensureAllPapersLoaded();
-      const liveData = procDataRef.current ?? data;
-      const livePages = pages && pages.length > 0 ? pages : undefined;
-      const payload = livePages
-        ? { pages: stripPagesForCache(livePages), hf }
-        : { procData: liveData };
-
+      const livePages = await buildPagesForRender(pages);
+      const conferenceName = procDataRef.current?.cover?.conferenceName ?? "";
+      const payload = { pages: stripPagesForCache(livePages), hf, conferenceName };
       const cacheKey = await hashPayload(payload);
       if (previewCacheKey === cacheKey && previewCacheUrl) {
         setPreviewBlobUrl(previewCacheUrl);
@@ -3359,34 +3866,43 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
         }
       }
 
-      // Nếu có editor pages (edReady) → dùng EditorExportDoc để giữ inserted pages
-      // Nếu không → dùng ProceedingsDocument với toàn bộ papers (không cắt)
-      const doc = livePages
-        ? <EditorExportDoc pages={livePages} hf={hf} conferenceName={procDataRef.current?.cover?.conferenceName ?? ""} />
-        : <ProceedingsDocument data={liveData} />;
-
-      const blob = await pdf(doc).toBlob();
-      if (bgGenAbortRef.current) return;
-
-      let uploadedUrl: string | null = null;
       if (selectedConfId) {
-        uploadedUrl = await uploadCachedPdf(selectedConfId, cacheKey, blob);
-      }
-
-      if (uploadedUrl) {
-        if (prevBlobRef.current?.startsWith("blob:")) {
-          URL.revokeObjectURL(prevBlobRef.current);
-          prevBlobRef.current = null;
+        const result = await renderProceedingsPdf(selectedConfId, {
+          ...payload,
+          key: cacheKey,
+          cache: true,
+        });
+        if (bgGenAbortRef.current) return;
+        if (result.url) {
+          if (prevBlobRef.current?.startsWith("blob:")) {
+            URL.revokeObjectURL(prevBlobRef.current);
+            prevBlobRef.current = null;
+          }
+          setPreviewCacheKey(cacheKey);
+          setPreviewCacheUrl(result.url);
+          setPreviewBlobUrl(result.url);
+          return;
         }
-        setPreviewCacheKey(cacheKey);
-        setPreviewCacheUrl(uploadedUrl);
-        setPreviewBlobUrl(uploadedUrl);
-      } else {
-        if (prevBlobRef.current?.startsWith("blob:"))
-          URL.revokeObjectURL(prevBlobRef.current);
-        const url = URL.createObjectURL(blob);
-        prevBlobRef.current = url;
-        setPreviewBlobUrl(url);
+        if (result.blob) {
+          let uploadedUrl: string | null = null;
+          uploadedUrl = await uploadCachedPdf(selectedConfId, cacheKey, result.blob);
+          if (uploadedUrl) {
+            if (prevBlobRef.current?.startsWith("blob:")) {
+              URL.revokeObjectURL(prevBlobRef.current);
+              prevBlobRef.current = null;
+            }
+            setPreviewCacheKey(cacheKey);
+            setPreviewCacheUrl(uploadedUrl);
+            setPreviewBlobUrl(uploadedUrl);
+            return;
+          }
+          if (prevBlobRef.current?.startsWith("blob:")) {
+            URL.revokeObjectURL(prevBlobRef.current);
+          }
+          const url = URL.createObjectURL(result.blob);
+          prevBlobRef.current = url;
+          setPreviewBlobUrl(url);
+        }
       }
     } catch (e) {
       console.error('Preview generation failed', e);
@@ -3399,12 +3915,11 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     if (exportingPdf) return;
     setExportingPdf(true);
     try {
-      await ensureAllPapersLoaded();
-      const liveData = procDataRef.current;
-      const livePages = edPages.length > 0 ? edPages : undefined;
-      const payload = livePages
-        ? { pages: stripPagesForCache(livePages), hf }
-        : { procData: liveData };
+      const livePages = await buildPagesForRender(
+        edPages.length > 0 ? edPages : undefined,
+      );
+      const conferenceName = procDataRef.current?.cover?.conferenceName ?? "";
+      const payload = { pages: stripPagesForCache(livePages), hf, conferenceName };
       const cacheKey = await hashPayload(payload);
 
       let url =
@@ -3416,26 +3931,31 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
         url = await getCachedPdfUrl(selectedConfId, cacheKey);
       }
 
-      if (!url) {
-        const doc = livePages
-          ? <EditorExportDoc pages={livePages} hf={hf} conferenceName={procDataRef.current?.cover?.conferenceName ?? ""} />
-          : <ProceedingsDocument data={liveData} />;
-        const blob = await pdf(doc).toBlob();
-        if (selectedConfId) {
-          url = await uploadCachedPdf(selectedConfId, cacheKey, blob);
-        }
-        if (!url) {
-          const localUrl = URL.createObjectURL(blob);
-          await downloadPdfFromUrl(localUrl, "proceedings-edited.pdf");
-          URL.revokeObjectURL(localUrl);
-          return;
+      if (!url && selectedConfId) {
+        const result = await renderProceedingsPdf(selectedConfId, {
+          ...payload,
+          key: cacheKey,
+          cache: true,
+        });
+        if (result.url) {
+          url = result.url;
+        } else if (result.blob) {
+          url = await uploadCachedPdf(selectedConfId, cacheKey, result.blob);
+          if (!url) {
+            const localUrl = URL.createObjectURL(result.blob);
+            await downloadPdfFromUrl(localUrl, "proceedings-edited.pdf");
+            URL.revokeObjectURL(localUrl);
+            return;
+          }
         }
       }
 
-      setPreviewCacheKey(cacheKey);
-      setPreviewCacheUrl(url);
-      setPreviewBlobUrl(url);
-      await downloadPdfFromUrl(url, "proceedings-edited.pdf");
+      if (url) {
+        setPreviewCacheKey(cacheKey);
+        setPreviewCacheUrl(url);
+        setPreviewBlobUrl(url);
+        await downloadPdfFromUrl(url, "proceedings-edited.pdf");
+      }
     } catch (e) {
       console.error("Export PDF failed", e);
     } finally {
@@ -3450,6 +3970,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     setEdLoading(true);
     try {
       await ensureAllPapersLoaded();
+      await ensureCoverLogosLoaded();
       let pages = buildEditorPages(procDataRef.current);
       pages = regenerateToc(pages);
       // Render tuần tự, update sidebar từng trang một (user thấy progress)
@@ -3472,9 +3993,18 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     }
   };
 
+  // Keep refs in sync with state so preview trigger useEffect never uses stale values
+  useEffect(() => { edPagesRef.current = edPages; }, [edPages]);
+  useEffect(() => { edReadyRef.current = edReady; }, [edReady]);
+
   // Auto-sync: Khi procData thay đổi và editor đã mở, rebuild lại editor pages
+  // Also invalidate preview cache so preview tab re-renders with new data
   useEffect(() => {
     procDataRef.current = procData;
+    // Invalidate preview so it regenerates with latest data
+    setPreviewBlobUrl(null);
+    setPreviewCacheKey(null);
+    setPreviewCacheUrl(null);
     if (!edReady) return;
     const timer = setTimeout(() => { initEditor(true); }, 500);
     return () => clearTimeout(timer);
@@ -3487,13 +4017,230 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     setEdPages(synced.map((pg, i) => (i === 1 ? { ...pg, bg: tocThumb } : pg)));
   };
 
+  // ─── Auto-adjust cover font colors — pure math, no API ───────────────────────
+
+  /** sRGB channel → linear (WCAG 2.x formula) */
+  const toLinear = (c: number) => {
+    const s = c / 255;
+    return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+
+  /** Relative luminance of an RGB triplet (0-255 each) */
+  const relativeLuminance = (r: number, g: number, b: number) =>
+    0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+
+  /** WCAG contrast ratio between two luminance values */
+  const contrastRatio = (L1: number, L2: number) => {
+    const lighter = Math.max(L1, L2);
+    const darker = Math.min(L1, L2);
+    return (lighter + 0.05) / (darker + 0.05);
+  };
+
+  /** Parse a CSS hex color (#rgb or #rrggbb) → [r,g,b] */
+  const hexToRgb = (hex: string): [number, number, number] | null => {
+    const h = hex.replace("#", "");
+    if (h.length === 3) {
+      return [
+        parseInt(h[0] + h[0], 16),
+        parseInt(h[1] + h[1], 16),
+        parseInt(h[2] + h[2], 16),
+      ];
+    }
+    if (h.length >= 6) {
+      return [
+        parseInt(h.substring(0, 2), 16),
+        parseInt(h.substring(2, 4), 16),
+        parseInt(h.substring(4, 6), 16),
+      ];
+    }
+    return null;
+  };
+
+  /**
+   * Extract all color stops from a CSS gradient/solid string,
+   * weight them by their % position (or equally if no positions).
+   * Returns weighted-average [r,g,b].
+   */
+  const parseBgAvgRGB = (css: string): [number, number, number] => {
+    type Stop = { r: number; g: number; b: number; pos: number | null };
+    const stops: Stop[] = [];
+
+    // Match hex colors with optional position: #rrggbb [0-9]+%
+    const hexPattern = /#([0-9a-fA-F]{3,8})\b(?:\s+([\d.]+)%)?/g;
+    let m: RegExpExecArray | null;
+    while ((m = hexPattern.exec(css)) !== null) {
+      const rgb = hexToRgb("#" + m[1]);
+      if (rgb) stops.push({ r: rgb[0], g: rgb[1], b: rgb[2], pos: m[2] ? parseFloat(m[2]) : null });
+    }
+
+    // Match rgb/rgba: rgb(r,g,b) with optional position
+    const rgbPattern = /rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)[^)]*\)(?:\s+([\d.]+)%)?/g;
+    while ((m = rgbPattern.exec(css)) !== null) {
+      stops.push({
+        r: parseInt(m[1]), g: parseInt(m[2]), b: parseInt(m[3]),
+        pos: m[4] ? parseFloat(m[4]) : null,
+      });
+    }
+
+    if (stops.length === 0) return [26, 58, 107]; // fallback navy
+
+    // Assign positions if missing (distribute evenly 0…100)
+    const withPos = stops.map((s, i) => ({
+      ...s,
+      pos: s.pos !== null ? s.pos : (stops.length === 1 ? 50 : (i / (stops.length - 1)) * 100),
+    }));
+
+    // Weighted average: weight = distance to neighbours (trapezoidal integration)
+    let sumR = 0, sumG = 0, sumB = 0, sumW = 0;
+    for (let i = 0; i < withPos.length; i++) {
+      const prev = i === 0 ? withPos[0].pos : withPos[i - 1].pos;
+      const next = i === withPos.length - 1 ? withPos[i].pos : withPos[i + 1].pos;
+      const w = (next - prev) / 2;
+      sumR += withPos[i].r * w;
+      sumG += withPos[i].g * w;
+      sumB += withPos[i].b * w;
+      sumW += w;
+    }
+    if (sumW <= 0) { sumW = 1; sumR = stops[0].r; sumG = stops[0].g; sumB = stops[0].b; }
+    return [sumR / sumW, sumG / sumW, sumB / sumW];
+  };
+
+  /**
+   * Given a background average RGB, derive a 4-color text palette
+   * that guarantees WCAG AA contrast (≥ 4.5:1 for body, ≥ 3:1 for large text).
+   *
+   * Strategy:
+   *  1. Compute bg luminance.
+   *  2. Decide primary text: white or black (whichever has higher contrast).
+   *  3. Derive tinted variants by blending primary with the bg hue.
+   */
+  const deriveTextPalette = (avgR: number, avgG: number, avgB: number) => {
+    const bgLum = relativeLuminance(avgR, avgG, avgB);
+    const whiteLum = 1.0;
+    const blackLum = 0.0;
+    const cWhite = contrastRatio(whiteLum, bgLum);
+    const cBlack = contrastRatio(blackLum, bgLum);
+
+    // Dominant hue direction for accent tinting
+    const max = Math.max(avgR, avgG, avgB);
+    const isBlue = avgB === max;
+    const isGreen = avgG === max && avgG > avgR;
+    const isRed = avgR === max && avgR > avgB;
+    const isWarm = avgR + avgG > avgB * 1.8; // orange/yellow/red family
+    const isNeutral = Math.abs(avgR - avgG) < 20 && Math.abs(avgG - avgB) < 20;
+
+    if (cWhite >= cBlack) {
+      // Dark background → use white family
+      // subtitle/meta: slightly tinted versions of white
+      const subtitleColor = isBlue ? "#bfdbfe"
+        : isGreen ? "#bbf7d0"
+          : isRed ? "#fecaca"
+            : isWarm ? "#fed7aa"
+              : "#e2e8f0"; // neutral
+      const metaColor = isBlue ? "#93c5fd"
+        : isGreen ? "#86efac"
+          : isRed ? "#fca5a5"
+            : isWarm ? "#fdba74"
+              : "#cbd5e1";
+      const tagColor = isBlue ? "#60a5fa"
+        : isGreen ? "#4ade80"
+          : isRed ? "#f87171"
+            : isWarm ? "#fb923c"
+              : "#94a3b8";
+      return { title: "#ffffff", subtitle: subtitleColor, meta: metaColor, tag: tagColor };
+    } else {
+      // Light background → use dark family
+      // Check if bg is colorful light (e.g. pastel pink/blue) for tinted darks
+      const subtitleColor = isBlue ? "#1e3a5f"
+        : isGreen ? "#14532d"
+          : isRed ? "#7f1d1d"
+            : isWarm ? "#78350f"
+              : "#334155";
+      const metaColor = isBlue ? "#1e40af"
+        : isGreen ? "#166534"
+          : isRed ? "#991b1b"
+            : isWarm ? "#92400e"
+              : "#475569";
+      const tagColor = isBlue ? "#2563eb"
+        : isGreen ? "#16a34a"
+          : isRed ? "#dc2626"
+            : isWarm ? "#d97706"
+              : "#64748b";
+      return { title: "#0f172a", subtitle: subtitleColor, meta: metaColor, tag: tagColor };
+    }
+  };
+
+  const [fontColorMsg, setFontColorMsg] = useState<string | null>(null);
+
+  /** Auto-adjust cover page font colors — pure math, zero API calls */
+  const autoAdjustCoverFontColor = () => {
+    if (!edPages[0]) return;
+
+    try {
+      const coverPage = edPages[0];
+      const bgStr = coverPage.bgColor || "#1a3a6b";
+
+      const [avgR, avgG, avgB] = parseBgAvgRGB(bgStr);
+      const suggestedColors = deriveTextPalette(avgR, avgG, avgB);
+
+      setEdPages(prev => {
+        const newPages = [...prev];
+        const cover = {
+          ...newPages[0],
+          els: newPages[0].els.map(el => {
+            if (el.type !== "text") return el;
+            const z = el.zIndex ?? 10;
+            if (z === 11) return { ...el, color: suggestedColors.tag };
+            if (z === 13) return { ...el, color: suggestedColors.title };
+            if (z === 14) return { ...el, color: suggestedColors.subtitle };
+            if (z === 15) return { ...el, color: suggestedColors.meta };
+            if (z === 16) return { ...el, color: suggestedColors.tag };
+            return el;
+          })
+        };
+        newPages[0] = cover;
+        thumbDirtyRef.current.add(0);
+        return newPages;
+      });
+
+      if (thumbRefreshRef.current) clearTimeout(thumbRefreshRef.current);
+      thumbRefreshRef.current = setTimeout(() => triggerThumbRefresh(), 400);
+      setFontColorMsg("✓ Colors adjusted!");
+      setTimeout(() => setFontColorMsg(null), 2000);
+    } catch (err) {
+      console.error("Auto font color error:", err);
+    }
+  };
+
+
+  /** Re-render thumbnails for dirty pages (marked in thumbDirtyRef) */
+  const triggerThumbRefresh = () => {
+    const dirty = new Set(thumbDirtyRef.current);
+    thumbDirtyRef.current.clear();
+    if (dirty.size === 0) return;
+    setEdPages(prev => {
+      // Render asynchronously then patch
+      const work = async () => {
+        const updates: Record<number, string> = {};
+        for (const idx of dirty) {
+          if (prev[idx]) updates[idx] = await renderThumbnail(prev[idx]);
+        }
+        setEdPages(p => p.map((pg, i) => updates[i] !== undefined ? { ...pg, bg: updates[i] } : pg));
+      };
+      work();
+      return prev; // Return immediately, async update will follow
+    });
+  };
+
   /** Patch the currently selected page — O(1), không iterate toàn bộ array */
-  const patchPage = (fn: (p: EditorPage) => EditorPage) =>
+  const patchPage = (fn: (p: EditorPage) => EditorPage) => {
+    saveHistory();
     setEdPages((ps) => {
       const next = [...ps];
       next[selPage] = fn(next[selPage]);
       return next;
     });
+  };
 
   /** Patch a specific element on the current page */
   const patchEl = (id: string, fn: (e: EditorEl) => EditorEl) =>
@@ -3505,43 +4252,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
   const curPg = edPages[selPage];
   const selEl = curPg?.els.find((e) => e.id === selElId) ?? null;
 
-  // Logic Ctrl C + Ctrl V
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Phớt lờ nếu đang gõ trong textarea
-      if (
-        document.activeElement?.tagName === "TEXTAREA" ||
-        document.activeElement?.tagName === "INPUT"
-      )
-        return;
-
-      // Ctrl + C (Copy)
-      if ((e.ctrlKey || e.metaKey) && e.key === "c" && selEl) {
-        e.preventDefault();
-        setClipboard({ ...selEl });
-      }
-
-      // Ctrl + V (Paste)
-      if ((e.ctrlKey || e.metaKey) && e.key === "v" && clipboard) {
-        e.preventDefault();
-        const newId = uuidv4();
-        const pastedEl = {
-          ...clipboard,
-          id: newId,
-          x: clipboard.x + 20, // Lệch một chút để thấy
-          y: clipboard.y + 20,
-          zIndex: clipboard.type === "image" ? 90 : 190, // Lên trên cùng theo loại
-        };
-        patchPage((p) => ({ ...p, els: [...p.els, pastedEl] }));
-        setSelElId(newId);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selEl, clipboard, selPage]);
-
-  // Logic Del + Ctrl Z
+  // Unified keyboard shortcuts: Ctrl+C, Ctrl+V, Ctrl+Z, Ctrl+Y, Delete
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
@@ -3550,32 +4261,51 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
       )
         return;
 
-      // 1. Phím Delete để xóa element
+      // 1. Delete element
       if (e.key === "Delete" && selElId) {
         e.preventDefault();
-        saveHistory();
-        deleteEl(selElId);
+        deleteEl(selElId); // patchPage already saves history
       }
 
-      // 2. Ctrl + Z để Undo
-      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+      // 2. Ctrl+Z — Undo using ref (never stale)
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
-        if (history.length > 0) {
-          const prev = history[0];
+        if (historyRef.current.length > 0) {
+          // Push current state to redo stack before undoing
+          const currentSnapshot = JSON.parse(JSON.stringify(edPages)) as EditorPage[];
+          redoRef.current = [currentSnapshot, ...redoRef.current].slice(0, 50);
+          const prev = historyRef.current[0];
+          historyRef.current = historyRef.current.slice(1);
+          setHistory(historyRef.current);
           setEdPages(prev);
-          setHistory(history.slice(1));
           setSelElId(null);
         }
       }
 
-      // Ctrl + C / Ctrl + V giữ nguyên nhưng thêm saveHistory() vào trước khi Paste
+      // 3. Ctrl+Y (or Ctrl+Shift+Z) — Redo
+      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
+        e.preventDefault();
+        if (redoRef.current.length > 0) {
+          // Push current state to undo stack before redoing
+          const currentSnapshot = JSON.parse(JSON.stringify(edPages)) as EditorPage[];
+          historyRef.current = [currentSnapshot, ...historyRef.current].slice(0, 50);
+          setHistory(historyRef.current);
+          const next = redoRef.current[0];
+          redoRef.current = redoRef.current.slice(1);
+          setEdPages(next);
+          setSelElId(null);
+        }
+      }
+
+      // 4. Ctrl+C Copy
       if ((e.ctrlKey || e.metaKey) && e.key === "c" && selEl) {
         e.preventDefault();
         setClipboard({ ...selEl });
       }
+
+      // 5. Ctrl+V Paste — patchPage saves history
       if ((e.ctrlKey || e.metaKey) && e.key === "v" && clipboard) {
         e.preventDefault();
-        saveHistory(); // Lưu lịch sử trước khi dán
         const newId = uuidv4();
         const pastedEl = {
           ...clipboard,
@@ -3591,7 +4321,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selEl, clipboard, edPages, history, selPage, selElId]);
+  }, [selEl, clipboard, selPage, selElId, edPages]);
 
   const addText = () => {
     const id = uuidv4();
@@ -3623,6 +4353,51 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     setEditingTxtId(id);
   };
 
+  /** Apply a solid color as page background (current or all pages) + schedule thumbnail refresh */
+  const applyBgColor = (color: string, scope: "current" | "all") => {
+    saveHistory();
+    if (scope === "all") {
+      setEdPages(prev => {
+        prev.forEach((_, i) => thumbDirtyRef.current.add(i));
+        return prev.map(pg => ({ ...pg, bgColor: color, bg: "" }));
+      });
+    } else {
+      thumbDirtyRef.current.add(selPage);
+      setEdPages(ps => {
+        const next = [...ps];
+        next[selPage] = { ...next[selPage], bgColor: color, bg: "" };
+        return next;
+      });
+    }
+    if (thumbRefreshRef.current) clearTimeout(thumbRefreshRef.current);
+    thumbRefreshRef.current = setTimeout(() => triggerThumbRefresh(), 400);
+  };
+
+  /** Apply an image as full-page background element (current or all pages) + schedule thumbnail refresh */
+  const applyBgImage = (src: string, scope: "current" | "all") => {
+    saveHistory();
+    const makeEl = (): EditorEl => ({
+      id: uuidv4(), type: "image", src, x: 0, y: 0, w: CANVAS_W, h: CANVAS_H, zIndex: 1,
+    });
+    if (scope === "all") {
+      setEdPages(prev => {
+        prev.forEach((_, i) => thumbDirtyRef.current.add(i));
+        return prev.map(pg => ({
+          ...pg, bg: "",
+          els: [makeEl(), ...pg.els.filter(e => !(e.type === "image" && e.zIndex === 1))],
+        }));
+      });
+    } else {
+      thumbDirtyRef.current.add(selPage);
+      patchPage(pg => ({
+        ...pg, bg: "",
+        els: [makeEl(), ...pg.els.filter(e => !(e.type === "image" && e.zIndex === 1))],
+      }));
+    }
+    if (thumbRefreshRef.current) clearTimeout(thumbRefreshRef.current);
+    thumbRefreshRef.current = setTimeout(() => triggerThumbRefresh(), 400);
+  };
+
   const addImage = (src: string, isBackground: boolean = false) => {
     const img = new window.Image();
     img.onload = () => {
@@ -3643,14 +4418,18 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
           zIndex: 1, // Đảm bảo nằm dưới các text/table (thường là 100+)
         };
       } else {
-        // Chế độ Ảnh bình thường: Giữ nguyên logic cũ
+        // Chế độ Ảnh bình thường: scale để vừa canvas, tối đa 80% page
         const aspect = img.naturalHeight / img.naturalWidth;
-        const w = 200;
+        const maxW = Math.round(CANVAS_W * 0.8);
+        const maxH = Math.round(CANVAS_H * 0.8);
+        let w = Math.min(img.naturalWidth, maxW);
+        let h = Math.round(w * aspect);
+        if (h > maxH) { h = maxH; w = Math.round(h / aspect); }
         imageProps = {
-          x: 60,
-          y: 80,
+          x: Math.round((CANVAS_W - w) / 2),
+          y: Math.round((CANVAS_H - h) / 4),
           w,
-          h: Math.round(w * aspect),
+          h,
           zIndex: maxImgZ + 1,
         };
       }
@@ -3754,10 +4533,10 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     setSelElId(el.id);
     setEditingTxtId(null);
   };
-
   /** Page reorder by drag */
   const reorderPage = (from: number, to: number) => {
     if (from === to) return;
+    saveHistory();
     setEdPages((ps) => {
       const a = [...ps];
       const [item] = a.splice(from, 1);
@@ -3769,6 +4548,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
 
   /** Insert a blank page after afterIdx */
   const insertPage = (afterIdx: number) => {
+    saveHistory();
     const blank: EditorPage = {
       id: uuidv4(),
       bg: "",
@@ -3869,24 +4649,19 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
       procData.keynotes.map((k) => (k.id === id ? { ...k, ...patch } : k)),
     );
 
-  const handleUserSearch = async (query: string) => {
-    setUserSearchQuery(query);
-    if (!query.trim()) {
-      setUserSearchResults([]);
-      return;
-    }
-    setIsSearchingUsers(true);
+  const handleUserSearch = async (kId: string, query: string) => {
+    patchKState(kId, { userQuery: query });
+    if (!query.trim()) { patchKState(kId, { userResults: [] }); return; }
+    patchKState(kId, { userSearching: true });
     try {
       const { data } = await supabase
         .from("users")
         .select("user_id, full_name, email, avatar_url, description, organization")
         .ilike("full_name", `%${query}%`)
         .limit(10);
-      setUserSearchResults(data || []);
-    } catch (err) {
-      console.error("Failed to search users:", err);
-    } finally {
-      setIsSearchingUsers(false);
+      patchKState(kId, { userResults: data || [], userSearching: false });
+    } catch {
+      patchKState(kId, { userSearching: false });
     }
   };
 
@@ -3894,44 +4669,30 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
     let photoDataUrl = "";
     if (user.avatar_url) {
       try {
-        // Sử dụng hàm proxy có sẵn của tác giả để vượt qua CORS
         photoDataUrl = await urlToBase64(user.avatar_url);
-      } catch (err) {
-        console.warn(
-          "Failed to fetch avatar for PDF. Clearing photo to prevent crash.",
-          err,
-        );
+      } catch {
         photoDataUrl = "";
       }
     }
-
     patchKeynote(kId, {
       name: user.full_name || "",
       photo: photoDataUrl,
       bio: user.description || "",
       affiliation: user.organization || "",
     });
-    setUserSearchQuery("");
-    setUserSearchResults([]);
-    setActiveKeynoteId(null);
+    patchKState(kId, { userQuery: "", userResults: [] });
   };
 
-  const handlePaperSearch = (query: string) => {
-    setPaperSearchQuery(query);
+  const handlePaperSearch = (kId: string, query: string) => {
     if (!query.trim()) {
-      setPaperSearchResults([]);
+      patchKState(kId, { paperQuery: query, paperResults: [], isEditingTitle: query !== "" });
       return;
     }
-    setIsSearchingPapers(true);
-
     const results = procData.detailedSchedule
-      .filter((p) =>
-        (p.paperTitle || "").toLowerCase().includes(query.toLowerCase()),
-      )
+      .filter(p => (p.paperTitle || "").toLowerCase().includes(query.toLowerCase()))
       .slice(0, 10);
-
-    setPaperSearchResults(results);
-    setIsSearchingPapers(false);
+    // Batch into single state update to avoid stale reads
+    patchKState(kId, { paperQuery: query, paperResults: results, paperSearching: false, isEditingTitle: true });
   };
 
   const handlePaperSelect = (kId: string, paper: any) => {
@@ -3942,9 +4703,7 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
       timeSlot: paper.timeSlot || "",
       location: paper.location || "",
     });
-    setPaperSearchQuery("");
-    setPaperSearchResults([]);
-    setActivePaperKeynoteId(null);
+    patchKState(kId, { paperQuery: "", paperResults: [], isEditingTitle: false });
   };
 
   // Committee helpers
@@ -4296,90 +5055,151 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
 
                 {/* ─── COMMITTEE ─── */}
                 {activeTab === "committee" && (
-                  <div className="space-y-6">
-                    {/* Role-grouped preview */}
-                    {Object.keys(committeeByRole).length > 0 && (
-                      <div className="grid grid-cols-2 gap-3">
-                        {Object.entries(committeeByRole).map(
-                          ([role, members]) => (
-                            <div
-                              key={role}
-                              className="bg-slate-50 border border-slate-200 rounded-lg p-4"
-                            >
-                              <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600">
-                                {role}
-                              </span>
-                              <p className="text-xs text-slate-500 mt-1">
-                                {members.length} member
-                                {members.length !== 1 ? "s" : ""}
-                              </p>
-                            </div>
-                          ),
-                        )}
+                  <div className="space-y-5">
+
+                    {/* ── Role filter tabs + counts ── */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {(["All", ...COMMITTEE_ROLES] as string[]).map(role => {
+                        const count = role === "All"
+                          ? procData.committee.length
+                          : (committeeByRole[role]?.length ?? 0);
+                        const active = committeeActiveRole === role;
+                        return (
+                          <button
+                            key={role}
+                            onClick={() => setCommitteeActiveRole(role)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all border ${active
+                              ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                              : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600"
+                              }`}
+                          >
+                            {role === "All" ? "All Roles" : role}
+                            <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold ${active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
+                              }`}>{count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* ── Grouped accordion by role ── */}
+                    {Object.keys(committeeByRole).length === 0 && committeeActiveRole === "All" && (
+                      <div className="py-8 text-center text-slate-400 text-sm border-2 border-dashed border-slate-200 rounded-xl">
+                        No committee members yet. Add members below.
                       </div>
                     )}
 
-                    {/* Editable list */}
-                    <div className="space-y-2.5">
-                      {procData.committee.map((m) => (
-                        <div
-                          key={m.id}
-                          className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg"
-                        >
-                          <select
-                            value={m.role}
-                            onChange={(e) =>
-                              patchCommitteeMember(m.id, {
-                                role: e.target.value,
-                              })
-                            }
-                            className="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white outline-none focus:ring-2 focus:ring-indigo-400 w-44 shrink-0"
-                          >
-                            <option>Honorary Chair</option>
-                            <option>General Chair</option>
-                            <option>Program Chair</option>
-                            <option>Track Chair</option>
-                            <option>Organizing Chair</option>
-                            <option>Publication Chair</option>
-                            <option>Session Chair</option>
-                            <option>Program Committee</option>
-                            <option>Tutorial Chair</option>
-                          </select>
-                          <input
-                            className="flex-1 min-w-0 text-sm border border-slate-200 rounded-md px-2.5 py-1.5 bg-white outline-none focus:ring-2 focus:ring-indigo-400"
-                            placeholder="Full name"
-                            value={m.name}
-                            onChange={(e) =>
-                              patchCommitteeMember(m.id, {
-                                name: e.target.value,
-                              })
-                            }
-                          />
-                          <input
-                            className="flex-1 min-w-0 text-sm border border-slate-200 rounded-md px-2.5 py-1.5 bg-white outline-none focus:ring-2 focus:ring-indigo-400"
-                            placeholder="Affiliation / Institution"
-                            value={m.affiliation}
-                            onChange={(e) =>
-                              patchCommitteeMember(m.id, {
-                                affiliation: e.target.value,
-                              })
-                            }
-                          />
-                          <button
-                            onClick={() => removeCommitteeMember(m.id)}
-                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
+                    {(committeeActiveRole === "All" ? Object.keys(committeeByRole) : [committeeActiveRole].filter(r => committeeByRole[r]))
+                      .map(role => {
+                        const members = committeeByRole[role] || [];
+                        const isCollapsed = committeeCollapsed[role];
+                        return (
+                          <div key={role} className="border border-slate-200 rounded-xl overflow-hidden">
+                            {/* Role header */}
+                            <button
+                              onClick={() => setCommitteeCollapsed(prev => ({ ...prev, [role]: !prev[role] }))}
+                              className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <UserCheck className="w-4 h-4 text-indigo-500 shrink-0" />
+                                <span className="text-sm font-semibold text-slate-800">{role}</span>
+                                <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-full">
+                                  {members.length}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateCommittee([
+                                      ...procData.committee,
+                                      { id: uuidv4(), role, name: "", affiliation: "" }
+                                    ]);
+                                    setCommitteeCollapsed(prev => ({ ...prev, [role]: false }));
+                                  }}
+                                  className="p-1 text-indigo-500 hover:bg-indigo-50 rounded-md transition-colors"
+                                  title={`Add ${role}`}
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                                {isCollapsed ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronUp className="w-4 h-4 text-slate-400" />}
+                              </div>
+                            </button>
+
+                            {/* Members list */}
+                            {!isCollapsed && (
+                              <div className="divide-y divide-slate-100">
+                                {members.map((m: any, mIdx: number) => (
+                                  <div key={m.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50/60 group">
+                                    <span className="text-[10px] text-slate-400 font-mono w-5 text-right shrink-0">{mIdx + 1}</span>
+                                    <input
+                                      className="flex-1 min-w-0 text-sm border border-transparent bg-transparent rounded-md px-2 py-1 outline-none focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all"
+                                      placeholder="Full name"
+                                      value={m.name}
+                                      onChange={(e) => patchCommitteeMember(m.id, { name: e.target.value })}
+                                    />
+                                    <input
+                                      className="flex-1 min-w-0 text-sm text-slate-500 border border-transparent bg-transparent rounded-md px-2 py-1 outline-none focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all"
+                                      placeholder="Affiliation"
+                                      value={m.affiliation}
+                                      onChange={(e) => patchCommitteeMember(m.id, { affiliation: e.target.value })}
+                                    />
+                                    {/* Move to different role */}
+                                    <select
+                                      value={m.role}
+                                      onChange={(e) => patchCommitteeMember(m.id, { role: e.target.value })}
+                                      className="text-[10px] border border-slate-200 rounded-md px-1.5 py-1 bg-white outline-none focus:ring-1 focus:ring-indigo-400 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity w-32 shrink-0"
+                                      title="Move to role"
+                                    >
+                                      {COMMITTEE_ROLES.map(r => (
+                                        <option key={r} value={r}>{r}</option>
+                                      ))}
+                                    </select>
+                                    <button
+                                      onClick={() => removeCommitteeMember(m.id)}
+                                      className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                ))}
+                                {members.length === 0 && (
+                                  <p className="px-4 py-3 text-xs text-slate-400 italic">No members in this role yet.</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                    {/* ── Add member — role-aware ── */}
+                    <div className="flex items-center gap-3 p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+                      <Plus className="w-4 h-4 text-indigo-500 shrink-0" />
+                      <span className="text-xs font-semibold text-indigo-600 shrink-0">Add to:</span>
+                      <select
+                        className="text-xs border border-indigo-200 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:ring-2 focus:ring-indigo-400 text-slate-700 font-medium"
+                        value={committeeActiveRole === "All" ? "Program Committee" : committeeActiveRole}
+                        onChange={(e) => setCommitteeActiveRole(e.target.value)}
+                      >
+                        {COMMITTEE_ROLES.map(r => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => {
+                          const role = committeeActiveRole === "All" ? "Program Committee" : committeeActiveRole;
+                          updateCommittee([
+                            ...procData.committee,
+                            { id: uuidv4(), role, name: "", affiliation: "" }
+                          ]);
+                          setCommitteeCollapsed(prev => ({ ...prev, [role]: false }));
+                          if (committeeActiveRole === "All") setCommitteeActiveRole(role);
+                        }}
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Add Member
+                      </button>
                     </div>
-                    <button
-                      onClick={addCommitteeMember}
-                      className="w-full py-3 border-2 border-dashed border-slate-200 rounded-lg text-sm text-slate-500 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all flex items-center justify-center gap-2"
-                    >
-                      <Plus className="w-4 h-4" /> Add Member
-                    </button>
+
                   </div>
                 )}
 
@@ -4442,10 +5262,14 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                         type="file"
                         accept="image/*"
                         onChange={(e) => {
-                          if (e.target.files?.[0])
-                            updateGeneralInfo({
-                              floorPlan: URL.createObjectURL(e.target.files[0]),
-                            });
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          // Use FileReader to get base64 data URL (works on server, unlike blob: URLs)
+                          const reader = new FileReader();
+                          reader.onload = (ev) => {
+                            updateGeneralInfo({ floorPlan: ev.target!.result as string });
+                          };
+                          reader.readAsDataURL(file);
                         }}
                         className="block w-full text-sm text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                       />
@@ -4537,120 +5361,104 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                         </p>
                       </div>
                     )}
-                    {procData.keynotes.map((k, idx) => (
-                      <div
-                        key={k.id}
-                        className="border border-slate-200 rounded-xl overflow-hidden"
-                      >
-                        <div className="flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-200">
-                          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                            Keynote {idx + 1}
-                          </span>
-                          <button
-                            onClick={() => removeKeynote(k.id)}
-                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <div className="p-5 grid grid-cols-3 gap-5">
-                          {/* Photo */}
-                          <div className="col-span-1 flex flex-col items-center gap-3">
-                            <div className="w-28 h-28 rounded-full border-2 border-slate-200 bg-slate-100 overflow-hidden flex items-center justify-center">
-                              {k.photo ? (
-                                <img
-                                  src={k.photo}
-                                  alt={k.name}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <Users className="w-10 h-10 text-slate-300" />
+                    {procData.keynotes.map((k, idx) => {
+                      // Duplicate speaker detection
+                      const isDuplicateSpeaker = k.name.trim() !== "" &&
+                        procData.keynotes.some((other, otherIdx) =>
+                          otherIdx !== idx && other.name.trim().toLowerCase() === k.name.trim().toLowerCase()
+                        );
+                      return (
+                        <div
+                          key={k.id}
+                          className={`border rounded-xl overflow-hidden ${isDuplicateSpeaker ? "border-amber-300" : "border-slate-200"}`}
+                        >
+                          <div className={`flex items-center justify-between px-5 py-3 border-b ${isDuplicateSpeaker ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-200"}`}>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                Keynote {idx + 1}
+                              </span>
+                              {isDuplicateSpeaker && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-full border border-amber-200">
+                                  <AlertCircle className="w-3 h-3" />
+                                  Duplicate speaker
+                                </span>
                               )}
                             </div>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => {
-                                if (e.target.files?.[0])
-                                  patchKeynote(k.id, {
-                                    photo: URL.createObjectURL(
-                                      e.target.files[0],
-                                    ),
-                                  });
-                              }}
-                              className="block w-full text-[11px] text-slate-500 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-medium file:bg-indigo-50 file:text-indigo-600"
-                            />
+                            <button
+                              onClick={() => removeKeynote(k.id)}
+                              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
-                          <div className="col-span-2 space-y-3">
-                            <div className="relative">
-                              <label className={labelCls}>Speaker Name</label>
+                          <div className="p-5 grid grid-cols-3 gap-5">
+                            {/* Photo */}
+                            <div className="col-span-1 flex flex-col items-center gap-3">
+                              <div className="w-28 h-28 rounded-full border-2 border-slate-200 bg-slate-100 overflow-hidden flex items-center justify-center">
+                                {k.photo ? (
+                                  <img
+                                    src={k.photo}
+                                    alt={k.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <Users className="w-10 h-10 text-slate-300" />
+                                )}
+                              </div>
                               <input
-                                className={fieldCls}
-                                value={
-                                  activeKeynoteId === k.id
-                                    ? userSearchQuery
-                                    : k.name
-                                }
-                                placeholder="e.g. Prof. Vincent Wong"
+                                type="file"
+                                accept="image/*"
                                 onChange={(e) => {
-                                  if (activeKeynoteId !== k.id) {
-                                    setActiveKeynoteId(k.id);
-                                  }
-                                  handleUserSearch(e.target.value);
-                                  patchKeynote(k.id, { name: e.target.value });
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const reader = new FileReader();
+                                  reader.onload = (ev) => {
+                                    patchKeynote(k.id, { photo: ev.target!.result as string });
+                                  };
+                                  reader.readAsDataURL(file);
                                 }}
-                                onFocus={() => {
-                                  setActiveKeynoteId(k.id);
-                                  setUserSearchQuery(k.name);
-                                }}
-                                onBlur={() => {
-                                  // Delay hiding to allow click on dropdown
-                                  setTimeout(() => {
-                                    if (activeKeynoteId === k.id) {
-                                      setActiveKeynoteId(null);
-                                      setUserSearchResults([]);
-                                    }
-                                  }, 200);
-                                }}
+                                className="block w-full text-[11px] text-slate-500 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-medium file:bg-indigo-50 file:text-indigo-600"
                               />
-                              {activeKeynoteId === k.id &&
-                                (userSearchResults.length > 0 ||
-                                  isSearchingUsers) && (
+                            </div>
+                            <div className="col-span-2 space-y-3">
+                              <div className="relative">
+                                <label className={labelCls}>Speaker Name</label>
+                                <input
+                                  className={fieldCls}
+                                  value={getKState(k.id).userQuery !== "" ? getKState(k.id).userQuery : k.name}
+                                  placeholder="e.g. Prof. Vincent Wong"
+                                  onChange={(e) => {
+                                    patchKeynote(k.id, { name: e.target.value });
+                                    handleUserSearch(k.id, e.target.value);
+                                  }}
+                                  onFocus={() => patchKState(k.id, { userQuery: k.name })}
+                                  onBlur={() => setTimeout(() => patchKState(k.id, { userQuery: "", userResults: [] }), 200)}
+                                />
+                                {(getKState(k.id).userResults.length > 0 || getKState(k.id).userSearching) && (
                                   <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-auto">
-                                    {isSearchingUsers ? (
+                                    {getKState(k.id).userSearching ? (
                                       <div className="px-4 py-3 text-xs text-slate-500 flex items-center gap-2">
-                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />{" "}
-                                        Searching users...
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Searching users...
                                       </div>
                                     ) : (
                                       <ul className="py-1">
-                                        {userSearchResults.map((user) => (
+                                        {getKState(k.id).userResults.map((user) => (
                                           <li
                                             key={user.user_id}
                                             className="px-4 py-2 hover:bg-indigo-50 cursor-pointer transition-colors"
-                                            onClick={() =>
-                                              handleUserSelect(k.id, user)
-                                            }
+                                            onMouseDown={(e) => { e.preventDefault(); handleUserSelect(k.id, user); }}
                                           >
                                             <div className="flex items-center gap-2.5">
                                               <div className="w-6 h-6 rounded-full bg-slate-100 overflow-hidden shrink-0">
                                                 {user.avatar_url ? (
-                                                  <img
-                                                    src={user.avatar_url}
-                                                    alt=""
-                                                    className="w-full h-full object-cover"
-                                                  />
+                                                  <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
                                                 ) : (
                                                   <Users className="w-3 h-3 m-auto text-slate-400 mt-1.5" />
                                                 )}
                                               </div>
                                               <div className="min-w-0">
-                                                <p className="text-sm font-medium text-slate-900 truncate">
-                                                  {user.full_name}
-                                                </p>
-                                                <p className="text-[10px] text-slate-500 truncate">
-                                                  {user.email}
-                                                </p>
+                                                <p className="text-sm font-medium text-slate-900 truncate">{user.full_name}</p>
+                                                <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
                                               </div>
                                             </div>
                                           </li>
@@ -4659,164 +5467,146 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                                     )}
                                   </div>
                                 )}
-                            </div>
-                            <div className="relative">
-                              <label className={labelCls}>
-                                Presentation Title
-                              </label>
-                              <input
-                                className={fieldCls}
-                                value={
-                                  activePaperKeynoteId === k.id
-                                    ? paperSearchQuery
-                                    : k.presentationTitle
-                                }
-                                placeholder="e.g. Machine Learning for Integrated Sensing and Communication"
-                                onChange={(e) => {
-                                  if (activePaperKeynoteId !== k.id) {
-                                    setActivePaperKeynoteId(k.id);
-                                  }
-                                  handlePaperSearch(e.target.value);
-                                  patchKeynote(k.id, {
-                                    presentationTitle: e.target.value,
-                                  });
-                                }}
-                                onFocus={() => {
-                                  setActivePaperKeynoteId(k.id);
-                                  setPaperSearchQuery(k.presentationTitle);
-                                }}
-                                onBlur={() => {
-                                  setTimeout(() => {
-                                    if (activePaperKeynoteId === k.id) {
-                                      setActivePaperKeynoteId(null);
-                                      setPaperSearchResults([]);
+                              </div>
+                              <div className="relative">
+                                <label className={labelCls}>Presentation Title</label>
+                                <input
+                                  className={fieldCls}
+                                  value={getKState(k.id).isEditingTitle ? getKState(k.id).paperQuery : k.presentationTitle}
+                                  placeholder="e.g. Machine Learning for Integrated Sensing and Communication"
+                                  onChange={(e) => {
+                                    handlePaperSearch(k.id, e.target.value);
+                                  }}
+                                  onFocus={() => {
+                                    // On focus: switch to editing mode, seed paperQuery from current title
+                                    patchKState(k.id, { isEditingTitle: true, paperQuery: k.presentationTitle });
+                                  }}
+                                  onBlur={() => setTimeout(() => {
+                                    // On blur: save whatever was typed, exit editing mode
+                                    const q = getKState(k.id).paperQuery;
+                                    if (getKState(k.id).isEditingTitle) {
+                                      patchKeynote(k.id, { presentationTitle: q });
                                     }
-                                  }, 200);
-                                }}
-                              />
-                              {activePaperKeynoteId === k.id &&
-                                paperSearchResults.length > 0 && (
+                                    patchKState(k.id, { isEditingTitle: false, paperQuery: "", paperResults: [] });
+                                  }, 200)}
+                                />
+                                {getKState(k.id).paperResults.length > 0 && (
                                   <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-auto">
                                     <ul className="py-1">
-                                      {paperSearchResults.map((paper) => (
+                                      {getKState(k.id).paperResults.map((paper) => (
                                         <li
                                           key={paper.paper_id}
                                           className="px-4 py-2.5 hover:bg-indigo-50 cursor-pointer transition-colors"
-                                          onClick={() =>
-                                            handlePaperSelect(k.id, paper)
-                                          }
+                                          onMouseDown={(e) => { e.preventDefault(); handlePaperSelect(k.id, paper); }}
                                         >
                                           <div className="min-w-0">
-                                            <p className="text-sm border-slate-900 font-medium line-clamp-2 leading-tight mb-1">
-                                              {paper.paperTitle}
-                                            </p>
-                                            <p className="text-[10px] text-slate-500 truncate italic">
-                                              {paper.authors}
-                                            </p>
+                                            <p className="text-sm font-medium line-clamp-2 leading-tight mb-1">{paper.paperTitle}</p>
+                                            <p className="text-[10px] text-slate-500 truncate italic">{paper.authors}</p>
                                           </div>
                                         </li>
                                       ))}
                                     </ul>
                                   </div>
                                 )}
+                              </div>
+                              <div className="grid grid-cols-2 gap-4 mt-3">
+                                <div>
+                                  <label className={labelCls}>Keynote Label</label>
+                                  <input
+                                    className={fieldCls}
+                                    value={k.keynoteLabel || ""}
+                                    placeholder="e.g. KEYNOTE I"
+                                    onChange={(e) =>
+                                      patchKeynote(k.id, {
+                                        keynoteLabel: e.target.value,
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div>
+                                  <label className={labelCls}>Affiliation</label>
+                                  <input
+                                    className={fieldCls}
+                                    value={k.affiliation || ""}
+                                    placeholder="e.g. The University of British Columbia, Canada"
+                                    onChange={(e) =>
+                                      patchKeynote(k.id, {
+                                        affiliation: e.target.value,
+                                      })
+                                    }
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-3 gap-4 mt-3">
+                                <div>
+                                  <label className={labelCls}>Day Label</label>
+                                  <input
+                                    className={fieldCls}
+                                    value={k.dayLabel || ""}
+                                    placeholder="e.g. DAY 1 - FRIDAY, 12 DECEMBER 2025"
+                                    onChange={(e) =>
+                                      patchKeynote(k.id, {
+                                        dayLabel: e.target.value,
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div>
+                                  <label className={labelCls}>Time Slot</label>
+                                  <input
+                                    className={fieldCls}
+                                    value={k.timeSlot || ""}
+                                    placeholder="e.g. 08:50 - 09:30"
+                                    onChange={(e) =>
+                                      patchKeynote(k.id, {
+                                        timeSlot: e.target.value,
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div>
+                                  <label className={labelCls}>Location</label>
+                                  <input
+                                    className={fieldCls}
+                                    value={k.location || ""}
+                                    placeholder="e.g. Grand Ballroom - 2F"
+                                    onChange={(e) =>
+                                      patchKeynote(k.id, {
+                                        location: e.target.value,
+                                      })
+                                    }
+                                  />
+                                </div>
+                              </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-4 mt-3">
-                              <div>
-                                <label className={labelCls}>Keynote Label</label>
-                                <input
-                                  className={fieldCls}
-                                  value={k.keynoteLabel || ""}
-                                  placeholder="e.g. KEYNOTE I"
-                                  onChange={(e) =>
-                                    patchKeynote(k.id, {
-                                      keynoteLabel: e.target.value,
-                                    })
-                                  }
-                                />
-                              </div>
-                              <div>
-                                <label className={labelCls}>Affiliation</label>
-                                <input
-                                  className={fieldCls}
-                                  value={k.affiliation || ""}
-                                  placeholder="e.g. The University of British Columbia, Canada"
-                                  onChange={(e) =>
-                                    patchKeynote(k.id, {
-                                      affiliation: e.target.value,
-                                    })
-                                  }
-                                />
-                              </div>
+                            <div className="col-span-3">
+                              <label className={labelCls}>Abstract</label>
+                              <textarea
+                                rows={4}
+                                className={`${fieldCls} resize-none`}
+                                value={k.abstract}
+                                placeholder="Keynote abstract…"
+                                onChange={(e) =>
+                                  patchKeynote(k.id, { abstract: e.target.value })
+                                }
+                              />
                             </div>
-                            <div className="grid grid-cols-3 gap-4 mt-3">
-                              <div>
-                                <label className={labelCls}>Day Label</label>
-                                <input
-                                  className={fieldCls}
-                                  value={k.dayLabel || ""}
-                                  placeholder="e.g. DAY 1 - FRIDAY, 12 DECEMBER 2025"
-                                  onChange={(e) =>
-                                    patchKeynote(k.id, {
-                                      dayLabel: e.target.value,
-                                    })
-                                  }
-                                />
-                              </div>
-                              <div>
-                                <label className={labelCls}>Time Slot</label>
-                                <input
-                                  className={fieldCls}
-                                  value={k.timeSlot || ""}
-                                  placeholder="e.g. 08:50 - 09:30"
-                                  onChange={(e) =>
-                                    patchKeynote(k.id, {
-                                      timeSlot: e.target.value,
-                                    })
-                                  }
-                                />
-                              </div>
-                              <div>
-                                <label className={labelCls}>Location</label>
-                                <input
-                                  className={fieldCls}
-                                  value={k.location || ""}
-                                  placeholder="e.g. Grand Ballroom - 2F"
-                                  onChange={(e) =>
-                                    patchKeynote(k.id, {
-                                      location: e.target.value,
-                                    })
-                                  }
-                                />
-                              </div>
+                            <div className="col-span-3">
+                              <label className={labelCls}>Biography</label>
+                              <textarea
+                                rows={3}
+                                className={`${fieldCls} resize-none`}
+                                value={k.bio}
+                                placeholder="Speaker's biography…"
+                                onChange={(e) =>
+                                  patchKeynote(k.id, { bio: e.target.value })
+                                }
+                              />
                             </div>
-                          </div>
-                          <div className="col-span-3">
-                            <label className={labelCls}>Abstract</label>
-                            <textarea
-                              rows={4}
-                              className={`${fieldCls} resize-none`}
-                              value={k.abstract}
-                              placeholder="Keynote abstract…"
-                              onChange={(e) =>
-                                patchKeynote(k.id, { abstract: e.target.value })
-                              }
-                            />
-                          </div>
-                          <div className="col-span-3">
-                            <label className={labelCls}>Biography</label>
-                            <textarea
-                              rows={3}
-                              className={`${fieldCls} resize-none`}
-                              value={k.bio}
-                              placeholder="Speaker's biography…"
-                              onChange={(e) =>
-                                patchKeynote(k.id, { bio: e.target.value })
-                              }
-                            />
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     <button
                       onClick={addKeynote}
                       className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-sm text-slate-500 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all flex items-center justify-center gap-2"
@@ -5072,1380 +5862,1578 @@ const ProceedingsManagement: React.FC<ProceedingsManagementProps> = ({
                 )}
 
                 {/* ─── PDF EDITOR ─── */}
-                {activeTab === "editor" && (
-                  <div className="-mx-7 -mb-7">
-                    {/* ── Init splash ── */}
-                    {!edReady && !edLoading && (
-                      <div className="flex flex-col items-center justify-center h-80 gap-4">
-                        <LayoutTemplate className="w-12 h-12 text-indigo-200" />
-                        <p className="text-sm font-medium text-slate-600">
-                          Render the current PDF into the visual editor
-                        </p>
-                        <button
-                          onClick={() => initEditor()}
-                          disabled={papersLoading}
-                          className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-indigo-200"
-                        >
-                          {papersLoading ? "Loading papers..." : "Open in Editor"}
-                        </button>
-                        <p className="text-xs text-slate-400 max-w-xs text-center">
-                          All pages are rasterised from your current data.
-                          Finish filling in the other tabs first, then come back
-                          here to make final tweaks.
-                        </p>
-                      </div>
-                    )}
+                <div className="-mx-7 -mb-7" style={{ display: activeTab === "editor" ? "block" : "none" }}>
+                  {/* ── Init splash ── */}
+                  {!edReady && !edLoading && (
+                    <div className="flex flex-col items-center justify-center h-80 gap-4">
+                      <LayoutTemplate className="w-12 h-12 text-indigo-200" />
+                      <p className="text-sm font-medium text-slate-600">
+                        Render the current PDF into the visual editor
+                      </p>
+                      <button
+                        onClick={() => initEditor()}
+                        disabled={papersLoading}
+                        className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-indigo-200"
+                      >
+                        {papersLoading ? "Loading papers..." : "Open in Editor"}
+                      </button>
+                      <p className="text-xs text-slate-400 max-w-xs text-center">
+                        All pages are rasterised from your current data.
+                        Finish filling in the other tabs first, then come back
+                        here to make final tweaks.
+                      </p>
+                    </div>
+                  )}
 
-                    {/* ── Loading ── */}
-                    {edLoading && (
-                      <div className="flex flex-col items-center justify-center h-80 gap-3">
-                        <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-                        <p className="text-sm text-slate-500">
-                          Rendering PDF pages…
-                        </p>
-                      </div>
-                    )}
+                  {/* ── Loading ── */}
+                  {edLoading && (
+                    <div className="flex flex-col items-center justify-center h-80 gap-3">
+                      <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+                      <p className="text-sm text-slate-500">
+                        Rendering PDF pages…
+                      </p>
+                    </div>
+                  )}
 
-                    {/* ── Main editor layout ── */}
-                    {edReady &&
-                      edPages.length > 0 &&
-                      (() => {
-                        const btnCls = (on: boolean) =>
-                          `p-2 rounded-lg border transition-all text-sm ${on
-                            ? "bg-indigo-600 border-indigo-600 text-white"
-                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                          }`;
+                  {/* ── Main editor layout ── */}
+                  {edReady &&
+                    edPages.length > 0 &&
+                    (() => {
+                      const btnCls = (on: boolean) =>
+                        `p-2 rounded-lg border transition-all text-sm ${on
+                          ? "bg-indigo-600 border-indigo-600 text-white"
+                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`;
 
-                        return (
-                          <div className="flex" style={{ height: 800 }}>
-                            {/* ──── Left: page strip (collapsible) ──── */}
+                      return (
+                        <div className="flex" style={{ height: 800 }}>
+                          {/* ──── Left: page strip (collapsible) ──── */}
+                          <div
+                            className="shrink-0 bg-slate-100 border-r border-slate-200 flex flex-col transition-all duration-200 overflow-hidden"
+                            style={{
+                              width: showPagesSidebar ? 136 : 0,
+                              minWidth: showPagesSidebar ? 136 : 0,
+                            }}
+                          >
+                            <div className="px-3 py-2.5 border-b border-slate-200 bg-white flex items-center justify-between">
+                              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                                Pages
+                              </span>
+                              <span className="text-[11px] text-slate-400">
+                                {edPages.length}
+                              </span>
+                            </div>
+                            <div className="flex-1 overflow-y-auto py-2 px-2 space-y-2">
+                              {edPages.map((pg, idx) => (
+                                <div
+                                  key={pg.id}
+                                  draggable
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.effectAllowed = "move";
+                                    setDragFromIdx(idx);
+                                  }}
+                                  onDragOver={(e) => e.preventDefault()}
+                                  onDrop={() => {
+                                    if (dragFromIdx !== null) {
+                                      reorderPage(dragFromIdx, idx);
+                                      setDragFromIdx(null);
+                                    }
+                                  }}
+                                  onDragEnd={() => setDragFromIdx(null)}
+                                  onClick={() => {
+                                    jumpToPage(idx);
+                                    setSelElId(null);
+                                    setEditingTxtId(null);
+                                  }}
+                                  className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all select-none ${selPage === idx ? "border-indigo-500 shadow-lg" : dragFromIdx === idx ? "opacity-40 border-slate-300" : "border-transparent hover:border-slate-300"}`}
+                                  style={{ width: THUMB_W, height: THUMB_H }}
+                                >
+                                  {pg.bg ? (
+                                    <img
+                                      src={pg.bg}
+                                      alt=""
+                                      className="w-full h-full object-cover pointer-events-none"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full bg-white flex items-center justify-center">
+                                      <span className="text-[10px] text-slate-300">
+                                        Blank
+                                      </span>
+                                    </div>
+                                  )}
+                                  <span className="absolute bottom-0 inset-x-0 text-center bg-black/40 text-white text-[9px] py-0.5">
+                                    {idx + 1}
+                                  </span>
+                                  <GripVertical className="absolute top-1 left-1 w-3 h-3 text-white/60 pointer-events-none" />
+                                </div>
+                              ))}
+                            </div>
+                            <div className="p-2 border-t border-slate-200 bg-white">
+                              <button
+                                onClick={() => insertPage(selPage)}
+                                className="w-full py-1.5 border border-dashed border-slate-300 rounded-lg text-[11px] text-slate-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all flex items-center justify-center gap-1"
+                              >
+                                <FilePlus className="w-3 h-3" /> Insert after
+                              </button>
+                            </div>
+                          </div>
+                          {/* Toggle sidebar button */}
+                          <button
+                            onClick={() => setShowPagesSidebar((v) => !v)}
+                            className="shrink-0 w-5 bg-slate-200 hover:bg-slate-300 border-r border-slate-300 flex items-center justify-center transition-all"
+                            title={
+                              showPagesSidebar ? "Hide pages" : "Show pages"
+                            }
+                          >
+                            <ChevronRight
+                              className={`w-3.5 h-3.5 text-slate-500 transition-transform ${showPagesSidebar ? "rotate-180" : ""}`}
+                            />
+                          </button>
+
+                          {/* ──── Centre: canvas ──── */}
+                          <div className="flex-1 flex flex-col min-w-0 bg-slate-200">
+                            {/* toolbar */}
+                            <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center gap-2 shrink-0 flex-wrap">
+                              {/* add text */}
+                              <button
+                                title="Add text block"
+                                onClick={addText}
+                                className={btnCls(false)}
+                              >
+                                <Type className="w-4 h-4" />
+                              </button>
+                              {/* add image: upload */}
+                              <button
+                                title="Upload image"
+                                onClick={() => {
+                                  const inp = document.createElement("input");
+                                  inp.type = "file";
+                                  inp.accept = "image/*";
+                                  inp.onchange = () => {
+                                    const f = inp.files?.[0];
+                                    if (!f) return;
+                                    const r = new FileReader();
+                                    r.onload = (ev) =>
+                                      setImageToInsert(ev.target!.result as string);
+                                    r.readAsDataURL(f);
+                                  };
+                                  inp.click();
+                                }}
+                                className={btnCls(false)}
+                              >
+                                <ImagePlus className="w-4 h-4" />
+                              </button>
+                              {/* background picker */}
+                              <button
+                                title="Choose background"
+                                onClick={() => setShowBgPicker(true)}
+                                className={btnCls(showBgPicker)}
+                              >
+                                <LayoutTemplate className="w-4 h-4" />
+                              </button>
+                              {/* add table */}
+                              <button
+                                title="Insert table"
+                                onClick={() => setShowInsertTable(true)}
+                                className={btnCls(false)}
+                              >
+                                <Grid3X3 className="w-4 h-4" />
+                              </button>
+
+                              <div className="w-px h-5 bg-slate-200 mx-0.5" />
+
+                              {/* delete selected */}
+                              {selElId && (
+                                <button
+                                  title="Delete element"
+                                  onClick={() => deleteEl(selElId)}
+                                  className="p-2 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-all"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+
+                              {/* H/F toggle */}
+                              <button
+                                onClick={() => setShowHFPanel((v) => !v)}
+                                className={`ml-auto flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${showHFPanel ? "bg-indigo-50 border-indigo-300 text-indigo-700" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                              >
+                                <Settings2 className="w-3.5 h-3.5" /> Header /
+                                Footer
+                              </button>
+
+                              {/* re-render */}
+                              <button
+                                onClick={() => {
+                                  setEdReady(false);
+                                  setEdPages([]);
+                                  setTimeout(initEditor, 50);
+                                }}
+                                title="Re-render from current data"
+                                className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-all"
+                              >
+                                <RefreshCw className="w-4 h-4" />
+                              </button>
+
+                              {/* Auto font color for cover page */}
+                              <div className="relative">
+                                <button
+                                  onClick={autoAdjustCoverFontColor}
+                                  title="Auto-adjust cover page font colors for best contrast (WCAG)"
+                                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-violet-200 text-violet-700 bg-violet-50 hover:bg-violet-100 text-xs font-semibold transition-all"
+                                >
+                                  <Sparkles className="w-3.5 h-3.5" />
+                                  Auto Color
+                                </button>
+                                {fontColorMsg && (
+                                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-medium px-2 py-1 rounded whitespace-nowrap z-50">
+                                    {fontColorMsg}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Header/Footer config panel */}
+                            {showHFPanel && (
+                              <div className="bg-indigo-50 border-b border-indigo-100 px-5 py-3 grid grid-cols-3 gap-4 items-end shrink-0">
+                                <div>
+                                  <label className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider block mb-1">
+                                    Header (all pages)
+                                  </label>
+                                  <input
+                                    className="w-full px-2.5 py-1.5 text-xs border border-indigo-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-indigo-400"
+                                    value={hf.headerText}
+                                    onChange={(e) =>
+                                      setHF((h) => ({
+                                        ...h,
+                                        headerText: e.target.value,
+                                      }))
+                                    }
+                                    placeholder="e.g. SOICT 2025 Program Book"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider block mb-1">
+                                    Footer text
+                                  </label>
+                                  <input
+                                    className="w-full px-2.5 py-1.5 text-xs border border-indigo-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-indigo-400"
+                                    value={hf.footerText}
+                                    onChange={(e) =>
+                                      setHF((h) => ({
+                                        ...h,
+                                        footerText: e.target.value,
+                                      }))
+                                    }
+                                    placeholder="e.g. https://soict.org"
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <label className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider block">
+                                    Page numbers
+                                  </label>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <label className="flex items-center gap-1 text-xs text-slate-600 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={hf.showPageNum}
+                                        onChange={(e) =>
+                                          setHF((h) => ({
+                                            ...h,
+                                            showPageNum: e.target.checked,
+                                          }))
+                                        }
+                                        className="accent-indigo-600"
+                                      />
+                                      Show
+                                    </label>
+                                    <select
+                                      value={hf.pageNumPos}
+                                      onChange={(e) =>
+                                        setHF((h) => ({
+                                          ...h,
+                                          pageNumPos: e.target.value as any,
+                                        }))
+                                      }
+                                      className="text-xs border border-indigo-200 rounded px-1.5 py-1 bg-white outline-none"
+                                    >
+                                      <option value="left">Left</option>
+                                      <option value="center">Center</option>
+                                      <option value="right">Right</option>
+                                    </select>
+                                    <span className="text-xs text-slate-500">
+                                      Start:
+                                    </span>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      value={hf.startFrom}
+                                      onChange={(e) =>
+                                        setHF((h) => ({
+                                          ...h,
+                                          startFrom: Number(e.target.value),
+                                        }))
+                                      }
+                                      className="w-12 text-xs border border-indigo-200 rounded px-1.5 py-1 bg-white outline-none"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Vùng cuộn chính của Editor */}
                             <div
-                              className="shrink-0 bg-slate-100 border-r border-slate-200 flex flex-col transition-all duration-200 overflow-hidden"
-                              style={{
-                                width: showPagesSidebar ? 136 : 0,
-                                minWidth: showPagesSidebar ? 136 : 0,
+                              ref={scrollAreaRef}
+                              className="flex-1 overflow-auto flex flex-col items-center pt-6 pb-10 gap-10 bg-slate-300 transition-all"
+                              onPointerMove={onCanvasPointerMove}
+                              onPointerUp={(e) => {
+                                if (dragRef.current && dragPosRef.current) {
+                                  const { x, y, w, h } = dragPosRef.current;
+                                  const elId = dragRef.current.elId;
+                                  const fromPage = selPage;
+
+                                  saveHistory();
+
+                                  // Find which page the pointer is over using clientY
+                                  const pageEls = document.querySelectorAll(".editor-page-container");
+                                  let targetPageIdx = fromPage;
+                                  pageEls.forEach((pageEl, idx) => {
+                                    const rect = pageEl.getBoundingClientRect();
+                                    if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                                      targetPageIdx = idx;
+                                    }
+                                  });
+
+                                  if (targetPageIdx !== fromPage) {
+                                    // Cross-page move: calculate y relative to target page
+                                    const targetPageEl = document.getElementById(`editor-page-${targetPageIdx}`);
+                                    let newY = y;
+                                    if (targetPageEl) {
+                                      const fromPageEl = document.getElementById(`editor-page-${fromPage}`);
+                                      const fromRect = fromPageEl?.getBoundingClientRect();
+                                      const toRect = targetPageEl.getBoundingClientRect();
+                                      if (fromRect && toRect) {
+                                        newY = y + (fromRect.top - toRect.top);
+                                      }
+                                    }
+                                    setEdPages((prev) => {
+                                      const el = prev[fromPage].els.find((e) => e.id === elId);
+                                      if (!el) return prev;
+                                      return prev.map((pg, pi) => {
+                                        if (pi === fromPage) return { ...pg, els: pg.els.filter((e) => e.id !== elId) };
+                                        if (pi === targetPageIdx) return { ...pg, els: [...pg.els, { ...el, x: Math.max(0, x), y: Math.max(0, newY), w, h }] };
+                                        return pg;
+                                      });
+                                    });
+                                    setSelPage(targetPageIdx);
+                                    setSelElId(elId);
+                                  } else {
+                                    patchEl(elId, el => ({ ...el, x: Math.max(0, x), y: Math.max(0, y), w, h }));
+                                  }
+                                }
+                                dragRef.current = null;
+                                dragPosRef.current = null;
+                              }}
+                              onClick={() => {
+                                setSelElId(null);
+                                setEditingTxtId(null);
+                                setTableSelectedCells([]);
                               }}
                             >
-                              <div className="px-3 py-2.5 border-b border-slate-200 bg-white flex items-center justify-between">
-                                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                                  Pages
-                                </span>
-                                <span className="text-[11px] text-slate-400">
-                                  {edPages.length}
-                                </span>
-                              </div>
-                              <div className="flex-1 overflow-y-auto py-2 px-2 space-y-2">
-                                {edPages.map((pg, idx) => (
+                              {edPages.map((pg, idx) => {
+                                const isNearby = Math.abs(idx - selPage) <= 2;
+                                return (
                                   <div
                                     key={pg.id}
-                                    draggable
-                                    onDragStart={(e) => {
-                                      e.dataTransfer.effectAllowed = "move";
-                                      setDragFromIdx(idx);
+                                    id={`editor-page-${idx}`}
+                                    data-page-index={idx}
+                                    className="editor-page-container relative shadow-2xl flex-shrink-0"
+                                    style={{
+                                      width: CANVAS_W,
+                                      height: CANVAS_H,
+                                      background: pg.bgColor || "#ffffff",
                                     }}
-                                    onDragOver={(e) => e.preventDefault()}
-                                    onDrop={() => {
-                                      if (dragFromIdx !== null) {
-                                        reorderPage(dragFromIdx, idx);
-                                        setDragFromIdx(null);
-                                      }
-                                    }}
-                                    onDragEnd={() => setDragFromIdx(null)}
-                                    onClick={() => {
-                                      jumpToPage(idx);
-                                      setSelElId(null);
-                                      setEditingTxtId(null);
-                                    }}
-                                    className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all select-none ${selPage === idx ? "border-indigo-500 shadow-lg" : dragFromIdx === idx ? "opacity-40 border-slate-300" : "border-transparent hover:border-slate-300"}`}
-                                    style={{ width: THUMB_W, height: THUMB_H }}
                                   >
-                                    {pg.bg ? (
-                                      <img
-                                        src={pg.bg}
-                                        alt=""
-                                        className="w-full h-full object-cover pointer-events-none"
-                                      />
+                                    {/* Trang xa: chỉ hiện thumbnail, không mount elements */}
+                                    {!isNearby ? (
+                                      pg.bg
+                                        ? <img
+                                          src={pg.bg}
+                                          alt=""
+                                          draggable={false}
+                                          className="absolute inset-0 w-full h-full select-none cursor-pointer"
+                                          onClick={() => jumpToPage(idx)}
+                                        />
+                                        : <div
+                                          className="absolute inset-0 cursor-pointer"
+                                          style={{ backgroundColor: pg.bgColor || "#ffffff" }}
+                                          onClick={() => jumpToPage(idx)}
+                                        />
                                     ) : (
-                                      <div className="w-full h-full bg-white flex items-center justify-center">
-                                        <span className="text-[10px] text-slate-300">
-                                          Blank
-                                        </span>
-                                      </div>
-                                    )}
-                                    <span className="absolute bottom-0 inset-x-0 text-center bg-black/40 text-white text-[9px] py-0.5">
-                                      {idx + 1}
-                                    </span>
-                                    <GripVertical className="absolute top-1 left-1 w-3 h-3 text-white/60 pointer-events-none" />
-                                  </div>
-                                ))}
-                              </div>
-                              <div className="p-2 border-t border-slate-200 bg-white">
-                                <button
-                                  onClick={() => insertPage(selPage)}
-                                  className="w-full py-1.5 border border-dashed border-slate-300 rounded-lg text-[11px] text-slate-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all flex items-center justify-center gap-1"
-                                >
-                                  <FilePlus className="w-3 h-3" /> Insert after
-                                </button>
-                              </div>
-                            </div>
-                            {/* Toggle sidebar button */}
-                            <button
-                              onClick={() => setShowPagesSidebar((v) => !v)}
-                              className="shrink-0 w-5 bg-slate-200 hover:bg-slate-300 border-r border-slate-300 flex items-center justify-center transition-all"
-                              title={
-                                showPagesSidebar ? "Hide pages" : "Show pages"
-                              }
-                            >
-                              <ChevronRight
-                                className={`w-3.5 h-3.5 text-slate-500 transition-transform ${showPagesSidebar ? "rotate-180" : ""}`}
-                              />
-                            </button>
-
-                            {/* ──── Centre: canvas ──── */}
-                            <div className="flex-1 flex flex-col min-w-0 bg-slate-200">
-                              {/* toolbar */}
-                              <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center gap-2 shrink-0 flex-wrap">
-                                {/* add text */}
-                                <button
-                                  title="Add text block"
-                                  onClick={addText}
-                                  className={btnCls(false)}
-                                >
-                                  <Type className="w-4 h-4" />
-                                </button>
-                                {/* add image */}
-                                <button
-                                  title="Add image"
-                                  onClick={() => {
-                                    const inp = document.createElement("input");
-                                    inp.type = "file";
-                                    inp.accept = "image/*";
-                                    inp.onchange = () => {
-                                      const f = inp.files?.[0];
-                                      if (!f) return;
-                                      const r = new FileReader();
-                                      r.onload = (ev) =>
-                                        setImageToInsert(ev.target!.result as string);
-                                      r.readAsDataURL(f);
-                                    };
-                                    inp.click();
-                                  }}
-                                  className={btnCls(false)}
-                                >
-                                  <ImagePlus className="w-4 h-4" />
-                                </button>
-                                {/* add table */}
-                                <button
-                                  title="Insert table"
-                                  onClick={() => setShowInsertTable(true)}
-                                  className={btnCls(false)}
-                                >
-                                  <Grid3X3 className="w-4 h-4" />
-                                </button>
-
-                                <div className="w-px h-5 bg-slate-200 mx-0.5" />
-
-                                {/* delete selected */}
-                                {selElId && (
-                                  <button
-                                    title="Delete element"
-                                    onClick={() => deleteEl(selElId)}
-                                    className="p-2 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-all"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                )}
-
-                                {/* H/F toggle */}
-                                <button
-                                  onClick={() => setShowHFPanel((v) => !v)}
-                                  className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${showHFPanel ? "bg-indigo-50 border-indigo-300 text-indigo-700" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
-                                >
-                                  <Settings2 className="w-3.5 h-3.5" /> Header /
-                                  Footer
-                                </button>
-
-                                {/* re-render */}
-                                <button
-                                  onClick={() => {
-                                    setEdReady(false);
-                                    setEdPages([]);
-                                    setTimeout(initEditor, 50);
-                                  }}
-                                  title="Re-render from current data"
-                                  className="p-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-all"
-                                >
-                                  <RefreshCw className="w-4 h-4" />
-                                </button>
-
-                                {/* Export */}
-                                <button
-                                  onClick={exportPdf}
-                                  disabled={exportingPdf || papersLoading}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-all"
-                                >
-                                  <Download className="w-3.5 h-3.5" />
-                                  {exportingPdf
-                                    ? "Exporting…"
-                                    : papersLoading
-                                      ? "Loading papers…"
-                                      : "Export PDF"}
-                                </button>
-                              </div>
-
-                              {/* Header/Footer config panel */}
-                              {showHFPanel && (
-                                <div className="bg-indigo-50 border-b border-indigo-100 px-5 py-3 grid grid-cols-3 gap-4 items-end shrink-0">
-                                  <div>
-                                    <label className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider block mb-1">
-                                      Header (all pages)
-                                    </label>
-                                    <input
-                                      className="w-full px-2.5 py-1.5 text-xs border border-indigo-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-indigo-400"
-                                      value={hf.headerText}
-                                      onChange={(e) =>
-                                        setHF((h) => ({
-                                          ...h,
-                                          headerText: e.target.value,
-                                        }))
-                                      }
-                                      placeholder="e.g. SOICT 2025 Program Book"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider block mb-1">
-                                      Footer text
-                                    </label>
-                                    <input
-                                      className="w-full px-2.5 py-1.5 text-xs border border-indigo-200 rounded-lg bg-white outline-none focus:ring-2 focus:ring-indigo-400"
-                                      value={hf.footerText}
-                                      onChange={(e) =>
-                                        setHF((h) => ({
-                                          ...h,
-                                          footerText: e.target.value,
-                                        }))
-                                      }
-                                      placeholder="e.g. https://soict.org"
-                                    />
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <label className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider block">
-                                      Page numbers
-                                    </label>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <label className="flex items-center gap-1 text-xs text-slate-600 cursor-pointer">
-                                        <input
-                                          type="checkbox"
-                                          checked={hf.showPageNum}
-                                          onChange={(e) =>
-                                            setHF((h) => ({
-                                              ...h,
-                                              showPageNum: e.target.checked,
-                                            }))
-                                          }
-                                          className="accent-indigo-600"
-                                        />
-                                        Show
-                                      </label>
-                                      <select
-                                        value={hf.pageNumPos}
-                                        onChange={(e) =>
-                                          setHF((h) => ({
-                                            ...h,
-                                            pageNumPos: e.target.value as any,
-                                          }))
-                                        }
-                                        className="text-xs border border-indigo-200 rounded px-1.5 py-1 bg-white outline-none"
-                                      >
-                                        <option value="left">Left</option>
-                                        <option value="center">Center</option>
-                                        <option value="right">Right</option>
-                                      </select>
-                                      <span className="text-xs text-slate-500">
-                                        Start:
-                                      </span>
-                                      <input
-                                        type="number"
-                                        min={1}
-                                        value={hf.startFrom}
-                                        onChange={(e) =>
-                                          setHF((h) => ({
-                                            ...h,
-                                            startFrom: Number(e.target.value),
-                                          }))
-                                        }
-                                        className="w-12 text-xs border border-indigo-200 rounded px-1.5 py-1 bg-white outline-none"
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Vùng cuộn chính của Editor */}
-                              <div
-                                ref={scrollAreaRef}
-                                className="flex-1 overflow-auto flex flex-col items-center pt-6 pb-10 gap-10 bg-slate-300 transition-all"
-                                onPointerMove={onCanvasPointerMove}
-                                onPointerUp={(e) => {
-                                  if (dragRef.current && dragPosRef.current) {
-                                    const { x, y, w, h } = dragPosRef.current;
-                                    const elId = dragRef.current.elId;
-                                    const fromPage = selPage;
-
-                                    // Find which page the pointer is over using clientY
-                                    const pageEls = document.querySelectorAll(".editor-page-container");
-                                    let targetPageIdx = fromPage;
-                                    pageEls.forEach((pageEl, idx) => {
-                                      const rect = pageEl.getBoundingClientRect();
-                                      if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
-                                        targetPageIdx = idx;
-                                      }
-                                    });
-
-                                    if (targetPageIdx !== fromPage) {
-                                      // Cross-page move: calculate y relative to target page
-                                      const targetPageEl = document.getElementById(`editor-page-${targetPageIdx}`);
-                                      let newY = y;
-                                      if (targetPageEl) {
-                                        const fromPageEl = document.getElementById(`editor-page-${fromPage}`);
-                                        const fromRect = fromPageEl?.getBoundingClientRect();
-                                        const toRect = targetPageEl.getBoundingClientRect();
-                                        if (fromRect && toRect) {
-                                          // Convert y from fromPage coords to toPage coords
-                                          newY = y + (fromRect.top - toRect.top);
-                                        }
-                                      }
-                                      setEdPages((prev) => {
-                                        const el = prev[fromPage].els.find((e) => e.id === elId);
-                                        if (!el) return prev;
-                                        return prev.map((pg, pi) => {
-                                          if (pi === fromPage) return { ...pg, els: pg.els.filter((e) => e.id !== elId) };
-                                          if (pi === targetPageIdx) return { ...pg, els: [...pg.els, { ...el, x: Math.max(0, x), y: Math.max(0, newY), w, h }] };
-                                          return pg;
-                                        });
-                                      });
-                                      setSelPage(targetPageIdx);
-                                      setSelElId(elId);
-                                    } else {
-                                      patchEl(elId, el => ({ ...el, x: Math.max(0, x), y: Math.max(0, y), w, h }));
-                                    }
-                                  }
-                                  dragRef.current = null;
-                                  dragPosRef.current = null;
-                                }}
-                                onClick={() => {
-                                  setSelElId(null);
-                                  setEditingTxtId(null);
-                                  setTableSelectedCells([]);
-                                }}
-                              >
-                                {edPages.map((pg, idx) => {
-                                  const isNearby = Math.abs(idx - selPage) <= 2;
-                                  return (
-                                    <div
-                                      key={pg.id}
-                                      id={`editor-page-${idx}`}
-                                      data-page-index={idx}
-                                      className="editor-page-container relative shadow-2xl flex-shrink-0"
-                                      style={{
-                                        width: CANVAS_W,
-                                        height: CANVAS_H,
-                                        backgroundColor: pg.bgColor || "#ffffff",
-                                      }}
-                                    >
-                                      {/* Trang xa: chỉ hiện thumbnail, không mount elements */}
-                                      {!isNearby ? (
-                                        pg.bg
-                                          ? <img
-                                            src={pg.bg}
-                                            alt=""
-                                            draggable={false}
-                                            className="absolute inset-0 w-full h-full select-none cursor-pointer"
-                                            onClick={() => jumpToPage(idx)}
-                                          />
-                                          : <div
-                                            className="absolute inset-0 cursor-pointer"
-                                            style={{ backgroundColor: pg.bgColor || "#ffffff" }}
-                                            onClick={() => jumpToPage(idx)}
-                                          />
-                                      ) : (
-                                        <>
-                                          {/* 1. Page Background */}
-                                          <div
-                                            className="absolute inset-0"
-                                            style={{
-                                              zIndex: 0,
-                                              backgroundColor: pg.bgColor || "#ffffff",
-                                            }}
-                                          />
-
-                                          {/* 2. Header Preview */}
-                                          {hf.headerText.trim() && idx > 1 && (
-                                            <div
-                                              className="absolute top-3 left-12 right-12 text-center text-[9px] font-semibold border-b pb-0.5 pointer-events-none"
-                                              style={{ zIndex: 10, color: "#1a3a6b", borderColor: "#1a3a6b" }}
-                                            >
-                                              {hf.headerText}
-                                            </div>
-                                          )}
-
-                                          {/* 3. Footer Preview */}
-                                          {idx > 1 && (
-                                            <div
-                                              className="absolute pointer-events-none"
-                                              style={{ bottom: 10, left: 48, right: 48, zIndex: 10 }}
-                                            >
-                                              {/* conferenceName above line — shrink font if too long */}
-                                              {procData.cover.conferenceName && (
-                                                <div style={{
-                                                  fontSize: procData.cover.conferenceName.length > 80 ? 6.5 : procData.cover.conferenceName.length > 55 ? 7 : 8,
-                                                  color: "#1a3a6b",
-                                                  fontFamily: "Helvetica, Arial, sans-serif",
-                                                  whiteSpace: "nowrap",
-                                                  overflow: "hidden",
-                                                  textOverflow: "ellipsis",
-                                                  marginBottom: 3,
-                                                }}>
-                                                  {procData.cover.conferenceName}
-                                                </div>
-                                              )}
-                                              {/* divider */}
-                                              <div style={{ height: 1, backgroundColor: "#1a3a6b", marginBottom: 3 }} />
-                                              {/* footerText + page number */}
-                                              <div className="flex items-center justify-between">
-                                                <span style={{ fontSize: 8, color: "#1a3a6b", fontFamily: "Helvetica, Arial, sans-serif" }}>
-                                                  {hf.footerText.trim() || "\u00a0"}
-                                                </span>
-                                                {hf.showPageNum && (
-                                                  <span style={{ fontSize: 10, color: "#1a3a6b", fontWeight: "bold", fontFamily: "Helvetica, Arial, sans-serif" }}>
-                                                    {hf.startFrom + (idx - 2)}
-                                                  </span>
-                                                )}
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          {/* 4. Overlay Elements */}
-                                          {[...pg.els]
-                                            .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
-                                            .map((el) => {
-                                              const isSel = selElId === el.id;
-                                              return (
-                                                <div
-                                                  id={`editor-el-${el.id}`}
-                                                  key={el.id}
-                                                  className={`absolute group ${isSel ? "ring-2 ring-indigo-500" : "hover:ring-1 hover:ring-indigo-300"}`}
-                                                  style={{
-                                                    left: el.x - (isSel && el.type === "table" ? 22 : 0),
-                                                    top: el.y - (isSel && el.type === "table" ? 16 : 0),
-                                                    width: el.w + (isSel && el.type === "table" ? 22 : 0),
-                                                    // Text: auto height. Bar: handled by BarElement. Others: fixed.
-                                                    height: el.type === "text"
-                                                      ? "auto"
-                                                      : el.type === "bar"
-                                                        ? "auto"
-                                                        : el.h + (isSel && el.type === "table" ? 16 : 0),
-                                                    minHeight: (el.type === "text" || el.type === "bar") ? el.h : undefined,
-                                                    cursor: el.type === "table" ? (isSel ? "default" : "pointer") : "move",
-                                                    userSelect: "none",
-                                                    zIndex: el.zIndex ?? 10,
-                                                    transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
-                                                    transformOrigin: "center center",
-                                                    overflow: el.type === "table" ? "visible" : undefined,
-                                                  }}
-                                                  onPointerDown={(e) => {
-                                                    setSelPage(idx);
-                                                    onElPointerDown(e, el, "move");
-                                                  }}
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setSelPage(idx);
-                                                    setSelElId(el.id);
-                                                  }}
-                                                  onDoubleClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (el.type === "text") setEditingTxtId(el.id);
-                                                  }}
-                                                >
-                                                  {el.type === "bar" && (
-                                                    <BarElement el={el} />
-                                                  )}
-                                                  {el.type === "text" && (
-                                                    editingTxtId === el.id ? (
-                                                      <textarea
-                                                        autoFocus
-                                                        className="w-full h-full bg-transparent outline-none resize-none p-0 border-none"
-                                                        style={{
-                                                          fontSize: el.fontSize,
-                                                          fontWeight: el.bold ? "bold" : "normal",
-                                                          fontStyle: el.italic ? "italic" : "normal",
-                                                          color: el.color,
-                                                          textAlign: el.align as any,
-                                                          lineHeight: 1.4,
-                                                          fontFamily: el.fontFamily ? cssFontFamily(el.fontFamily) : "inherit",
-                                                        }}
-                                                        value={el.text ?? ""}
-                                                        onChange={(ev) => {
-                                                          const val = ev.target.value;
-                                                          patchEl(el.id, (e2) => ({ ...e2, text: val }));
-                                                          if (el.isTocEntry) {
-                                                            if (tocDebounceRef.current) clearTimeout(tocDebounceRef.current);
-                                                            tocDebounceRef.current = setTimeout(() => {
-                                                              setEdPages((prev) => {
-                                                                const synced = regenerateToc(prev);
-                                                                renderThumbnail(synced[1]).then((thumb) => {
-                                                                  setEdPages((p) => p.map((pg, i) => i === 1 ? { ...pg, bg: thumb } : pg));
-                                                                });
-                                                                return synced;
-                                                              });
-                                                            }, 2000);
-                                                          }
-                                                        }}
-                                                        onBlur={(ev) => {
-                                                          patchEl(el.id, (e2) => ({ ...e2, text: ev.target.value }));
-                                                          setEditingTxtId(null);
-                                                        }}
-                                                        onKeyDown={(ev) => {
-                                                          if (ev.key === "Escape") {
-                                                            patchEl(el.id, (e2) => ({ ...e2, text: (ev.target as HTMLTextAreaElement).value }));
-                                                            setEditingTxtId(null);
-                                                          }
-                                                        }}
-                                                        onClick={(ev) => ev.stopPropagation()}
-                                                        onPointerDown={(ev) => ev.stopPropagation()}
-                                                      />
-                                                    ) : (
-                                                      <div
-                                                        className="w-full pointer-events-none"
-                                                        style={{
-                                                          fontSize: el.fontSize,
-                                                          fontWeight: el.bold ? "bold" : "normal",
-                                                          fontStyle: el.italic ? "italic" : "normal",
-                                                          color: el.color,
-                                                          textAlign: el.align as any,
-                                                          lineHeight: 1.4,
-                                                          whiteSpace: "pre-wrap",
-                                                          wordBreak: "break-word",
-                                                          overflowWrap: "break-word",
-                                                          fontFamily: el.fontFamily ? cssFontFamily(el.fontFamily) : "inherit",
-                                                        }}
-                                                      >
-                                                        {el.text}
-                                                      </div>
-                                                    )
-                                                  )}
-                                                  {el.type === "image" && el.src && (
-                                                    <img
-                                                      src={el.src}
-                                                      alt=""
-                                                      draggable={false}
-                                                      className="w-full h-full object-contain pointer-events-none select-none"
-                                                    />
-                                                  )}
-                                                  {/* Move handles for table */}
-                                                  {isSel && el.type === "table" && (
-                                                    <>
-                                                      <div className="absolute top-[-6px] left-[-6px] right-[-6px] h-[12px] cursor-move z-10" onPointerDown={(e) => onElPointerDown(e, el, "move")} />
-                                                      <div className="absolute bottom-[-6px] left-[-6px] right-[-6px] h-[12px] cursor-move z-10" onPointerDown={(e) => onElPointerDown(e, el, "move")} />
-                                                      <div className="absolute left-[-6px] top-[-6px] bottom-[-6px] w-[12px] cursor-move z-10" onPointerDown={(e) => onElPointerDown(e, el, "move")} />
-                                                      <div className="absolute right-[-6px] top-[-6px] bottom-[-6px] w-[12px] cursor-move z-10" onPointerDown={(e) => onElPointerDown(e, el, "move")} />
-                                                    </>
-                                                  )}
-                                                  {el.type === "table" && el.tableData && (
-                                                    <TableEditorCanvas
-                                                      tableData={el.tableData}
-                                                      elW={el.w}
-                                                      elH={el.h}
-                                                      isSelected={selElId === el.id}
-                                                      selectedCells={selElId === el.id ? tableSelectedCells : []}
-                                                      onSelectCells={(cells) => {
-                                                        setSelElId(el.id);
-                                                        setTableSelectedCells(cells);
-                                                      }}
-                                                      onPatchTable={(td) =>
-                                                        patchEl(el.id, (e2) => ({
-                                                          ...e2,
-                                                          tableData: td,
-                                                          h: td.rowHeights.reduce((s, v) => s + v, 0),
-                                                        }))
-                                                      }
-                                                    />
-                                                  )}
-                                                  {isSel && DIRS.map((dir) => (
-                                                    <div
-                                                      key={dir}
-                                                      style={handlePos(dir)}
-                                                      onPointerDown={(e) => onElPointerDown(e, el, "resize", dir)}
-                                                    />
-                                                  ))}
-                                                </div>
-                                              );
-                                            })}
-                                        </>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            {/* ──── Right: properties panel ──── */}
-                            <div className="w-[220px] shrink-0 bg-white border-l border-slate-200 overflow-y-auto flex flex-col">
-                              <div className="px-4 py-3 border-b border-slate-100 shrink-0">
-                                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                                  Properties
-                                </p>
-                              </div>
-
-                              {/* no selection → page controls */}
-                              {!selEl && (
-                                <div className="p-4 space-y-4">
-                                  <p className="text-xs text-slate-400 italic leading-relaxed">
-                                    Click an element on the canvas to edit it.
-                                    Double-click a text block to type.
-                                  </p>
-                                  <div className="border-t border-slate-100 pt-4 space-y-2">
-                                    <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                                      Page {selPage + 1} / {edPages.length}
-                                    </p>
-                                    <p className="text-xs text-slate-400">
-                                      {curPg.els.length} element
-                                      {curPg.els.length !== 1 ? "s" : ""} on
-                                      this page
-                                    </p>
-                                    <button
-                                      onClick={() => insertPage(selPage)}
-                                      className="w-full py-2 text-xs border border-dashed border-slate-300 rounded-lg text-slate-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 flex items-center justify-center gap-1.5 transition-all"
-                                    >
-                                      <FilePlus className="w-3.5 h-3.5" />{" "}
-                                      Insert page after
-                                    </button>
-                                    {edPages.length > 1 && (
-                                      <button
-                                        onClick={() => {
-                                          setEdPages((ps) =>
-                                            ps.filter((_, i) => i !== selPage),
-                                          );
-                                          setSelPage(Math.max(0, selPage - 1));
-                                          setSelElId(null);
-                                        }}
-                                        className="w-full py-2 text-xs border border-dashed border-red-200 rounded-lg text-red-400 hover:bg-red-50 flex items-center justify-center gap-1.5 transition-all"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />{" "}
-                                        Delete this page
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* element selected */}
-                              {selEl && (
-                                <div className="p-4 space-y-4 flex-1">
-                                  {/* ── Text props ── */}
-                                  {selEl.type === "text" && (
-                                    <>
-                                      <div>
-                                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
-                                          Font Family & Size
-                                        </label>
-                                        <FontSelector
-                                          value={selEl.fontFamily ?? ""}
-                                          onChange={(f) =>
-                                            patchEl(selEl.id, (el) => ({
-                                              ...el,
-                                              fontFamily: f,
-                                            }))
-                                          }
-                                          className="mb-1.5"
-                                        />
-                                        <input
-                                          type="number"
-                                          min={6}
-                                          max={96}
-                                          value={selEl.fontSize ?? 14}
-                                          onChange={(e) =>
-                                            patchEl(selEl.id, (el) => ({
-                                              ...el,
-                                              fontSize: Number(e.target.value),
-                                            }))
-                                          }
-                                          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
-                                          Style
-                                        </label>
-                                        <div className="flex gap-1.5">
-                                          <button
-                                            onClick={() =>
-                                              patchEl(selEl.id, (el) => ({
-                                                ...el,
-                                                bold: !el.bold,
-                                              }))
-                                            }
-                                            className={`flex-1 py-1.5 rounded-lg border text-sm font-bold transition-all ${selEl.bold ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"}`}
-                                          >
-                                            B
-                                          </button>
-                                          <button
-                                            onClick={() =>
-                                              patchEl(selEl.id, (el) => ({
-                                                ...el,
-                                                italic: !el.italic,
-                                              }))
-                                            }
-                                            className={`flex-1 py-1.5 rounded-lg border text-sm italic transition-all ${selEl.italic ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"}`}
-                                          >
-                                            I
-                                          </button>
-                                        </div>
-                                      </div>
-                                      <div>
-                                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
-                                          Alignment
-                                        </label>
-                                        <div className="flex gap-1.5">
-                                          {(
-                                            ["left", "center", "right"] as const
-                                          ).map((a) => (
-                                            <button
-                                              key={a}
-                                              onClick={() =>
-                                                patchEl(selEl.id, (el) => ({
-                                                  ...el,
-                                                  align: a,
-                                                }))
-                                              }
-                                              className={`flex-1 py-1.5 rounded-lg border flex items-center justify-center transition-all ${selEl.align === a ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
-                                            >
-                                              {a === "left" ? (
-                                                <AlignLeft className="w-3.5 h-3.5" />
-                                              ) : a === "center" ? (
-                                                <AlignCenter className="w-3.5 h-3.5" />
-                                              ) : (
-                                                <AlignRight className="w-3.5 h-3.5" />
-                                              )}
-                                            </button>
-                                          ))}
-                                        </div>
-                                      </div>
-                                      <div>
-                                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
-                                          Color
-                                        </label>
-                                        <div className="flex items-center gap-2">
-                                          <input
-                                            type="color"
-                                            value={selEl.color ?? "#000000"}
-                                            onChange={(e) =>
-                                              patchEl(selEl.id, (el) => ({
-                                                ...el,
-                                                color: e.target.value,
-                                              }))
-                                            }
-                                            className="w-8 h-8 rounded cursor-pointer border-0 p-0 bg-transparent"
-                                          />
-                                          <input
-                                            value={selEl.color ?? "#000000"}
-                                            onChange={(e) =>
-                                              patchEl(selEl.id, (el) => ({
-                                                ...el,
-                                                color: e.target.value,
-                                              }))
-                                            }
-                                            className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono outline-none focus:ring-2 focus:ring-indigo-400"
-                                          />
-                                        </div>
-                                      </div>
-                                    </>
-                                  )}
-
-                                  {/* ── Image props ── */}
-                                  {selEl.type === "image" && (
-                                    <>
-                                      <div>
-                                        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
-                                          Preview
-                                        </label>
+                                      <>
+                                        {/* 1. Page Background */}
                                         <div
-                                          className="rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center"
-                                          style={{ height: 72 }}
-                                        >
-                                          {selEl.src && (
-                                            <img
-                                              src={selEl.src}
-                                              alt=""
-                                              className="max-h-full max-w-full object-contain"
-                                            />
-                                          )}
-                                        </div>
-                                      </div>
-                                      <button
-                                        onClick={() => openCrop(selEl)}
-                                        className="w-full py-2 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all"
-                                      >
-                                        <Crop className="w-3.5 h-3.5" /> Crop
-                                        image
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          const inp =
-                                            document.createElement("input");
-                                          inp.type = "file";
-                                          inp.accept = "image/*";
-                                          inp.onchange = () => {
-                                            const f = inp.files?.[0];
-                                            if (!f) return;
-                                            const r = new FileReader();
-                                            r.onload = (ev) =>
-                                              patchEl(selEl.id, (el) => ({
-                                                ...el,
-                                                src: ev.target!
-                                                  .result as string,
-                                              }));
-                                            r.readAsDataURL(f);
-                                          };
-                                          inp.click();
-                                        }}
-                                        className="w-full py-2 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all"
-                                      >
-                                        <ImagePlus className="w-3.5 h-3.5" />{" "}
-                                        Replace image
-                                      </button>
-                                    </>
-                                  )}
+                                          className="absolute inset-0"
+                                          style={{
+                                            zIndex: 0,
+                                            background: pg.bgColor || "#ffffff",
+                                          }}
+                                        />
 
-                                  {/* ── Table props ── */}
-                                  {selEl.type === "table" &&
-                                    selEl.tableData && (
-                                      <TablePropertiesPanel
-                                        tableData={selEl.tableData}
-                                        selectedCells={tableSelectedCells}
-                                        onPatchTable={(td) =>
-                                          patchEl(selEl.id, (el) => ({
-                                            ...el,
-                                            tableData: td,
-                                            h: td.rowHeights.reduce(
-                                              (s, v) => s + v,
-                                              0,
-                                            ),
-                                          }))
-                                        }
-                                        elementW={selEl.w}
-                                      />
-                                    )}
-
-                                  {/* ── Position & size (shared) ── */}
-                                  <div className="border-t border-slate-100 pt-4">
-                                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
-                                      Position & size
-                                    </label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                      {(["x", "y", "w", "h"] as const).map(
-                                        (k) => (
-                                          <div key={k}>
-                                            <label className="text-[10px] text-slate-400 block mb-0.5">
-                                              {k.toUpperCase()}
-                                            </label>
-                                            <input
-                                              type="number"
-                                              value={Math.round(
-                                                (selEl as any)[k],
-                                              )}
-                                              onChange={(e) =>
-                                                patchEl(selEl.id, (el) => ({
-                                                  ...el,
-                                                  [k]: Number(e.target.value),
-                                                }))
-                                              }
-                                              className="w-full px-2 py-1 border border-slate-200 rounded text-xs outline-none focus:ring-1 focus:ring-indigo-400"
-                                            />
+                                        {/* 2. Header Preview */}
+                                        {hf.headerText.trim() && idx > 1 && (
+                                          <div
+                                            className="absolute top-3 left-12 right-12 text-center text-[9px] font-semibold border-b pb-0.5 pointer-events-none"
+                                            style={{ zIndex: 10, color: "#1a3a6b", borderColor: "#1a3a6b" }}
+                                          >
+                                            {hf.headerText}
                                           </div>
-                                        ),
-                                      )}
-                                    </div>
-                                  </div>
+                                        )}
 
-                                  {/* ── Rotation (shared) ── */}
-                                  <div className="border-t border-slate-100 pt-4">
-                                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
-                                      <RotateCw className="w-3 h-3 inline mr-1" />
-                                      Rotation
-                                    </label>
-                                    <div className="flex items-center gap-2">
-                                      <input
-                                        type="range"
-                                        min={-180}
-                                        max={360}
-                                        value={selEl.rotation ?? 0}
-                                        onChange={(e) =>
+                                        {/* 3. Footer Preview */}
+                                        {idx > 1 && (
+                                          <div
+                                            className="absolute pointer-events-none"
+                                            style={{ bottom: 10, left: 48, right: 48, zIndex: 10 }}
+                                          >
+                                            {/* conferenceName above line — shrink font if too long */}
+                                            {procData.cover.conferenceName && (
+                                              <div style={{
+                                                fontSize: procData.cover.conferenceName.length > 80 ? 6.5 : procData.cover.conferenceName.length > 55 ? 7 : 8,
+                                                color: "#1a3a6b",
+                                                fontFamily: "Helvetica, Arial, sans-serif",
+                                                whiteSpace: "nowrap",
+                                                overflow: "hidden",
+                                                textOverflow: "ellipsis",
+                                                marginBottom: 3,
+                                              }}>
+                                                {procData.cover.conferenceName}
+                                              </div>
+                                            )}
+                                            {/* divider */}
+                                            <div style={{ height: 1, backgroundColor: "#1a3a6b", marginBottom: 3 }} />
+                                            {/* footerText + page number */}
+                                            <div className="flex items-center justify-between">
+                                              <span style={{ fontSize: 8, color: "#1a3a6b", fontFamily: "Helvetica, Arial, sans-serif" }}>
+                                                {hf.footerText.trim() || "\u00a0"}
+                                              </span>
+                                              {hf.showPageNum && (
+                                                <span style={{ fontSize: 10, color: "#1a3a6b", fontWeight: "bold", fontFamily: "Helvetica, Arial, sans-serif" }}>
+                                                  {hf.startFrom + (idx - 2)}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {/* 4. Overlay Elements */}
+                                        {[...pg.els]
+                                          .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
+                                          .map((el) => {
+                                            const isSel = selElId === el.id;
+                                            return (
+                                              <div
+                                                id={`editor-el-${el.id}`}
+                                                key={el.id}
+                                                className={`absolute group ${isSel ? "ring-2 ring-indigo-500" : "hover:ring-1 hover:ring-indigo-300"}`}
+                                                style={{
+                                                  left: el.x - (isSel && el.type === "table" ? 22 : 0),
+                                                  top: el.y - (isSel && el.type === "table" ? 16 : 0),
+                                                  width: el.w + (isSel && el.type === "table" ? 22 : 0),
+                                                  // Text: fixed height with overflow hidden to clip content to measured box
+                                                  height: el.type === "bar"
+                                                    ? "auto"
+                                                    : el.h + (isSel && el.type === "table" ? 16 : 0),
+                                                  minHeight: el.type === "bar" ? el.h : undefined,
+                                                  // Clip text that overflows the measured box (e.g. long bio chunks)
+                                                  overflow: el.type === "table" ? "visible" : el.type === "text" && editingTxtId === el.id ? "visible" : "hidden",
+                                                  cursor: el.type === "table" ? (isSel ? "default" : "pointer") : "move",
+                                                  userSelect: "none",
+                                                  zIndex: el.zIndex ?? 10,
+                                                  transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
+                                                  transformOrigin: "center center",
+                                                }}
+                                                onPointerDown={(e) => {
+                                                  setSelPage(idx);
+                                                  onElPointerDown(e, el, "move");
+                                                }}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setSelPage(idx);
+                                                  setSelElId(el.id);
+                                                }}
+                                                onDoubleClick={(e) => {
+                                                  e.stopPropagation();
+                                                  if (el.type === "text") setEditingTxtId(el.id);
+                                                }}
+                                              >
+                                                {el.type === "bar" && (
+                                                  <BarElement el={el} />
+                                                )}
+                                                {el.type === "text" && (
+                                                  editingTxtId === el.id ? (
+                                                    <textarea
+                                                      autoFocus
+                                                      className="w-full h-full bg-transparent outline-none resize-none p-0 border-none"
+                                                      style={{
+                                                        fontSize: el.fontSize,
+                                                        fontWeight: el.bold ? "bold" : "normal",
+                                                        fontStyle: el.italic ? "italic" : "normal",
+                                                        color: el.color,
+                                                        textAlign: el.align as any,
+                                                        lineHeight: 1.4,
+                                                        fontFamily: el.fontFamily ? cssFontFamily(el.fontFamily) : "inherit",
+                                                      }}
+                                                      value={el.text ?? ""}
+                                                      onChange={(ev) => {
+                                                        const val = ev.target.value;
+                                                        patchEl(el.id, (e2) => ({ ...e2, text: val }));
+                                                        if (el.isTocEntry) {
+                                                          if (tocDebounceRef.current) clearTimeout(tocDebounceRef.current);
+                                                          tocDebounceRef.current = setTimeout(() => {
+                                                            setEdPages((prev) => {
+                                                              const synced = regenerateToc(prev);
+                                                              renderThumbnail(synced[1]).then((thumb) => {
+                                                                setEdPages((p) => p.map((pg, i) => i === 1 ? { ...pg, bg: thumb } : pg));
+                                                              });
+                                                              return synced;
+                                                            });
+                                                          }, 2000);
+                                                        }
+                                                      }}
+                                                      onBlur={(ev) => {
+                                                        patchEl(el.id, (e2) => ({ ...e2, text: ev.target.value }));
+                                                        setEditingTxtId(null);
+                                                      }}
+                                                      onKeyDown={(ev) => {
+                                                        if (ev.key === "Escape") {
+                                                          patchEl(el.id, (e2) => ({ ...e2, text: (ev.target as HTMLTextAreaElement).value }));
+                                                          setEditingTxtId(null);
+                                                        }
+                                                      }}
+                                                      onClick={(ev) => ev.stopPropagation()}
+                                                      onPointerDown={(ev) => ev.stopPropagation()}
+                                                    />
+                                                  ) : (
+                                                    <div
+                                                      className="w-full h-full pointer-events-none"
+                                                      style={{
+                                                        fontSize: el.fontSize,
+                                                        fontWeight: el.bold ? "bold" : "normal",
+                                                        fontStyle: el.italic ? "italic" : "normal",
+                                                        color: el.color,
+                                                        textAlign: el.align as any,
+                                                        lineHeight: 1.6,
+                                                        // Use normal wrap so browser reflows with actual font metrics
+                                                        // pre-wrap would make canvas-measured \n breaks visible as wrong line breaks
+                                                        whiteSpace: "normal",
+                                                        wordBreak: "break-word",
+                                                        overflowWrap: "break-word",
+                                                        fontFamily: el.fontFamily ? cssFontFamily(el.fontFamily) : "inherit",
+                                                        overflow: "hidden",
+                                                      }}
+                                                    >
+                                                      {el.text}
+                                                    </div>
+                                                  )
+                                                )}
+                                                {el.type === "image" && el.src && (
+                                                  <img
+                                                    src={el.src}
+                                                    alt=""
+                                                    draggable={false}
+                                                    className="w-full h-full pointer-events-none select-none"
+                                                    style={{
+                                                      // Background image (full-page, zIndex=1) → fill
+                                                      // Normal image (logo, photo etc.) → contain to preserve ratio
+                                                      objectFit: (el.zIndex === 1 && el.x === 0 && el.y === 0) ? "fill" : "contain",
+                                                      display: "block",
+                                                    }}
+                                                  />
+                                                )}
+                                                {/* Move handles for table */}
+                                                {isSel && el.type === "table" && (
+                                                  <>
+                                                    <div className="absolute top-[-6px] left-[-6px] right-[-6px] h-[12px] cursor-move z-10" onPointerDown={(e) => onElPointerDown(e, el, "move")} />
+                                                    <div className="absolute bottom-[-6px] left-[-6px] right-[-6px] h-[12px] cursor-move z-10" onPointerDown={(e) => onElPointerDown(e, el, "move")} />
+                                                    <div className="absolute left-[-6px] top-[-6px] bottom-[-6px] w-[12px] cursor-move z-10" onPointerDown={(e) => onElPointerDown(e, el, "move")} />
+                                                    <div className="absolute right-[-6px] top-[-6px] bottom-[-6px] w-[12px] cursor-move z-10" onPointerDown={(e) => onElPointerDown(e, el, "move")} />
+                                                  </>
+                                                )}
+                                                {el.type === "table" && el.tableData && (
+                                                  <TableEditorCanvas
+                                                    tableData={el.tableData}
+                                                    elW={el.w}
+                                                    elH={el.h}
+                                                    isSelected={selElId === el.id}
+                                                    selectedCells={selElId === el.id ? tableSelectedCells : []}
+                                                    onSelectCells={(cells) => {
+                                                      setSelElId(el.id);
+                                                      setTableSelectedCells(cells);
+                                                    }}
+                                                    onPatchTable={(td) =>
+                                                      patchEl(el.id, (e2) => ({
+                                                        ...e2,
+                                                        tableData: td,
+                                                        h: td.rowHeights.reduce((s, v) => s + v, 0),
+                                                      }))
+                                                    }
+                                                  />
+                                                )}
+                                                {isSel && DIRS.map((dir) => (
+                                                  <div
+                                                    key={dir}
+                                                    style={handlePos(dir)}
+                                                    onPointerDown={(e) => onElPointerDown(e, el, "resize", dir)}
+                                                  />
+                                                ))}
+                                              </div>
+                                            );
+                                          })}
+                                      </>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* ──── Right: properties panel ──── */}
+                          <div className="w-[220px] shrink-0 bg-white border-l border-slate-200 overflow-y-auto flex flex-col">
+                            <div className="px-4 py-3 border-b border-slate-100 shrink-0">
+                              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                                Properties
+                              </p>
+                            </div>
+
+                            {/* no selection → page controls */}
+                            {!selEl && (
+                              <div className="p-4 space-y-4">
+                                <p className="text-xs text-slate-400 italic leading-relaxed">
+                                  Click an element on the canvas to edit it.
+                                  Double-click a text block to type.
+                                </p>
+                                {/* Keyboard shortcut hints */}
+                                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-1.5">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Keyboard Shortcuts</p>
+                                  {[
+                                    ["Ctrl + Z", "Undo"],
+                                    ["Ctrl + Y", "Redo"],
+                                    ["Ctrl + C", "Copy element"],
+                                    ["Ctrl + V", "Paste element"],
+                                    ["Delete", "Delete element"],
+                                    ["Dbl-click", "Edit text"],
+                                  ].map(([key, desc]) => (
+                                    <div key={key} className="flex items-center justify-between gap-2">
+                                      <kbd className="text-[9px] font-mono bg-white border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap">{key}</kbd>
+                                      <span className="text-[10px] text-slate-500 text-right">{desc}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="border-t border-slate-100 pt-4 space-y-2">
+                                  <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                                    Page {selPage + 1} / {edPages.length}
+                                  </p>
+                                  <p className="text-xs text-slate-400">
+                                    {curPg.els.length} element
+                                    {curPg.els.length !== 1 ? "s" : ""} on
+                                    this page
+                                  </p>
+                                  <button
+                                    onClick={() => insertPage(selPage)}
+                                    className="w-full py-2 text-xs border border-dashed border-slate-300 rounded-lg text-slate-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 flex items-center justify-center gap-1.5 transition-all"
+                                  >
+                                    <FilePlus className="w-3.5 h-3.5" />{" "}
+                                    Insert page after
+                                  </button>
+                                  {edPages.length > 1 && (
+                                    <button
+                                      onClick={() => {
+                                        saveHistory();
+                                        setEdPages((ps) =>
+                                          ps.filter((_, i) => i !== selPage),
+                                        );
+                                        setSelPage(Math.max(0, selPage - 1));
+                                        setSelElId(null);
+                                      }}
+                                      className="w-full py-2 text-xs border border-dashed border-red-200 rounded-lg text-red-400 hover:bg-red-50 flex items-center justify-center gap-1.5 transition-all"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />{" "}
+                                      Delete this page
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* element selected */}
+                            {selEl && (
+                              <div className="p-4 space-y-4 flex-1">
+                                {/* ── Text props ── */}
+                                {selEl.type === "text" && (
+                                  <>
+                                    <div>
+                                      <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
+                                        Font Family & Size
+                                      </label>
+                                      <FontSelector
+                                        value={selEl.fontFamily ?? ""}
+                                        onChange={(f) =>
                                           patchEl(selEl.id, (el) => ({
                                             ...el,
-                                            rotation: Number(e.target.value),
+                                            fontFamily: f,
                                           }))
                                         }
-                                        className="flex-1 accent-indigo-600"
+                                        className="mb-1.5"
                                       />
                                       <input
                                         type="number"
-                                        min={-360}
-                                        max={360}
-                                        value={selEl.rotation ?? 0}
+                                        min={6}
+                                        max={96}
+                                        value={selEl.fontSize ?? 14}
                                         onChange={(e) =>
                                           patchEl(selEl.id, (el) => ({
                                             ...el,
-                                            rotation: Number(e.target.value),
+                                            fontSize: Number(e.target.value),
                                           }))
                                         }
-                                        className="w-14 px-2 py-1 border border-slate-200 rounded text-xs outline-none focus:ring-1 focus:ring-indigo-400 text-center"
+                                        className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-400"
                                       />
                                     </div>
-                                    <div className="flex gap-1.5 mt-2">
-                                      {[0, 90, 180, 270].map((deg) => (
+                                    <div>
+                                      <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
+                                        Style
+                                      </label>
+                                      <div className="flex gap-1.5">
                                         <button
-                                          key={deg}
                                           onClick={() =>
                                             patchEl(selEl.id, (el) => ({
                                               ...el,
-                                              rotation: deg,
+                                              bold: !el.bold,
                                             }))
                                           }
-                                          className={`flex-1 py-1 text-[10px] rounded border transition-all ${(selEl.rotation ?? 0) === deg
-                                            ? "bg-indigo-600 border-indigo-600 text-white"
-                                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                                            }`}
+                                          className={`flex-1 py-1.5 rounded-lg border text-sm font-bold transition-all ${selEl.bold ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"}`}
                                         >
-                                          {deg}°
+                                          B
                                         </button>
-                                      ))}
+                                        <button
+                                          onClick={() =>
+                                            patchEl(selEl.id, (el) => ({
+                                              ...el,
+                                              italic: !el.italic,
+                                            }))
+                                          }
+                                          className={`flex-1 py-1.5 rounded-lg border text-sm italic transition-all ${selEl.italic ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"}`}
+                                        >
+                                          I
+                                        </button>
+                                      </div>
                                     </div>
-                                  </div>
+                                    <div>
+                                      <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
+                                        Alignment
+                                      </label>
+                                      <div className="flex gap-1.5">
+                                        {(
+                                          ["left", "center", "right"] as const
+                                        ).map((a) => (
+                                          <button
+                                            key={a}
+                                            onClick={() =>
+                                              patchEl(selEl.id, (el) => ({
+                                                ...el,
+                                                align: a,
+                                              }))
+                                            }
+                                            className={`flex-1 py-1.5 rounded-lg border flex items-center justify-center transition-all ${selEl.align === a ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                                          >
+                                            {a === "left" ? (
+                                              <AlignLeft className="w-3.5 h-3.5" />
+                                            ) : a === "center" ? (
+                                              <AlignCenter className="w-3.5 h-3.5" />
+                                            ) : (
+                                              <AlignRight className="w-3.5 h-3.5" />
+                                            )}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
+                                        Color
+                                      </label>
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          type="color"
+                                          value={selEl.color ?? "#000000"}
+                                          onChange={(e) =>
+                                            patchEl(selEl.id, (el) => ({
+                                              ...el,
+                                              color: e.target.value,
+                                            }))
+                                          }
+                                          className="w-8 h-8 rounded cursor-pointer border-0 p-0 bg-transparent"
+                                        />
+                                        <input
+                                          value={selEl.color ?? "#000000"}
+                                          onChange={(e) =>
+                                            patchEl(selEl.id, (el) => ({
+                                              ...el,
+                                              color: e.target.value,
+                                            }))
+                                          }
+                                          className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-mono outline-none focus:ring-2 focus:ring-indigo-400"
+                                        />
+                                      </div>
+                                    </div>
+                                  </>
+                                )}
 
-                                  <button
-                                    onClick={() => deleteEl(selEl.id)}
-                                    className="w-full py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" /> Delete
-                                    element
-                                  </button>
+                                {/* ── Image props ── */}
+                                {selEl.type === "image" && (
+                                  <>
+                                    <div>
+                                      <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
+                                        Preview
+                                      </label>
+                                      <div
+                                        className="rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center"
+                                        style={{ height: 72 }}
+                                      >
+                                        {selEl.src && (
+                                          <img
+                                            src={selEl.src}
+                                            alt=""
+                                            className="max-h-full max-w-full object-contain"
+                                          />
+                                        )}
+                                      </div>
+                                    </div>
+                                    <button
+                                      onClick={() => openCrop(selEl)}
+                                      className="w-full py-2 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all"
+                                    >
+                                      <Crop className="w-3.5 h-3.5" /> Crop
+                                      image
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        const inp =
+                                          document.createElement("input");
+                                        inp.type = "file";
+                                        inp.accept = "image/*";
+                                        inp.onchange = () => {
+                                          const f = inp.files?.[0];
+                                          if (!f) return;
+                                          const r = new FileReader();
+                                          r.onload = (ev) =>
+                                            patchEl(selEl.id, (el) => ({
+                                              ...el,
+                                              src: ev.target!
+                                                .result as string,
+                                            }));
+                                          r.readAsDataURL(f);
+                                        };
+                                        inp.click();
+                                      }}
+                                      className="w-full py-2 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all"
+                                    >
+                                      <ImagePlus className="w-3.5 h-3.5" />{" "}
+                                      Replace image
+                                    </button>
+                                  </>
+                                )}
+
+                                {/* ── Table props ── */}
+                                {selEl.type === "table" &&
+                                  selEl.tableData && (
+                                    <TablePropertiesPanel
+                                      tableData={selEl.tableData}
+                                      selectedCells={tableSelectedCells}
+                                      onPatchTable={(td) =>
+                                        patchEl(selEl.id, (el) => ({
+                                          ...el,
+                                          tableData: td,
+                                          h: td.rowHeights.reduce(
+                                            (s, v) => s + v,
+                                            0,
+                                          ),
+                                        }))
+                                      }
+                                      elementW={selEl.w}
+                                    />
+                                  )}
+
+                                {/* ── Position & size (shared) ── */}
+                                <div className="border-t border-slate-100 pt-4">
+                                  <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
+                                    Position & size
+                                  </label>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {(["x", "y", "w", "h"] as const).map(
+                                      (k) => (
+                                        <div key={k}>
+                                          <label className="text-[10px] text-slate-400 block mb-0.5">
+                                            {k.toUpperCase()}
+                                          </label>
+                                          <input
+                                            type="number"
+                                            value={Math.round(
+                                              (selEl as any)[k],
+                                            )}
+                                            onChange={(e) =>
+                                              patchEl(selEl.id, (el) => ({
+                                                ...el,
+                                                [k]: Number(e.target.value),
+                                              }))
+                                            }
+                                            className="w-full px-2 py-1 border border-slate-200 rounded text-xs outline-none focus:ring-1 focus:ring-indigo-400"
+                                          />
+                                        </div>
+                                      ),
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* ── Rotation (shared) ── */}
+                                <div className="border-t border-slate-100 pt-4">
+                                  <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
+                                    <RotateCw className="w-3 h-3 inline mr-1" />
+                                    Rotation
+                                  </label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="range"
+                                      min={-180}
+                                      max={360}
+                                      value={selEl.rotation ?? 0}
+                                      onChange={(e) =>
+                                        patchEl(selEl.id, (el) => ({
+                                          ...el,
+                                          rotation: Number(e.target.value),
+                                        }))
+                                      }
+                                      className="flex-1 accent-indigo-600"
+                                    />
+                                    <input
+                                      type="number"
+                                      min={-360}
+                                      max={360}
+                                      value={selEl.rotation ?? 0}
+                                      onChange={(e) =>
+                                        patchEl(selEl.id, (el) => ({
+                                          ...el,
+                                          rotation: Number(e.target.value),
+                                        }))
+                                      }
+                                      className="w-14 px-2 py-1 border border-slate-200 rounded text-xs outline-none focus:ring-1 focus:ring-indigo-400 text-center"
+                                    />
+                                  </div>
+                                  <div className="flex gap-1.5 mt-2">
+                                    {[0, 90, 180, 270].map((deg) => (
+                                      <button
+                                        key={deg}
+                                        onClick={() =>
+                                          patchEl(selEl.id, (el) => ({
+                                            ...el,
+                                            rotation: deg,
+                                          }))
+                                        }
+                                        className={`flex-1 py-1 text-[10px] rounded border transition-all ${(selEl.rotation ?? 0) === deg
+                                          ? "bg-indigo-600 border-indigo-600 text-white"
+                                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                                          }`}
+                                      >
+                                        {deg}°
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <button
+                                  onClick={() => deleteEl(selEl.id)}
+                                  className="w-full py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                                  element
+                                </button>
+                                <div className="border-t border-slate-100 pt-3">
+                                  <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
+                                    Layer
+                                  </label>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() =>
+                                        patchEl(selEl.id, (e) => ({
+                                          ...e,
+                                          zIndex: (e.zIndex ?? 10) + 1,
+                                        }))
+                                      }
+                                      className="flex-1 py-1.5 text-xs border border-slate-200 rounded-lg hover:bg-slate-50"
+                                    >
+                                      ↑ Forward
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        patchEl(selEl.id, (e) => ({
+                                          ...e,
+                                          zIndex: Math.max(
+                                            1,
+                                            (e.zIndex ?? 10) - 1,
+                                          ),
+                                        }))
+                                      }
+                                      className="flex-1 py-1.5 text-xs border border-slate-200 rounded-lg hover:bg-slate-50"
+                                    >
+                                      ↓ Backward
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* ── TOC Entry ── */}
+                                {selEl.type === "text" && (
                                   <div className="border-t border-slate-100 pt-3">
                                     <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
-                                      Layer
+                                      Table of Contents
                                     </label>
-                                    <div className="flex gap-2">
-                                      <button
-                                        onClick={() =>
-                                          patchEl(selEl.id, (e) => ({
-                                            ...e,
-                                            zIndex: (e.zIndex ?? 10) + 1,
-                                          }))
-                                        }
-                                        className="flex-1 py-1.5 text-xs border border-slate-200 rounded-lg hover:bg-slate-50"
-                                      >
-                                        ↑ Forward
-                                      </button>
-                                      <button
-                                        onClick={() =>
-                                          patchEl(selEl.id, (e) => ({
-                                            ...e,
-                                            zIndex: Math.max(
-                                              1,
-                                              (e.zIndex ?? 10) - 1,
-                                            ),
-                                          }))
-                                        }
-                                        className="flex-1 py-1.5 text-xs border border-slate-200 rounded-lg hover:bg-slate-50"
-                                      >
-                                        ↓ Backward
-                                      </button>
-                                    </div>
-                                  </div>
+                                    <label className="flex items-center gap-2 cursor-pointer select-none mb-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={selEl.isTocEntry ?? false}
+                                        onChange={async (e) => {
+                                          const checked = e.target.checked;
+                                          const elId = selEl.id;
+                                          const scX = CANVAS_W / 595;
+                                          const scY = CANVAS_H / 842;
+                                          const ML = Math.round(55 * scX);
+                                          const CW = CANVAS_W - ML * 2;
 
-                                  {/* ── TOC Entry ── */}
-                                  {selEl.type === "text" && (
-                                    <div className="border-t border-slate-100 pt-3">
-                                      <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
-                                        Table of Contents
-                                      </label>
-                                      <label className="flex items-center gap-2 cursor-pointer select-none mb-2">
-                                        <input
-                                          type="checkbox"
-                                          checked={selEl.isTocEntry ?? false}
-                                          onChange={async (e) => {
-                                            const checked = e.target.checked;
-                                            const elId = selEl.id;
-                                            const scX = CANVAS_W / 595;
-                                            const scY = CANVAS_H / 842;
-                                            const ML = Math.round(55 * scX);
-                                            const CW = CANVAS_W - ML * 2;
+                                          saveHistory();
 
-                                            saveHistory();
+                                          setEdPages((prev) => {
+                                            let newPages = prev.map((pg, pi) => {
+                                              if (pi !== selPage) return pg;
 
-                                            setEdPages((prev) => {
-                                              let newPages = prev.map((pg, pi) => {
-                                                if (pi !== selPage) return pg;
-
-                                                let newEls = pg.els.map((el) => {
-                                                  if (el.id === elId) {
-                                                    return {
-                                                      ...el,
-                                                      isTocEntry: checked,
-                                                      fontSize: checked ? Math.round(13 * scY) : el.fontSize,
-                                                      bold: checked ? true : el.bold,
-                                                      color: checked ? "#1a3a6b" : el.color,
-                                                      text: checked ? el.text?.toUpperCase() : el.text,
-                                                      tocLabel: checked ? el.text : "",
-                                                    };
-                                                  }
-                                                  return el;
-                                                });
-
-                                                // Add divider line below when ticked
-                                                if (checked) {
-                                                  const lineY = selEl.y + selEl.h + 4;
-                                                  newEls.push({
-                                                    id: uuidv4(),
-                                                    type: "image",
-                                                    x: ML,
-                                                    y: lineY,
-                                                    w: CW,
-                                                    h: Math.round(2 * scY),
-                                                    src: solidColorImg("#1a3a6b", CW, 2),
-                                                    zIndex: selEl.zIndex,
-                                                  });
+                                              let newEls = pg.els.map((el) => {
+                                                if (el.id === elId) {
+                                                  return {
+                                                    ...el,
+                                                    isTocEntry: checked,
+                                                    fontSize: checked ? Math.round(13 * scY) : el.fontSize,
+                                                    bold: checked ? true : el.bold,
+                                                    color: checked ? "#1a3a6b" : el.color,
+                                                    text: checked ? el.text?.toUpperCase() : el.text,
+                                                    tocLabel: checked ? el.text : "",
+                                                  };
                                                 }
-
-                                                return { ...pg, els: newEls };
+                                                return el;
                                               });
 
-                                              // Auto-sync TOC immediately
-                                              return regenerateToc(newPages);
-                                            });
-
-                                            // Re-render TOC thumbnail
-                                            setTimeout(async () => {
-                                              setEdPages((prev) => {
-                                                const synced = regenerateToc(prev);
-                                                renderThumbnail(synced[1]).then((thumb) => {
-                                                  setEdPages((p) => p.map((pg, i) => i === 1 ? { ...pg, bg: thumb } : pg));
+                                              // Add divider line below when ticked
+                                              if (checked) {
+                                                const lineY = selEl.y + selEl.h + 4;
+                                                newEls.push({
+                                                  id: uuidv4(),
+                                                  type: "image",
+                                                  x: ML,
+                                                  y: lineY,
+                                                  w: CW,
+                                                  h: Math.round(2 * scY),
+                                                  src: solidColorImg("#1a3a6b", CW, 2),
+                                                  zIndex: selEl.zIndex,
                                                 });
-                                                return synced;
-                                              });
-                                            }, 50);
-                                          }}
-                                          className="accent-indigo-600 w-3.5 h-3.5"
-                                        />
-                                        <span className="text-xs text-slate-700">
-                                          Add to TOC
-                                        </span>
-                                      </label>
-                                      {selEl.isTocEntry && (
-                                        <input
-                                          type="text"
-                                          placeholder="TOC label (default: element text)"
-                                          value={selEl.tocLabel || ""}
-                                          onChange={(e) => {
-                                            const val = e.target.value;
-                                            const elId = selEl.id;
-                                            setEdPages((prev) => {
-                                              const patched = prev.map(
-                                                (pg, pi) =>
-                                                  pi !== selPage
-                                                    ? pg
-                                                    : {
-                                                      ...pg,
-                                                      els: pg.els.map((el) =>
-                                                        el.id === elId
-                                                          ? { ...el, tocLabel: val }
-                                                          : el,
-                                                      ),
-                                                    },
-                                              );
-                                              return regenerateToc(patched);
-                                            });
-                                          }}
-                                          className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-400"
-                                        />
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })()}
+                                              }
 
-                    {/* ──── Crop modal ──── */}
-                    {cropState &&
-                      (() => {
-                        const DISP = 460;
-                        const scale = Math.min(
-                          1,
-                          DISP / cropState.natW,
-                          DISP / cropState.natH,
-                        );
-                        const dw = cropState.natW * scale,
-                          dh = cropState.natH * scale;
-                        return (
-                          <div
-                            className="fixed inset-0 bg-black/60 flex items-center justify-center p-4"
-                            style={{ zIndex: 9999 }}
-                            onClick={(e) => e.stopPropagation()}
-                            onPointerDown={(e) => e.stopPropagation()}
-                          >
-                            <div
-                              className="bg-white rounded-2xl shadow-2xl p-6 flex flex-col gap-4"
-                              style={{ maxWidth: 560, width: "100%" }}
-                            >
-                              <div className="flex items-center justify-between">
-                                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-                                  <Crop className="w-4 h-4 text-indigo-600" />{" "}
-                                  Crop Image
-                                </h3>
-                                <button
-                                  onClick={() => setCropState(null)}
-                                  className="p-1.5 rounded-lg hover:bg-slate-100"
-                                >
-                                  <X className="w-4 h-4 text-slate-500" />
-                                </button>
+                                              return { ...pg, els: newEls };
+                                            });
+
+                                            // Auto-sync TOC immediately
+                                            return regenerateToc(newPages);
+                                          });
+
+                                          // Re-render TOC thumbnail
+                                          setTimeout(async () => {
+                                            setEdPages((prev) => {
+                                              const synced = regenerateToc(prev);
+                                              renderThumbnail(synced[1]).then((thumb) => {
+                                                setEdPages((p) => p.map((pg, i) => i === 1 ? { ...pg, bg: thumb } : pg));
+                                              });
+                                              return synced;
+                                            });
+                                          }, 50);
+                                        }}
+                                        className="accent-indigo-600 w-3.5 h-3.5"
+                                      />
+                                      <span className="text-xs text-slate-700">
+                                        Add to TOC
+                                      </span>
+                                    </label>
+                                    {selEl.isTocEntry && (
+                                      <input
+                                        type="text"
+                                        placeholder="TOC label (default: element text)"
+                                        value={selEl.tocLabel || ""}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          const elId = selEl.id;
+                                          setEdPages((prev) => {
+                                            const patched = prev.map(
+                                              (pg, pi) =>
+                                                pi !== selPage
+                                                  ? pg
+                                                  : {
+                                                    ...pg,
+                                                    els: pg.els.map((el) =>
+                                                      el.id === elId
+                                                        ? { ...el, tocLabel: val }
+                                                        : el,
+                                                    ),
+                                                  },
+                                            );
+                                            return regenerateToc(patched);
+                                          });
+                                        }}
+                                        className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-400"
+                                      />
+                                    )}
+                                  </div>
+                                )}
                               </div>
-                              {/* crop canvas */}
-                              <div
-                                className="relative overflow-hidden rounded-xl bg-slate-100 mx-auto"
-                                style={{ width: dw, height: dh }}
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                  {/* ──── Crop modal ──── */}
+                  {cropState &&
+                    (() => {
+                      const DISP = 460;
+                      const scale = Math.min(
+                        1,
+                        DISP / cropState.natW,
+                        DISP / cropState.natH,
+                      );
+                      const dw = cropState.natW * scale,
+                        dh = cropState.natH * scale;
+                      return (
+                        <div
+                          className="fixed inset-0 bg-black/60 flex items-center justify-center p-4"
+                          style={{ zIndex: 9999 }}
+                          onClick={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
+                        >
+                          <div
+                            className="bg-white rounded-2xl shadow-2xl p-6 flex flex-col gap-4"
+                            style={{ maxWidth: 560, width: "100%" }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                                <Crop className="w-4 h-4 text-indigo-600" />{" "}
+                                Crop Image
+                              </h3>
+                              <button
+                                onClick={() => setCropState(null)}
+                                className="p-1.5 rounded-lg hover:bg-slate-100"
                               >
-                                <img
-                                  src={cropState.src}
-                                  alt=""
-                                  style={{ width: dw, height: dh }}
-                                  draggable={false}
-                                />
-                                {/* dark vignette outside crop */}
+                                <X className="w-4 h-4 text-slate-500" />
+                              </button>
+                            </div>
+                            {/* crop canvas */}
+                            <div
+                              className="relative overflow-hidden rounded-xl bg-slate-100 mx-auto"
+                              style={{ width: dw, height: dh }}
+                            >
+                              <img
+                                src={cropState.src}
+                                alt=""
+                                style={{ width: dw, height: dh }}
+                                draggable={false}
+                              />
+                              {/* dark vignette outside crop */}
+                              <div
+                                className="absolute inset-0 pointer-events-none"
+                                style={{ background: "rgba(0,0,0,0.45)" }}
+                              />
+                              {/* crop box */}
+                              <div
+                                className="absolute border-2 border-indigo-500"
+                                style={{
+                                  left: cropState.cx * scale,
+                                  top: cropState.cy * scale,
+                                  width: cropState.cw * scale,
+                                  height: cropState.ch * scale,
+                                  background: "transparent",
+                                  boxShadow: "0 0 0 9999px rgba(0,0,0,0.45)",
+                                  cursor: "move",
+                                }}
+                                onPointerDown={(e) => {
+                                  e.stopPropagation();
+                                  (
+                                    e.currentTarget as Element
+                                  ).setPointerCapture(e.pointerId);
+                                  cropDragRef.current = {
+                                    active: true,
+                                    mode: "move",
+                                    sx: e.clientX,
+                                    sy: e.clientY,
+                                    origCx: cropState.cx,
+                                    origCy: cropState.cy,
+                                    origCw: cropState.cw,
+                                    origCh: cropState.ch,
+                                  };
+                                }}
+                                onPointerMove={(e) => {
+                                  const d = cropDragRef.current;
+                                  if (!d.active) return;
+                                  const dx = (e.clientX - d.sx) / scale,
+                                    dy = (e.clientY - d.sy) / scale;
+                                  if (d.mode === "move") {
+                                    setCropState((c) =>
+                                      c
+                                        ? {
+                                          ...c,
+                                          cx: Math.max(
+                                            0,
+                                            Math.min(
+                                              c.natW - c.cw,
+                                              d.origCx + dx,
+                                            ),
+                                          ),
+                                          cy: Math.max(
+                                            0,
+                                            Math.min(
+                                              c.natH - c.ch,
+                                              d.origCy + dy,
+                                            ),
+                                          ),
+                                        }
+                                        : c,
+                                    );
+                                  } else {
+                                    setCropState((c) => {
+                                      if (!c) return c;
+                                      let { cx, cy, cw, ch } = {
+                                        cx: d.origCx,
+                                        cy: d.origCy,
+                                        cw: d.origCw,
+                                        ch: d.origCh,
+                                      };
+                                      if (d.mode.includes("e"))
+                                        cw = Math.max(20, d.origCw + dx);
+                                      if (d.mode.includes("s"))
+                                        ch = Math.max(20, d.origCh + dy);
+                                      if (d.mode.includes("w")) {
+                                        cx = d.origCx + dx;
+                                        cw = Math.max(20, d.origCw - dx);
+                                      }
+                                      if (d.mode.includes("n")) {
+                                        cy = d.origCy + dy;
+                                        ch = Math.max(20, d.origCh - dy);
+                                      }
+                                      return { ...c, cx, cy, cw, ch };
+                                    });
+                                  }
+                                }}
+                                onPointerUp={() => {
+                                  cropDragRef.current.active = false;
+                                }}
+                              >
+                                {/* rule-of-thirds grid */}
                                 <div
                                   className="absolute inset-0 pointer-events-none"
-                                  style={{ background: "rgba(0,0,0,0.45)" }}
-                                />
-                                {/* crop box */}
-                                <div
-                                  className="absolute border-2 border-indigo-500"
                                   style={{
-                                    left: cropState.cx * scale,
-                                    top: cropState.cy * scale,
-                                    width: cropState.cw * scale,
-                                    height: cropState.ch * scale,
-                                    background: "transparent",
-                                    boxShadow: "0 0 0 9999px rgba(0,0,0,0.45)",
-                                    cursor: "move",
+                                    backgroundImage:
+                                      "linear-gradient(rgba(255,255,255,.25) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.25) 1px, transparent 1px)",
+                                    backgroundSize: "33.33% 33.33%",
                                   }}
-                                  onPointerDown={(e) => {
-                                    e.stopPropagation();
-                                    (
-                                      e.currentTarget as Element
-                                    ).setPointerCapture(e.pointerId);
-                                    cropDragRef.current = {
-                                      active: true,
-                                      mode: "move",
-                                      sx: e.clientX,
-                                      sy: e.clientY,
-                                      origCx: cropState.cx,
-                                      origCy: cropState.cy,
-                                      origCw: cropState.cw,
-                                      origCh: cropState.ch,
-                                    };
-                                  }}
-                                  onPointerMove={(e) => {
-                                    const d = cropDragRef.current;
-                                    if (!d.active) return;
-                                    const dx = (e.clientX - d.sx) / scale,
-                                      dy = (e.clientY - d.sy) / scale;
-                                    if (d.mode === "move") {
-                                      setCropState((c) =>
-                                        c
-                                          ? {
-                                            ...c,
-                                            cx: Math.max(
-                                              0,
-                                              Math.min(
-                                                c.natW - c.cw,
-                                                d.origCx + dx,
-                                              ),
-                                            ),
-                                            cy: Math.max(
-                                              0,
-                                              Math.min(
-                                                c.natH - c.ch,
-                                                d.origCy + dy,
-                                              ),
-                                            ),
-                                          }
-                                          : c,
-                                      );
-                                    } else {
-                                      setCropState((c) => {
-                                        if (!c) return c;
-                                        let { cx, cy, cw, ch } = {
-                                          cx: d.origCx,
-                                          cy: d.origCy,
-                                          cw: d.origCw,
-                                          ch: d.origCh,
-                                        };
-                                        if (d.mode.includes("e"))
-                                          cw = Math.max(20, d.origCw + dx);
-                                        if (d.mode.includes("s"))
-                                          ch = Math.max(20, d.origCh + dy);
-                                        if (d.mode.includes("w")) {
-                                          cx = d.origCx + dx;
-                                          cw = Math.max(20, d.origCw - dx);
-                                        }
-                                        if (d.mode.includes("n")) {
-                                          cy = d.origCy + dy;
-                                          ch = Math.max(20, d.origCh - dy);
-                                        }
-                                        return { ...c, cx, cy, cw, ch };
-                                      });
-                                    }
-                                  }}
-                                  onPointerUp={() => {
-                                    cropDragRef.current.active = false;
-                                  }}
-                                >
-                                  {/* rule-of-thirds grid */}
+                                />
+                                {/* resize handles on crop box */}
+                                {DIRS.map((dir) => (
                                   <div
-                                    className="absolute inset-0 pointer-events-none"
+                                    key={dir}
                                     style={{
-                                      backgroundImage:
-                                        "linear-gradient(rgba(255,255,255,.25) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.25) 1px, transparent 1px)",
-                                      backgroundSize: "33.33% 33.33%",
+                                      ...handlePos(dir),
+                                      background: "white",
+                                      border: "2px solid #4f46e5",
+                                      cursor: DIR_CURSOR[dir],
+                                    }}
+                                    onPointerDown={(e) => {
+                                      e.stopPropagation();
+                                      (
+                                        e.currentTarget as Element
+                                      ).setPointerCapture(e.pointerId);
+                                      cropDragRef.current = {
+                                        active: true,
+                                        mode: dir,
+                                        sx: e.clientX,
+                                        sy: e.clientY,
+                                        origCx: cropState.cx,
+                                        origCy: cropState.cy,
+                                        origCw: cropState.cw,
+                                        origCh: cropState.ch,
+                                      };
                                     }}
                                   />
-                                  {/* resize handles on crop box */}
-                                  {DIRS.map((dir) => (
-                                    <div
-                                      key={dir}
-                                      style={{
-                                        ...handlePos(dir),
-                                        background: "white",
-                                        border: "2px solid #4f46e5",
-                                        cursor: DIR_CURSOR[dir],
-                                      }}
-                                      onPointerDown={(e) => {
-                                        e.stopPropagation();
-                                        (
-                                          e.currentTarget as Element
-                                        ).setPointerCapture(e.pointerId);
-                                        cropDragRef.current = {
-                                          active: true,
-                                          mode: dir,
-                                          sx: e.clientX,
-                                          sy: e.clientY,
-                                          origCx: cropState.cx,
-                                          origCy: cropState.cy,
-                                          origCw: cropState.cw,
-                                          origCh: cropState.ch,
-                                        };
-                                      }}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                              <p className="text-xs text-slate-400 text-center">
-                                Drag box to move · Drag corner/edge handles to
-                                resize &nbsp;·&nbsp;
-                                {Math.round(cropState.cw)} ×{" "}
-                                {Math.round(cropState.ch)} px
-                              </p>
-                              <div className="flex gap-3">
-                                <button
-                                  onClick={() => setCropState(null)}
-                                  className="flex-1 py-2 border border-slate-200 rounded-xl text-sm text-slate-600 hover:bg-slate-50 transition-all"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  onClick={applyCrop}
-                                  className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all"
-                                >
-                                  <Check className="w-4 h-4" /> Apply crop
-                                </button>
+                                ))}
                               </div>
                             </div>
-                          </div>
-                        );
-                      })()}
-
-                    {/* ──── Insert Table Modal ──── */}
-                    {showInsertTable && (
-                      <InsertTableModal
-                        onInsert={(rows, cols) => addTable(rows, cols)}
-                        onClose={() => setShowInsertTable(false)}
-                      />
-                    )}
-
-                    {/* ──── Insert Image Options Modal ──── */}
-                    {imageToInsert && (
-                      <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[9999]" onClick={() => setImageToInsert(null)}>
-                        <div className="bg-white rounded-2xl shadow-2xl p-6 flex flex-col gap-5 w-full max-w-sm" onClick={e => e.stopPropagation()}>
-                          <div className="flex items-center justify-between">
-                            <h3 className="font-bold text-slate-900 flex items-center gap-2 text-lg">
-                              <ImagePlus className="w-5 h-5 text-indigo-600" />
-                              Add Image
-                            </h3>
-                            <button onClick={() => setImageToInsert(null)} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
-                              <X className="w-4 h-4 text-slate-500" />
-                            </button>
-                          </div>
-
-                          <div className="space-y-3">
-                            <button
-                              onClick={() => {
-                                addImage(imageToInsert, false);
-                                setImageToInsert(null);
-                              }}
-                              className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left"
-                            >
-                              <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 grow-0 shrink-0">
-                                <ImagePlus className="w-5 h-5" />
-                              </div>
-                              <div>
-                                <div className="font-semibold text-slate-900">Normal Image</div>
-                                <div className="text-xs text-slate-500">Insert at current cursor position (manual resize)</div>
-                              </div>
-                            </button>
-
-                            <button
-                              onClick={() => {
-                                addImage(imageToInsert, true);
-                                setImageToInsert(null);
-                              }}
-                              className="w-full flex items-center gap-4 p-4 rounded-xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left"
-                            >
-                              <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 grow-0 shrink-0">
-                                <LayoutTemplate className="w-5 h-5" />
-                              </div>
-                              <div>
-                                <div className="font-semibold text-slate-900">Background Image</div>
-                                <div className="text-xs text-slate-500">Auto-scale to fit the entire page</div>
-                              </div>
-                            </button>
-                          </div>
-
-                          <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg flex gap-2">
-                            <div className="text-amber-500 shrink-0 mt-0.5">
-                              <Settings2 className="w-3.5 h-3.5" />
-                            </div>
-                            <div className="text-[10.5px] text-amber-800 leading-relaxed font-medium">
-                              <strong className="block mb-0.5 uppercase tracking-wide opacity-70">Recommended Size:</strong>
-                              For background, use 1240 × 1754 (A4 @ 150dpi) or any portrait image (e.g., 1920x2715) for best quality.
+                            <p className="text-xs text-slate-400 text-center">
+                              Drag box to move · Drag corner/edge handles to
+                              resize &nbsp;·&nbsp;
+                              {Math.round(cropState.cw)} ×{" "}
+                              {Math.round(cropState.ch)} px
+                            </p>
+                            <div className="flex gap-3">
+                              <button
+                                onClick={() => setCropState(null)}
+                                className="flex-1 py-2 border border-slate-200 rounded-xl text-sm text-slate-600 hover:bg-slate-50 transition-all"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={applyCrop}
+                                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all"
+                              >
+                                <Check className="w-4 h-4" /> Apply crop
+                              </button>
                             </div>
                           </div>
                         </div>
+                      );
+                    })()}
+
+                  {showBgPicker && (
+                    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[9999]" onClick={() => setShowBgPicker(false)}>
+                      <div className="bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-4xl h-[82vh]" onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
+                          <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                            <LayoutTemplate className="w-5 h-5 text-indigo-600" />
+                            Choose Background
+                          </h3>
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => {
+                                const inp = document.createElement("input");
+                                inp.type = "file"; inp.accept = "image/*";
+                                inp.onchange = () => {
+                                  const f = inp.files?.[0]; if (!f) return;
+                                  const r = new FileReader();
+                                  r.onload = (ev) => { applyBgImage(ev.target!.result as string, bgApplyScope); setShowBgPicker(false); };
+                                  r.readAsDataURL(f);
+                                };
+                                inp.click();
+                              }}
+                              className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
+                            >
+                              <ImagePlus className="w-3.5 h-3.5" /> Upload Custom
+                            </button>
+                            <button onClick={() => setShowBgPicker(false)} className="p-1.5 rounded-lg hover:bg-slate-100">
+                              <X className="w-4 h-4 text-slate-500" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Tabs + Apply scope + Search */}
+                        <div className="px-6 py-3 border-b border-slate-100 shrink-0 space-y-2.5">
+                          {/* Tab switcher */}
+                          <div className="flex items-center gap-3">
+                            <div className="flex rounded-lg overflow-hidden border border-slate-200">
+                              <button onClick={() => setBgPickerTab("gradients")}
+                                className={`px-4 py-1.5 text-xs font-semibold transition-colors ${bgPickerTab === "gradients" ? "bg-indigo-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+                                🎨 Gradients (100)
+                              </button>
+                              <button onClick={() => setBgPickerTab("solid")}
+                                className={`px-4 py-1.5 text-xs font-semibold transition-colors border-l border-slate-200 ${bgPickerTab === "solid" ? "bg-indigo-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+                                🟦 Solid Colors
+                              </button>
+                            </div>
+                            <div className="flex-1" />
+                            {/* Apply scope */}
+                            <span className="text-xs font-semibold text-slate-500">Apply to:</span>
+                            <div className="flex rounded-lg overflow-hidden border border-slate-200">
+                              <button onClick={() => setBgApplyScope("current")}
+                                className={`px-3 py-1.5 text-xs font-semibold transition-colors ${bgApplyScope === "current" ? "bg-indigo-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+                                Current page
+                              </button>
+                              <button onClick={() => setBgApplyScope("all")}
+                                className={`px-3 py-1.5 text-xs font-semibold transition-colors border-l border-slate-200 ${bgApplyScope === "all" ? "bg-indigo-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+                                All pages
+                              </button>
+                            </div>
+                          </div>
+
+                          {bgPickerTab === "solid" && (
+                            <div className="flex gap-2 items-center">
+                              <input type="text" placeholder="Search colors..." value={bgPickerSearch} onChange={e => setBgPickerSearch(e.target.value)}
+                                className="flex-1 px-3 py-1.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-400" />
+                              <div className="flex gap-1 flex-wrap">
+                                {BG_CATEGORIES.map(cat => (
+                                  <button key={cat.key} onClick={() => setBgPickerCategory(cat.key)}
+                                    className={`px-2 py-0.5 rounded-full text-[11px] font-semibold transition-all ${bgPickerCategory === cat.key ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+                                    {cat.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Grid area */}
+                        <div className="flex-1 overflow-y-auto p-4">
+                          {bgPickerTab === "gradients" ? (
+                            <div className="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-8 gap-2">
+                              {GRADIENT_BACKGROUNDS.map(bg => (
+                                <div key={bg.id} title={bg.label}
+                                  className="group relative cursor-pointer rounded-lg border-2 border-transparent hover:border-indigo-500 hover:scale-105 transition-all shadow-sm overflow-hidden"
+                                  style={{ aspectRatio: "1/1.41", background: bg.css }}
+                                  onClick={() => {
+                                    // Apply gradient as bgColor (CSS string)
+                                    if (bgApplyScope === "all") {
+                                      setEdPages(prev => { prev.forEach((_, i) => thumbDirtyRef.current.add(i)); return prev.map(pg => ({ ...pg, bgColor: bg.css, bg: "" })); });
+                                    } else {
+                                      thumbDirtyRef.current.add(selPage);
+                                      patchPage(pg => ({ ...pg, bgColor: bg.css, bg: "" }));
+                                    }
+                                    if (thumbRefreshRef.current) clearTimeout(thumbRefreshRef.current);
+                                    thumbRefreshRef.current = setTimeout(() => triggerThumbRefresh(), 400);
+                                    setShowBgPicker(false);
+                                  }}
+                                >
+                                  <div className="absolute inset-0 flex items-end">
+                                    <span className="w-full text-center text-[7px] font-semibold py-0.5 text-white opacity-0 group-hover:opacity-100 transition-opacity truncate px-0.5 bg-black/30">
+                                      {bg.label}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              {/* Custom color picker */}
+                              <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                                <div className="relative shrink-0">
+                                  <div
+                                    className="w-10 h-10 rounded-lg border-2 border-slate-300 cursor-pointer shadow-sm"
+                                    style={{ backgroundColor: customBgColor }}
+                                    onClick={() => document.getElementById("custom-bg-color-input")?.click()}
+                                  />
+                                  <input
+                                    id="custom-bg-color-input"
+                                    type="color"
+                                    value={customBgColor}
+                                    onChange={e => setCustomBgColor(e.target.value)}
+                                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                                  />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-semibold text-slate-700 mb-1">Custom Color</p>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="text"
+                                      value={customBgColor}
+                                      onChange={e => {
+                                        const v = e.target.value;
+                                        if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setCustomBgColor(v);
+                                      }}
+                                      className="w-24 px-2 py-1 text-xs font-mono border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                                      placeholder="#rrggbb"
+                                    />
+                                    <span className="text-[10px] text-slate-400">Click swatch or type hex</span>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => { applyBgColor(customBgColor, bgApplyScope); setShowBgPicker(false); }}
+                                  className="shrink-0 px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
+                                >
+                                  Apply
+                                </button>
+                              </div>
+
+                              {/* Preset grid */}
+                              <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2">
+                                {PRESET_BACKGROUNDS
+                                  .filter(bg => {
+                                    const matchCat = bgPickerCategory === "all" || bg.cat === bgPickerCategory;
+                                    const matchSearch = !bgPickerSearch || bg.label.toLowerCase().includes(bgPickerSearch.toLowerCase());
+                                    return matchCat && matchSearch;
+                                  })
+                                  .map(bg => {
+                                    const isDark = ["dark", "blue", "purple"].includes(bg.cat) && !["bl01", "bl02", "bl03", "bl04", "bl05"].includes(bg.id);
+                                    return (
+                                      <div key={bg.id} title={bg.label}
+                                        className="group relative cursor-pointer rounded-md border-2 border-slate-200 hover:border-indigo-500 hover:scale-105 transition-all shadow-sm"
+                                        style={{ aspectRatio: "1/1.41", backgroundColor: bg.color }}
+                                        onClick={() => {
+                                          setCustomBgColor(bg.color);
+                                          applyBgColor(bg.color, bgApplyScope);
+                                          setShowBgPicker(false);
+                                        }}
+                                      >
+                                        <div className="absolute inset-0 flex items-end rounded overflow-hidden">
+                                          <span className={`w-full text-center text-[7px] font-semibold py-0.5 opacity-0 group-hover:opacity-100 transition-opacity truncate px-0.5 ${isDark ? "text-white" : "text-slate-700"}`}
+                                            style={{ backgroundColor: isDark ? "rgba(0,0,0,0.3)" : "rgba(255,255,255,0.6)" }}>
+                                            {bg.label}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Footer note */}
+                        <div className="px-6 py-3 border-t border-slate-100 shrink-0">
+                          <div className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-100 rounded-lg">
+                            <Settings2 className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-amber-800 font-medium leading-relaxed">
+                              <strong className="uppercase tracking-wide opacity-70 mr-1">Custom upload tip:</strong>
+                              For best quality, use portrait images at <strong>1240×1754px</strong> (A4 @150dpi). Landscape images will be stretched to fit the page.
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )}
+                  {/* ──── Insert Table Modal ──── */}
+                  {showInsertTable && (
+                    <InsertTableModal
+                      onInsert={(rows, cols) => addTable(rows, cols)}
+                      onClose={() => setShowInsertTable(false)}
+                    />
+                  )}
+
+                  {/* ──── Insert Image Options Modal ──── */}
+                  {imageToInsert && (
+                    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[9999]" onClick={() => setImageToInsert(null)}>
+                      <div className="bg-white rounded-2xl shadow-2xl p-6 flex flex-col gap-4 w-full max-w-xs" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                            <ImagePlus className="w-5 h-5 text-indigo-600" />
+                            Insert Image
+                          </h3>
+                          <button onClick={() => setImageToInsert(null)} className="p-1.5 rounded-lg hover:bg-slate-100">
+                            <X className="w-4 h-4 text-slate-500" />
+                          </button>
+                        </div>
+                        <div className="w-full h-28 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
+                          <img src={imageToInsert} alt="preview" className="max-w-full max-h-full object-contain" />
+                        </div>
+                        <p className="text-xs text-slate-500 text-center">Image will be scaled to fit the page. You can resize freely after inserting.</p>
+                        <div className="flex gap-2">
+                          <button onClick={() => setImageToInsert(null)} className="flex-1 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
+                          <button
+                            onClick={() => { addImage(imageToInsert, false); setImageToInsert(null); }}
+                            className="flex-1 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
+                          >Insert</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
