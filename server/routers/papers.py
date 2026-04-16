@@ -25,7 +25,7 @@ async def get_paper_details(paper_id: int):
         
         query = supabase_client.table("papers").select(
             "paper_id, title, abstract, status, created_at, "
-            "author:users!primary_author_id(full_name, email, organization), "
+            "author:profiles!primary_author_id(full_name, email, organization), "
             "conference:conferences(conf_name, is_active), "
             "versions:paper_versions(version_id, version_number, file_path, is_final, plagiarism_safe, format_ok, upload_date), "
             "reviews:reviews(review_id, score, recommendation, status), "
