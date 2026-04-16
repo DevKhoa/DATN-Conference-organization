@@ -206,9 +206,9 @@ async def recommend_chair_for_session(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/sessions/google-auth-url", response_model=SessionAuthResponse)
-async def get_google_auth_url(user_id: int = Query(..., description="ID của người dùng cần liên kết Google Meet"), redirect_uri: str = Query("http://localhost:8080/sessions/google-oauth-callback")):
+async def get_google_auth_url(email: str = Query(..., description="Email của người dùng cần liên kết Google Meet"), redirect_uri: str = Query("http://localhost:8080/sessions/google-oauth-callback")):
     try:
-        res = meet_service.get_auth_url(redirect_uri, user_id)
+        res = meet_service.get_auth_url(redirect_uri, email)
         return res
     except Exception as e:
         logger.error(f"Error getting Google Auth URL: {e}")
@@ -217,22 +217,33 @@ async def get_google_auth_url(user_id: int = Query(..., description="ID của ng
 @router.post("/sessions/google-oauth-callback")
 async def google_oauth_callback(request: GoogleMeetCallbackRequest, redirect_uri: str = Query("http://localhost:8080/sessions/google-oauth-callback")):
     try:
-        # Giải mã user_id từ state (có dạng "user_1")
+        # Giải mã email từ state
         state_str = request.state
-        if not state_str.startswith("user_"):
-            raise HTTPException(status_code=400, detail="Trạng thái state không hợp lệ. Không tìm thấy ID người dùng.")
-        user_id = int(state_str.split("_")[1])
+        if not state_str.startswith("email_"):
+            raise HTTPException(status_code=400, detail="Trạng thái state không hợp lệ. Không tìm thấy Email người dùng.")
+        registered_email = state_str.split("_", 1)[1]
         
         token_data = meet_service.fetch_token(redirect_uri, request.code)
         refresh_token = token_data.get("refresh_token")
+        google_email = token_data.get("google_email")
         
         if not refresh_token:
             raise HTTPException(status_code=400, detail="Không lấy được refresh_token từ Google.")
 
-        # Lưu refresh_token vào DB cho user đó
+        # Truy vấn Database xem user có tồn tại không (Đảm bảo an toàn)
+        user_res = supabase_client.table("users").select("user_id").eq("email", registered_email).single().execute()
+        
+        if not user_res.data:
+             raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản người dùng tương ứng với email này trong hệ thống DATN.")
+             
+        # So sánh Email Google Meet và Email đăng ký DATN System
+        if google_email and google_email.lower() != registered_email.lower():
+            raise HTTPException(status_code=400, detail=f"Tài khoản không khớp! Vui lòng uỷ quyền đúng bằng Google Account đã đăng ký ({registered_email}). Bạn đang dùng: {google_email}")
+
+        # Lưu refresh_token vào DB cho user đó bằng Email
         res = supabase_client.table("users").update({
             "google_refresh_token": refresh_token
-        }).eq("user_id", user_id).execute()
+        }).eq("email", registered_email).execute()
 
         # Update Supabase Python SDK đôi khi fail im lặng nếu user ID không tồn tại
         if hasattr(res, 'error') and res.error:
@@ -250,25 +261,34 @@ async def google_oauth_callback(request: GoogleMeetCallbackRequest, redirect_uri
 @router.post("/sessions/{session_id}/create-meet", response_model=MeetCreationResponse)
 async def create_google_meet_for_session(session_id: int, request: MeetCreationRequest):
     try:
-        # Truy vấn Database để lấy refresh_token của User này
-        user_res = supabase_client.table("users").select("google_refresh_token").eq("user_id", request.user_id).single().execute()
+        # 1. Truy vấn Database để lấy refresh_token của User này
+        user_res = supabase_client.table("users").select("google_refresh_token").eq("email", request.email).single().execute()
         
         if not user_res.data or not user_res.data.get("google_refresh_token"):
              raise HTTPException(status_code=400, detail="Tài khoản chưa được liên kết với Google. Yêu cầu frontend gọi API Authorize.")
              
         user_refresh_token = user_res.data.get("google_refresh_token")
         
+        # 2. Truy vấn Thông tin Session từ Database (để lấy start_time, end_time thực tế)
+        sess_res = supabase_client.table("sessions").select("session_name, start_time, end_time").eq("session_id", session_id).single().execute()
+        
+        if not sess_res.data:
+            raise HTTPException(status_code=404, detail="Không tìm thấy Session này trong hệ thống.")
+            
+        sess_data = sess_res.data
+        if not sess_data.get("start_time") or not sess_data.get("end_time"):
+            raise HTTPException(status_code=400, detail="Session chưa được gán thời gian Bắt đầu và Kết thúc! Vui lòng cập nhật thời gian cho Session trước khi sinh phòng Meet.")
+        
         # summary tên event
-        summary = f"Conference Session #{session_id}"
+        summary = f"[{sess_data.get('session_name', 'Hội nghị')}] - Virtual Room"
         description = f"Virtual Session hosted via DATN Conference System."
         
         event_res = meet_service.create_meet_event(
             summary=summary,
             description=description,
-            start_time=request.start_time,
-            end_time=request.end_time,
-            user_refresh_token=user_refresh_token,
-            timezone=request.timezone
+            start_time=sess_data.get("start_time"),
+            end_time=sess_data.get("end_time"),
+            user_refresh_token=user_refresh_token
         )
         
         # Lấy được link -> Lưu vào Supabase Database

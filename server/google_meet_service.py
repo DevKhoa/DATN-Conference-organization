@@ -7,7 +7,10 @@ from googleapiclient.discovery import build
 from utils import logger
 
 # Để test dưới dạng web (Callback)
-SCOPES = ['https://www.googleapis.com/auth/calendar.events']
+SCOPES = [
+    'https://www.googleapis.com/auth/calendar.events',
+    'https://www.googleapis.com/auth/userinfo.email'
+]
 
 CREDENTIALS_FILE = "client_secret.json"
 
@@ -18,10 +21,10 @@ class GoogleMeetService:
         if not os.path.exists(CREDENTIALS_FILE):
              logger.warning("Google Cloud credentials file not found. Create client_secret.json from GCP Console.")
 
-    def get_auth_url(self, redirect_uri: str, user_id: int):
+    def get_auth_url(self, redirect_uri: str, email: str):
         """
         Sinh ra URL để BTC bấm vào đăng nhập Google và cấp quyền (Option 2).
-        Nhúng user_id vào tham số `state` để lúc callback hệ thống biết đang liên kết cho ai.
+        Nhúng email vào tham số `state` để lúc callback hệ thống đối chiếu và lưu token.
         """
         if not os.path.exists(CREDENTIALS_FILE):
              raise HTTPException(status_code=500, detail="Missing Google credentials file (client_secret.json).")
@@ -32,7 +35,7 @@ class GoogleMeetService:
             
         import urllib.parse
         scope = " ".join(SCOPES)
-        state_str = f"user_{user_id}"
+        state_str = f"email_{email}"
         auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?client_id={client_id}&redirect_uri={urllib.parse.quote(redirect_uri)}&response_type=code&scope={urllib.parse.quote(scope)}&access_type=offline&prompt=consent&state={urllib.parse.quote(state_str)}"
         
         return {"auth_url": auth_url, "state": state_str}
@@ -62,8 +65,19 @@ class GoogleMeetService:
         if "refresh_token" not in token_data:
             raise HTTPException(status_code=400, detail="Thành công nhưng không có refresh_token. Hãy chắc chắn bạn đã chạy lại Get Auth URL và đồng ý quyền.")
             
+        # Dùng access_token để lấy thông tin Email của tài khoản Google vừa đăng nhập
+        access_token = token_data.get("access_token")
+        userinfo_res = requests.get(
+            "https://www.googleapis.com/oauth2/v2/userinfo", 
+            headers={"Authorization": f"Bearer {access_token}"}
+        )
+        google_email = None
+        if userinfo_res.status_code == 200:
+            google_email = userinfo_res.json().get("email")
+            
         return {
-            "refresh_token": token_data["refresh_token"]
+            "refresh_token": token_data["refresh_token"],
+            "google_email": google_email
         }
 
     def get_system_credentials(self):

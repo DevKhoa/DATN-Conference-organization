@@ -210,10 +210,7 @@ class GoogleMeetCallbackRequest(BaseModel):
 
 class MeetCreationRequest(BaseModel):
     session_id: int
-    user_id: int = Field(..., description="ID của người uỷ quyền tạo phòng hẹn")
-    start_time: str
-    end_time: str
-    timezone: str = "UTC"
+    email: str = Field(..., description="Email của người uỷ quyền tạo phòng hẹn")
 
 class MeetCreationResponse(BaseModel):
     event_id: str
