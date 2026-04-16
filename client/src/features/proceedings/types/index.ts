@@ -7,11 +7,21 @@ export interface KeynoteSpeaker {
   presentationTitle: string;
   abstract: string;
   bio: string;
+  dayLabel?: string;
+  timeSlot?: string;
+  location?: string;
+  keynoteLabel?: string;
+  affiliation?: string;
+}
+
+export interface SponsorLogo {
+  src: string;
+  selected: boolean;
 }
 
 export interface EditorEl {
   id: string;
-  type: "text" | "image" | "table";
+  type: "text" | "image" | "table" | "bar";
   x: number;
   y: number;
   w: number;
@@ -33,6 +43,9 @@ export interface EditorEl {
   tocLabel?: string;
   // table
   tableData?: TableData;
+  // bar: linked to an abstract element — stretches to match its bottom
+  linkedAbstractId?: string;
+  barColor?: string;
 }
 
 export interface EditorPage {
@@ -56,7 +69,7 @@ export interface ProceedingsData {
     conferenceName: string;
     date: string;
     location: string;
-    sponsorLogos: string[];
+    sponsorLogos: SponsorLogo[];
   };
   foreword: string;
   committee: CommitteeMember[];
@@ -86,20 +99,33 @@ export interface ScheduleItem {
   time: string;
   session: string;
   location: string;
+  topic?: string;
 }
 
 export interface SessionSchedule {
-  sessionId: number;
-  sessionName: string;
+  sessionId?: number;
+  sessionName?: string;
+  // flat paper model (from backup)
+  id?: string;
+  paper_id?: number;
+  paperTitle?: string;
+  title?: string;
+  authors?: string;
+  abstract?: string;
+  timeSlot?: string;
+  sessionDayLabel?: string;
+  sessionDayOrder?: number;
   chair?: string;
   time?: string;
   location?: string;
-  papers: PaperEntry[];
+  papers?: PaperEntry[];
 }
 
 export interface PaperEntry {
-  paperId: number;
-  paperTitle: string;
+  paperId?: number;
+  paper_id?: number;
+  paperTitle?: string;
+  title?: string;
   authors: string;
   abstract?: string;
   timeSlot?: string;

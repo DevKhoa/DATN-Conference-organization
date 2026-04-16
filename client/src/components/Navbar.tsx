@@ -13,7 +13,7 @@ import NotificationBell from "@/features/notifications/components/NotificationBe
 import useAuth from "@/features/auth/hooks/useAuth";
 import { formatRoleLabel, getHighestRole } from "@/features/auth/types";
 import { cn } from "@/lib/utils";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useLogoutMutation } from "@/features/auth/services/mutations";
 import { toast } from "sonner";
 
@@ -39,6 +39,9 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
   const toggleProfile = () => setIsProfileOpen(!isProfileOpen);
   const { session, roles } = useAuth();
   const navigate = useNavigate();
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
   const logoutMutation = useLogoutMutation();
 
   const userData = useMemo(() => {
@@ -83,7 +86,28 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  let navLinks = [...BASE_LINKS];
+  const navLinks = [...BASE_LINKS];
+
+  const normalizePath = (path: string) => {
+    if (!path) return "/";
+    const normalized = path.replace(/\/+$/, "");
+    return normalized || "/";
+  };
+
+  const currentPath = normalizePath(pathname);
+
+  const isLinkActive = (href: string) => {
+    const normalizedHref = normalizePath(href);
+
+    if (normalizedHref === "/") {
+      return currentPath === "/";
+    }
+
+    return (
+      currentPath === normalizedHref ||
+      currentPath.startsWith(`${normalizedHref}/`)
+    );
+  };
 
   const getInitials = (name: string) => {
     if (!name) return "U";
@@ -137,21 +161,33 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
 
           {/* Desktop Navigation */}
           <div className="hidden lg:flex items-center space-x-6 xl:space-x-8">
-            {navLinks.map((link) => (
-              <a
-                key={link.name}
-                href={link.href}
-                onClick={(e) => handleLinkClick(e, link.href)}
-                className={`text-sm font-medium transition-colors flex items-center gap-1.5 ${
-                  link.name === "AI Assistant"
-                    ? "text-primary hover:text-primary/80"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {link.icon && <link.icon className="w-4 h-4" />}
-                {link.name}
-              </a>
-            ))}
+            {navLinks.map((link) => {
+              const isActive = isLinkActive(link.href);
+              const isAiAssistant = link.name === "AI Assistant";
+
+              return (
+                <a
+                  key={link.name}
+                  href={link.href}
+                  onClick={(e) => handleLinkClick(e, link.href)}
+                  aria-current={isActive ? "page" : undefined}
+                  className={cn(
+                    "relative inline-flex items-center gap-1.5 px-1 py-2 text-sm font-medium transition-colors",
+                    isActive
+                      ? "text-primary"
+                      : isAiAssistant
+                        ? "text-primary hover:text-primary/80"
+                        : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {link.icon && <link.icon className="w-4 h-4" />}
+                  {link.name}
+                  {isActive && (
+                    <span className="absolute -bottom-1 left-0 right-0 h-0.5 rounded-full bg-primary" />
+                  )}
+                </a>
+              );
+            })}
           </div>
 
           {/* CTA Buttons or User Profile */}
@@ -256,21 +292,30 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
       {isOpen && (
         <div className="lg:hidden bg-background border-b border-border shadow-xl">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            {navLinks.map((link) => (
-              <a
-                key={link.name}
-                href={link.href}
-                onClick={(e) => handleLinkClick(e, link.href)}
-                className={`inline-flex px-3 py-2 rounded-md text-base font-medium hover:bg-accent items-center gap-2 ${
-                  link.name === "AI Assistant"
-                    ? "text-primary hover:text-primary/80"
-                    : "text-foreground hover:text-primary"
-                }`}
-              >
-                {link.icon && <link.icon className="w-5 h-5" />}
-                {link.name}
-              </a>
-            ))}
+            {navLinks.map((link) => {
+              const isActive = isLinkActive(link.href);
+              const isAiAssistant = link.name === "AI Assistant";
+
+              return (
+                <a
+                  key={link.name}
+                  href={link.href}
+                  onClick={(e) => handleLinkClick(e, link.href)}
+                  aria-current={isActive ? "page" : undefined}
+                  className={cn(
+                    "inline-flex w-full items-center gap-2 rounded-md px-3 py-2 text-base font-medium transition-colors",
+                    isActive
+                      ? "bg-primary/10 text-primary"
+                      : isAiAssistant
+                        ? "text-primary hover:bg-accent hover:text-primary/80"
+                        : "text-foreground hover:bg-accent hover:text-primary",
+                  )}
+                >
+                  {link.icon && <link.icon className="w-5 h-5" />}
+                  {link.name}
+                </a>
+              );
+            })}
           </div>
           <div className="pt-4 pb-4 border-t border-border">
             <div className="px-5 space-y-3">

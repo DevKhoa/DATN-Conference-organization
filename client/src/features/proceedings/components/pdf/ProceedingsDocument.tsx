@@ -57,7 +57,8 @@ export const ProceedingsDocument = ({ data }: ProceedingsDocumentProps) => {
 
         {data.cover.sponsorLogos?.length > 0
           ? (() => {
-              const count = data.cover.sponsorLogos.length;
+              const selected = data.cover.sponsorLogos.filter((l) => typeof l === 'string' ? true : l.selected);
+              const count = selected.length;
               const logoW = Math.min(
                 80,
                 Math.floor((475 - (count - 1) * 10) / count),
@@ -69,10 +70,10 @@ export const ProceedingsDocument = ({ data }: ProceedingsDocumentProps) => {
                     Sponsors & Partners
                   </Text>
                   <View style={pdfStyles.coverLogos}>
-                    {data.cover.sponsorLogos.map((logo: string, i: number) => (
+                    {selected.map((logo: any, i: number) => (
                       <Image
                         key={i}
-                        src={logo}
+                        src={typeof logo === 'string' ? logo : logo.src}
                         style={{
                           width: logoW,
                           height: logoH,
@@ -443,7 +444,7 @@ export const ProceedingsDocument = ({ data }: ProceedingsDocumentProps) => {
             if (!sessions[key]) {
               sessions[key] = { session: s, papers: [] };
             }
-            s.papers.forEach((p) =>
+            s.papers?.forEach((p) =>
               sessions[key].papers.push({ ...s, papers: [p] }),
             );
           });
@@ -473,47 +474,51 @@ export const ProceedingsDocument = ({ data }: ProceedingsDocumentProps) => {
                   </Text>
                 </View>
 
-                {session.papers.map((p, i) => (
-                  <View key={i} style={pdfStyles.paperBlock} wrap={false}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "baseline",
-                        marginBottom: 2,
-                      }}
-                    >
-                      {p.timeSlot ? (
+                {(session.papers || []).map((p, i) => (
+                  <View key={i} style={pdfStyles.paperBlock}>
+                    {/* Header: author + title — kept on same page together */}
+                    <View wrap={false}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "baseline",
+                          marginBottom: 2,
+                        }}
+                      >
+                        {p.timeSlot ? (
+                          <Text
+                            style={{
+                              fontSize: 8.5,
+                              fontFamily: "Helvetica-Bold",
+                              color: "#1a3a6b",
+                              width: 34,
+                              marginRight: 4,
+                            }}
+                          >
+                            {p.timeSlot}
+                          </Text>
+                        ) : null}
                         <Text
-                          style={{
-                            fontSize: 8.5,
-                            fontFamily: "Helvetica-Bold",
-                            color: "#1a3a6b",
-                            width: 34,
-                            marginRight: 4,
-                          }}
+                          style={[
+                            pdfStyles.paperAuthors,
+                            { marginBottom: 0, flex: 1 },
+                          ]}
                         >
-                          {p.timeSlot}
+                          {p.authors}
                         </Text>
-                      ) : null}
+                      </View>
+
                       <Text
                         style={[
-                          pdfStyles.paperAuthors,
-                          { marginBottom: 0, flex: 1 },
+                          pdfStyles.paperTitle,
+                          { paddingLeft: p.timeSlot ? 38 : 0 },
                         ]}
                       >
-                        {p.authors}
+                        {p.paperTitle}
                       </Text>
                     </View>
 
-                    <Text
-                      style={[
-                        pdfStyles.paperTitle,
-                        { paddingLeft: p.timeSlot ? 38 : 0 },
-                      ]}
-                    >
-                      {p.paperTitle}
-                    </Text>
-
+                    {/* Abstract — free to flow across pages */}
                     {p.abstract ? (
                       <Text
                         style={[

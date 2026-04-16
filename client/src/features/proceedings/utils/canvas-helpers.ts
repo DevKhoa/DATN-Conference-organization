@@ -35,15 +35,22 @@ export const getHandlePosition = (dir: string): CSSProperties => ({
   zIndex: 20,
 });
 
+/** Module-level cache for solid color images to avoid redundant canvas creation */
+const _solidColorCache = new Map<string, string>();
+
 /** Create a solid color image as data URL */
 export const solidColorImg = (color: string, w: number, h: number): string => {
+  const key = `${color}_${Math.round(w)}_${Math.round(h)}`;
+  if (_solidColorCache.has(key)) return _solidColorCache.get(key)!;
   const c = document.createElement("canvas");
   c.width = Math.max(1, Math.round(w));
   c.height = Math.max(1, Math.round(h));
   const ctx = c.getContext("2d")!;
   ctx.fillStyle = color;
   ctx.fillRect(0, 0, c.width, c.height);
-  return c.toDataURL("image/png");
+  const dataUrl = c.toDataURL("image/png");
+  _solidColorCache.set(key, dataUrl);
+  return dataUrl;
 };
 
 /** Convert an external image URL to base64 data URL (via server proxy to bypass CORS) */
