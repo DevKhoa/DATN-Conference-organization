@@ -86,6 +86,11 @@ const CreateConferencePage: React.FC = () => {
       return;
     }
 
+    if (confId) {
+      setStep(2);
+      return;
+    }
+
     setError("");
 
     try {
@@ -167,27 +172,39 @@ const CreateConferencePage: React.FC = () => {
             </Button>
           </div>
 
-          {/* Progress Stepper */}
-          <div className="mb-8">
-            <div className="flex items-center">
-              <div
-                className={`flex items-center justify-center w-8 h-8 rounded-full font-bold transition-colors ${step >= 1 ? "bg-brand-600 text-white" : "bg-slate-200 text-slate-500"}`}
-              >
-                1
-              </div>
-              <div className="ml-3 font-medium text-slate-900">Details</div>
-              <div className="flex-grow h-0.5 mx-4 bg-slate-200">
+          {/* Progress Stepper (Updated UI) */}
+          <div className="mb-12">
+            <div className="flex items-center justify-between relative max-w-sm mx-auto">
+              <div className="absolute left-0 right-0 top-1/2 h-0.5 bg-border z-0"></div>
+              
+              <div className="relative z-10 flex flex-col items-center">
                 <div
-                  className={`h-full bg-brand-600 transition-all duration-500 ${step === 2 ? "w-full" : "w-0"}`}
-                ></div>
+                  className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-colors ${
+                    step >= 1
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground border border-border"
+                  }`}
+                >
+                  1
+                </div>
+                <span className={`absolute top-10 whitespace-nowrap text-sm font-medium ${step >= 1 ? "text-foreground" : "text-muted-foreground"}`}>
+                  Details
+                </span>
               </div>
-              <div
-                className={`flex items-center justify-center w-8 h-8 rounded-full font-bold transition-colors ${step >= 2 ? "bg-brand-600 text-white" : "bg-slate-200 text-slate-500"}`}
-              >
-                2
-              </div>
-              <div className="ml-3 font-medium text-slate-900">
-                Banners & Assets
+
+              <div className="relative z-10 flex flex-col items-center">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-colors ${
+                    step >= 2
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground border border-border"
+                  }`}
+                >
+                  2
+                </div>
+                <span className={`absolute top-10 whitespace-nowrap text-sm font-medium ${step >= 2 ? "text-foreground" : "text-muted-foreground"}`}>
+                  Banners & Assets
+                </span>
               </div>
             </div>
           </div>
@@ -408,10 +425,10 @@ const CreateConferencePage: React.FC = () => {
                   >
                     {loading ? (
                       <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                    ) : (
+                    ) : !confId ? (
                       <Save className="w-5 h-5 mr-2" />
-                    )}
-                    Create & Continue
+                    ) : null}
+                    {confId ? "Next Step" : "Create & Continue"}
                   </Button>
                 </div>
               </form>
@@ -488,16 +505,29 @@ const CreateConferencePage: React.FC = () => {
                 </p>
               </div>
 
-              <div className="flex justify-between items-center pt-6 border-t border-slate-100">
-                <div className="text-sm text-slate-500">
-                  {bannerUrls.length} banner(s) uploaded.
-                </div>
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pt-6 border-t border-slate-100">
                 <Button
-                  onClick={() => navigate({ to: "/conferences" })}
+                  variant="outline"
+                  onClick={() => setStep(1)}
                   size="lg"
+                  className="w-full sm:w-[120px]"
                 >
-                  Finish & View List
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back
                 </Button>
+                
+                <div className="flex items-center gap-4 flex-1 sm:flex-none">
+                  <div className="text-sm text-slate-500 hidden sm:block">
+                    {bannerUrls.length} banner(s) uploaded.
+                  </div>
+                  <Button
+                    onClick={() => navigate({ to: "/conferences" })}
+                    size="lg"
+                    className="flex-1 sm:flex-none"
+                  >
+                    Finish & View List
+                  </Button>
+                </div>
               </div>
             </div>
           )}

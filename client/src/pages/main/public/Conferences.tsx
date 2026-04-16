@@ -174,18 +174,23 @@ const ConferencesPage: React.FC = () => {
     <DefaultLayout meta={{ title: "Active Conferences" }}>
       <div className="min-h-screen bg-background font-sans text-foreground">
         {/* HEADER SECTION */}
-        <div className="relative h-75 md:h-100 w-full overflow-hidden bg-background">
+        <div className="relative h-75 md:h-100 w-full overflow-hidden bg-slate-900 group">
           <img
             src="https://iated.org/inted/img/inted2025-071.jpg"
             alt="Conference Hall"
-            className="w-full h-full object-cover opacity-80"
+            className="w-full h-full object-cover transition-transform duration-[10s] ease-linear group-hover:scale-110"
           />
-          <div className="absolute inset-0 bg-linear-to-t from-background/90 via-background/40 to-transparent" />
+          {/* Brighter overlay with supportive radial gradient for text legibility */}
+          <div className="absolute inset-0 bg-slate-950/50" />
+          <div 
+            className="absolute inset-0" 
+            style={{ background: 'radial-gradient(circle, rgba(2, 6, 23, 0.45) 0%, transparent 70%)' }}
+          />
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-            <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4 tracking-tight drop-shadow-md">
+            <h1 className="text-4xl md:text-6xl font-extrabold text-white mb-4 tracking-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
               Active Conferences
             </h1>
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl drop-shadow-sm mb-6">
+            <p className="text-lg md:text-2xl text-white font-semibold max-w-3xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] mb-8">
               Discover our upcoming academic conferences, connect with peers,
               and share your research.
             </p>
@@ -207,7 +212,7 @@ const ConferencesPage: React.FC = () => {
         {/* MAIN CONTENT */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 -mt-10 relative z-10">
           {/* FILTER BAR CONTAINER */}
-          <div className="bg-card rounded-xl shadow-lg border border-border p-6 mb-10">
+          <div className="bg-card rounded-2xl shadow-lg border border-border border-b-primary/20 p-6 mb-10">
             {/* Top Row: Main Filters */}
             <div className="flex flex-col lg:flex-row gap-6">
               <div className="grow">
@@ -300,11 +305,10 @@ const ConferencesPage: React.FC = () => {
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => setSelectedKeyword("")}
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all border ${
-                        selectedKeyword === ""
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all border ${selectedKeyword === ""
                           ? "bg-primary text-primary-foreground border-primary shadow-sm"
                           : "bg-background text-muted-foreground border-border hover:border-border hover:bg-accent"
-                      }`}
+                        }`}
                     >
                       All Topics
                     </button>
@@ -317,11 +321,10 @@ const ConferencesPage: React.FC = () => {
                             keyword === selectedKeyword ? "" : keyword,
                           )
                         }
-                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all border ${
-                          selectedKeyword === keyword
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all border ${selectedKeyword === keyword
                             ? "bg-primary/10 text-primary border-primary/20 shadow-sm font-semibold"
                             : "bg-background text-muted-foreground border-border hover:border-primary/30 hover:text-primary"
-                        }`}
+                          }`}
                       >
                         {keyword}
                       </button>
@@ -348,7 +351,7 @@ const ConferencesPage: React.FC = () => {
 
           {/* ERROR STATE */}
           {!loading && error && (
-            <div className="text-center py-20 bg-card rounded-xl shadow-sm border border-destructive/20">
+            <div className="text-center py-20 bg-card rounded-2xl shadow-sm border border-destructive/20">
               <p className="text-destructive font-medium">{error}</p>
               <Button
                 variant="ghost"
@@ -362,7 +365,7 @@ const ConferencesPage: React.FC = () => {
 
           {/* EMPTY STATE */}
           {!loading && !error && filteredConferences.length === 0 && (
-            <div className="text-center py-20 bg-card rounded-xl shadow-sm border border-border">
+            <div className="text-center py-20 bg-card rounded-2xl shadow-sm border border-border">
               <p className="text-foreground font-semibold text-lg mb-2">
                 No conferences found
               </p>

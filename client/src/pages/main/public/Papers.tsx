@@ -235,24 +235,28 @@ const PapersPage = () => {
           {HERO_IMAGES.map((img, idx) => (
             <div
               key={idx}
-              className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-                idx === currentHeroSlide ? "opacity-100" : "opacity-0"
-              }`}
+              className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === currentHeroSlide ? "opacity-100" : "opacity-0"
+                }`}
             >
               <img
                 src={img}
                 alt="Archive Background"
-                className="w-full h-full object-cover opacity-80"
+                className="w-full h-full object-cover transition-transform duration-[10s] ease-linear group-hover:scale-110"
               />
-              <div className="absolute inset-0 bg-linear-to-t from-background via-background/40 to-transparent" />
+              {/* Slightly lighter overlay with gradient for better text centering */}
+              <div className="absolute inset-0 bg-slate-950/50" />
+              <div 
+                className="absolute inset-0" 
+                style={{ background: 'radial-gradient(circle, rgba(2, 6, 23, 0.45) 0%, transparent 70%)' }}
+              />
             </div>
           ))}
 
           <div className="absolute inset-0 flex flex-col justify-center items-center text-center px-4 z-10">
-            <h1 className="text-3xl md:text-5xl font-extrabold text-foreground mb-3 tracking-tight drop-shadow-lg">
+            <h1 className="text-4xl md:text-6xl font-extrabold text-white mb-4 tracking-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
               Papers Archive
             </h1>
-            <p className="text-muted-foreground max-w-2xl text-lg font-light">
+            <p className="text-white font-semibold max-w-2xl text-lg md:text-xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
               Discover academic papers and research contributions shared by
               researchers from conferences around the world.
             </p>
@@ -278,7 +282,7 @@ const PapersPage = () => {
             <div
               className={`lg:w-64 shrink-0 space-y-6 ${showFilters ? "block" : "hidden lg:block"}`}
             >
-              <div className="bg-card p-5 rounded-xl border border-border shadow-sm sticky top-24">
+              <div className="bg-card p-5 rounded-2xl border border-border shadow-sm sticky top-24">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-bold text-foreground flex items-center">
                     <Filter className="w-4 h-4 mr-2" /> Filters
@@ -388,7 +392,7 @@ const PapersPage = () => {
             {/* 3. MAIN CONTENT (Right) */}
             <div className="grow min-w-0">
               {/* Top Toolbar */}
-              <div className="bg-card p-4 rounded-xl border border-border shadow-sm mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center sticky top-4 z-20">
+              <div className="bg-card p-4 rounded-2xl border border-border shadow-sm mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center sticky top-4 z-20">
                 {/* Search Bar */}
                 <div className="relative w-full sm:max-w-md">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -463,7 +467,7 @@ const PapersPage = () => {
                   filteredPapers.map((paper) => (
                     <div
                       key={paper.paper_id}
-                      className="bg-card p-6 rounded-xl border border-border shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 group relative cursor-pointer"
+                      className="bg-card p-6 rounded-2xl border border-border shadow-sm hover:shadow-xl hover:border-primary/30 hover:-translate-y-1 transition-all duration-300 group relative cursor-pointer"
                       onClick={() =>
                         navigate({
                           to: "/papers/$paperId",

@@ -511,7 +511,15 @@ const SubmitPaper: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="flex justify-end pt-4">
+                  <div className="flex justify-between pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setStep(1)}
+                      disabled={loading}
+                    >
+                      <ArrowLeft className="w-4 h-4 mr-2" />
+                      Back
+                    </Button>
                     <Button onClick={handleCreatePaper} disabled={loading}>
                       {loading ? (
                         <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -577,7 +585,11 @@ const SubmitPaper: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  <div className="flex justify-end pt-4">
+                  <div className="flex justify-between pt-4">
+                    <Button variant="outline" onClick={() => setStep(1)}>
+                      <ArrowLeft className="w-4 h-4 mr-2" />
+                      Back
+                    </Button>
                     <Button
                       onClick={() => selectedPaperId && setStep(3)}
                       disabled={!selectedPaperId}
@@ -644,7 +656,17 @@ const SubmitPaper: React.FC = () => {
                   </label>
                 </div>
 
-                <div className="flex gap-4">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    onClick={() => setStep(2)}
+                    variant="outline"
+                    className="sm:w-[120px]"
+                    size="lg"
+                    disabled={loading}
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Back
+                  </Button>
                   <Button
                     onClick={handleSkipUpload}
                     variant="outline"
