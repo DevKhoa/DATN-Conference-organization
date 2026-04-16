@@ -26,10 +26,10 @@ async def get_paper_details(paper_id: int):
         query = supabase_client.table("papers").select(
             "paper_id, title, abstract, status, created_at, "
             "author:profiles!primary_author_id(full_name, email, organization), "
-            "conference:conferences(conf_name, is_active), "
+            "conference:conferences(conf_name, is_active, format_type, timezone), "
             "versions:paper_versions(version_id, version_number, file_path, is_final, plagiarism_safe, format_ok, upload_date), "
             "reviews:reviews(review_id, score, recommendation, status), "
-            "session_links:session_papers(presentation_order, session:sessions(session_name, start_time, room_location))"
+            "session_links:session_papers(presentation_order, session:sessions(session_name, start_time, room_location, format_type, meet_link))"
         ).eq("paper_id", paper_id).limit(1)
 
         response = query.execute()

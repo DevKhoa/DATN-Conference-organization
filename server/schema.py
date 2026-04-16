@@ -9,6 +9,8 @@ class AuthorInfo(BaseModel):
 class ConferenceInfo(BaseModel):
     conf_name: str
     is_active: bool
+    format_type: Optional[str] = None
+    timezone: Optional[str] = None
 
 class VersionInfo(BaseModel):
     version_id: int
@@ -29,6 +31,8 @@ class SessionInfo(BaseModel):
     session_name: str
     start_time: Optional[str]
     room_location: Optional[str]
+    format_type: Optional[str] = None
+    meet_link: Optional[str] = None
 
 class SessionLink(BaseModel):
     presentation_order: Optional[int]
