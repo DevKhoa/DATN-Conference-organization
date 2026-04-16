@@ -80,7 +80,6 @@ const App: React.FC = () => {
   );
   const [checkinScannerContext, setCheckinScannerContext] = useState<{
     sessionIds: number[];
-    authToken: string;
   } | null>(null);
 
   // Persist Login State
@@ -252,11 +251,8 @@ const App: React.FC = () => {
     setCurrentPage("attendences-management");
   };
 
-  const navigateToCheckinScanner = (
-    sessionIds: number[],
-    authToken: string,
-  ) => {
-    setCheckinScannerContext({ sessionIds, authToken });
+  const navigateToCheckinScanner = (sessionIds: number[]) => {
+    setCheckinScannerContext({ sessionIds });
     window.scrollTo(0, 0);
     setCurrentPage("checkin-scanner");
   };

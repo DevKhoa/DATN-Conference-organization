@@ -5,9 +5,10 @@ from k_means_constrained import KMeansConstrained
 from fastapi import APIRouter, HTTPException, Query, Path
 from google.genai import types
 
-from schema import AutoSessionRequest, SessionChairResponse, ChairRecommendation
+from schema import AutoSessionRequest, SessionChairResponse, ChairRecommendation, SessionAuthResponse, GoogleMeetCallbackRequest, MeetCreationRequest, MeetCreationResponse
 from utils import logger, supabase_client, genai_client, EMBEDDING_MODEL_NAME, VECTOR_DIMENSION, CHAIR_ROLE_ID
 from auto_session import get_batch_embeddings, generate_session_title
+from google_meet_service import meet_service
 
 
 router = APIRouter(tags=["sessions"])
@@ -203,3 +204,87 @@ async def recommend_chair_for_session(
     except Exception as e:
         logger.error(f"Internal Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/sessions/google-auth-url", response_model=SessionAuthResponse)
+async def get_google_auth_url(user_id: int = Query(..., description="ID của người dùng cần liên kết Google Meet"), redirect_uri: str = Query("http://localhost:8080/sessions/google-oauth-callback")):
+    try:
+        res = meet_service.get_auth_url(redirect_uri, user_id)
+        return res
+    except Exception as e:
+        logger.error(f"Error getting Google Auth URL: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/sessions/google-oauth-callback")
+async def google_oauth_callback(request: GoogleMeetCallbackRequest, redirect_uri: str = Query("http://localhost:8080/sessions/google-oauth-callback")):
+    try:
+        # Giải mã user_id từ state (có dạng "user_1")
+        state_str = request.state
+        if not state_str.startswith("user_"):
+            raise HTTPException(status_code=400, detail="Trạng thái state không hợp lệ. Không tìm thấy ID người dùng.")
+        user_id = int(state_str.split("_")[1])
+        
+        token_data = meet_service.fetch_token(redirect_uri, request.code)
+        refresh_token = token_data.get("refresh_token")
+        
+        if not refresh_token:
+            raise HTTPException(status_code=400, detail="Không lấy được refresh_token từ Google.")
+
+        # Lưu refresh_token vào DB cho user đó
+        res = supabase_client.table("users").update({
+            "google_refresh_token": refresh_token
+        }).eq("user_id", user_id).execute()
+
+        # Update Supabase Python SDK đôi khi fail im lặng nếu user ID không tồn tại
+        if hasattr(res, 'error') and res.error:
+            raise HTTPException(status_code=500, detail=f"Database Update Error: {res.error}")
+
+        return {
+            "status": "success",
+            "message": "Token fetched successfully. LƯU Ý: Khung lưu trữ Token đã được tự động cấp vào Database của tài khoản.",
+            "token_data": token_data
+        }
+    except Exception as e:
+        logger.error(f"Error in Google OAuth Callback: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/sessions/{session_id}/create-meet", response_model=MeetCreationResponse)
+async def create_google_meet_for_session(session_id: int, request: MeetCreationRequest):
+    try:
+        # Truy vấn Database để lấy refresh_token của User này
+        user_res = supabase_client.table("users").select("google_refresh_token").eq("user_id", request.user_id).single().execute()
+        
+        if not user_res.data or not user_res.data.get("google_refresh_token"):
+             raise HTTPException(status_code=400, detail="Tài khoản chưa được liên kết với Google. Yêu cầu frontend gọi API Authorize.")
+             
+        user_refresh_token = user_res.data.get("google_refresh_token")
+        
+        # summary tên event
+        summary = f"Conference Session #{session_id}"
+        description = f"Virtual Session hosted via DATN Conference System."
+        
+        event_res = meet_service.create_meet_event(
+            summary=summary,
+            description=description,
+            start_time=request.start_time,
+            end_time=request.end_time,
+            user_refresh_token=user_refresh_token,
+            timezone=request.timezone
+        )
+        
+        # Lấy được link -> Lưu vào Supabase Database
+        try:
+            update_db = supabase_client.table("sessions").update({
+                "meet_link": event_res["meet_link"]
+            }).eq("session_id", session_id).execute()
+        except:
+            pass # Bỏ qua lỗi DB nếu CSDL chưa có cột meet_link
+            
+        return MeetCreationResponse(
+            event_id=event_res["event_id"],
+            meet_link=event_res["meet_link"],
+            html_link=event_res["html_link"]
+        )
+    except Exception as e:
+        logger.error(f"Error creating Meet event: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+

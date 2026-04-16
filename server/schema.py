@@ -199,3 +199,23 @@ class CVBaseModel(BaseModel):
         None,
         description="Any additional information that does not fit into the categories above"
     )
+
+class SessionAuthResponse(BaseModel):
+    auth_url: str
+    state: str
+
+class GoogleMeetCallbackRequest(BaseModel):
+    state: str
+    code: str
+
+class MeetCreationRequest(BaseModel):
+    session_id: int
+    user_id: int = Field(..., description="ID của người uỷ quyền tạo phòng hẹn")
+    start_time: str
+    end_time: str
+    timezone: str = "UTC"
+
+class MeetCreationResponse(BaseModel):
+    event_id: str
+    meet_link: str
+    html_link: str
