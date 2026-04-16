@@ -14,6 +14,8 @@ export interface ExistingSession {
   is_ai_generated: boolean;
   chair_person_id?: number;
   assigned_papers: SessionPaperDetail[];
+  meet_link?: string;
+  video_record_url?: string;
 }
 
 export interface LocalSession {
@@ -26,6 +28,8 @@ export interface LocalSession {
   is_ai_generated: boolean;
   assigned_papers: SessionPaperDetail[];
   chair_person_id?: number;
+  meet_link?: string;
+  video_record_url?: string;
 }
 
 export interface Session {

@@ -13,7 +13,10 @@ import {
   Plus,
   X,
   AlertCircle,
+  Globe,
+  Video
 } from "lucide-react";
+import TimezoneSelect, { type ITimezoneOption } from "react-timezone-select";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "@tanstack/react-router";
 import { DefaultLayout } from "@/layouts/DefaultLayout";
@@ -43,8 +46,13 @@ const CreateConferencePage: React.FC = () => {
     end_date: "",
     status: "DRAFT",
     is_active: false,
-    open_for_papers: true, // <--- MỚI: Mặc định cho phép nộp bài
+    open_for_papers: true,
+    format_type: "in-person",
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
+
+  const [showTimezoneModal, setShowTimezoneModal] = useState(false);
+  const [pendingTimezone, setPendingTimezone] = useState<string>("");
 
   // Keywords
   const [keywordInput, setKeywordInput] = useState("");
@@ -72,6 +80,26 @@ const CreateConferencePage: React.FC = () => {
 
   const removeKeyword = (tag: string) => {
     setKeywords(keywords.filter((k) => k !== tag));
+  };
+
+  const handleTimezoneChange = (selectedTimezone: any) => {
+    const tzValue =
+      typeof selectedTimezone === "string"
+        ? selectedTimezone
+        : selectedTimezone.value;
+    const currentBrowserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    if (tzValue !== currentBrowserTz) {
+      setPendingTimezone(tzValue);
+      setShowTimezoneModal(true);
+    } else {
+      setFormData({ ...formData, timezone: tzValue });
+    }
+  };
+
+  const confirmTimezoneChange = () => {
+    setFormData({ ...formData, timezone: pendingTimezone });
+    setShowTimezoneModal(false);
   };
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
@@ -240,6 +268,43 @@ const CreateConferencePage: React.FC = () => {
                       className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none resize-y"
                       placeholder="Detailed description of the conference..."
                     />
+                  </div>
+                </div>
+
+                {/* Format & Timezone */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                      Format <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Video className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                      <select
+                        required
+                        value={formData.format_type}
+                        onChange={(e) =>
+                          setFormData({ ...formData, format_type: e.target.value })
+                        }
+                        className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none bg-white"
+                      >
+                        <option value="in-person">In-person</option>
+                        <option value="virtual">Virtual</option>
+                        <option value="hybrid">Hybrid</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                      Timezone <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <TimezoneSelect
+                        value={formData.timezone}
+                        onChange={handleTimezoneChange}
+                        classNamePrefix="react-select"
+                        className="text-sm"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -503,6 +568,33 @@ const CreateConferencePage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Timezone Confirmation Modal */}
+      {showTimezoneModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">
+              Confirm Timezone Change
+            </h3>
+            <p className="text-slate-600 text-sm mb-6">
+              Múi giờ bạn chọn (<strong>{pendingTimezone}</strong>) khác với múi
+              giờ hiện tại của hệ thống (
+              <strong>{Intl.DateTimeFormat().resolvedOptions().timeZone}</strong>
+              ). Bạn có chắc chắn muốn áp dụng múi giờ này cho toàn bộ hội nghị
+              không?
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => setShowTimezoneModal(false)}
+              >
+                Hủy
+              </Button>
+              <Button onClick={confirmTimezoneChange}>Xác nhận</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </DefaultLayout>
   );
 };

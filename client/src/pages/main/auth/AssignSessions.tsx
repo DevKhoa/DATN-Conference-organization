@@ -20,10 +20,14 @@ import {
   Search as SearchIcon,
   ChevronDown,
   ChevronUp,
+  Video,
+  Youtube,
+  Link as LinkIcon
 } from "lucide-react";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import { useNavigate } from "@tanstack/react-router";
+import useAuth from "@/features/auth/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Route } from "@/routes/(app)/sessions.assign";
 import { DefaultLayout } from "@/layouts/DefaultLayout";
@@ -69,9 +73,16 @@ const AssignSessionsPage: React.FC = () => {
   const recommendChairMutation = useRecommendChairMutation();
   const finalizeChairsMutation = useFinalizeChairsMutation();
 
+  const { session: authSession } = useAuth();
+  const currentUserEmail = authSession?.user?.email;
+
   const [step, setStep] = useState<"CREATE" | "CHAIRS">("CREATE");
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  // Create Meet Logic
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [generatingMeetId, setGeneratingMeetId] = useState<string | null>(null);
 
   const [sessions, setSessions] = useState<LocalSession[]>([]);
 
@@ -299,6 +310,57 @@ const AssignSessionsPage: React.FC = () => {
     }
   };
 
+  const handleCreateMeetLink = async (session: LocalSession) => {
+    if (!session.db_id) {
+      setError("Vui lòng Save (Lưu) session vào database trước khi tạo link Meet.");
+      return;
+    }
+    if (!session.start_time || !session.end_time) {
+      setError("Vui lòng thiết lập thời gian trước khi tạo Meet Link.");
+      return;
+    }
+    const localStart = new Date(formatToLocal(session.start_time));
+    const localEnd = new Date(formatToLocal(session.end_time));
+    if (localStart >= localEnd) {
+      setError("Thời gian bắt đầu phải trước thời gian kết thúc.");
+      return;
+    }
+    if (!currentUserEmail) {
+      setError("Không tìm thấy email người dùng hiện tại.");
+      return;
+    }
+
+    setGeneratingMeetId(session.temp_id);
+    setError("");
+    setSuccessMsg("");
+
+    try {
+      const response = await fetch(`http://localhost:8080/sessions/${session.db_id}/create-meet`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: session.db_id, email: currentUserEmail }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        if (response.status === 400 && data.detail?.includes("liên kết với Google")) {
+          setShowAuthModal(true);
+        } else {
+          throw new Error(data.detail || "Không thể tạo phòng Meet.");
+        }
+        return;
+      }
+
+      // Success
+      updateSession(session.temp_id, "meet_link", data.meet_link);
+      setSuccessMsg("Tạo Google Meet thành công!");
+    } catch (err: any) {
+      setError("Lỗi tạo Meet: " + err.message);
+    } finally {
+      setGeneratingMeetId(null);
+    }
+  };
+
   const handleSaveSessions = async () => {
     for (const s of sessions) {
       if (!s.session_name || !s.start_time || !s.end_time || !s.room_location) {
@@ -328,6 +390,8 @@ const AssignSessionsPage: React.FC = () => {
             room_location: s.room_location,
             is_ai_generated: s.is_ai_generated,
             assigned_papers: s.assigned_papers,
+            meet_link: s.meet_link,
+            video_record_url: s.video_record_url,
           };
         }),
       });
@@ -352,6 +416,10 @@ const AssignSessionsPage: React.FC = () => {
 
   const handleRecommendChair = async (session: LocalSession) => {
     if (!session.db_id) return;
+    if (session.assigned_papers.length === 0) {
+      setError("Session này chưa có bài báo nào. Không thể phân tích ngữ cảnh để gợi ý Chair.");
+      return;
+    }
     setRecommendingFor(session.temp_id);
 
     try {
@@ -465,7 +533,7 @@ const AssignSessionsPage: React.FC = () => {
                   className="shadow-sm"
                 >
                   {saveSessionsMutation.isPending ||
-                  finalizeChairsMutation.isPending ? (
+                    finalizeChairsMutation.isPending ? (
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
                   ) : (
                     <Save className="w-4 h-4 mr-2" />
@@ -483,7 +551,7 @@ const AssignSessionsPage: React.FC = () => {
                   className="bg-slate-900 hover:bg-slate-800 text-white shadow-md"
                 >
                   {saveSessionsMutation.isPending ||
-                  finalizeChairsMutation.isPending ? (
+                    finalizeChairsMutation.isPending ? (
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
                   ) : (
                     <CheckCircle className="w-4 h-4 mr-2" />
@@ -643,11 +711,10 @@ const AssignSessionsPage: React.FC = () => {
                             draggable={!isAssigned}
                             onDragStart={(e) => handleDragStart(e, p.paper_id)}
                             onDragEnd={handleDragEnd}
-                            className={`p-4 rounded-xl border transition-all ${
-                              isAssigned
-                                ? "bg-slate-50 border-transparent opacity-50"
-                                : "bg-white border-slate-200 shadow-sm cursor-grab hover:shadow-md hover:border-indigo-300 active:cursor-grabbing"
-                            } ${draggedPaperId === p.paper_id ? "opacity-50 scale-95" : ""}`}
+                            className={`p-4 rounded-xl border transition-all ${isAssigned
+                              ? "bg-slate-50 border-transparent opacity-50"
+                              : "bg-white border-slate-200 shadow-sm cursor-grab hover:shadow-md hover:border-indigo-300 active:cursor-grabbing"
+                              } ${draggedPaperId === p.paper_id ? "opacity-50 scale-95" : ""}`}
                           >
                             <div className="flex items-start gap-2">
                               {!isAssigned && (
@@ -706,11 +773,10 @@ const AssignSessionsPage: React.FC = () => {
                     {sessions.map((session, idx) => (
                       <div
                         key={session.temp_id}
-                        className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all hover:shadow-md ${
-                          dragOverSessionId === session.temp_id
-                            ? "border-indigo-400 ring-4 ring-indigo-50 scale-[1.01]"
-                            : "border-slate-200"
-                        }`}
+                        className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all hover:shadow-md ${dragOverSessionId === session.temp_id
+                          ? "border-indigo-400 ring-4 ring-indigo-50 scale-[1.01]"
+                          : "border-slate-200"
+                          }`}
                         onDragOver={(e) => handleDragOver(e, session.temp_id)}
                         onDragLeave={(e) => handleDragLeave(e, session.temp_id)}
                         onDrop={(e) => handleDrop(e, session.temp_id)}
@@ -779,6 +845,54 @@ const AssignSessionsPage: React.FC = () => {
                                     )
                                   }
                                 />
+                              </div>
+                            </div>
+
+                            {/* MEET & YOUTUBE LINKS */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 xl:ml-11">
+                              <div className="flex flex-col gap-1.5">
+                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest pl-1">Virtual Room (Meet)</label>
+                                {session.meet_link ? (
+                                  <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+                                    <Video className="w-4 h-4 text-emerald-600" />
+                                    <a href={session.meet_link} target="_blank" rel="noreferrer" className="text-sm font-medium text-emerald-700 hover:underline truncate">
+                                      {session.meet_link}
+                                    </a>
+                                    <CheckCircle className="w-4 h-4 text-emerald-500 ml-auto" />
+                                  </div>
+                                ) : (
+                                  <Button
+                                    onClick={() => handleCreateMeetLink(session)}
+                                    disabled={generatingMeetId === session.temp_id}
+                                    variant="outline"
+                                    className="justify-start text-indigo-700 border-indigo-200 bg-white hover:bg-indigo-50 w-full"
+                                  >
+                                    {generatingMeetId === session.temp_id ? (
+                                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                      <Video className="w-4 h-4 mr-2" />
+                                    )}
+                                    Tạo Meet Link
+                                  </Button>
+                                )}
+                              </div>
+                              <div className="flex flex-col gap-1.5">
+                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest pl-1">Archive Room (Youtube)</label>
+                                <div className="relative group">
+                                  <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-red-500 transition-colors pointer-events-none" />
+                                  <input
+                                    type="text"
+                                    placeholder="https://youtube.com/watch?v=..."
+                                    className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-100 focus:border-red-500 outline-none transition-all"
+                                    value={session.video_record_url || ""}
+                                    onChange={(e) => {
+                                      updateSession(session.temp_id, "video_record_url", e.target.value);
+                                    }}
+                                  />
+                                  {session.video_record_url && !session.video_record_url.match(/^(https?\:\/\/)?(www\.youtube\.com|youtu\.be)\/.+$/) && (
+                                    <span className="text-xs text-red-500 absolute -bottom-5 left-1">Invalid Youtube URL</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1032,9 +1146,9 @@ const AssignSessionsPage: React.FC = () => {
                                 ? chairSearchQueries[session.temp_id]
                                 : session.chair_person_id
                                   ? availableChairs.find(
-                                      (c) =>
-                                        c.user_id === session.chair_person_id,
-                                    )?.full_name || ""
+                                    (c) =>
+                                      c.user_id === session.chair_person_id,
+                                  )?.full_name || ""
                                   : ""
                             }
                             onChange={(e) => {
@@ -1056,7 +1170,7 @@ const AssignSessionsPage: React.FC = () => {
                               if (
                                 session.chair_person_id &&
                                 chairSearchQueries[session.temp_id] ===
-                                  undefined
+                                undefined
                               ) {
                                 setChairSearchQueries({
                                   ...chairSearchQueries,
@@ -1069,64 +1183,64 @@ const AssignSessionsPage: React.FC = () => {
                           {/* Autocomplete Dropdown */}
                           {chairSearchQueries[session.temp_id] !==
                             undefined && (
-                            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 max-h-48 overflow-y-auto">
-                              {availableChairs.filter((c) =>
-                                c.full_name
-                                  .toLowerCase()
-                                  .includes(
-                                    chairSearchQueries[
-                                      session.temp_id
-                                    ].toLowerCase(),
-                                  ),
-                              ).length === 0 ? (
-                                <div className="p-3 text-sm text-slate-500 text-center">
-                                  No chairs found
-                                </div>
-                              ) : (
-                                availableChairs
-                                  .filter((c) =>
-                                    c.full_name
-                                      .toLowerCase()
-                                      .includes(
-                                        chairSearchQueries[
-                                          session.temp_id
-                                        ].toLowerCase(),
-                                      ),
-                                  )
-                                  .map((c) => (
-                                    <div
-                                      key={c.user_id}
-                                      className="p-3 hover:bg-indigo-50 cursor-pointer flex justify-between items-center group transition-colors"
-                                      onMouseDown={(e) => {
-                                        e.preventDefault(); // Ngăn input mất focus ngay lập tức
-                                        updateSession(
-                                          session.temp_id,
-                                          "chair_person_id",
-                                          c.user_id,
-                                        );
-                                        // Clear query, giữ trạng thái undefined để hiện tên
-                                        const newQ = { ...chairSearchQueries };
-                                        delete newQ[session.temp_id];
-                                        setChairSearchQueries(newQ);
-                                      }}
-                                    >
-                                      <div>
-                                        <div className="text-sm font-bold text-slate-700 group-hover:text-indigo-700">
-                                          {c.full_name}
+                              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 max-h-48 overflow-y-auto">
+                                {availableChairs.filter((c) =>
+                                  c.full_name
+                                    .toLowerCase()
+                                    .includes(
+                                      chairSearchQueries[
+                                        session.temp_id
+                                      ].toLowerCase(),
+                                    ),
+                                ).length === 0 ? (
+                                  <div className="p-3 text-sm text-slate-500 text-center">
+                                    No chairs found
+                                  </div>
+                                ) : (
+                                  availableChairs
+                                    .filter((c) =>
+                                      c.full_name
+                                        .toLowerCase()
+                                        .includes(
+                                          chairSearchQueries[
+                                            session.temp_id
+                                          ].toLowerCase(),
+                                        ),
+                                    )
+                                    .map((c) => (
+                                      <div
+                                        key={c.user_id}
+                                        className="p-3 hover:bg-indigo-50 cursor-pointer flex justify-between items-center group transition-colors"
+                                        onMouseDown={(e) => {
+                                          e.preventDefault(); // Ngăn input mất focus ngay lập tức
+                                          updateSession(
+                                            session.temp_id,
+                                            "chair_person_id",
+                                            c.user_id,
+                                          );
+                                          // Clear query, giữ trạng thái undefined để hiện tên
+                                          const newQ = { ...chairSearchQueries };
+                                          delete newQ[session.temp_id];
+                                          setChairSearchQueries(newQ);
+                                        }}
+                                      >
+                                        <div>
+                                          <div className="text-sm font-bold text-slate-700 group-hover:text-indigo-700">
+                                            {c.full_name}
+                                          </div>
+                                          <div className="text-xs text-slate-500">
+                                            {c.organization}
+                                          </div>
                                         </div>
-                                        <div className="text-xs text-slate-500">
-                                          {c.organization}
-                                        </div>
+                                        {session.chair_person_id ===
+                                          c.user_id && (
+                                            <CheckCircle className="w-4 h-4 text-indigo-600" />
+                                          )}
                                       </div>
-                                      {session.chair_person_id ===
-                                        c.user_id && (
-                                        <CheckCircle className="w-4 h-4 text-indigo-600" />
-                                      )}
-                                    </div>
-                                  ))
-                              )}
-                            </div>
-                          )}
+                                    ))
+                                )}
+                              </div>
+                            )}
                         </div>
 
                         {/* Selected Badge */}
@@ -1235,6 +1349,28 @@ const AssignSessionsPage: React.FC = () => {
           )}
         </div>
       </div>
+      {/* Auth Modal Error */}
+      {showAuthModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">
+              Liên kết tài khoản Google
+            </h3>
+            <p className="text-slate-600 text-sm mb-6">
+              Bạn cần liên kết tài khoản Google Calendar trước khi tạo phòng Google Meet cá nhân hóa. Vui lòng quay lại màn hình Profile (Quản lý Hồ sơ) để thực hiện kết nối.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => setShowAuthModal(false)}
+              >
+                Hủy
+              </Button>
+              <Button onClick={() => navigate({ to: "/profile" })}>Đi đến Profile</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </DefaultLayout>
   );
 };
