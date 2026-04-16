@@ -317,7 +317,7 @@ async def confirm_registration_payment_webhook(request: Request, background_task
 
                 # Fetch user details for QR email
                 user_res = supabase_client.table("registrations") \
-                    .select("user:users(email, full_name)") \
+                    .select("user:profiles(email, full_name)") \
                     .eq("registration_id", registration_id) \
                     .single() \
                     .execute()

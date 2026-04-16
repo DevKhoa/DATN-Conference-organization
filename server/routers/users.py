@@ -50,7 +50,7 @@ async def update_user_description_text(
             logger.error(f"GenAI Embedding Failed: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to generate embedding: {str(e)}")
 
-        response = supabase_client.table("users").update({
+        response = supabase_client.table("profiles").update({
             "description": text_content,
             "description_embed": embedding_vector
         }).eq("user_id", user_id).execute()
@@ -141,7 +141,7 @@ async def upload_user_cv(
             except Exception as e:
                 logger.warning(f"GenAI Reformat Failed, falling back to raw text. Error: {e}")
 
-            response = supabase_client.table("users").update({
+            response = supabase_client.table("profiles").update({
                 "description": final_description, 
                 "description_embed": embedding_vector 
             }).eq("user_id", user_id).execute()
@@ -201,7 +201,7 @@ async def upload_user_avatar_api(
                 raise HTTPException(status_code=500, detail="Failed to upload avatar to storage")
 
             try:
-                update_res = supabase_client.table("users").update({
+                update_res = supabase_client.table("profiles").update({
                     "avatar_url": public_url,
                 }).eq("user_id", user_id).execute()
 
@@ -311,7 +311,7 @@ async def import_scholar_profile(user_id: int, request: ScholarImportRequest):
         embedding_vector = embed_response.embeddings[0].values
 
         logger.info(f"Updating Supabase for User {user_id}...")
-        update_res = supabase_client.table("users").update({
+        update_res = supabase_client.table("profiles").update({
             "description": cleaned_text.strip(),
             "description_embed": embedding_vector
         }).eq("user_id", user_id).execute()

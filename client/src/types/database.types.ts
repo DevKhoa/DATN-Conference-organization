@@ -1,0 +1,1505 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
+  }
+  public: {
+    Tables: {
+      agenda_comments: {
+        Row: {
+          comment_id: number
+          comment_text: string | null
+          commented_at: string | null
+          commenter_id: number | null
+          draft_id: number | null
+        }
+        Insert: {
+          comment_id?: number
+          comment_text?: string | null
+          commented_at?: string | null
+          commenter_id?: number | null
+          draft_id?: number | null
+        }
+        Update: {
+          comment_id?: number
+          comment_text?: string | null
+          commented_at?: string | null
+          commenter_id?: number | null
+          draft_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agenda_comments_commenter_id_fkey"
+            columns: ["commenter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "agenda_comments_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "agenda_drafts"
+            referencedColumns: ["draft_id"]
+          },
+        ]
+      }
+      agenda_drafts: {
+        Row: {
+          conference_id: number | null
+          created_at: string | null
+          created_by: number | null
+          draft_id: number
+          is_final: boolean | null
+          version: number
+        }
+        Insert: {
+          conference_id?: number | null
+          created_at?: string | null
+          created_by?: number | null
+          draft_id?: number
+          is_final?: boolean | null
+          version: number
+        }
+        Update: {
+          conference_id?: number | null
+          created_at?: string | null
+          created_by?: number | null
+          draft_id?: number
+          is_final?: boolean | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agenda_drafts_conference_id_fkey"
+            columns: ["conference_id"]
+            isOneToOne: false
+            referencedRelation: "conferences"
+            referencedColumns: ["conf_id"]
+          },
+          {
+            foreignKeyName: "agenda_drafts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      ai_paper_analysis_logs: {
+        Row: {
+          check_type: string | null
+          checked_at: string | null
+          log_id: number
+          passed: boolean | null
+          result_data: Json | null
+          version_id: number | null
+        }
+        Insert: {
+          check_type?: string | null
+          checked_at?: string | null
+          log_id?: number
+          passed?: boolean | null
+          result_data?: Json | null
+          version_id?: number | null
+        }
+        Update: {
+          check_type?: string | null
+          checked_at?: string | null
+          log_id?: number
+          passed?: boolean | null
+          result_data?: Json | null
+          version_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_paper_analysis_logs_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "paper_versions"
+            referencedColumns: ["version_id"]
+          },
+        ]
+      }
+      attendences: {
+        Row: {
+          at_id: number
+          checkin_time: string | null
+          is_checkin: boolean | null
+          registration_id: number | null
+          session_id: number | null
+        }
+        Insert: {
+          at_id?: number
+          checkin_time?: string | null
+          is_checkin?: boolean | null
+          registration_id?: number | null
+          session_id?: number | null
+        }
+        Update: {
+          at_id?: number
+          checkin_time?: string | null
+          is_checkin?: boolean | null
+          registration_id?: number | null
+          session_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendences_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["registration_id"]
+          },
+          {
+            foreignKeyName: "attendences_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["session_id"]
+          },
+        ]
+      }
+      cms_contents: {
+        Row: {
+          body_content: string | null
+          content_id: number
+          content_type: string | null
+          created_by: number | null
+          is_published: boolean | null
+          scheduled_publish_time: string | null
+          title: string | null
+        }
+        Insert: {
+          body_content?: string | null
+          content_id?: number
+          content_type?: string | null
+          created_by?: number | null
+          is_published?: boolean | null
+          scheduled_publish_time?: string | null
+          title?: string | null
+        }
+        Update: {
+          body_content?: string | null
+          content_id?: number
+          content_type?: string | null
+          created_by?: number | null
+          is_published?: boolean | null
+          scheduled_publish_time?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cms_contents_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      conferences: {
+        Row: {
+          banner_urls: Json | null
+          conf_id: number
+          conf_name: string
+          create_time: string | null
+          description: string | null
+          end_date: string | null
+          is_active: boolean | null
+          keywords: Json | null
+          location: string | null
+          open_for_papers: boolean | null
+          sessions_ready: boolean | null
+          start_date: string | null
+          status: string | null
+        }
+        Insert: {
+          banner_urls?: Json | null
+          conf_id?: number
+          conf_name: string
+          create_time?: string | null
+          description?: string | null
+          end_date?: string | null
+          is_active?: boolean | null
+          keywords?: Json | null
+          location?: string | null
+          open_for_papers?: boolean | null
+          sessions_ready?: boolean | null
+          start_date?: string | null
+          status?: string | null
+        }
+        Update: {
+          banner_urls?: Json | null
+          conf_id?: number
+          conf_name?: string
+          create_time?: string | null
+          description?: string | null
+          end_date?: string | null
+          is_active?: boolean | null
+          keywords?: Json | null
+          location?: string | null
+          open_for_papers?: boolean | null
+          sessions_ready?: boolean | null
+          start_date?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      email_logs: {
+        Row: {
+          email_log_id: number
+          email_type: string | null
+          recipient_email: string | null
+          sent_at: string | null
+          status: string | null
+        }
+        Insert: {
+          email_log_id?: number
+          email_type?: string | null
+          recipient_email?: string | null
+          sent_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          email_log_id?: number
+          email_type?: string | null
+          recipient_email?: string | null
+          sent_at?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      email_templates: {
+        Row: {
+          body_html: string | null
+          created_at: string | null
+          subject: string | null
+          template_id: number
+          template_name: string | null
+        }
+        Insert: {
+          body_html?: string | null
+          created_at?: string | null
+          subject?: string | null
+          template_id?: number
+          template_name?: string | null
+        }
+        Update: {
+          body_html?: string | null
+          created_at?: string | null
+          subject?: string | null
+          template_id?: number
+          template_name?: string | null
+        }
+        Relationships: []
+      }
+      notification_templates: {
+        Row: {
+          conf_id: number | null
+          content_template: string
+          created_at: string
+          created_by: number | null
+          template_id: number
+          template_name: string
+          title_template: string
+        }
+        Insert: {
+          conf_id?: number | null
+          content_template: string
+          created_at?: string
+          created_by?: number | null
+          template_id?: number
+          template_name: string
+          title_template: string
+        }
+        Update: {
+          conf_id?: number | null
+          content_template?: string
+          created_at?: string
+          created_by?: number | null
+          template_id?: number
+          template_name?: string
+          title_template?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_templates_conf_id_fkey"
+            columns: ["conf_id"]
+            isOneToOne: false
+            referencedRelation: "conferences"
+            referencedColumns: ["conf_id"]
+          },
+          {
+            foreignKeyName: "notification_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          attachments: Json | null
+          conf_id: number | null
+          content: string
+          created_at: string
+          notification_id: number
+          sender_id: number | null
+          target_criteria: Json | null
+          target_type: string
+          title: string
+          type: string
+        }
+        Insert: {
+          attachments?: Json | null
+          conf_id?: number | null
+          content: string
+          created_at?: string
+          notification_id?: number
+          sender_id?: number | null
+          target_criteria?: Json | null
+          target_type: string
+          title: string
+          type: string
+        }
+        Update: {
+          attachments?: Json | null
+          conf_id?: number | null
+          content?: string
+          created_at?: string
+          notification_id?: number
+          sender_id?: number | null
+          target_criteria?: Json | null
+          target_type?: string
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_conf_id_fkey"
+            columns: ["conf_id"]
+            isOneToOne: false
+            referencedRelation: "conferences"
+            referencedColumns: ["conf_id"]
+          },
+          {
+            foreignKeyName: "notifications_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      paper_chunks: {
+        Row: {
+          chunk_content: string
+          chunk_index: number
+          chunk_metadata: Json | null
+          created_at: string | null
+          embedding: string | null
+          id: number
+          paper_id: number | null
+          version_id: number | null
+        }
+        Insert: {
+          chunk_content: string
+          chunk_index: number
+          chunk_metadata?: Json | null
+          created_at?: string | null
+          embedding?: string | null
+          id?: number
+          paper_id?: number | null
+          version_id?: number | null
+        }
+        Update: {
+          chunk_content?: string
+          chunk_index?: number
+          chunk_metadata?: Json | null
+          created_at?: string | null
+          embedding?: string | null
+          id?: number
+          paper_id?: number | null
+          version_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paper_chunks_paper_id_fkey"
+            columns: ["paper_id"]
+            isOneToOne: false
+            referencedRelation: "papers"
+            referencedColumns: ["paper_id"]
+          },
+          {
+            foreignKeyName: "paper_chunks_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "paper_versions"
+            referencedColumns: ["version_id"]
+          },
+        ]
+      }
+      paper_coauthors: {
+        Row: {
+          author_order: number | null
+          paper_id: number
+          user_id: number
+        }
+        Insert: {
+          author_order?: number | null
+          paper_id: number
+          user_id: number
+        }
+        Update: {
+          author_order?: number | null
+          paper_id?: number
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paper_coauthors_paper_id_fkey"
+            columns: ["paper_id"]
+            isOneToOne: false
+            referencedRelation: "papers"
+            referencedColumns: ["paper_id"]
+          },
+          {
+            foreignKeyName: "paper_coauthors_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      paper_decisions: {
+        Row: {
+          decided_at: string | null
+          decided_by: number | null
+          decision: string | null
+          decision_id: number
+          decision_note: string | null
+          paper_id: number | null
+        }
+        Insert: {
+          decided_at?: string | null
+          decided_by?: number | null
+          decision?: string | null
+          decision_id?: number
+          decision_note?: string | null
+          paper_id?: number | null
+        }
+        Update: {
+          decided_at?: string | null
+          decided_by?: number | null
+          decision?: string | null
+          decision_id?: number
+          decision_note?: string | null
+          paper_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paper_decisions_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "paper_decisions_paper_id_fkey"
+            columns: ["paper_id"]
+            isOneToOne: false
+            referencedRelation: "papers"
+            referencedColumns: ["paper_id"]
+          },
+        ]
+      }
+      paper_versions: {
+        Row: {
+          display: boolean | null
+          file_path: string
+          format_ok: boolean | null
+          is_final: boolean | null
+          paper_id: number | null
+          plagiarism_safe: boolean | null
+          upload_by: number | null
+          upload_date: string | null
+          version_id: number
+          version_number: number
+        }
+        Insert: {
+          display?: boolean | null
+          file_path: string
+          format_ok?: boolean | null
+          is_final?: boolean | null
+          paper_id?: number | null
+          plagiarism_safe?: boolean | null
+          upload_by?: number | null
+          upload_date?: string | null
+          version_id?: number
+          version_number: number
+        }
+        Update: {
+          display?: boolean | null
+          file_path?: string
+          format_ok?: boolean | null
+          is_final?: boolean | null
+          paper_id?: number | null
+          plagiarism_safe?: boolean | null
+          upload_by?: number | null
+          upload_date?: string | null
+          version_id?: number
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paper_versions_paper_id_fkey"
+            columns: ["paper_id"]
+            isOneToOne: false
+            referencedRelation: "papers"
+            referencedColumns: ["paper_id"]
+          },
+          {
+            foreignKeyName: "paper_versions_upload_by_fkey"
+            columns: ["upload_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      papers: {
+        Row: {
+          abstract: string | null
+          created_at: string | null
+          final_decision_date: string | null
+          paper_id: number
+          primary_author_id: number | null
+          status: string | null
+          submitted_conf: number | null
+          title: string
+        }
+        Insert: {
+          abstract?: string | null
+          created_at?: string | null
+          final_decision_date?: string | null
+          paper_id?: number
+          primary_author_id?: number | null
+          status?: string | null
+          submitted_conf?: number | null
+          title: string
+        }
+        Update: {
+          abstract?: string | null
+          created_at?: string | null
+          final_decision_date?: string | null
+          paper_id?: number
+          primary_author_id?: number | null
+          status?: string | null
+          submitted_conf?: number | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "papers_primary_author_id_fkey"
+            columns: ["primary_author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "papers_submitted_conf_fkey"
+            columns: ["submitted_conf"]
+            isOneToOne: false
+            referencedRelation: "conferences"
+            referencedColumns: ["conf_id"]
+          },
+        ]
+      }
+      proceedings_configs: {
+        Row: {
+          break_info: string | null
+          committee_selection: Json | null
+          conf_id: number
+          created_at: string | null
+          foreword: string | null
+          gala_info: string | null
+          internet_info: string | null
+          isbn: string | null
+          keynotes_json: Json | null
+          organizer_logos: Json | null
+          pdf_url: string | null
+          proceedings_title: string | null
+          publisher: string | null
+          registration_hours: string | null
+          room_assignments: string | null
+          room_map_url: string | null
+          sponsor_logos: Json | null
+          template_name: string | null
+          venue_details: string | null
+        }
+        Insert: {
+          break_info?: string | null
+          committee_selection?: Json | null
+          conf_id: number
+          created_at?: string | null
+          foreword?: string | null
+          gala_info?: string | null
+          internet_info?: string | null
+          isbn?: string | null
+          keynotes_json?: Json | null
+          organizer_logos?: Json | null
+          pdf_url?: string | null
+          proceedings_title?: string | null
+          publisher?: string | null
+          registration_hours?: string | null
+          room_assignments?: string | null
+          room_map_url?: string | null
+          sponsor_logos?: Json | null
+          template_name?: string | null
+          venue_details?: string | null
+        }
+        Update: {
+          break_info?: string | null
+          committee_selection?: Json | null
+          conf_id?: number
+          created_at?: string | null
+          foreword?: string | null
+          gala_info?: string | null
+          internet_info?: string | null
+          isbn?: string | null
+          keynotes_json?: Json | null
+          organizer_logos?: Json | null
+          pdf_url?: string | null
+          proceedings_title?: string | null
+          publisher?: string | null
+          registration_hours?: string | null
+          room_assignments?: string | null
+          room_map_url?: string | null
+          sponsor_logos?: Json | null
+          template_name?: string | null
+          venue_details?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proceedings_configs_conf_id_fkey"
+            columns: ["conf_id"]
+            isOneToOne: true
+            referencedRelation: "conferences"
+            referencedColumns: ["conf_id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          description: string | null
+          description_embed: string | null
+          email: string
+          full_name: string
+          id: string
+          organization: string | null
+          updated_at: string
+          user_id: number
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          description?: string | null
+          description_embed?: string | null
+          email: string
+          full_name: string
+          id: string
+          organization?: string | null
+          updated_at?: string
+          user_id?: number
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          description?: string | null
+          description_embed?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          organization?: string | null
+          updated_at?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
+      registrations: {
+        Row: {
+          created_at: string | null
+          registration_id: number
+          ticket_id: number | null
+          user_id: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          registration_id?: number
+          ticket_id?: number | null
+          user_id?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          registration_id?: number
+          ticket_id?: number | null
+          user_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registrations_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_configs"
+            referencedColumns: ["ticket_id"]
+          },
+          {
+            foreignKeyName: "registrations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      review_ai_metrics: {
+        Row: {
+          ai_depth_score: number | null
+          ai_sentiment: Json | null
+          analyzed_at: string | null
+          metric_id: number
+          review_id: number | null
+        }
+        Insert: {
+          ai_depth_score?: number | null
+          ai_sentiment?: Json | null
+          analyzed_at?: string | null
+          metric_id?: number
+          review_id?: number | null
+        }
+        Update: {
+          ai_depth_score?: number | null
+          ai_sentiment?: Json | null
+          analyzed_at?: string | null
+          metric_id?: number
+          review_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_ai_metrics_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "reviews"
+            referencedColumns: ["review_id"]
+          },
+        ]
+      }
+      reviewer_assignments: {
+        Row: {
+          assigned_at: string | null
+          assigned_by: number | null
+          assignment_id: number
+          paper_id: number | null
+          reviewer_id: number | null
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_by?: number | null
+          assignment_id?: number
+          paper_id?: number | null
+          reviewer_id?: number | null
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_by?: number | null
+          assignment_id?: number
+          paper_id?: number | null
+          reviewer_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviewer_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "reviewer_assignments_paper_id_fkey"
+            columns: ["paper_id"]
+            isOneToOne: false
+            referencedRelation: "papers"
+            referencedColumns: ["paper_id"]
+          },
+          {
+            foreignKeyName: "reviewer_assignments_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      reviews: {
+        Row: {
+          comments: string | null
+          paper_id: number | null
+          recommendation: string | null
+          review_date: string | null
+          review_id: number
+          reviewer_id: number | null
+          score: number | null
+          status: string | null
+        }
+        Insert: {
+          comments?: string | null
+          paper_id?: number | null
+          recommendation?: string | null
+          review_date?: string | null
+          review_id?: number
+          reviewer_id?: number | null
+          score?: number | null
+          status?: string | null
+        }
+        Update: {
+          comments?: string | null
+          paper_id?: number | null
+          recommendation?: string | null
+          review_date?: string | null
+          review_id?: number
+          reviewer_id?: number | null
+          score?: number | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_paper_id_fkey"
+            columns: ["paper_id"]
+            isOneToOne: false
+            referencedRelation: "papers"
+            referencedColumns: ["paper_id"]
+          },
+          {
+            foreignKeyName: "reviews_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      roles: {
+        Row: {
+          role_id: number
+          role_name: string
+        }
+        Insert: {
+          role_id?: number
+          role_name: string
+        }
+        Update: {
+          role_id?: number
+          role_name?: string
+        }
+        Relationships: []
+      }
+      session_papers: {
+        Row: {
+          end_time: string | null
+          paper_id: number
+          presentation_order: number | null
+          session_id: number
+          start_time: string | null
+        }
+        Insert: {
+          end_time?: string | null
+          paper_id: number
+          presentation_order?: number | null
+          session_id: number
+          start_time?: string | null
+        }
+        Update: {
+          end_time?: string | null
+          paper_id?: number
+          presentation_order?: number | null
+          session_id?: number
+          start_time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_papers_paper_id_fkey"
+            columns: ["paper_id"]
+            isOneToOne: false
+            referencedRelation: "papers"
+            referencedColumns: ["paper_id"]
+          },
+          {
+            foreignKeyName: "session_papers_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["session_id"]
+          },
+        ]
+      }
+      sessions: {
+        Row: {
+          chair_person_id: number | null
+          conf_id: number | null
+          end_time: string | null
+          is_ai_generated: boolean | null
+          room_location: string | null
+          session_id: number
+          session_name: string | null
+          session_type: string | null
+          start_time: string | null
+        }
+        Insert: {
+          chair_person_id?: number | null
+          conf_id?: number | null
+          end_time?: string | null
+          is_ai_generated?: boolean | null
+          room_location?: string | null
+          session_id?: number
+          session_name?: string | null
+          session_type?: string | null
+          start_time?: string | null
+        }
+        Update: {
+          chair_person_id?: number | null
+          conf_id?: number | null
+          end_time?: string | null
+          is_ai_generated?: boolean | null
+          room_location?: string | null
+          session_id?: number
+          session_name?: string | null
+          session_type?: string | null
+          start_time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sessions_chair_person_id_fkey"
+            columns: ["chair_person_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "sessions_conf_id_fkey"
+            columns: ["conf_id"]
+            isOneToOne: false
+            referencedRelation: "conferences"
+            referencedColumns: ["conf_id"]
+          },
+        ]
+      }
+      ticket_configs: {
+        Row: {
+          close_time: string
+          currency: string | null
+          description: string | null
+          is_active: boolean | null
+          open_time: string
+          price: number | null
+          quantity_limit: number | null
+          sold_quantity: number | null
+          ticket_id: number
+          ticket_name: string
+        }
+        Insert: {
+          close_time: string
+          currency?: string | null
+          description?: string | null
+          is_active?: boolean | null
+          open_time: string
+          price?: number | null
+          quantity_limit?: number | null
+          sold_quantity?: number | null
+          ticket_id?: number
+          ticket_name: string
+        }
+        Update: {
+          close_time?: string
+          currency?: string | null
+          description?: string | null
+          is_active?: boolean | null
+          open_time?: string
+          price?: number | null
+          quantity_limit?: number | null
+          sold_quantity?: number | null
+          ticket_id?: number
+          ticket_name?: string
+        }
+        Relationships: []
+      }
+      ticket_session: {
+        Row: {
+          price: number | null
+          session_id: number
+          ticket_id: number
+        }
+        Insert: {
+          price?: number | null
+          session_id: number
+          ticket_id?: number
+        }
+        Update: {
+          price?: number | null
+          session_id?: number
+          ticket_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_session_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["session_id"]
+          },
+          {
+            foreignKeyName: "ticket_session_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_configs"
+            referencedColumns: ["ticket_id"]
+          },
+        ]
+      }
+      transactions: {
+        Row: {
+          amount: number | null
+          created_at: string | null
+          order_code: string | null
+          payment_gateway: string | null
+          provider_tx_ref: string | null
+          registration_id: number | null
+          status: Database["public"]["Enums"]["TRANS_TYPE"] | null
+          ticket_data: Json | null
+          trans_id: number
+          updated_at: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string | null
+          order_code?: string | null
+          payment_gateway?: string | null
+          provider_tx_ref?: string | null
+          registration_id?: number | null
+          status?: Database["public"]["Enums"]["TRANS_TYPE"] | null
+          ticket_data?: Json | null
+          trans_id?: number
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string | null
+          order_code?: string | null
+          payment_gateway?: string | null
+          provider_tx_ref?: string | null
+          registration_id?: number | null
+          status?: Database["public"]["Enums"]["TRANS_TYPE"] | null
+          ticket_data?: Json | null
+          trans_id?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["registration_id"]
+          },
+        ]
+      }
+      user_conference_roles: {
+        Row: {
+          conference_id: number
+          created_at: string | null
+          id: number
+          role: string
+          user_id: number
+        }
+        Insert: {
+          conference_id: number
+          created_at?: string | null
+          id?: number
+          role: string
+          user_id: number
+        }
+        Update: {
+          conference_id?: number
+          created_at?: string | null
+          id?: number
+          role?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
+      user_notifications: {
+        Row: {
+          dynamic_content: string | null
+          dynamic_title: string | null
+          id: number
+          is_read: boolean
+          notification_id: number
+          read_at: string | null
+          user_id: number
+        }
+        Insert: {
+          dynamic_content?: string | null
+          dynamic_title?: string | null
+          id?: number
+          is_read?: boolean
+          notification_id: number
+          read_at?: string | null
+          user_id: number
+        }
+        Update: {
+          dynamic_content?: string | null
+          dynamic_title?: string | null
+          id?: number
+          is_read?: boolean
+          notification_id?: number
+          read_at?: string | null
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_notifications_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["notification_id"]
+          },
+          {
+            foreignKeyName: "user_notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          role_id: number
+          user_id: number
+        }
+        Insert: {
+          role_id: number
+          user_id: number
+        }
+        Update: {
+          role_id?: number
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["role_id"]
+          },
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      user_roles_2: {
+        Row: {
+          role_id: number
+          user_id: string
+        }
+        Insert: {
+          role_id: number
+          user_id: string
+        }
+        Update: {
+          role_id?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_role_id_fkey_2"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["role_id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          description: string | null
+          description_embed: string | null
+          email: string
+          full_name: string
+          organization: string | null
+          password_hash: string
+          user_id: number
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          description_embed?: string | null
+          email: string
+          full_name: string
+          organization?: string | null
+          password_hash: string
+          user_id?: number
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          description_embed?: string | null
+          email?: string
+          full_name?: string
+          organization?: string | null
+          password_hash?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      exec_sql: { Args: { query: string }; Returns: Json }
+      get_user_roles: { Args: { p_user_id: string }; Returns: string[] }
+      match_all_chunks: {
+        Args: {
+          filter_paper_id?: number
+          filter_version_id?: number
+          match_count: number
+          match_threshold: number
+          query_embedding: string
+        }
+        Returns: {
+          chunk_index: number
+          content: string
+          id: number
+          metadata: Json
+          paper_id: number
+          similarity: number
+          version_id: number
+        }[]
+      }
+      match_chair_candidates: {
+        Args: {
+          excluded_user_ids: number[]
+          match_count: number
+          match_threshold: number
+          query_embedding: string
+        }
+        Returns: {
+          email: string
+          full_name: string
+          organization: string
+          similarity: number
+          user_id: number
+        }[]
+      }
+      match_paper_chunks: {
+        Args: {
+          filter_paper_id?: number
+          filter_version_id?: number
+          match_count: number
+          match_threshold: number
+          query_embedding: string
+        }
+        Returns: {
+          chunk_index: number
+          content: string
+          id: number
+          metadata: Json
+          similarity: number
+        }[]
+      }
+      match_reviewers: {
+        Args: {
+          match_count: number
+          match_threshold: number
+          query_embedding: string
+          required_role_id: number
+        }
+        Returns: {
+          email: string
+          full_name: string
+          organization: string
+          similarity: number
+          user_id: number
+        }[]
+      }
+      match_reviewers_avg_chunk: {
+        Args: {
+          match_count: number
+          required_role_id: number
+          target_paper_id: number
+        }
+        Returns: {
+          avg_similarity: number
+          email: string
+          full_name: string
+          organization: string
+          user_id: number
+        }[]
+      }
+    }
+    Enums: {
+      TRANS_TYPE: "PENDING" | "COMPLETED" | "CANCELED"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      TRANS_TYPE: ["PENDING", "COMPLETED", "CANCELED"],
+    },
+  },
+} as const
