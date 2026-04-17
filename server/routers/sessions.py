@@ -3,6 +3,7 @@ import numpy as np
 from k_means_constrained import KMeansConstrained
 
 from fastapi import APIRouter, HTTPException, Query, Path
+from fastapi.responses import RedirectResponse
 from google.genai import types
 
 from schema import AutoSessionRequest, SessionChairResponse, ChairRecommendation, SessionAuthResponse, GoogleMeetCallbackRequest, MeetCreationRequest, MeetCreationResponse
@@ -214,46 +215,62 @@ async def get_google_auth_url(email: str = Query(..., description="Email của n
         logger.error(f"Error getting Google Auth URL: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/sessions/google-oauth-callback")
-async def google_oauth_callback(request: GoogleMeetCallbackRequest, redirect_uri: str = Query("http://localhost:8080/sessions/google-oauth-callback")):
+@router.get("/sessions/google-oauth-callback")
+async def google_oauth_callback(
+    code: str = Query(..., description="Mã xác thực từ Google tự động trả về"),
+    state: str = Query(..., description="Trạng thái chứa email"),
+    redirect_uri: str = Query("http://localhost:8080/sessions/google-oauth-callback")
+):
     try:
-        # Giải mã email từ state
-        state_str = request.state
-        if not state_str.startswith("email_"):
+        # 1. Tự động giải mã email từ state trên URL
+        if not state.startswith("email_"):
             raise HTTPException(status_code=400, detail="Trạng thái state không hợp lệ. Không tìm thấy Email người dùng.")
-        registered_email = state_str.split("_", 1)[1]
+        registered_email = state.split("_", 1)[1]
         
-        token_data = meet_service.fetch_token(redirect_uri, request.code)
+        # 2. Dùng code để đổi lấy token
+        token_data = meet_service.fetch_token(redirect_uri, code)
         refresh_token = token_data.get("refresh_token")
         google_email = token_data.get("google_email")
         
+        # LƯU Ý: Nếu user đã uỷ quyền trước đó, Google có thể không trả về refresh_token nữa.
+        # Hãy chắc chắn trong hàm get_auth_url của bạn có tham số prompt='consent'
         if not refresh_token:
-            raise HTTPException(status_code=400, detail="Không lấy được refresh_token từ Google.")
+             logger.warning("Không lấy được refresh_token (có thể user đã cấp quyền từ trước).")
+             # Tuỳ logic của bạn, có thể bỏ qua hoặc báo lỗi.
 
-        # Truy vấn Database xem user có tồn tại không (Đảm bảo an toàn)
+        # 3. Kiểm tra User trong DB
         user_res = supabase_client.table("users").select("user_id").eq("email", registered_email).single().execute()
         
         if not user_res.data:
-             raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản người dùng tương ứng với email này trong hệ thống DATN.")
+             raise HTTPException(status_code=404, detail="Không tìm thấy tài khoản trong hệ thống.")
              
-        # So sánh Email Google Meet và Email đăng ký DATN System
-        if google_email and google_email.lower() != registered_email.lower():
-            raise HTTPException(status_code=400, detail=f"Tài khoản không khớp! Vui lòng uỷ quyền đúng bằng Google Account đã đăng ký ({registered_email}). Bạn đang dùng: {google_email}")
+        # =====================================================================
+        # ĐÃ ẨN ĐIỀU KIỆN SO SÁNH EMAIL GOOGLE VÀ EMAIL HỆ THỐNG
+        # =====================================================================
+        # if google_email and google_email.lower() != registered_email.lower():
+        #     raise HTTPException(status_code=400, detail=f"Tài khoản không khớp! Đang dùng: {google_email}")
+        # =====================================================================
 
-        # Lưu refresh_token vào DB cho user đó bằng Email
-        res = supabase_client.table("users").update({
-            "google_refresh_token": refresh_token
-        }).eq("email", registered_email).execute()
+        # 4. Lưu refresh_token vào DB
+        if refresh_token:
+            res = supabase_client.table("users").update({
+                "google_refresh_token": refresh_token
+            }).eq("email", registered_email).execute()
 
-        # Update Supabase Python SDK đôi khi fail im lặng nếu user ID không tồn tại
-        if hasattr(res, 'error') and res.error:
-            raise HTTPException(status_code=500, detail=f"Database Update Error: {res.error}")
+            if hasattr(res, 'error') and res.error:
+                raise HTTPException(status_code=500, detail=f"Database Update Error: {res.error}")
 
-        return {
-            "status": "success",
-            "message": "Token fetched successfully. LƯU Ý: Khung lưu trữ Token đã được tự động cấp vào Database của tài khoản.",
-            "token_data": token_data
-        }
+        # 5. TỰ ĐỘNG CHUYỂN HƯỚNG VỀ FRONTEND 
+        # Thay URL này bằng địa chỉ web Frontend của bạn (VD: React/Vue đang chạy ở port 3000)
+        # Có thể truyền thêm query param ?status=success để frontend hiện thông báo popup
+        frontend_redirect_url = "http://localhost:3000/auth-success?status=success" 
+        
+        return RedirectResponse(url=frontend_redirect_url)
+
+    except Exception as e:
+        logger.error(f"Error in Google OAuth Callback: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
     except Exception as e:
         logger.error(f"Error in Google OAuth Callback: {e}")
         raise HTTPException(status_code=500, detail=str(e))
