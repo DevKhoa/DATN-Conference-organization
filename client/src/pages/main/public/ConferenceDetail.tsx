@@ -446,6 +446,25 @@ const ConferenceDetailPage: React.FC = () => {
                   Assign Sessions
                 </Button>
               )}
+
+              {canEdit && (
+                <Button
+                  onClick={() =>
+                    navigate({
+                      to: "/notifications/create",
+                      search: {
+                        conferenceId,
+                        conferenceName: conference.conf_name,
+                      },
+                    })
+                  }
+                  variant="outline"
+                  className="bg-background/10 backdrop-blur-md border-background/20 text-primary-foreground hover:bg-background/20"
+                >
+                  <Mail className="w-4 h-4 mr-1" />
+                  Create Notification
+                </Button>
+              )}
             </div>
           </div>
 

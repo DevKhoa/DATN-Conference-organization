@@ -40,7 +40,7 @@ type Session = AgendaSession;
 
 type ViewMode = "list" | "timeline";
 
-const HOUR_HEIGHT = 72;
+const HOUR_HEIGHT = 160;
 
 /** Computes side-by-side column layout for overlapping sessions. */
 function computeColumnLayout(
@@ -53,16 +53,28 @@ function computeColumnLayout(
   const result = new Map<number, { col: number; totalCols: number }>();
 
   // Build clusters of mutually-overlapping sessions
+  const getVisualEnd = (s: Session) => {
+    const start = parseISO(s.start_time);
+    const end = parseISO(s.end_time);
+    if (!isSameDay(start, end)) {
+      // Clamp to visually max 2 hours representation in timeline
+      return new Date(start.getTime() + 120 * 60000);
+    }
+    return end;
+  };
+
   const clusters: Session[][] = [];
   for (const session of sorted) {
-    const s = parseISO(session.start_time);
-    const e = parseISO(session.end_time);
+    const sStart = parseISO(session.start_time);
+    const sEnd = getVisualEnd(session);
     let placed = false;
     for (const cluster of clusters) {
       if (
-        cluster.some(
-          (c) => s < parseISO(c.end_time) && e > parseISO(c.start_time),
-        )
+        cluster.some((c) => {
+          const cStart = parseISO(c.start_time);
+          const cEnd = getVisualEnd(c);
+          return sStart < cEnd && sEnd > cStart;
+        })
       ) {
         cluster.push(session);
         placed = true;
@@ -76,10 +88,12 @@ function computeColumnLayout(
     // Greedy column assignment within each cluster
     const cols: Session[][] = [];
     for (const session of cluster) {
-      const s = parseISO(session.start_time);
+      const sStart = parseISO(session.start_time);
+      const sEnd = getVisualEnd(session);
       let assigned = false;
       for (let c = 0; c < cols.length; c++) {
-        if (parseISO(cols[c][cols[c].length - 1].end_time) <= s) {
+        const lastInCol = cols[c][cols[c].length - 1];
+        if (getVisualEnd(lastInCol) <= sStart) {
           cols[c].push(session);
           assigned = true;
           break;
@@ -176,7 +190,12 @@ export default function MyAgendaPage() {
     const end = parseISO(endTime);
     const startHour = start.getHours();
     const startMin = start.getMinutes();
-    const durationMins = differenceInMinutes(end, start);
+    
+    const crossesNextDay = !isSameDay(start, end);
+    
+    // Set default visual duration if it overlaps to next day to avoid giant gap overlap UI bugs
+    const durationMins = crossesNextDay ? 120 : differenceInMinutes(end, start);
+    
     const top = startHour * HOUR_HEIGHT + (startMin / 60) * HOUR_HEIGHT;
     const height = Math.max((durationMins / 60) * HOUR_HEIGHT, 30);
     const GAP = 2;
@@ -353,15 +372,22 @@ export default function MyAgendaPage() {
                                     size={16}
                                     className="text-muted-foreground"
                                   />
-                                  <span>
-                                    {format(
-                                      parseISO(session.start_time),
-                                      "HH:mm",
-                                    )}{" "}
-                                    -{" "}
-                                    {format(
-                                      parseISO(session.end_time),
-                                      "HH:mm",
+                                  <span className="flex items-center flex-wrap gap-2">
+                                    <span>
+                                      {format(
+                                        parseISO(session.start_time),
+                                        "HH:mm",
+                                      )}{" "}
+                                      -{" "}
+                                      {format(
+                                        parseISO(session.end_time),
+                                        "HH:mm",
+                                      )}
+                                    </span>
+                                    {!isSameDay(parseISO(session.start_time), parseISO(session.end_time)) && (
+                                      <span className="bg-orange-500/10 text-orange-600 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-orange-500/20">
+                                        +1 Day ({format(parseISO(session.end_time), "dd/MM")})
+                                      </span>
                                     )}
                                   </span>
                                 </div>
@@ -595,10 +621,15 @@ export default function MyAgendaPage() {
                       col: 0,
                       totalCols: 1,
                     };
+                    const isNextDay = !isSameDay(parseISO(session.start_time), parseISO(session.end_time));
                     return (
                       <div
                         key={session.session_id}
-                        className="absolute overflow-hidden cursor-pointer group z-20 rounded-md border-l-[3px] border-l-primary border border-primary/20 bg-primary/10 hover:bg-primary/15 transition-colors shadow-sm px-2 py-1"
+                        className={`absolute cursor-pointer group z-20 rounded-md border-l-[3px] border hover:-translate-y-0.5 transition-all shadow-sm px-2 py-1 ${
+                          isNextDay
+                            ? "border-l-orange-500 border-orange-500/20 bg-orange-500/10 hover:bg-orange-500/15"
+                            : "border-l-primary border-primary/20 bg-primary/10 hover:bg-primary/15"
+                        }`}
                         style={getEventStyle(
                           session.start_time,
                           session.end_time,
@@ -612,32 +643,41 @@ export default function MyAgendaPage() {
                           });
                         }}
                       >
-                        <div className="flex items-start justify-between gap-1">
-                          <span className="text-[11px] font-semibold text-foreground truncate leading-tight group-hover:text-primary">
-                            {session.session_name}
-                          </span>
-                          <span className="text-[10px] font-medium text-primary whitespace-nowrap bg-card/80 px-1.5 py-0.5 rounded shrink-0 leading-tight">
-                            {format(parseISO(session.start_time), "HH:mm")}–
-                            {format(parseISO(session.end_time), "HH:mm")}
-                          </span>
-                        </div>
-                        <div className="text-[10px] text-muted-foreground truncate mt-0.5 leading-tight">
-                          {session.conference_name}
-                        </div>
-                        <div className="flex flex-wrap gap-x-2.5 gap-y-0 text-[10px] text-muted-foreground mt-0.5 leading-tight">
-                          <span className="flex items-center gap-0.5">
-                            <MapPin size={8} className="shrink-0" />
-                            <span className="truncate max-w-30">
-                              {session.room_location || "TBD"}
-                            </span>
-                          </span>
-                          <span className="flex items-center gap-0.5">
-                            <User size={8} className="shrink-0" />
-                            <span className="truncate max-w-30">
-                              {session.chair_name}
-                            </span>
-                          </span>
-                        </div>
+                          <div className="flex flex-col h-full relative">
+                            <div className="flex items-start justify-between gap-1">
+                              <span className={`text-[11px] font-semibold text-foreground truncate leading-tight transition-colors ${isNextDay ? "group-hover:text-orange-600" : "group-hover:text-primary"}`}>
+                                {session.session_name}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-muted-foreground truncate mt-0.5 leading-tight">
+                              {session.conference_name}
+                            </div>
+                            <div className={`text-[10px] font-medium mt-auto pt-1 leading-tight inline-flex items-center gap-1 ${isNextDay ? "text-orange-600" : "text-primary"}`}>
+                              {format(parseISO(session.start_time), "HH:mm")}–
+                              {format(parseISO(session.end_time), "HH:mm")}
+                              {isNextDay && <span className="bg-orange-500/20 px-1 rounded text-[8px] uppercase font-bold">+1 Day</span>}
+                            </div>
+
+                            {/* Hover Details Card */}
+                            <div className="absolute left-0 bottom-full mb-2 w-max max-w-[250px] bg-foreground text-background text-xs p-3 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] pointer-events-none before:content-[''] before:absolute before:top-full before:left-4 before:-ml-1 before:border-4 before:border-transparent before:border-t-foreground">
+                              <div className="font-bold text-sm mb-1 leading-tight">{session.session_name}</div>
+                              <div className="text-muted font-medium mb-3 leading-tight">{session.conference_name}</div>
+                              <div className="flex flex-col gap-2 text-background/90">
+                                <span className="flex items-center gap-1.5">
+                                  <Clock size={12} className="text-muted" />
+                                  {format(parseISO(session.start_time), "HH:mm")}–{format(parseISO(session.end_time), "HH:mm")}
+                                </span>
+                                <span className="flex items-center gap-1.5 bg-background/20 w-fit px-2 py-1 rounded">
+                                  <MapPin size={12} className="text-muted" />
+                                  {session.room_location || "TBD"}
+                                </span>
+                                <span className="flex items-center gap-1.5 bg-background/20 w-fit px-2 py-1 rounded">
+                                  <User size={12} className="text-muted" />
+                                  {session.chair_name}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
                       </div>
                     );
                   })}

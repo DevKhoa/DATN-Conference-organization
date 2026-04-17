@@ -7,6 +7,9 @@ import {
   LogOut,
   Settings,
   Sparkles,
+  Calendar,
+  ChevronDown,
+  Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import NotificationBell from "@/features/notifications/components/NotificationBell";
@@ -152,6 +155,28 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                 {link.name}
               </a>
             ))}
+            
+            {/* Admin Tools Dropdown */}
+            {session && (
+              <div className="relative group py-5 -my-5">
+                <button
+                  className="text-sm font-medium transition-colors flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
+                >
+                  <Wrench className="w-4 h-4" />
+                  Admin Tools
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+                <div className="absolute top-full left-0 mt-0 w-56 bg-background rounded-xl shadow-lg ring-1 ring-border py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <a
+                    href="/notifications/create"
+                    onClick={(e) => handleLinkClick(e, "/notifications/create")}
+                    className="block px-4 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                  >
+                    Create Notification
+                  </a>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* CTA Buttons or User Profile */}
@@ -201,6 +226,18 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                       <User className="w-4 h-4 mr-3" />
                       Your Profile
                     </button>
+                    <a
+                      href="/agenda/me"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setIsProfileOpen(false);
+                        navigate({ to: "/agenda/me" });
+                      }}
+                      className="flex items-center px-4 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                    >
+                      <Calendar className="w-4 h-4 mr-3" />
+                      My Agenda
+                    </a>
                     <a
                       href="#settings"
                       className="flex items-center px-4 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
@@ -271,6 +308,23 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                 {link.name}
               </a>
             ))}
+            
+            {session && (
+              <div className="pt-2 pb-1">
+                <div className="px-3 py-2 text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  Admin Tools
+                </div>
+                <div className="flex flex-col space-y-1">
+                  <a
+                    href="/notifications/create"
+                    onClick={(e) => handleLinkClick(e, "/notifications/create")}
+                    className="inline-flex px-3 py-2 ml-4 rounded-md text-base font-medium hover:bg-accent items-center gap-2 text-foreground hover:text-primary"
+                  >
+                    Create Notification
+                  </a>
+                </div>
+              </div>
+            )}
           </div>
           <div className="pt-4 pb-4 border-t border-border">
             <div className="px-5 space-y-3">
@@ -306,6 +360,16 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                   >
                     <User className="w-4 h-4 mr-2" />
                     My Profile
+                  </button>
+                  <button
+                    onClick={() => {
+                      toggleMenu();
+                      navigate({ to: "/agenda/me" });
+                    }}
+                    className="w-full flex items-center justify-center px-4 py-2.5 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-accent transition-colors shadow-sm"
+                  >
+                    <Calendar className="w-4 h-4 mr-2" />
+                    My Agenda
                   </button>
                   <button
                     onClick={handleLogout}
