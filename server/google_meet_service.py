@@ -111,6 +111,24 @@ class GoogleMeetService:
         """
         Sử dụng user_refresh_token lấy từ Supabase DB để tạo phòng họp trên tài khoản cua user.
         """
+        # Chuẩn hoá định dạng thời gian (Google yêu cầu có chữ T ở giữa ngày và giờ)
+        # Ví dụ: "2026-04-17 10:00:00" -> "2026-04-17T10:00:00"
+        def normalize_date(d_str):
+            if not d_str: return d_str
+            # Nếu là định dạng DD/MM/YYYY hh:mm AM/PM, cần convert sang YYYY-MM-DD
+            if "/" in d_str and ("AM" in d_str or "PM" in d_str):
+                try:
+                    from datetime import datetime
+                    dt = datetime.strptime(d_str, "%m/%d/%Y %I:%M %p")
+                    return dt.strftime("%Y-%m-%dT%H:%M:%S")
+                except: pass
+            
+            # Nếu đã là YYYY-MM-DD nhưng thiếu T
+            return d_str.replace(" ", "T")
+
+        start_iso = normalize_date(start_time)
+        end_iso = normalize_date(end_time)
+
         with open(CREDENTIALS_FILE, 'r') as f:
             data = json.load(f)
             web = data.get('web', {})
@@ -136,11 +154,11 @@ class GoogleMeetService:
             'summary': summary,
             'description': description,
             'start': {
-                'dateTime': start_time,
+                'dateTime': start_iso,
                 'timeZone': timezone,
             },
             'end': {
-                'dateTime': end_time,
+                'dateTime': end_iso,
                 'timeZone': timezone,
             },
             'conferenceData': {

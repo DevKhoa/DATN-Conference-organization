@@ -260,20 +260,46 @@ async def google_oauth_callback(
             if hasattr(res, 'error') and res.error:
                 raise HTTPException(status_code=500, detail=f"Database Update Error: {res.error}")
 
-        # 5. TỰ ĐỘNG ĐÓNG POPUP VÀ BÁO VỀ FRONTEND
-        # Trả về mã HTML để báo cho cửa sổ cha (Frontend đang mở)
+        # 5. TỰ ĐỘNG ĐÓNG HOẶC QUAY VỀ
         html_content = """
         <html>
-        <head><title>Authentication Successful</title></head>
+        <head>
+            <title>Authentication Successful</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: #f8fafc; color: #1e293b; }
+                .card { background: white; padding: 2.5rem; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); text-align: center; max-width: 450px; }
+                h1 { color: #10b981; margin-bottom: 1rem; }
+                p { margin-bottom: 2rem; color: #475569; }
+                button, .btn { display: inline-block; text-decoration: none; background: #4f46e5; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 1rem; transition: background 0.2s;}
+                button:hover, .btn:hover { background: #4338ca; }
+            </style>
+        </head>
         <body>
-            <p>Authentication successful! This window will close automatically.</p>
+            <div class="card">
+                <h1>✓ Thành công!</h1>
+                <p>Bạn đã ủy quyền Google thành công.</p>
+                <div id="action-container">
+                    <button onclick="handleReturn()">Quay trở về ứng dụng ngay</button>
+                </div>
+            </div>
             <script>
-                // Gắn gửi message tới window cha
-                if (window.opener) {
-                    window.opener.postMessage({ type: 'google-auth-success', status: 'success' }, '*');
+                function handleReturn() {
+                    // Phát tín hiệu qua localStorage để chắc chắn trang chính nhận được dù bất cứ chuyện gì xảy ra
+                    localStorage.setItem('google-auth-status', 'success_' + Date.now());
+
+                    if (window.opener) {
+                        try {
+                            window.opener.postMessage({ type: 'google-auth-success' }, '*');
+                        } catch (e) {}
+                        window.close();
+                    } else {
+                        // Nếu không phải popup, quay về trang cũ
+                        window.location.href = "http://192.168.20.12:3000/profile";
+                    }
                 }
-                // Tự động đóng popup này
-                window.close();
+
+                // Tự động kích hoạt sau khi load trang
+                setTimeout(() => handleReturn(), 1000);
             </script>
         </body>
         </html>

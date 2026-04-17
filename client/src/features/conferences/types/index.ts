@@ -3,6 +3,7 @@ export interface Conference {
   conf_name: string;
   start_date: string;
   location: string;
+  format_type?: string | null;
 }
 
 export interface ConferenceDetail extends Conference {

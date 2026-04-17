@@ -46,6 +46,7 @@ import { LocalSession, SessionPaperDetail } from "@/features/sessions/types";
 import { useAcceptedPapersQuery } from "@/features/papers/services/queries";
 import { ChairCandidate } from "@/features/users/services/queries/types";
 import { useChairCandidatesQuery } from "@/features/users/services/queries";
+import { useConferenceDetailQuery } from "@/features/conferences/services/queries";
 import { formatToLocal } from "@/utils/time";
 
 dayjs.extend(customParseFormat);
@@ -66,6 +67,9 @@ const AssignSessionsPage: React.FC = () => {
 
   const { data: existingSessions = [], isLoading: isLoadingExistingSessions } =
     useExistingSessionsQuery(conferenceId, initialSessionId!);
+
+  const { data: conferenceData } = useConferenceDetailQuery(conferenceId);
+  const isOnlineConference = conferenceData?.conference?.format_type === "virtual";
 
   // Mutation hooks
   const autoGenerateMutation = useAutoGenerateSessionsMutation();
@@ -106,6 +110,7 @@ const AssignSessionsPage: React.FC = () => {
   const [chairSearchQueries, setChairSearchQueries] = useState<
     Record<string, string>
   >({});
+  const [isAuthorizing, setIsAuthorizing] = useState(false);
   const [expandedSessions, setExpandedSessions] = useState<
     Record<string, boolean>
   >({});
@@ -344,49 +349,8 @@ const AssignSessionsPage: React.FC = () => {
       const data = await response.json();
       if (!response.ok) {
         if (response.status === 400 && data.detail?.includes("liên kết với Google")) {
-          // Trigger Popup OAuth flow
-          try {
-             const authUrlRes = await fetch(`http://localhost:8080/sessions/google-auth-url?email=${encodeURIComponent(currentUserEmail)}`);
-             const authUrlData = await authUrlRes.json();
-             
-             if (authUrlData.authorization_url) {
-                // Open popup
-                const width = 500;
-                const height = 600;
-                const left = (window.innerWidth - width) / 2;
-                const top = (window.innerHeight - height) / 2;
-                
-                const authWindow = window.open(
-                    authUrlData.authorization_url,
-                    "GoogleAuth",
-                    `width=${width},height=${height},top=${top},left=${left}`
-                );
-
-                // Listen for message from popup
-                const messageListener = (event: MessageEvent) => {
-                    // Tùy chỉnh origin nếu cần chạy ở prod
-                    if (event.data?.type === 'google-auth-success') {
-                        window.removeEventListener('message', messageListener);
-                        setSuccessMsg("Ủy quyền thành công! Đang tiến hành tạo Meet link...");
-                        // Thực hiện tạo meet link lại
-                        handleCreateMeetLink(session);
-                    }
-                };
-                
-                window.addEventListener('message', messageListener);
-                
-                // Optional: fallback nếu popup bị chặn
-                if (!authWindow) {
-                    setError("Trình duyệt đã chặn Popup window. Vui lòng cho phép hiện Popup để tiếp tục.");
-                } else {
-                     setError("Đang chờ bạn hoàn tất uỷ quyền trên hệ thống Google ở cửa sổ Popup...");
-                }
-             } else {
-                 setError("Không lấy được URL uỷ quyền từ Server.");
-             }
-          } catch(e: any) {
-              setError("Lỗi khi mở giao diện Ủy quyền: " + e.message);
-          }
+          // Show the auth modal instead of opening popup directly to ensure fresh user gesture
+          setShowAuthModal(true);
         } else {
           throw new Error(data.detail || "Không thể tạo phòng Meet.");
         }
@@ -403,10 +367,76 @@ const AssignSessionsPage: React.FC = () => {
     }
   };
 
+  const handleStartGoogleAuthPopup = async () => {
+    if (!currentUserEmail) return;
+    setIsAuthorizing(true);
+
+    // Open popup synchronously to avoid gesture expiration
+    const width = 500;
+    const height = 600;
+    const left = (window.innerWidth - width) / 2;
+    const top = (window.innerHeight - height) / 2;
+    // Open a blank page first
+    const authWindow = window.open(
+      "",
+      "GoogleAuth",
+      `width=${width},height=${height},top=${top},left=${left}`
+    );
+
+    if (!authWindow) {
+      setError("Popup bị chặn. Vui lòng cho phép hiện popup.");
+      setIsAuthorizing(false);
+      return;
+    }
+
+    try {
+      const authUrlRes = await fetch(`http://localhost:8080/sessions/google-auth-url?email=${encodeURIComponent(currentUserEmail)}`);
+      const authUrlData = await authUrlRes.json();
+
+      if (authUrlData.auth_url) {
+        // Redirect the already-opened popup
+        authWindow.location.href = authUrlData.auth_url;
+
+        // Mechanism 1: postMessage (Traditional)
+        const messageListener = (event: MessageEvent) => {
+          if (event.data?.type === 'google-auth-success') {
+            cleanup();
+          }
+        };
+        window.addEventListener('message', messageListener);
+
+        // Mechanism 2: localStorage Polling (Ultra-robust to avoid reloads)
+        const pollInterval = setInterval(() => {
+          const status = localStorage.getItem('google-auth-status');
+          if (status && status.startsWith('success_')) {
+            localStorage.removeItem('google-auth-status');
+            cleanup();
+          }
+        }, 1000);
+
+        function cleanup() {
+          window.removeEventListener('message', messageListener);
+          clearInterval(pollInterval);
+          setShowAuthModal(false);
+          setSuccessMsg("Ủy quyền thành công! Hãy bấm 'Tạo Meet Link' một lần nữa.");
+          if (authWindow && !authWindow.closed) authWindow.close();
+        }
+      } else {
+        authWindow.close();
+        setError("Không lấy được URL ủy quyền.");
+      }
+    } catch (e: any) {
+      if (authWindow) authWindow.close();
+      setError("Lỗi: " + e.message);
+    } finally {
+      setIsAuthorizing(false);
+    }
+  };
+
   const handleSaveSessions = async () => {
     for (const s of sessions) {
-      if (!s.session_name || !s.start_time || !s.end_time || !s.room_location) {
-        setError(`Please fill in all details for session: ${s.session_name}`);
+      if (!s.session_name || !s.start_time || !s.end_time || (!isOnlineConference && !s.room_location)) {
+        setError(`Please fill in all details for session: ${s.session_name}${!isOnlineConference ? " (including location)" : ""}`);
         return;
       }
       const localStart = formatToLocal(s.start_time);
@@ -876,7 +906,7 @@ const AssignSessionsPage: React.FC = () => {
                                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
                                 <input
                                   type="text"
-                                  placeholder="Room / Hall"
+                                  placeholder={isOnlineConference ? "Room / Hall (Optional for Online)" : "Room / Hall"}
                                   className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
                                   value={session.room_location}
                                   onChange={(e) =>
@@ -1391,24 +1421,35 @@ const AssignSessionsPage: React.FC = () => {
           )}
         </div>
       </div>
-      {/* Auth Modal Error */}
+      {/* Auth Modal UI */}
       {showAuthModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95">
+            <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
+              <Video className="w-6 h-6 text-indigo-600" />
+            </div>
             <h3 className="text-lg font-bold text-slate-900 mb-2">
-              Liên kết tài khoản Google
+              Kết nối Google Calendar
             </h3>
             <p className="text-slate-600 text-sm mb-6">
-              Bạn cần liên kết tài khoản Google Calendar trước khi tạo phòng Google Meet cá nhân hóa. Vui lòng quay lại màn hình Profile (Quản lý Hồ sơ) để thực hiện kết nối.
+              Bạn cần cấp quyền cho hệ thống truy cập Google Calendar để tự động tạo phòng họp Meet cá nhân. Một cửa sổ Popup sẽ mở ra để bạn thực hiện uỷ quyền.
             </p>
             <div className="flex justify-end gap-3">
               <Button
                 variant="ghost"
                 onClick={() => setShowAuthModal(false)}
+                disabled={isAuthorizing}
               >
                 Hủy
               </Button>
-              <Button onClick={() => navigate({ to: "/profile" })}>Đi đến Profile</Button>
+              <Button
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={handleStartGoogleAuthPopup}
+                disabled={isAuthorizing}
+              >
+                {isAuthorizing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Video className="w-4 h-4 mr-2" />}
+                Kết nối ngay
+              </Button>
             </div>
           </div>
         </div>
