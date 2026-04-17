@@ -126,6 +126,7 @@ const AssignSessionsPage: React.FC = () => {
   }, [existingSessions]);
 
   const addEmptySession = () => {
+    const defaultFormat = conferenceData?.conference?.format_type === "hybrid" ? "in-person" : (conferenceData?.conference?.format_type || "in-person");
     const newSession: LocalSession = {
       temp_id: Math.random().toString(36).substr(2, 9),
       session_name: "New Session",
@@ -134,6 +135,7 @@ const AssignSessionsPage: React.FC = () => {
       room_location: "",
       is_ai_generated: false,
       assigned_papers: [],
+      format_type: defaultFormat,
     };
     setSessions([...sessions, newSession]);
   };
@@ -303,6 +305,7 @@ const AssignSessionsPage: React.FC = () => {
             start_time: "",
             end_time: "",
           })),
+          format_type: conferenceData?.conference?.format_type === "hybrid" ? "in-person" : (conferenceData?.conference?.format_type || "in-person"),
         };
       });
 
@@ -464,6 +467,7 @@ const AssignSessionsPage: React.FC = () => {
             assigned_papers: s.assigned_papers,
             meet_link: s.meet_link,
             video_record_url: s.video_record_url,
+            format_type: s.format_type,
           };
         }),
       });
@@ -575,9 +579,20 @@ const AssignSessionsPage: React.FC = () => {
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  Session Manager
-                </h1>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                    Session Manager
+                  </h1>
+                  {conferenceData?.conference?.format_type && (
+                    <span className={`px-2 py-0.5 mt-1 rounded-md text-[10px] font-bold uppercase tracking-wider border shadow-sm ${conferenceData.conference.format_type === 'virtual' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                        conferenceData.conference.format_type === 'hybrid' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                          'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      }`}>
+                      {conferenceData.conference.format_type === 'virtual' ? 'Virtual' :
+                        conferenceData.conference.format_type === 'hybrid' ? 'Hybrid' : 'In-person'}
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2 mt-1">
                   <span
                     className={`text-xs font-medium px-2.5 py-1 rounded-full ${step === "CREATE" ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-500"}`}
@@ -857,8 +872,46 @@ const AssignSessionsPage: React.FC = () => {
                         <div className="p-5 sm:p-6 bg-slate-50/80 border-b border-slate-100 flex flex-col xl:flex-row gap-5 items-start">
                           <div className="flex-grow space-y-4 w-full">
                             <div className="flex items-center gap-3">
-                              <div className="bg-slate-200 text-slate-700 w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0">
-                                {idx + 1}
+                              <div className="flex flex-wrap items-center gap-2">
+                                {/* Session Index */}
+                                <div className="bg-slate-200 text-slate-700 w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0">
+                                  {idx + 1}
+                                </div>
+
+                                {/* Format Selection / Info */}
+                                {conferenceData?.conference?.format_type === 'hybrid' ? (
+                                  <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        updateSession(session.temp_id, 'format_type', 'in-person');
+                                      }}
+                                      className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${session.format_type === 'in-person'
+                                          ? "bg-white text-emerald-700 shadow-sm"
+                                          : "text-slate-500 hover:text-slate-700"
+                                        }`}
+                                    >
+                                      In-person
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        updateSession(session.temp_id, 'format_type', 'virtual');
+                                      }}
+                                      className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${session.format_type === 'virtual'
+                                          ? "bg-white text-indigo-700 shadow-sm"
+                                          : "text-slate-500 hover:text-slate-700"
+                                        }`}
+                                    >
+                                      Virtual
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${session.format_type === 'virtual' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'
+                                    }`}>
+                                    {session.format_type === 'virtual' ? 'Virtual' : 'In-person'}
+                                  </span>
+                                )}
                               </div>
                               <input
                                 type="text"
@@ -906,7 +959,7 @@ const AssignSessionsPage: React.FC = () => {
                                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
                                 <input
                                   type="text"
-                                  placeholder={isOnlineConference ? "Room / Hall (Optional for Online)" : "Room / Hall"}
+                                  placeholder={session.format_type === 'virtual' ? "Room / Hall (Optional for Online)" : "Room / Hall"}
                                   className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
                                   value={session.room_location}
                                   onChange={(e) =>
@@ -920,68 +973,70 @@ const AssignSessionsPage: React.FC = () => {
                               </div>
                             </div>
 
-                            {/* MEET & YOUTUBE LINKS */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 xl:ml-11">
-                              <div className="flex flex-col gap-1.5">
-                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest pl-1">Virtual Room (Meet)</label>
-                                <div className="flex items-center gap-2">
-                                  <div className="relative group w-full">
-                                    <Video className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
-                                    <input
-                                      type="text"
-                                      placeholder="https://meet.google.com/..."
-                                      className="w-full pl-9 pr-9 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
-                                      value={session.meet_link || ""}
-                                      onChange={(e) => updateSession(session.temp_id, "meet_link", e.target.value)}
-                                    />
-                                    {session.meet_link && (
-                                      <a
-                                        href={session.meet_link.startsWith('http') ? session.meet_link : `https://${session.meet_link}`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors"
-                                        title="Open link"
+                            {/* MEET & YOUTUBE LINKS - Only show if session is virtual */}
+                            {session.format_type === 'virtual' && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 xl:ml-11">
+                                <div className="flex flex-col gap-1.5">
+                                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest pl-1">Virtual Room (Meet)</label>
+                                  <div className="flex items-center gap-2">
+                                    <div className="relative group w-full">
+                                      <Video className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
+                                      <input
+                                        type="text"
+                                        placeholder="https://meet.google.com/..."
+                                        className="w-full pl-9 pr-9 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
+                                        value={session.meet_link || ""}
+                                        onChange={(e) => updateSession(session.temp_id, "meet_link", e.target.value)}
+                                      />
+                                      {session.meet_link && (
+                                        <a
+                                          href={session.meet_link.startsWith('http') ? session.meet_link : `https://${session.meet_link}`}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors"
+                                          title="Open link"
+                                        >
+                                          <LinkIcon className="w-4 h-4" />
+                                        </a>
+                                      )}
+                                    </div>
+                                    {!session.meet_link && (
+                                      <Button
+                                        onClick={() => handleCreateMeetLink(session)}
+                                        disabled={generatingMeetId === session.temp_id}
+                                        variant="outline"
+                                        title="Auto-generate Meet link"
+                                        className="px-3 shrink-0 text-indigo-700 border-indigo-200 bg-white hover:bg-indigo-50 rounded-xl"
                                       >
-                                        <LinkIcon className="w-4 h-4" />
-                                      </a>
+                                        {generatingMeetId === session.temp_id ? (
+                                          <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                          <Zap className="w-4 h-4" />
+                                        )}
+                                      </Button>
                                     )}
                                   </div>
-                                  {!session.meet_link && (
-                                    <Button
-                                      onClick={() => handleCreateMeetLink(session)}
-                                      disabled={generatingMeetId === session.temp_id}
-                                      variant="outline"
-                                      title="Auto-generate Meet link"
-                                      className="px-3 shrink-0 text-indigo-700 border-indigo-200 bg-white hover:bg-indigo-50 rounded-xl"
-                                    >
-                                      {generatingMeetId === session.temp_id ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                      ) : (
-                                        <Zap className="w-4 h-4" />
-                                      )}
-                                    </Button>
-                                  )}
+                                </div>
+                                <div className="flex flex-col gap-1.5">
+                                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest pl-1">Archive Room (Youtube)</label>
+                                  <div className="relative group">
+                                    <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-red-500 transition-colors pointer-events-none" />
+                                    <input
+                                      type="text"
+                                      placeholder="https://youtube.com/watch?v=..."
+                                      className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-100 focus:border-red-500 outline-none transition-all"
+                                      value={session.video_record_url || ""}
+                                      onChange={(e) => {
+                                        updateSession(session.temp_id, "video_record_url", e.target.value);
+                                      }}
+                                    />
+                                    {session.video_record_url && !session.video_record_url.match(/^(https?\:\/\/)?(www\.youtube\.com|youtu\.be)\/.+$/) && (
+                                      <span className="text-xs text-red-500 absolute -bottom-5 left-1">Invalid Youtube URL</span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                              <div className="flex flex-col gap-1.5">
-                                <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest pl-1">Archive Room (Youtube)</label>
-                                <div className="relative group">
-                                  <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-red-500 transition-colors pointer-events-none" />
-                                  <input
-                                    type="text"
-                                    placeholder="https://youtube.com/watch?v=..."
-                                    className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-100 focus:border-red-500 outline-none transition-all"
-                                    value={session.video_record_url || ""}
-                                    onChange={(e) => {
-                                      updateSession(session.temp_id, "video_record_url", e.target.value);
-                                    }}
-                                  />
-                                  {session.video_record_url && !session.video_record_url.match(/^(https?\:\/\/)?(www\.youtube\.com|youtu\.be)\/.+$/) && (
-                                    <span className="text-xs text-red-500 absolute -bottom-5 left-1">Invalid Youtube URL</span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
+                            )}
                           </div>
                           <button
                             onClick={() => removeSession(session.temp_id)}

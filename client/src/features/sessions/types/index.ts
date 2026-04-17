@@ -16,6 +16,7 @@ export interface ExistingSession {
   assigned_papers: SessionPaperDetail[];
   meet_link?: string;
   video_record_url?: string;
+  format_type: string;
 }
 
 export interface LocalSession {
@@ -30,6 +31,7 @@ export interface LocalSession {
   chair_person_id?: number;
   meet_link?: string;
   video_record_url?: string;
+  format_type: string;
 }
 
 export interface Session {

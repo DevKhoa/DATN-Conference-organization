@@ -49,6 +49,7 @@ export const useSaveSessionsMutation = () => {
               start_time: localStart,
               end_time: localEnd,
               room_location: s.room_location,
+              format_type: s.format_type,
               conf_id: conferenceId,
             })
             .eq("session_id", currentDbId);
@@ -72,6 +73,7 @@ export const useSaveSessionsMutation = () => {
                 start_time: localStart,
                 end_time: localEnd,
                 room_location: s.room_location,
+                format_type: s.format_type,
                 is_ai_generated: s.is_ai_generated,
                 chair_person_id: null,
               },
