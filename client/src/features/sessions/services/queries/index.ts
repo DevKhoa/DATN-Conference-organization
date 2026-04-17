@@ -66,6 +66,8 @@ export const fetchExistingSessions = async (
       is_ai_generated: s.is_ai_generated,
       chair_person_id: s.chair_person_id,
       assigned_papers: ap,
+      meet_link: s.meet_link,
+      video_record_url: s.video_record_url,
     };
   });
 

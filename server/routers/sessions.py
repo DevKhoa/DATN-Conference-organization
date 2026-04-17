@@ -260,16 +260,27 @@ async def google_oauth_callback(
             if hasattr(res, 'error') and res.error:
                 raise HTTPException(status_code=500, detail=f"Database Update Error: {res.error}")
 
-        # 5. TỰ ĐỘNG CHUYỂN HƯỚNG VỀ FRONTEND 
-        # Thay URL này bằng địa chỉ web Frontend của bạn (VD: React/Vue đang chạy ở port 3000)
-        # Có thể truyền thêm query param ?status=success để frontend hiện thông báo popup
-        frontend_redirect_url = "http://localhost:3000/auth-success?status=success" 
+        # 5. TỰ ĐỘNG ĐÓNG POPUP VÀ BÁO VỀ FRONTEND
+        # Trả về mã HTML để báo cho cửa sổ cha (Frontend đang mở)
+        html_content = """
+        <html>
+        <head><title>Authentication Successful</title></head>
+        <body>
+            <p>Authentication successful! This window will close automatically.</p>
+            <script>
+                // Gắn gửi message tới window cha
+                if (window.opener) {
+                    window.opener.postMessage({ type: 'google-auth-success', status: 'success' }, '*');
+                }
+                // Tự động đóng popup này
+                window.close();
+            </script>
+        </body>
+        </html>
+        """
         
-        return RedirectResponse(url=frontend_redirect_url)
-
-    except Exception as e:
-        logger.error(f"Error in Google OAuth Callback: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=html_content)
 
     except Exception as e:
         logger.error(f"Error in Google OAuth Callback: {e}")

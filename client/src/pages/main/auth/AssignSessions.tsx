@@ -344,7 +344,49 @@ const AssignSessionsPage: React.FC = () => {
       const data = await response.json();
       if (!response.ok) {
         if (response.status === 400 && data.detail?.includes("liên kết với Google")) {
-          setShowAuthModal(true);
+          // Trigger Popup OAuth flow
+          try {
+             const authUrlRes = await fetch(`http://localhost:8080/sessions/google-auth-url?email=${encodeURIComponent(currentUserEmail)}`);
+             const authUrlData = await authUrlRes.json();
+             
+             if (authUrlData.authorization_url) {
+                // Open popup
+                const width = 500;
+                const height = 600;
+                const left = (window.innerWidth - width) / 2;
+                const top = (window.innerHeight - height) / 2;
+                
+                const authWindow = window.open(
+                    authUrlData.authorization_url,
+                    "GoogleAuth",
+                    `width=${width},height=${height},top=${top},left=${left}`
+                );
+
+                // Listen for message from popup
+                const messageListener = (event: MessageEvent) => {
+                    // Tùy chỉnh origin nếu cần chạy ở prod
+                    if (event.data?.type === 'google-auth-success') {
+                        window.removeEventListener('message', messageListener);
+                        setSuccessMsg("Ủy quyền thành công! Đang tiến hành tạo Meet link...");
+                        // Thực hiện tạo meet link lại
+                        handleCreateMeetLink(session);
+                    }
+                };
+                
+                window.addEventListener('message', messageListener);
+                
+                // Optional: fallback nếu popup bị chặn
+                if (!authWindow) {
+                    setError("Trình duyệt đã chặn Popup window. Vui lòng cho phép hiện Popup để tiếp tục.");
+                } else {
+                     setError("Đang chờ bạn hoàn tất uỷ quyền trên hệ thống Google ở cửa sổ Popup...");
+                }
+             } else {
+                 setError("Không lấy được URL uỷ quyền từ Server.");
+             }
+          } catch(e: any) {
+              setError("Lỗi khi mở giao diện Ủy quyền: " + e.message);
+          }
         } else {
           throw new Error(data.detail || "Không thể tạo phòng Meet.");
         }
