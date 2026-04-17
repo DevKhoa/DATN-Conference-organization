@@ -924,29 +924,44 @@ const AssignSessionsPage: React.FC = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 xl:ml-11">
                               <div className="flex flex-col gap-1.5">
                                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest pl-1">Virtual Room (Meet)</label>
-                                {session.meet_link ? (
-                                  <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
-                                    <Video className="w-4 h-4 text-emerald-600" />
-                                    <a href={session.meet_link} target="_blank" rel="noreferrer" className="text-sm font-medium text-emerald-700 hover:underline truncate">
-                                      {session.meet_link}
-                                    </a>
-                                    <CheckCircle className="w-4 h-4 text-emerald-500 ml-auto" />
-                                  </div>
-                                ) : (
-                                  <Button
-                                    onClick={() => handleCreateMeetLink(session)}
-                                    disabled={generatingMeetId === session.temp_id}
-                                    variant="outline"
-                                    className="justify-start text-indigo-700 border-indigo-200 bg-white hover:bg-indigo-50 w-full"
-                                  >
-                                    {generatingMeetId === session.temp_id ? (
-                                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    ) : (
-                                      <Video className="w-4 h-4 mr-2" />
+                                <div className="flex items-center gap-2">
+                                  <div className="relative group w-full">
+                                    <Video className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
+                                    <input
+                                      type="text"
+                                      placeholder="https://meet.google.com/..."
+                                      className="w-full pl-9 pr-9 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
+                                      value={session.meet_link || ""}
+                                      onChange={(e) => updateSession(session.temp_id, "meet_link", e.target.value)}
+                                    />
+                                    {session.meet_link && (
+                                      <a
+                                        href={session.meet_link.startsWith('http') ? session.meet_link : `https://${session.meet_link}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors"
+                                        title="Open link"
+                                      >
+                                        <LinkIcon className="w-4 h-4" />
+                                      </a>
                                     )}
-                                    Tạo Meet Link
-                                  </Button>
-                                )}
+                                  </div>
+                                  {!session.meet_link && (
+                                    <Button
+                                      onClick={() => handleCreateMeetLink(session)}
+                                      disabled={generatingMeetId === session.temp_id}
+                                      variant="outline"
+                                      title="Auto-generate Meet link"
+                                      className="px-3 shrink-0 text-indigo-700 border-indigo-200 bg-white hover:bg-indigo-50 rounded-xl"
+                                    >
+                                      {generatingMeetId === session.temp_id ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                      ) : (
+                                        <Zap className="w-4 h-4" />
+                                      )}
+                                    </Button>
+                                  )}
+                                </div>
                               </div>
                               <div className="flex flex-col gap-1.5">
                                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest pl-1">Archive Room (Youtube)</label>
