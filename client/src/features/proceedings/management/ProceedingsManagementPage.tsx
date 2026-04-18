@@ -167,7 +167,7 @@ const ProceedingsManagementPage: React.FC = () => {
   // Manual "Sync View" button passes edPages explicitly for editor-change sync.
   useEffect(() => {
     if (activeTab !== "preview" || previewBlobUrl || previewGenerating || !selectedConfId) return;
-    generateBlobInBackground(procDataRef.current, undefined);
+    generateBlobInBackground(procDataRef.current, edReadyRef.current ? edPagesRef.current : undefined);
   }, [activeTab, previewBlobUrl]);
 
   // Committee UI state
@@ -965,6 +965,13 @@ const ProceedingsManagementPage: React.FC = () => {
   // Keep refs in sync with state so preview trigger useEffect never uses stale values
   useEffect(() => { edPagesRef.current = edPages; }, [edPages]);
   useEffect(() => { edReadyRef.current = edReady; }, [edReady]);
+
+  // Invalidates the preview blob so it is regenerated on next preview
+  useEffect(() => {
+    setPreviewBlobUrl(null);
+    setPreviewCacheKey(null);
+    setPreviewCacheUrl(null);
+  }, [edPages]);
 
   // Auto-sync: Khi procData thay đổi và editor đã mở, rebuild lại editor pages
   // Also invalidate preview cache so preview tab re-renders with new data

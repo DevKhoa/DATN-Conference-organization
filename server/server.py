@@ -29,4 +29,4 @@ app.include_router(registrations.router)
 app.include_router(proceedings.router)
 
 if __name__ == "__main__":
-    uvicorn.run("server:app", host=HOST, port=PORT, reload=False)
+    uvicorn.run("server:app", host=HOST, port=PORT, reload=True)

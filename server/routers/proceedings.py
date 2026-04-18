@@ -207,11 +207,33 @@ def _wrap_text(text: str, font_name: str, font_size: float, max_width: float) ->
         return [""]
     text = _clean_text(text)
     lines: List[str] = []
+
+    def _break_word(w: str) -> List[str]:
+        if _string_width(w, font_name, font_size) <= max_width:
+            return [w]
+        parts = []
+        cur_part = ""
+        for char in w:
+            test = cur_part + char
+            if _string_width(test, font_name, font_size) <= max_width:
+                cur_part = test
+            else:
+                if cur_part:
+                    parts.append(cur_part)
+                cur_part = char
+        if cur_part:
+            parts.append(cur_part)
+        return parts
+
     for para in text.split("\n"):
-        words = para.split()
+        words = []
+        for w in para.split():
+            words.extend(_break_word(w))
+            
         if not words:
             lines.append("")
             continue
+            
         current = words[0]
         for word in words[1:]:
             test = f"{current} {word}"
@@ -392,13 +414,20 @@ def _render_pages(pages: List[Dict[str, Any]], hf: Dict[str, Any], conference_na
             elif el_type == "image" and el.get("src"):
                 reader = _load_image(el.get("src"))
                 if reader:
+                    is_full_page = (
+                        abs(x_pt) < 1 
+                        and abs(y_pt) < 1 
+                        and abs(w_pt - A4_WIDTH) < 1 
+                        and abs(h_pt - A4_HEIGHT) < 1
+                    )
                     c.drawImage(
                         reader,
                         x_pt,
                         y_pt,
                         width=w_pt,
                         height=h_pt,
-                        preserveAspectRatio=False,
+                        preserveAspectRatio=not is_full_page,
+                        anchor='c' if not is_full_page else 'sw',
                         mask="auto",
                     )
             elif el_type == "bar":
