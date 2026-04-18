@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Calendar,
   MapPin,
@@ -41,6 +42,7 @@ import {
 import { useCreateRegistrationMutation } from "@/features/registrations/services/mutations";
 import { useToggleMeetMutation } from "@/features/sessions/services/mutations";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 type ChairDisplayPerson = {
   user_id: number;
@@ -208,10 +210,30 @@ const ConferenceDetailPage: React.FC = () => {
 
   const canEdit = checkRoles([Role.ADMIN, Role.SECRETARIAT]);
   const userEmail = authSession?.user?.email ?? "";
+  const currentUserId = authSession?.user?.user_metadata?.["user_id"] as number | undefined;
   const createRegistrationMutation = useCreateRegistrationMutation();
   const toggleMeetMutation = useToggleMeetMutation();
   const { data: conferenceTickets = [], isLoading: ticketsLoading } =
     useConferenceTicketsQuery(conferenceId, isRegisterModalOpen);
+
+  const { data: hasRegistration } = useQuery({
+    queryKey: ["user-conference-registration", conferenceId, currentUserId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("registrations")
+        .select(
+          `registration_id, ticket_configs!inner ( ticket_session!inner ( sessions!inner ( conf_id ) ) )`
+        )
+        .eq("user_id", currentUserId!)
+        .eq("ticket_configs.ticket_session.sessions.conf_id", conferenceId!);
+
+      if (error) throw error;
+      return (data?.length ?? 0) > 0;
+    },
+    enabled: !!currentUserId && !!conferenceId,
+  });
+
+  const canAccessVirtual = canEdit || !!hasRegistration;
 
   const bannerUrls = useMemo(() => {
     if (!conference?.banner_urls || !Array.isArray(conference.banner_urls)) {
@@ -747,7 +769,7 @@ const ConferenceDetailPage: React.FC = () => {
                                             </h3>
 
                                             <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                                              {conference.format_type !== "in-person" && (
+                                              {conference.format_type !== "in-person" && canAccessVirtual && (
                                                 <>
                                                   {session.meet_link !== undefined && (
                                                     <div className="flex items-center gap-1 group/meet animate-in slide-in-from-right-2 duration-300">
