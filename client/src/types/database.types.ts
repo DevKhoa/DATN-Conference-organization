@@ -967,6 +967,10 @@ export type Database = {
           session_name: string | null
           session_type: string | null
           start_time: string | null
+          format_type: string | null
+          meet_link: string | null
+          record_video_url: string | null
+          google_event_id: string | null
         }
         Insert: {
           chair_person_id?: number | null
@@ -978,6 +982,10 @@ export type Database = {
           session_name?: string | null
           session_type?: string | null
           start_time?: string | null
+          format_type?: string | null
+          meet_link?: string | null
+          record_video_url?: string | null
+          google_event_id?: string | null
         }
         Update: {
           chair_person_id?: number | null
@@ -989,6 +997,10 @@ export type Database = {
           session_name?: string | null
           session_type?: string | null
           start_time?: string | null
+          format_type?: string | null
+          meet_link?: string | null
+          record_video_url?: string | null
+          google_event_id?: string | null
         }
         Relationships: [
           {

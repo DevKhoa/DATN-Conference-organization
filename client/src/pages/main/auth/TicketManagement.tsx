@@ -14,8 +14,13 @@ import {
   Clock,
   Tag,
   Info,
+  Video,
 } from "lucide-react";
+
 import { useRouter } from "@tanstack/react-router";
+import dayjs from "dayjs";
+import customParseFormat from "dayjs/plugin/customParseFormat";
+
 import { Button } from "@/components/ui/button";
 import {
   useTicketsByConferenceQuery,
@@ -28,6 +33,11 @@ import {
 } from "@/features/tickets/services/mutations";
 import type { TicketConfig, TicketFormData } from "@/features/tickets/types";
 import { Route } from "@/routes/(app)/tickets";
+import { SimpleDateTimePicker } from "@/components/ui/date-time-picker";
+import { useConferenceDetailQuery } from "@/features/conferences/services/queries";
+
+dayjs.extend(customParseFormat);
+
 
 const EMPTY_FORM: TicketFormData = {
   ticket_name: "",
@@ -39,14 +49,11 @@ const EMPTY_FORM: TicketFormData = {
   description: "",
   price: "",
   session_ids: [],
+  ticket_type: "virtual",
 };
 
-const toLocalDatetime = (iso: string) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
+
+
 
 const formatPrice = (price: number | null) => {
   if (price === null || price === undefined) return "Free";
@@ -55,20 +62,19 @@ const formatPrice = (price: number | null) => {
 
 const formatShortDatetime = (iso: string) => {
   if (!iso) return "—";
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  return dayjs(iso).format("MMM D, HH:mm");
 };
+
 
 // --- MAIN COMPONENT ---
 
 const TicketManagementPage = () => {
   const router = useRouter();
   const { conferenceId } = Route.useSearch();
+
+  const { data: conferenceData } = useConferenceDetailQuery(conferenceId);
+  const conferenceType = conferenceData?.conference?.format_type || "hybrid";
+
   // Queries
   const {
     data: tickets = [],
@@ -93,13 +99,16 @@ const TicketManagementPage = () => {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const loading = ticketsLoading || sessionsLoading;
-  const error = ticketsError ? (ticketsError as Error).message : "";
+  const error = ticketsError ? (ticketsError as Error).message.replace(/^\d+:\s*/, "") : "";
 
   // --- Modal Handlers ---
 
   const openCreateModal = () => {
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    setForm({
+      ...EMPTY_FORM,
+      ticket_type: conferenceType === "hybrid" ? "virtual" : (conferenceType as "in-person" | "virtual")
+    });
     setFormError("");
     setIsModalOpen(true);
   };
@@ -111,13 +120,20 @@ const TicketManagementPage = () => {
       currency: ticket.currency || "VND",
       quantity_limit:
         ticket.quantity_limit !== null ? String(ticket.quantity_limit) : "",
-      open_time: toLocalDatetime(ticket.open_time),
-      close_time: toLocalDatetime(ticket.close_time),
+      open_time: ticket.open_time
+        ? dayjs(ticket.open_time).format("DD/MM/YYYY hh:mm A")
+        : "",
+      close_time: ticket.close_time
+        ? dayjs(ticket.close_time).format("DD/MM/YYYY hh:mm A")
+        : "",
+
       is_active: ticket.is_active,
       description: ticket.description || "",
       price: ticket.price !== null ? String(ticket.price) : "",
       session_ids: ticket.assigned_session_ids,
+      ticket_type: ticket.ticket_type || "virtual",
     });
+
     setFormError("");
     setIsModalOpen(true);
   };
@@ -150,13 +166,16 @@ const TicketManagementPage = () => {
       quantity_limit: form.quantity_limit
         ? parseInt(form.quantity_limit)
         : null,
-      open_time: new Date(form.open_time).toISOString(),
-      close_time: new Date(form.close_time).toISOString(),
+      open_time: dayjs(form.open_time, "DD/MM/YYYY hh:mm A").toISOString(),
+      close_time: dayjs(form.close_time, "DD/MM/YYYY hh:mm A").toISOString(),
       is_active: form.is_active,
+
       description: form.description.trim() || null,
       price: form.price !== "" ? parseFloat(form.price) : null,
       session_ids: form.session_ids,
+      ticket_type: form.ticket_type,
     };
+
 
     try {
       if (editingId !== null) {
@@ -170,7 +189,7 @@ const TicketManagementPage = () => {
       setIsModalOpen(false);
     } catch (err: unknown) {
       const errorMessage =
-        err instanceof Error ? err.message : "Failed to save ticket.";
+        err instanceof Error ? err.message.replace(/^\d+:\s*/, "") : "Failed to save ticket.";
       setFormError(errorMessage);
     }
   };
@@ -244,8 +263,7 @@ const TicketManagementPage = () => {
         {sessions.length === 0 && (
           <div className="flex items-center gap-3 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl px-4 py-3 text-sm">
             <Info className="w-4 h-4 shrink-0" />
-            No sessions found for this conference. Create sessions first before
-            managing tickets.
+            No sessions found for this conference. Create sessions first before managing tickets.
           </div>
         )}
 
@@ -509,29 +527,79 @@ const TicketManagementPage = () => {
                   <label className="block text-sm font-semibold text-foreground mb-1.5">
                     Open Time <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="datetime-local"
+                  <SimpleDateTimePicker
                     value={form.open_time}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, open_time: e.target.value }))
-                    }
-                    className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition"
+                    onChange={(val) => setForm((p) => ({ ...p, open_time: val }))}
+                    placeholder="Select open time"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-foreground mb-1.5">
                     Close Time <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="datetime-local"
+                  <SimpleDateTimePicker
                     value={form.close_time}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, close_time: e.target.value }))
+                    onChange={(val) =>
+                      setForm((p) => ({ ...p, close_time: val }))
                     }
-                    className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition"
+                    placeholder="Select close time"
                   />
                 </div>
               </div>
+
+              {/* Ticket Type */}
+              <div>
+                <label className="block text-sm font-semibold text-foreground mb-1.5">
+                  Ticket Type <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    disabled={conferenceType === "virtual" || conferenceType === "online"}
+                    onClick={() =>
+                      setForm((p) => ({ ...p, ticket_type: "in-person" }))
+                    }
+                    className={`flex items-center justify-center gap-2 p-3 rounded-xl border transition-all ${form.ticket_type === "in-person"
+                        ? "bg-primary/10 border-primary text-primary"
+                        : "bg-background border-input text-muted-foreground hover:bg-accent"
+                      } ${conferenceType === "virtual" || conferenceType === "online"
+                        ? "opacity-50 cursor-not-allowed"
+                        : ""
+                      }`}
+                  >
+                    <Users className="w-4 h-4" />
+                    <span className="text-sm font-medium">In-person</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={conferenceType === "in-person"}
+                    onClick={() =>
+                      setForm((p) => ({ ...p, ticket_type: "virtual" }))
+                    }
+                    className={`flex items-center justify-center gap-2 p-3 rounded-xl border transition-all ${form.ticket_type === "virtual"
+                        ? "bg-primary/10 border-primary text-primary"
+                        : "bg-background border-input text-muted-foreground hover:bg-accent"
+                      } ${conferenceType === "in-person"
+                        ? "opacity-50 cursor-not-allowed"
+                        : ""
+                      }`}
+                  >
+                    <Video className="w-4 h-4" />
+                    <span className="text-sm font-medium">Virtual</span>
+                  </button>
+                </div>
+                {conferenceType !== "hybrid" && (
+                  <p className="text-xs text-muted-foreground mt-2 inline-flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded px-2 py-1">
+                    <Info className="w-3.5 h-3.5" />
+                    Ticket type is fixed to{" "}
+                    {conferenceType === "virtual" || conferenceType === "online"
+                      ? "Virtual"
+                      : "In-person"}{" "}
+                    based on conference format.
+                  </p>
+                )}
+              </div>
+
 
               {/* Active Toggle */}
               <div className="flex items-center justify-between p-4 bg-muted rounded-xl border border-border">

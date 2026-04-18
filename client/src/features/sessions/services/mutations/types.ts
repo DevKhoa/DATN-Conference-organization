@@ -63,3 +63,9 @@ export interface IFinalizeChairsPayload {
     chair_person_id?: number;
   }>;
 }
+
+export interface IMeetCreationResponse {
+  event_id: string;
+  meet_link: string;
+  html_link: string;
+}

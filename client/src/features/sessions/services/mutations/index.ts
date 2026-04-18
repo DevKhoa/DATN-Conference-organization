@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type {
   IAutoGeneratePayload,
   IAutoGenerateResponse,
@@ -7,10 +7,12 @@ import type {
   IRecommendChairPayload,
   IRecommendChairResponse,
   IFinalizeChairsPayload,
+  IMeetCreationResponse,
 } from "./types";
 import { supabase } from "@/lib/supabase";
 import { request } from "@/lib/axios";
 import { formatPaperTime, formatToLocal } from "@/utils/time";
+import { SessionKeys } from "../queries/keys";
 
 export const useAutoGenerateSessionsMutation = () => {
   return useMutation({
@@ -30,18 +32,16 @@ export const useAutoGenerateSessionsMutation = () => {
 };
 
 export const useSaveSessionsMutation = () => {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({ conferenceId, sessions }: ISaveSessionPayload) => {
-      const savedSessions: ISaveSessionResponse["savedSessions"] = [];
-
-      for (const s of sessions) {
+      const savePromises = sessions.map(async (s) => {
         let currentDbId = s.db_id;
-
         const localStart = formatToLocal(s.start_time);
         const localEnd = formatToLocal(s.end_time);
 
         if (currentDbId) {
-          // Update existing session
           const { error: uError } = await supabase
             .from("sessions")
             .update({
@@ -58,14 +58,12 @@ export const useSaveSessionsMutation = () => {
 
           if (uError) throw uError;
 
-          // Delete existing session papers
           const { error: delError } = await supabase
             .from("session_papers")
             .delete()
             .eq("session_id", currentDbId);
           if (delError) throw delError;
         } else {
-          // Insert new session
           const { data: sData, error: sError } = await supabase
             .from("sessions")
             .insert([
@@ -89,7 +87,6 @@ export const useSaveSessionsMutation = () => {
           currentDbId = sData.session_id;
         }
 
-        // Insert session papers
         if (s.assigned_papers.length > 0) {
           const paperInserts = s.assigned_papers.map((p, idx) => ({
             session_id: currentDbId,
@@ -108,10 +105,19 @@ export const useSaveSessionsMutation = () => {
           if (pError) throw pError;
         }
 
-        savedSessions.push({ temp_id: s.temp_id, db_id: currentDbId! });
-      }
+        return { temp_id: s.temp_id, db_id: currentDbId! };
+      });
 
-      return { savedSessions };
+      const results = await Promise.all(savePromises);
+      return { savedSessions: results };
+    },
+    onSuccess: (_, { conferenceId }) => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ExistingSessions, conferenceId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.SessionsByConference, conferenceId],
+      });
     },
   });
 };
@@ -135,9 +141,11 @@ export const useRecommendChairMutation = () => {
 };
 
 export const useFinalizeChairsMutation = () => {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({ sessions }: IFinalizeChairsPayload) => {
-      for (const s of sessions) {
+      const updatePromises = sessions.map(async (s) => {
         if (s.db_id && s.chair_person_id) {
           const { error } = await supabase
             .from("sessions")
@@ -146,9 +154,64 @@ export const useFinalizeChairsMutation = () => {
 
           if (error) throw error;
         }
-      }
+      });
 
+      await Promise.all(updatePromises);
       return { success: true };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ExistingSessions],
+      });
+    },
+  });
+};
+
+export const useDeleteMeetMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      email,
+    }: {
+      sessionId: number;
+      email: string;
+    }) => {
+      const data = await request.delete<{ status: string; message: string }>(
+        `/sessions/${sessionId}/meet`,
+        { params: { email } },
+      );
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ExistingSessions],
+      });
+    },
+  });
+};
+export const useCreateMeetMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      email,
+    }: {
+      sessionId: number;
+      email: string;
+    }) => {
+      const data = await request.post<IMeetCreationResponse>(
+        `/sessions/${sessionId}/create-meet`,
+        { session_id: sessionId, email },
+      );
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ExistingSessions],
+      });
     },
   });
 };

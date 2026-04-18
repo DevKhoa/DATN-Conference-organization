@@ -27,6 +27,7 @@ import {
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import { useNavigate } from "@tanstack/react-router";
+import { supabase } from "@/lib/supabase";
 import useAuth from "@/features/auth/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Route } from "@/routes/(app)/sessions.assign";
@@ -40,6 +41,8 @@ import {
   useSaveSessionsMutation,
   useRecommendChairMutation,
   useFinalizeChairsMutation,
+  useDeleteMeetMutation,
+  useCreateMeetMutation,
 } from "@/features/sessions/services/mutations";
 import { useExistingSessionsQuery } from "@/features/sessions/services/queries";
 import { LocalSession, SessionPaperDetail } from "@/features/sessions/types";
@@ -76,6 +79,8 @@ const AssignSessionsPage: React.FC = () => {
   const saveSessionsMutation = useSaveSessionsMutation();
   const recommendChairMutation = useRecommendChairMutation();
   const finalizeChairsMutation = useFinalizeChairsMutation();
+  const deleteMeetMutation = useDeleteMeetMutation();
+  const createMeetMutation = useCreateMeetMutation();
 
   const { session: authSession } = useAuth();
   const currentUserEmail = authSession?.user?.email;
@@ -87,6 +92,7 @@ const AssignSessionsPage: React.FC = () => {
   // Create Meet Logic
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [generatingMeetId, setGeneratingMeetId] = useState<string | null>(null);
+  const [deletingMeetId, setDeletingMeetId] = useState<string | null>(null);
 
   const [sessions, setSessions] = useState<LocalSession[]>([]);
 
@@ -346,30 +352,72 @@ const AssignSessionsPage: React.FC = () => {
     setSuccessMsg("");
 
     try {
-      const response = await fetch(`http://localhost:8080/sessions/${session.db_id}/create-meet`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: session.db_id, email: currentUserEmail }),
+      const data = await createMeetMutation.mutateAsync({
+        sessionId: session.db_id,
+        email: currentUserEmail,
       });
-
-      const data = await response.json();
-      if (!response.ok) {
-        if (response.status === 400 && data.detail?.includes("liên kết với Google")) {
-          // Show the auth modal instead of opening popup directly to ensure fresh user gesture
-          setShowAuthModal(true);
-        } else {
-          throw new Error(data.detail || "Không thể tạo phòng Meet.");
-        }
-        return;
-      }
 
       // Success
       updateSession(session.temp_id, "meet_link", data.meet_link);
-      setSuccessMsg("Tạo Google Meet thành công!");
+      setSuccessMsg("Google Meet link created successfully!");
     } catch (err: any) {
-      setError("Lỗi tạo Meet: " + err.message);
+      // Check for specific 400 error about linked account
+      if (err.response?.status === 400 && err.response?.data?.detail?.includes("liên kết với Google")) {
+        setShowAuthModal(true);
+      } else {
+        const cleanMessage = err.message?.replace(/^\d+:\s*/, "");
+        setError("Meet Creation Error: " + cleanMessage);
+      }
     } finally {
       setGeneratingMeetId(null);
+    }
+  };
+
+  const handleRemoveMeetLink = async (session: LocalSession) => {
+    if (!session.db_id) {
+      // If it's not saved yet, just clear it locally
+      updateSession(session.temp_id, "meet_link", "");
+      return;
+    }
+
+    setDeletingMeetId(session.temp_id);
+    setError("");
+    setSuccessMsg("");
+
+    try {
+      if (!currentUserEmail) throw new Error("Missing user email");
+      await deleteMeetMutation.mutateAsync({
+        sessionId: session.db_id,
+        email: currentUserEmail,
+      });
+      updateSession(session.temp_id, "meet_link", "");
+      setSuccessMsg("Google Meet link removed successfully!");
+    } catch (err: any) {
+      const cleanMessage = err.message?.replace(/^\d+:\s*/, "");
+      setError("Meet Deletion Error: " + cleanMessage);
+    } finally {
+      setDeletingMeetId(null);
+    }
+  };
+
+  const handleRemoveYoutubeLink = async (session: LocalSession) => {
+    if (!session.db_id) {
+      updateSession(session.temp_id, "record_video_url", "");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("sessions")
+        .update({ record_video_url: null })
+        .eq("session_id", session.db_id);
+
+      if (error) throw error;
+      
+      updateSession(session.temp_id, "record_video_url", "");
+      setSuccessMsg("YouTube link removed successfully!");
+    } catch (err: any) {
+      setError("Error removing YouTube link: " + err.message);
     }
   };
 
@@ -390,7 +438,7 @@ const AssignSessionsPage: React.FC = () => {
     );
 
     if (!authWindow) {
-      setError("Popup bị chặn. Vui lòng cho phép hiện popup.");
+      setError("Popup blocked. Please allow popups.");
       setIsAuthorizing(false);
       return;
     }
@@ -424,16 +472,17 @@ const AssignSessionsPage: React.FC = () => {
           window.removeEventListener('message', messageListener);
           clearInterval(pollInterval);
           setShowAuthModal(false);
-          setSuccessMsg("Ủy quyền thành công! Hãy bấm 'Tạo Meet Link' một lần nữa.");
+          setSuccessMsg("Authorization successful! You can now create Meet links.");
           if (authWindow && !authWindow.closed) authWindow.close();
         }
       } else {
         authWindow.close();
-        setError("Không lấy được URL ủy quyền.");
+        setError("Could not initialize authorization flow.");
       }
     } catch (e: any) {
       if (authWindow) authWindow.close();
-      setError("Lỗi: " + e.message);
+      const cleanMsg = e.message?.replace(/^\d+:\s*/, "");
+      setError("Authorization Error: " + (cleanMsg || "Unknown reason."));
     } finally {
       setIsAuthorizing(false);
     }
@@ -486,17 +535,18 @@ const AssignSessionsPage: React.FC = () => {
       setSessions(updatedSessions);
       setStep("CHAIRS");
       setSuccessMsg(
-        "Sessions structured successfully! Moving to chair assignment.",
+        "Sessions saved successfully! Moving to chair assignment.",
       );
-    } catch (err) {
-      setError("Failed to save to database: " + err.message);
+    } catch (err: any) {
+      const cleanMsg = err.message?.replace(/^\d+:\s*/, "");
+      setError("Save Error: " + cleanMsg);
     }
   };
 
   const handleRecommendChair = async (session: LocalSession) => {
     if (!session.db_id) return;
     if (session.assigned_papers.length === 0) {
-      setError("Session này chưa có bài báo nào. Không thể phân tích ngữ cảnh để gợi ý Chair.");
+      setError("This session has no papers. Cannot analyze context to suggest a Chair.");
       return;
     }
     setRecommendingFor(session.temp_id);
@@ -530,10 +580,11 @@ const AssignSessionsPage: React.FC = () => {
         })),
       });
 
-      setSuccessMsg("All configurations finalized and saved!");
+      setSuccessMsg("All configurations finalized and saved successfully!");
       setTimeout(() => navigate({ to: "/conferences/$conferenceId", params: { conferenceId: conferenceId.toString() } }), 1500);
-    } catch (e) {
-      setError("Failed to update chairs.");
+    } catch (e: any) {
+      const cleanMsg = e.message?.replace(/^\d+:\s*/, "");
+      setError("Finalization Error: " + cleanMsg);
     }
   };
 
@@ -588,8 +639,8 @@ const AssignSessionsPage: React.FC = () => {
                   </h1>
                   {conferenceData?.conference?.format_type && (
                     <span className={`px-2 py-0.5 mt-1 rounded-md text-[10px] font-bold uppercase tracking-wider border shadow-sm ${conferenceData.conference.format_type === 'virtual' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
-                        conferenceData.conference.format_type === 'hybrid' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                          'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      conferenceData.conference.format_type === 'hybrid' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                        'bg-emerald-50 text-emerald-700 border-emerald-200'
                       }`}>
                       {conferenceData.conference.format_type === 'virtual' ? 'Virtual' :
                         conferenceData.conference.format_type === 'hybrid' ? 'Hybrid' : 'In-person'}
@@ -890,8 +941,8 @@ const AssignSessionsPage: React.FC = () => {
                                         updateSession(session.temp_id, 'format_type', 'in-person');
                                       }}
                                       className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${session.format_type === 'in-person'
-                                          ? "bg-white text-emerald-700 shadow-sm"
-                                          : "text-slate-500 hover:text-slate-700"
+                                        ? "bg-white text-emerald-700 shadow-sm"
+                                        : "text-slate-500 hover:text-slate-700"
                                         }`}
                                     >
                                       In-person
@@ -902,8 +953,8 @@ const AssignSessionsPage: React.FC = () => {
                                         updateSession(session.temp_id, 'format_type', 'virtual');
                                       }}
                                       className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${session.format_type === 'virtual'
-                                          ? "bg-white text-indigo-700 shadow-sm"
-                                          : "text-slate-500 hover:text-slate-700"
+                                        ? "bg-white text-indigo-700 shadow-sm"
+                                        : "text-slate-500 hover:text-slate-700"
                                         }`}
                                     >
                                       Virtual
@@ -1003,11 +1054,19 @@ const AssignSessionsPage: React.FC = () => {
                                             <LinkIcon className="w-3.5 h-3.5" />
                                           </a>
                                           <button
-                                            onClick={() => updateSession(session.temp_id, "meet_link", "")}
-                                            className="p-1 text-slate-400 hover:text-red-500 transition-colors rounded-md hover:bg-red-50"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleRemoveMeetLink(session);
+                                            }}
+                                            disabled={deletingMeetId === session.temp_id}
+                                            className="p-1 text-slate-400 hover:text-red-500 transition-colors rounded-md hover:bg-red-50 disabled:opacity-50"
                                             title="Remove link"
                                           >
-                                            <Trash2 className="w-3.5 h-3.5" />
+                                            {deletingMeetId === session.temp_id ? (
+                                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            ) : (
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            )}
                                           </button>
                                         </div>
                                       )}
@@ -1054,7 +1113,10 @@ const AssignSessionsPage: React.FC = () => {
                                           <LinkIcon className="w-3.5 h-3.5" />
                                         </a>
                                         <button
-                                          onClick={() => updateSession(session.temp_id, "record_video_url", "")}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRemoveYoutubeLink(session);
+                                          }}
                                           className="p-1 text-slate-400 hover:text-red-500 transition-colors rounded-md hover:bg-red-50"
                                           title="Remove link"
                                         >

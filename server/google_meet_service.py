@@ -190,4 +190,38 @@ class GoogleMeetService:
             logger.error(f"Error creating Google Meet Calendar Event: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
+    def delete_meet_event(self, event_id: str, user_refresh_token: str):
+        """
+        Xoá Google Calendar event dựa trên event_id.
+        """
+        if not user_refresh_token:
+            raise HTTPException(status_code=400, detail="Missing user refresh token.")
+
+        if not os.path.exists(CREDENTIALS_FILE):
+             raise HTTPException(status_code=500, detail="Missing Google credentials file (client_secret.json).")
+
+        with open(CREDENTIALS_FILE, 'r') as f:
+            data = json.load(f)
+            web = data.get('web', {})
+            client_id = web.get('client_id')
+            client_secret = web.get('client_secret')
+            token_uri = web.get('token_uri', "https://oauth2.googleapis.com/token")
+
+        creds = Credentials(
+            token=None,
+            refresh_token=user_refresh_token,
+            token_uri=token_uri,
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=SCOPES
+        )
+
+        service = build('calendar', 'v3', credentials=creds)
+
+        try:
+            service.events().delete(calendarId='primary', eventId=event_id).execute()
+        except Exception as e:
+            logger.error(f"Error deleting Google Meet Calendar Event: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
 meet_service = GoogleMeetService()

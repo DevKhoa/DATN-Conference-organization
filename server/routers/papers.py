@@ -36,7 +36,7 @@ async def get_paper_details(paper_id: int):
 
         if not response.data:
             logger.warning(f"Paper ID {paper_id} not found in database.")
-            raise HTTPException(status_code=404, detail="Paper not found")
+            raise HTTPException(status_code=404, detail="Paper not found.")
 
         paper_data = response.data[0]
         
@@ -48,7 +48,7 @@ async def get_paper_details(paper_id: int):
         raise he
     except Exception as e:
         logger.error(f"Internal Server Error processing paper {paper_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
     
     
 @router.get("/papers", response_model=List[PaperSummary])
@@ -80,7 +80,7 @@ async def list_papers(
 
     except Exception as e:
         logger.error(f"Error listing papers: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to list papers: {str(e)}")
     
 @router.post("/papers/{paper_id}/{version_id}/upload")
 async def upload_paper(
@@ -109,7 +109,7 @@ async def upload_paper(
             if not public_url:
                 raise HTTPException(
                     status_code=500,
-                    detail="Failed to upload file to storage"
+                    detail="Failed to upload file to storage."
                 )
             
             try:
@@ -119,12 +119,12 @@ async def upload_paper(
 
                 if not update_res.data:
                     logger.warning(f"File uploaded to GCS but Version ID {version_id} not found in DB to update.")
-                    raise HTTPException(status_code=404, detail="Version ID not found in database")
+                    raise HTTPException(status_code=404, detail="Paper version ID not found.")
                 logger.info(f"Database updated for Version {version_id}")
 
             except Exception as db_e:
                 logger.error(f"Database Update Error: {db_e}")
-                raise HTTPException(status_code=500, detail="Uploaded to Storage but failed to update Database.")
+                raise HTTPException(status_code=500, detail="File uploaded but failed to update database.")
 
             return {
                 "message": "Upload successful",
@@ -138,7 +138,7 @@ async def upload_paper(
         raise he
     except Exception as e:
         logger.error(f"API Error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 
 @router.get("/storage/{paper_id}/files")
@@ -148,7 +148,7 @@ async def get_files_by_paper(paper_id: str):
         raise HTTPException(status_code=500, detail="Storage service not initialized")
     files = storage_service.get_paper_files(paper_id=paper_id)
     if not files:
-        return {"paper_id": paper_id, "files": [], "message": "No files found"}
+        return {"paper_id": paper_id, "files": [], "message": "No files found for this paper."}
     return {"paper_id": paper_id, "count": len(files), "files": files}
 
 
@@ -159,7 +159,7 @@ async def get_files_by_version(paper_id: str, version_id: str):
         raise HTTPException(status_code=500, detail="Storage service not initialized")
     files = storage_service.get_paper_files(paper_id=paper_id, version_id=version_id)
     if not files:
-         return {"paper_id": paper_id, "version_id": version_id, "files": [], "message": "No files found for this version"}
+         return {"paper_id": paper_id, "version_id": version_id, "files": [], "message": "No files found for this version."}
     return {"paper_id": paper_id, "version_id": version_id, "count": len(files), "files": files}
 
 @router.post("/papers/{paper_id}/{version_id}/embed")
@@ -182,7 +182,7 @@ async def trigger_embedding_from_gcs(
             )
 
             if not temp_file_path:
-                raise HTTPException(status_code=404, detail="No PDF file found in Storage for this version.")
+                raise HTTPException(status_code=404, detail="No PDF file found in storage for this version.")
 
             status = embedding_service.run_pipeline(paper_id, version_id, temp_file_path)
             
@@ -190,19 +190,19 @@ async def trigger_embedding_from_gcs(
                 logger.info(f"Embedding finished for Paper {paper_id}")
                 return {
                     "status": "success",
-                    "message": "Document embedded successfully from GCS.",
+                    "message": "Document embedded successfully.",
                     "paper_id": paper_id,
                     "version_id": version_id
                 }
             else:
                 logger.error(f"Error while embedding")
-                raise HTTPException(status_code=500, detail="Failed to embed document")
+                raise HTTPException(status_code=500, detail="Failed to embed document.")
 
     except HTTPException as he:
         raise he
     except Exception as e:
         logger.error(f"API Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
     
 
 @router.post("/papers/{paper_id}/{version_id}/check-plagiarism")
@@ -229,7 +229,7 @@ async def check_plagiarism_api(
             raise HTTPException(status_code=500, detail=result['error'])
 
         return {
-            "message": "Check completed using existing embeddings",
+            "message": "Check completed using existing embeddings.",
             "paper_id": paper_id,
             "version_id": version_id,
             "input_threshold": threshold,
@@ -264,7 +264,7 @@ async def review_paper_quality(
             )
 
             if not local_file_path:
-                raise HTTPException(status_code=404, detail="No PDF file found in Storage for this version.")
+                raise HTTPException(status_code=404, detail="No PDF file found in storage for this version.")
             
             logger.info(f"File downloaded to: {local_file_path}")
 
@@ -297,7 +297,7 @@ async def review_paper_quality(
         raise he
     except Exception as e:
         logger.error(f"Review Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to review format: {str(e)}")
     
     finally:
         if google_file:
@@ -319,7 +319,7 @@ async def recommend_reviewers_avg_method(
 
         chunks_check = supabase_client.table("paper_chunks").select("id", count="exact").eq("paper_id", paper_id).limit(1).execute()
         if chunks_check.count == 0:
-             raise HTTPException(status_code=404, detail="Paper has no chunks. Please run embedding first.")
+             raise HTTPException(status_code=404, detail="Paper has no content chunks. Please run embedding first.")
 
         rpc_params = {
             'target_paper_id': paper_id,
