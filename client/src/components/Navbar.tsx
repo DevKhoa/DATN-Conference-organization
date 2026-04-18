@@ -18,6 +18,7 @@ import { formatRoleLabel, getHighestRole } from "@/features/auth/types";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { useLogoutMutation } from "@/features/auth/services/mutations";
+import { useMyProfileQuery } from "@/features/users/services/queries";
 import { toast } from "sonner";
 
 interface NavbarProps {
@@ -43,20 +44,22 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
   const { session, roles } = useAuth();
   const navigate = useNavigate();
   const logoutMutation = useLogoutMutation();
+  const { data: profile } = useMyProfileQuery();
 
   const userData = useMemo(() => {
     if (!session) return null;
 
     return {
       name:
+        profile?.full_name ||
         session.user.user_metadata?.full_name ||
         session.user.email?.split("@")[0] ||
         "User",
       email: session.user.email || "",
-      avatar: session.user.user_metadata?.avatar_url || "",
+      avatar: profile?.avatar_url || session.user.user_metadata?.avatar_url || "",
       role: formatRoleLabel(getHighestRole(roles)),
     };
-  }, [session?.user, roles]);
+  }, [session?.user, roles, profile]);
 
   const handleLogout = () => {
     setIsProfileOpen(false);
@@ -145,17 +148,16 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                 key={link.name}
                 href={link.href}
                 onClick={(e) => handleLinkClick(e, link.href)}
-                className={`text-sm font-medium transition-colors flex items-center gap-1.5 ${
-                  link.name === "AI Assistant"
+                className={`text-sm font-medium transition-colors flex items-center gap-1.5 ${link.name === "AI Assistant"
                     ? "text-primary hover:text-primary/80"
                     : "text-muted-foreground hover:text-foreground"
-                }`}
+                  }`}
               >
                 {link.icon && <link.icon className="w-4 h-4" />}
                 {link.name}
               </a>
             ))}
-            
+
             {/* Admin Tools Dropdown */}
             {session && (
               <div className="relative group py-5 -my-5">
@@ -298,17 +300,16 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                 key={link.name}
                 href={link.href}
                 onClick={(e) => handleLinkClick(e, link.href)}
-                className={`inline-flex px-3 py-2 rounded-md text-base font-medium hover:bg-accent items-center gap-2 ${
-                  link.name === "AI Assistant"
+                className={`inline-flex px-3 py-2 rounded-md text-base font-medium hover:bg-accent items-center gap-2 ${link.name === "AI Assistant"
                     ? "text-primary hover:text-primary/80"
                     : "text-foreground hover:text-primary"
-                }`}
+                  }`}
               >
                 {link.icon && <link.icon className="w-5 h-5" />}
                 {link.name}
               </a>
             ))}
-            
+
             {session && (
               <div className="pt-2 pb-1">
                 <div className="px-3 py-2 text-sm font-semibold text-muted-foreground uppercase tracking-wider">

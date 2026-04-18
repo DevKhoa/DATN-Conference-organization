@@ -15,6 +15,8 @@ export interface AgendaSession {
   conference_name: string;
   conf_id: number;
   chair_name: string;
+  timezone?: string;
+  session_type?: string;
 }
 
 // Standalone function for fetching existing sessions
@@ -90,15 +92,15 @@ export const useSessionsByConferenceQuery = (conferenceId: number | null) => {
     queryKey: [SessionKeys.SessionsByConference, conferenceId],
     queryFn: conferenceId
       ? async () => {
-          const { data, error } = await supabase
-            .from("sessions")
-            .select("session_id, session_name, room_location")
-            .eq("conf_id", conferenceId);
+        const { data, error } = await supabase
+          .from("sessions")
+          .select("session_id, session_name, room_location")
+          .eq("conf_id", conferenceId);
 
-          if (error) throw error;
+        if (error) throw error;
 
-          return (data || []) as Session[];
-        }
+        return (data || []) as Session[];
+      }
       : skipToken,
     enabled: !!conferenceId,
   });
@@ -158,7 +160,8 @@ export const useMyAgendaSessionsQuery = () => {
       start_time,
       end_time,
       room_location,
-      conferences!inner(conf_id, conf_name),
+      session_type,
+      conferences!inner(conf_id, conf_name, timezone),
       profiles!chair_person_id(full_name)
     `,
         )
@@ -181,6 +184,8 @@ export const useMyAgendaSessionsQuery = () => {
           conference_name: s.conferences?.conf_name || "Unknown",
           conf_id: s.conferences?.conf_id ?? 0,
           chair_name: s.profiles?.full_name || "Unassigned",
+          timezone: s.conferences?.timezone,
+          session_type: s.session_type,
         }),
       );
 
