@@ -341,10 +341,11 @@ async def create_google_meet_for_session(session_id: int, request: MeetCreationR
         try:
             supabase_client.table("sessions").update({
                 "meet_link": event_res["meet_link"],
-                "google_event_id": event_res.get("event_id") or event_res.get("id")
+                "google_event_id": event_res.get("event_id") or event_res.get("id"),
+                "is_meet_active": True
             }).eq("session_id", session_id).execute()
         except Exception as e:
-            logger.warning(f"Database update with google_event_id failed, falling back to meet_link only: {e}")
+            logger.warning(f"Database update with google_event_id or is_meet_active failed, falling back to meet_link only: {e}")
             try:
                 supabase_client.table("sessions").update({
                     "meet_link": event_res["meet_link"]
@@ -407,3 +408,19 @@ async def delete_google_meet_for_session(session_id: int, email: str = None):
         logger.error(f"Error removing Meet event: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.patch("/sessions/{session_id}/toggle-meet")
+async def toggle_meet_active(session_id: int, is_active: bool = Query(..., description="Active status of the room")):
+    try:
+        res = supabase_client.table("sessions").update({
+            "is_meet_active": is_active
+        }).eq("session_id", session_id).execute()
+        
+        if hasattr(res, 'error') and res.error:
+             # Just in case the column doesn't exist yet
+             raise HTTPException(status_code=400, detail="Could not update status. Check database schema.")
+             
+        return {"status": "success", "is_meet_active": is_active}
+    except Exception as e:
+        logger.error(f"Error toggling meet status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

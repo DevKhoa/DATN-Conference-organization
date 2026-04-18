@@ -21,6 +21,12 @@ import {
   AlertCircle,
   CreditCard,
   CheckCircle,
+  Video,
+  Youtube,
+  Eye,
+  EyeOff,
+  Globe,
+  Monitor,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "@tanstack/react-router";
@@ -33,6 +39,8 @@ import {
   useConferenceTicketsQuery,
 } from "@/features/conferences/services/queries";
 import { useCreateRegistrationMutation } from "@/features/registrations/services/mutations";
+import { useToggleMeetMutation } from "@/features/sessions/services/mutations";
+import { toast } from "sonner";
 
 type ChairDisplayPerson = {
   user_id: number;
@@ -201,6 +209,7 @@ const ConferenceDetailPage: React.FC = () => {
   const canEdit = checkRoles([Role.ADMIN, Role.SECRETARIAT]);
   const userEmail = authSession?.user?.email ?? "";
   const createRegistrationMutation = useCreateRegistrationMutation();
+  const toggleMeetMutation = useToggleMeetMutation();
   const { data: conferenceTickets = [], isLoading: ticketsLoading } =
     useConferenceTicketsQuery(conferenceId, isRegisterModalOpen);
 
@@ -355,13 +364,30 @@ const ConferenceDetailPage: React.FC = () => {
           <div className="absolute inset-0 bg-linear-to-t from-foreground/95 via-foreground/40 to-transparent" />
 
           <div className="absolute top-6 left-4 lg:left-8 z-20 w-[95%] flex justify-between items-center gap-4">
-            <button
-              onClick={() => navigate({ to: "/conferences" })}
-              className="flex items-center gap-2 text-primary-foreground/90 hover:text-primary-foreground bg-background/10 hover:bg-background/20 backdrop-blur-md px-4 py-2 rounded-full transition-all border border-background/10"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span className="text-sm font-medium">Back to List</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate({ to: "/conferences" })}
+                className="flex items-center gap-2 text-primary-foreground/90 hover:text-primary-foreground bg-background/10 hover:bg-background/20 backdrop-blur-md px-4 py-2 rounded-full transition-all border border-background/10"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="text-sm font-medium">Back to List</span>
+              </button>
+
+              <div className="flex items-center gap-2 bg-background/10 backdrop-blur-md px-4 py-2 rounded-full border border-background/10 text-primary-foreground/90 animate-in fade-in slide-in-from-left-4 duration-500">
+                {conference.format_type?.toLowerCase() === "virtual" && (
+                  <Monitor className="w-4 h-4 text-indigo-400" />
+                )}
+                {conference.format_type?.toLowerCase() === "in-person" && (
+                  <MapPin className="w-4 h-4 text-emerald-400" />
+                )}
+                {conference.format_type?.toLowerCase() === "hybrid" && (
+                  <Globe className="w-4 h-4 text-amber-400" />
+                )}
+                <span className="text-xs font-bold uppercase tracking-widest">
+                  {conference.format_type || "In-person"}
+                </span>
+              </div>
+            </div>
 
             <div className="flex items-center gap-2 flex-wrap justify-end">
               {canEdit && sessions.length > 0 && (
@@ -480,18 +506,16 @@ const ConferenceDetailPage: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
               <div
-                className={`rounded-2xl border p-5 flex items-start sm:items-center gap-4 shadow-sm ${
-                  conference.open_for_papers
+                className={`rounded-2xl border p-5 flex items-start sm:items-center gap-4 shadow-sm ${conference.open_for_papers
                     ? "bg-linear-to-r from-emerald-50 to-teal-50 border-emerald-100"
                     : "bg-muted/40 border-border"
-                }`}
+                  }`}
               >
                 <div
-                  className={`p-3 rounded-xl shrink-0 ${
-                    conference.open_for_papers
+                  className={`p-3 rounded-xl shrink-0 ${conference.open_for_papers
                       ? "bg-card text-emerald-600 shadow-sm"
                       : "bg-card text-muted-foreground shadow-sm"
-                  }`}
+                    }`}
                 >
                   {conference.open_for_papers ? (
                     <FileText className="w-6 h-6" />
@@ -501,22 +525,20 @@ const ConferenceDetailPage: React.FC = () => {
                 </div>
                 <div className="grow">
                   <h3
-                    className={`font-bold text-base mb-1 ${
-                      conference.open_for_papers
+                    className={`font-bold text-base mb-1 ${conference.open_for_papers
                         ? "text-emerald-900"
                         : "text-foreground"
-                    }`}
+                      }`}
                   >
                     {conference.open_for_papers
                       ? "Call for Papers is Active"
                       : "Submissions Closed"}
                   </h3>
                   <p
-                    className={`text-sm ${
-                      conference.open_for_papers
+                    className={`text-sm ${conference.open_for_papers
                         ? "text-emerald-800"
                         : "text-muted-foreground"
-                    }`}
+                      }`}
                   >
                     {conference.open_for_papers
                       ? "This conference is still open for paper submissions."
@@ -611,11 +633,10 @@ const ConferenceDetailPage: React.FC = () => {
                             >
                               <div className="flex items-center gap-4 relative z-10 hover:bg-accent/50 p-2 rounded-xl transition-colors -ml-2">
                                 <div
-                                  className={`flex flex-col items-center justify-center text-white rounded-xl shadow-lg w-16 h-16 shrink-0 border-4 border-slate-50 transition-colors ${
-                                    isDayExpanded
+                                  className={`flex flex-col items-center justify-center text-white rounded-xl shadow-lg w-16 h-16 shrink-0 border-4 border-slate-50 transition-colors ${isDayExpanded
                                       ? "bg-primary shadow-primary/20"
                                       : "bg-muted-foreground shadow-muted/20"
-                                  }`}
+                                    }`}
                                 >
                                   <span className="text-xs font-bold uppercase tracking-wider opacity-80">
                                     {dateInfo.weekday.substring(0, 3)}
@@ -663,11 +684,10 @@ const ConferenceDetailPage: React.FC = () => {
                                       <div className="flex flex-col items-center shrink-0 w-16 z-10">
                                         <div className="bg-muted py-2 flex flex-col items-center w-full">
                                           <span
-                                            className={`text-sm font-bold font-mono tracking-tight ${
-                                              isExpanded
+                                            className={`text-sm font-bold font-mono tracking-tight ${isExpanded
                                                 ? "text-primary"
                                                 : "text-muted-foreground"
-                                            }`}
+                                              }`}
                                           >
                                             {startTime}
                                           </span>
@@ -675,11 +695,10 @@ const ConferenceDetailPage: React.FC = () => {
                                             {endTime}
                                           </span>
                                           <div
-                                            className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-300 relative bg-white ${
-                                              isExpanded
+                                            className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-300 relative bg-white ${isExpanded
                                                 ? "border-primary shadow-[0_0_0_4px_rgba(59,130,246,0.1)] scale-110"
                                                 : "border-border group-hover:border-primary/40"
-                                            }`}
+                                              }`}
                                           >
                                             {isExpanded && (
                                               <div className="absolute inset-0.5 rounded-full bg-primary" />
@@ -689,11 +708,10 @@ const ConferenceDetailPage: React.FC = () => {
                                       </div>
 
                                       <div
-                                        className={`grow bg-white rounded-2xl transition-all duration-300 border relative z-10 ${
-                                          isExpanded
+                                        className={`grow bg-white rounded-2xl transition-all duration-300 border relative z-10 ${isExpanded
                                             ? "shadow-lg border-primary/30 ring-1 ring-primary/20 translate-x-1"
                                             : "shadow-sm border-border hover:shadow-md hover:border-border/80"
-                                        }`}
+                                          }`}
                                       >
                                         <div
                                           onClick={() =>
@@ -702,26 +720,106 @@ const ConferenceDetailPage: React.FC = () => {
                                           className="p-5 md:p-6 cursor-pointer"
                                         >
                                           <div className="flex justify-between items-start gap-4">
-                                            <div className="space-y-2">
-                                              <div className="flex flex-wrap items-center gap-2">
-                                                <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-muted text-muted-foreground text-xs font-bold uppercase tracking-wider">
-                                                  <MapPin className="w-3 h-3 mr-1" />
+                                            <h3
+                                              className={`text-lg md:text-xl font-bold transition-colors flex items-center gap-3 ${isExpanded
+                                                  ? "text-primary"
+                                                  : "text-foreground group-hover:text-primary"
+                                                }`}
+                                            >
+                                              <div className="p-2 bg-muted rounded-xl text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors shrink-0">
+                                                {conference.format_type?.toLowerCase() === "virtual" && (
+                                                  <Monitor className="w-4 h-4" />
+                                                )}
+                                                {conference.format_type?.toLowerCase() === "in-person" && (
+                                                  <MapPin className="w-4 h-4" />
+                                                )}
+                                                {conference.format_type?.toLowerCase() === "hybrid" && (
+                                                  <Globe className="w-4 h-4" />
+                                                )}
+                                                {!conference.format_type && <MapPin className="w-4 h-4" />}
+                                              </div>
+                                              <div className="flex flex-col">
+                                                <span>{session.session_name}</span>
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-0.5">
                                                   {session.room_location}
                                                 </span>
                                               </div>
+                                            </h3>
 
-                                              <h3
-                                                className={`text-lg md:text-xl font-bold transition-colors ${
-                                                  isExpanded
-                                                    ? "text-primary"
-                                                    : "text-foreground group-hover:text-primary"
-                                                }`}
-                                              >
-                                                {session.session_name}
-                                              </h3>
-                                            </div>
+                                            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                                              {conference.format_type !== "in-person" && (
+                                                <>
+                                                  {session.meet_link !== undefined && (
+                                                    <div className="flex items-center gap-1 group/meet animate-in slide-in-from-right-2 duration-300">
+                                                      <button
+                                                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 flex items-center gap-1.5 shadow-sm border ${session.meet_link && (session.is_meet_active ?? true)
+                                                            ? "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white hover:shadow-indigo-200 border-transparent"
+                                                            : "bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200"
+                                                          } shrink-0`}
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          if (session.meet_link && (session.is_meet_active ?? true)) {
+                                                            window.open(session.meet_link, "_blank");
+                                                          } else {
+                                                            toast.info("Room is not available now", {
+                                                              description: "The organizer has not opened this virtual room yet.",
+                                                            });
+                                                          }
+                                                        }}
+                                                      >
+                                                        <Video className="w-3.5 h-3.5" />
+                                                        Join Virtual Meeting
+                                                      </button>
 
-                                            <div className="flex items-center gap-3 shrink-0">
+                                                      {canEdit && session.meet_link !== undefined && (
+                                                        <button
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            toggleMeetMutation.mutate({
+                                                              sessionId: session.session_id,
+                                                              isActive: !(session.is_meet_active ?? true)
+                                                            });
+                                                          }}
+                                                          className={`flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200 shrink-0 ${(session.is_meet_active ?? true)
+                                                              ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100"
+                                                              : "bg-slate-100 text-slate-400 hover:bg-slate-200 border border-slate-200"
+                                                            }`}
+                                                          title={(session.is_meet_active ?? true) ? "Deactivate Meeting Room" : "Activate Meeting Room"}
+                                                        >
+                                                          {(session.is_meet_active ?? true) ? (
+                                                            <Eye className="w-4 h-4" />
+                                                          ) : (
+                                                            <EyeOff className="w-4 h-4" />
+                                                          )}
+                                                        </button>
+                                                      )}
+                                                    </div>
+                                                  )}
+
+                                                  {session.record_video_url !== undefined && (
+                                                    <button
+                                                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 flex items-center gap-1.5 shadow-sm border animate-in slide-in-from-right-2 duration-300 ${session.record_video_url
+                                                          ? "bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white hover:shadow-rose-200 border-transparent"
+                                                          : "bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200"
+                                                        } shrink-0`}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (session.record_video_url) {
+                                                          window.open(session.record_video_url, "_blank");
+                                                        } else {
+                                                          toast.info("Recorded video is not available now", {
+                                                            description: "The recording will be uploaded after the conference concludes.",
+                                                          });
+                                                        }
+                                                      }}
+                                                    >
+                                                      <Youtube className="w-3.5 h-3.5" />
+                                                      Watch Recording
+                                                    </button>
+                                                  )}
+                                                </>
+                                              )}
+
                                               {canEdit && (
                                                 <button
                                                   onClick={(e) => {
@@ -735,18 +833,17 @@ const ConferenceDetailPage: React.FC = () => {
                                                       },
                                                     });
                                                   }}
-                                                  className="text-xs font-bold text-muted-foreground bg-muted hover:bg-primary/10 hover:text-primary px-3 py-1.5 rounded-lg transition-colors border border-border"
+                                                  className="text-xs font-bold text-muted-foreground bg-muted hover:bg-primary/10 hover:text-primary px-3 py-1.5 rounded-lg transition-colors border border-border shrink-0"
                                                 >
                                                   Edit Session
                                                 </button>
                                               )}
 
                                               <div
-                                                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
-                                                  isExpanded
+                                                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 shrink-0 ${isExpanded
                                                     ? "bg-primary/10 text-primary rotate-180"
                                                     : "bg-muted text-muted-foreground"
-                                                }`}
+                                                  }`}
                                               >
                                                 <ChevronDown className="w-5 h-5" />
                                               </div>
@@ -801,7 +898,7 @@ const ConferenceDetailPage: React.FC = () => {
 
                                               <div className="space-y-4">
                                                 {session.session_papers &&
-                                                session.session_papers.length >
+                                                  session.session_papers.length >
                                                   0 ? (
                                                   session.session_papers.map(
                                                     (sp, paperIdx) => (
@@ -822,20 +919,20 @@ const ConferenceDetailPage: React.FC = () => {
                                                               </h5>
                                                               {(sp.start_time ||
                                                                 sp.end_time) && (
-                                                                <span className="text-[10px] font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20 shrink-0 whitespace-nowrap">
-                                                                  {sp.start_time
-                                                                    ? formatTimeOnly(
+                                                                  <span className="text-[10px] font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20 shrink-0 whitespace-nowrap">
+                                                                    {sp.start_time
+                                                                      ? formatTimeOnly(
                                                                         sp.start_time,
                                                                       )
-                                                                    : ""}{" "}
-                                                                  -{" "}
-                                                                  {sp.end_time
-                                                                    ? formatTimeOnly(
+                                                                      : ""}{" "}
+                                                                    -{" "}
+                                                                    {sp.end_time
+                                                                      ? formatTimeOnly(
                                                                         sp.end_time,
                                                                       )
-                                                                    : ""}
-                                                                </span>
-                                                              )}
+                                                                      : ""}
+                                                                  </span>
+                                                                )}
                                                             </div>
                                                             <div className="flex items-center text-sm text-muted-foreground mb-2">
                                                               <User className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
@@ -990,13 +1087,13 @@ const ConferenceDetailPage: React.FC = () => {
                           const soldOut =
                             ticket.quantity_limit !== null &&
                             (ticket.sold_quantity || 0) >=
-                              ticket.quantity_limit;
+                            ticket.quantity_limit;
                           const isSelected =
                             selectedTicketId === ticket.ticket_id;
                           const remaining =
                             ticket.quantity_limit !== null
                               ? ticket.quantity_limit -
-                                (ticket.sold_quantity || 0)
+                              (ticket.sold_quantity || 0)
                               : null;
 
                           return (
@@ -1006,22 +1103,20 @@ const ConferenceDetailPage: React.FC = () => {
                                 !soldOut &&
                                 setSelectedTicketId(ticket.ticket_id)
                               }
-                              className={`rounded-xl border-2 p-4 transition-all ${
-                                soldOut
+                              className={`rounded-xl border-2 p-4 transition-all ${soldOut
                                   ? "border-border bg-muted/40 opacity-60 cursor-not-allowed"
                                   : isSelected
                                     ? "border-primary bg-primary/10 cursor-pointer shadow-md"
                                     : "border-border hover:border-primary/30 hover:bg-accent cursor-pointer"
-                              }`}
+                                }`}
                             >
                               <div className="flex justify-between items-start gap-3">
                                 <div className="flex items-start gap-3 grow min-w-0">
                                   <div
-                                    className={`mt-0.5 w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all ${
-                                      isSelected
+                                    className={`mt-0.5 w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all ${isSelected
                                         ? "border-primary bg-primary"
                                         : "border-border"
-                                    }`}
+                                      }`}
                                   >
                                     {isSelected && (
                                       <CheckCircle className="w-3 h-3 text-primary-foreground" />

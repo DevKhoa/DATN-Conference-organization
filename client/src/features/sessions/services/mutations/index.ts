@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabase";
 import { request } from "@/lib/axios";
 import { formatPaperTime, formatToLocal } from "@/utils/time";
 import { SessionKeys } from "../queries/keys";
+import { toast } from "sonner";
 
 export const useAutoGenerateSessionsMutation = () => {
   return useMutation({
@@ -191,6 +192,7 @@ export const useDeleteMeetMutation = () => {
     },
   });
 };
+
 export const useCreateMeetMutation = () => {
   const queryClient = useQueryClient();
 
@@ -212,6 +214,63 @@ export const useCreateMeetMutation = () => {
       queryClient.invalidateQueries({
         queryKey: [SessionKeys.ExistingSessions],
       });
+    },
+  });
+};
+
+export const useToggleMeetMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      isActive,
+    }: {
+      sessionId: number;
+      isActive: boolean;
+    }) => {
+      const data = await request.patch<{ status: string; is_meet_active: boolean }>(
+        `/sessions/${sessionId}/toggle-meet`,
+        undefined,
+        { is_active: isActive }
+      );
+      return data;
+    },
+    onMutate: async ({ sessionId, isActive }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["conferences/detail"] });
+
+      // Snapshot the previous value
+      const previousData = queryClient.getQueriesData({ queryKey: ["conferences/detail"] });
+
+      // Optimistically update
+      queryClient.setQueriesData({ queryKey: ["conferences/detail"] }, (old: any) => {
+        if (!old) return old;
+        // In ConferenceDetail result, the data contains { conference, sessions }
+        if (old.sessions && Array.isArray(old.sessions)) {
+          return {
+            ...old,
+            sessions: old.sessions.map((s: any) =>
+              s.session_id === sessionId ? { ...s, is_meet_active: isActive } : s
+            ),
+          };
+        }
+        return old;
+      });
+
+      return { previousData };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousData) {
+        context.previousData.forEach(([key, value]) => {
+          queryClient.setQueryData(key, value);
+        });
+      }
+      toast.error("Failed to update meeting status");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["conferences/detail"] });
+      queryClient.invalidateQueries({ queryKey: [SessionKeys.ExistingSessions] });
     },
   });
 };
