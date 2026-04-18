@@ -39,6 +39,7 @@ const EMPTY_FORM: TicketFormData = {
   description: "",
   price: "",
   session_ids: [],
+  ticket_type: "Standard",
 };
 
 const toLocalDatetime = (iso: string) => {
@@ -133,6 +134,7 @@ const TicketManagementPage = () => {
       description: ticket.description || "",
       price: ticket.price !== null ? String(ticket.price) : "",
       session_ids: ticket.assigned_session_ids,
+      ticket_type: ticket.ticket_type || "Standard",
     });
     setFormError("");
 
@@ -208,8 +210,15 @@ const TicketManagementPage = () => {
       return;
     }
 
-    // Overlap and escalation inside same scope
-    for (const t of tickets.filter(t => t.ticket_id !== editingId)) {
+    // Filter existing tickets belonging to the same Ticket Class (case-insensitive)
+    const currentTicketTypeLower = form.ticket_type.trim().toLowerCase();
+    const sameClassTickets = tickets.filter(
+      t => t.ticket_id !== editingId &&
+        (t.ticket_type || "Standard").toLowerCase() === currentTicketTypeLower
+    );
+
+    // Overlap and escalation inside SAME ticket class and same scope
+    for (const t of sameClassTickets) {
       const isSameCoverage = t.assigned_session_ids.length === finalSessionIds.length &&
         t.assigned_session_ids.every(id => finalSessionIds.includes(id));
 
@@ -219,7 +228,7 @@ const TicketManagementPage = () => {
         const ePrice = t.price || 0;
 
         if (newOpen < eClose && newClose > eOpen) {
-          setFormError(`Time Overlap Error: The sale period (${formatShortDatetime(form.open_time)} - ${formatShortDatetime(form.close_time)}) overlaps with existing ticket '${t.ticket_name}' (${formatShortDatetime(t.open_time)} - ${formatShortDatetime(t.close_time)}) which covers the identical days.`);
+          setFormError(`Time Overlap Error: The sale period (${formatShortDatetime(form.open_time)} - ${formatShortDatetime(form.close_time)}) overlaps with existing ticket '${t.ticket_name}' (${formatShortDatetime(t.open_time)} - ${formatShortDatetime(t.close_time)}). You cannot have overlapping sale times for the SAME ticket class (${form.ticket_type}) on the exact same days.`);
           return;
         }
         if (newOpen < eOpen && newPrice >= ePrice) {
@@ -233,9 +242,8 @@ const TicketManagementPage = () => {
       }
     }
 
-    // Total vs Single sum validation
-    const fullTickets = tickets.filter(t =>
-      t.ticket_id !== editingId &&
+    // Total vs Single sum validation (ONLY for the same ticket class)
+    const fullTickets = sameClassTickets.filter(t =>
       t.assigned_session_ids.length > 0 &&
       t.assigned_session_ids.length === sessions.length
     );
@@ -261,8 +269,7 @@ const TicketManagementPage = () => {
 
     for (const [date, s] of sessionsByDate) {
       const dateSids = s.map(x => x.session_id);
-      const singleTicketsForDate = tickets.filter(t =>
-        t.ticket_id !== editingId &&
+      const singleTicketsForDate = sameClassTickets.filter(t =>
         t.assigned_session_ids.length === dateSids.length &&
         t.assigned_session_ids.every(id => dateSids.includes(id))
       );
@@ -288,9 +295,9 @@ const TicketManagementPage = () => {
         const details = singleDayContext.join(" + ");
         if (ticketScope === "SINGLE") {
           const comboRef = minFullTicketName ? `'${minFullTicketName}'` : "the combo";
-          setFormError(`Price Rule Violation: You are setting the single ticket for ${selectedDate} to ${formatPrice(newPrice)}. The Full Conference combo ${comboRef} is priced at ${formatPrice(minFullPrice)}. The REQUIRED total sum of all single-day tickets (${details} = ${formatPrice(sumSingle)}) MUST BE STRICTLY GREATER than the Full Combo price (${formatPrice(minFullPrice)}). Please increase this ticket's price.`);
+          setFormError(`Price Rule Violation: You are setting the single ticket for ${selectedDate} to ${formatPrice(newPrice)}. The Full Conference combo ${comboRef} (Class: ${form.ticket_type}) is priced at ${formatPrice(minFullPrice)}. The REQUIRED total sum of all single-day tickets of this class (${details} = ${formatPrice(sumSingle)}) MUST BE STRICTLY GREATER than the Full Combo price (${formatPrice(minFullPrice)}). Please increase this ticket's price.`);
         } else {
-          setFormError(`Price Rule Violation: You are setting the Full Conference ticket to ${formatPrice(newPrice)}. However, the sum of configured cheapest single-day tickets is ${formatPrice(sumSingle)} (Breakdown: ${details}). The Full Conference ticket MUST BE CHEAPER than the sum of single-day options.`);
+          setFormError(`Price Rule Violation: You are setting the Full Conference ticket to ${formatPrice(newPrice)}. However, the sum of configured cheapest single-day tickets (Class: ${form.ticket_type}) is ${formatPrice(sumSingle)} (Breakdown: ${details}). The Full Conference ticket MUST BE CHEAPER than the sum of single-day options in the same class.`);
         }
         return;
       }
@@ -310,6 +317,7 @@ const TicketManagementPage = () => {
       description: form.description.trim() || null,
       price: newPrice,
       session_ids: finalSessionIds,
+      ticket_type: form.ticket_type.trim(),
     };
 
     try {
@@ -460,6 +468,11 @@ const TicketManagementPage = () => {
                               {ticket.is_active ? "Scheduled" : "Inactive"}
                             </span>
                           )}
+                          {(ticket.ticket_type) && (
+                            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold border border-primary/20 text-primary capitalize bg-primary/5">
+                              {ticket.ticket_type}
+                            </span>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-2 gap-x-4">
@@ -586,20 +599,36 @@ const TicketManagementPage = () => {
                 </div>
               )}
 
-              {/* Ticket Name */}
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-1.5">
-                  Ticket Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.ticket_name}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, ticket_name: e.target.value }))
-                  }
-                  placeholder="e.g. Early Bird, Regular, VIP"
-                  className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition"
-                />
+              {/* Ticket Name & Class */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-foreground mb-1.5">
+                    Ticket Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.ticket_name}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, ticket_name: e.target.value }))
+                    }
+                    placeholder="e.g. Early Bird, Regular"
+                    className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-foreground mb-1.5">
+                    Ticket Class <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.ticket_type}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, ticket_type: e.target.value }))
+                    }
+                    placeholder="e.g. VIP, Standard"
+                    className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition capitalize"
+                  />
+                </div>
               </div>
 
               {/* Price + Currency */}
