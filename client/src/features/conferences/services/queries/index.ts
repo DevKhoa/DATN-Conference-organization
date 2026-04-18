@@ -279,8 +279,7 @@ export const usePaginatedConferencesQuery = ({
         .from("conferences")
         .select("*")
         .eq("is_active", true)
-        .order("start_date", { ascending: true })
-        .range(from, to);
+        .order("start_date", { ascending: true });
 
       if (error) throw error;
 

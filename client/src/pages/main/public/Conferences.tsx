@@ -61,8 +61,6 @@ const ConferencesPage: React.FC = () => {
   });
 
   const conferences = paginatedData?.data || [];
-  const totalPages = paginatedData?.totalPages || 1;
-  const paginatedTotalCount = paginatedData?.totalCount || totalCount;
   const error = queryError
     ? "Failed to load conferences. Please try again later."
     : "";
@@ -169,6 +167,21 @@ const ConferencesPage: React.FC = () => {
         }
       });
   }, [conferences, searchTerm, statusFilter, selectedKeyword, sortOrder]);
+
+  const paginatedFilteredConferences = useMemo(() => {
+    const from = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredConferences.slice(from, from + ITEMS_PER_PAGE);
+  }, [filteredConferences, currentPage]);
+
+  const displayTotalCount = filteredConferences.length;
+  const displayTotalPages = Math.max(1, Math.ceil(displayTotalCount / ITEMS_PER_PAGE));
+
+  // Reset page to 1 if filter changes reduce total pages
+  React.useEffect(() => {
+    if (currentPage > displayTotalPages) {
+      setCurrentPage(1);
+    }
+  }, [displayTotalPages, currentPage, setCurrentPage]);
 
   return (
     <DefaultLayout meta={{ title: "Active Conferences" }}>
@@ -364,7 +377,7 @@ const ConferencesPage: React.FC = () => {
           )}
 
           {/* EMPTY STATE */}
-          {!loading && !error && filteredConferences.length === 0 && (
+          {!loading && !error && displayTotalCount === 0 && (
             <div className="text-center py-20 bg-card rounded-2xl shadow-sm border border-border">
               <p className="text-foreground font-semibold text-lg mb-2">
                 No conferences found
@@ -388,9 +401,9 @@ const ConferencesPage: React.FC = () => {
           )}
 
           {/* GRID */}
-          {!loading && filteredConferences.length > 0 && (
+          {!loading && displayTotalCount > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredConferences.map((conf) => (
+              {paginatedFilteredConferences.map((conf) => (
                 <div
                   key={conf.conf_id}
                   onClick={() =>
@@ -472,19 +485,19 @@ const ConferencesPage: React.FC = () => {
           )}
 
           {/* PAGINATION */}
-          {!loading && !error && totalPages > 1 && (
+          {!loading && !error && displayTotalPages > 1 && (
             <div className="mt-12 flex flex-col items-center gap-4">
               <p className="text-sm text-muted-foreground">
                 Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} -{" "}
-                {Math.min(currentPage * ITEMS_PER_PAGE, paginatedTotalCount)} of{" "}
-                {paginatedTotalCount} conferences
+                {Math.min(currentPage * ITEMS_PER_PAGE, displayTotalCount)} of{" "}
+                {displayTotalCount} conferences
               </p>
               <Pagination>
                 <PaginationContent>
                   <PaginationItem>
                     <PaginationPrevious
                       onClick={() =>
-                        handlePageChange(currentPage - 1, totalPages)
+                        handlePageChange(currentPage - 1, displayTotalPages)
                       }
                       className={
                         !canGoPrevious
@@ -494,15 +507,15 @@ const ConferencesPage: React.FC = () => {
                     />
                   </PaginationItem>
 
-                  {getPageNumbers(totalPages).map((page, idx) =>
+                  {getPageNumbers(displayTotalPages).map((page, idx) =>
                     page === "ellipsis" ? (
                       <PaginationItem key={`ellipsis-${idx}`}>
                         <PaginationEllipsis />
                       </PaginationItem>
                     ) : (
-                      <PaginationItem key={page}>
+                      <PaginationItem key={page as number}>
                         <PaginationLink
-                          onClick={() => handlePageChange(page, totalPages)}
+                          onClick={() => handlePageChange(page as number, displayTotalPages)}
                           isActive={currentPage === page}
                           className="cursor-pointer"
                         >
@@ -515,10 +528,10 @@ const ConferencesPage: React.FC = () => {
                   <PaginationItem>
                     <PaginationNext
                       onClick={() =>
-                        handlePageChange(currentPage + 1, totalPages)
+                        handlePageChange(currentPage + 1, displayTotalPages)
                       }
                       className={
-                        !canGoNext(totalPages)
+                        !canGoNext(displayTotalPages)
                           ? "pointer-events-none opacity-50"
                           : "cursor-pointer"
                       }

@@ -23,8 +23,30 @@ export const useSignupMutation = () => {
       fullName,
       organization,
     }: ISignupPayload) => {
+      const emailLower = email.toLowerCase();
+
+      // 1. Check if email already exists in profiles table
+      const { data: existingUser } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("email", emailLower)
+        .maybeSingle();
+
+      if (existingUser) {
+        return {
+          data: { user: null, session: null },
+          error: {
+            message:
+              "This email is already registered. Please log in or use a different email.",
+            name: "AuthApiError",
+            status: 400,
+          },
+        };
+      }
+
+      // 2. Proceed with signup
       const response = await supabase.auth.signUp({
-        email: email.toLowerCase(),
+        email: emailLower,
         password,
         options: {
           data: {
