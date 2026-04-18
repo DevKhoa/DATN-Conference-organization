@@ -30,17 +30,9 @@ type ConferenceDetailSession = {
       title: string | null;
       abstract: string | null;
       author: {
-        user_id: number;
         full_name: string | null;
-        avatar_url: string | null;
       } | null;
     };
-  }>;
-  attendences: Array<{
-    is_checkin: boolean;
-    registrations: {
-      user_id: number;
-    } | null;
   }>;
 };
 
@@ -132,13 +124,7 @@ export const useConferenceDetailQuery = (conferenceId: number | null) => {
                 presentation_order, start_time, end_time,
                 paper:papers (
                   paper_id, title, abstract,
-                  author:profiles!primary_author_id ( user_id, full_name, avatar_url )
-                )
-              ),
-              attendences (
-                is_checkin,
-                registrations (
-                  user_id
+                  author:profiles!primary_author_id ( full_name )
                 )
               )
             `,
