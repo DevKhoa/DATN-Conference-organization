@@ -29,6 +29,8 @@ export interface ISaveSessionPayload {
     is_ai_generated: boolean;
     assigned_papers: SessionPaperDetail[];
     format_type: string;
+    meet_link?: string;
+    record_video_url?: string;
   }>;
 }
 

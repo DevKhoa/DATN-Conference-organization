@@ -67,7 +67,7 @@ export const fetchExistingSessions = async (
       chair_person_id: s.chair_person_id,
       assigned_papers: ap,
       meet_link: s.meet_link,
-      video_record_url: s.video_record_url,
+      record_video_url: s.record_video_url,
       format_type: s.format_type || "in-person",
     };
   });

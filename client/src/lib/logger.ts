@@ -25,13 +25,12 @@ class Logger {
         // Handle Error objects explicitly because JSON.stringify(error) returns {}
         if (data instanceof Error) {
             safeData = { 
+                ...data,
                 name: data.name, 
                 message: data.message, 
                 stack: data.stack,
                 // @ts-ignore
-                cause: data.cause,
-                // Spread remaining properties if any custom ones exist
-                ...data
+                cause: data.cause
             };
         } else if (typeof data === 'object' && data !== null) {
             // Create a snapshot of data to prevent mutation issues and ensure it's serializable

@@ -51,6 +51,8 @@ export const useSaveSessionsMutation = () => {
               room_location: s.room_location,
               format_type: s.format_type,
               conf_id: conferenceId,
+              meet_link: s.meet_link,
+              record_video_url: s.record_video_url,
             })
             .eq("session_id", currentDbId);
 
@@ -76,6 +78,8 @@ export const useSaveSessionsMutation = () => {
                 format_type: s.format_type,
                 is_ai_generated: s.is_ai_generated,
                 chair_person_id: null,
+                meet_link: s.meet_link,
+                record_video_url: s.record_video_url,
               },
             ])
             .select()

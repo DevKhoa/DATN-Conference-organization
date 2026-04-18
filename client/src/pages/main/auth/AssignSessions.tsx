@@ -118,12 +118,15 @@ const AssignSessionsPage: React.FC = () => {
     Record<string, boolean>
   >({});
 
+  const [hasLoadedSessions, setHasLoadedSessions] = useState(false);
+
   // Fetch existing sessions if editing
   React.useEffect(() => {
-    if (existingSessions.length > 0) {
+    if (existingSessions.length > 0 && !hasLoadedSessions) {
       setSessions(existingSessions);
+      setHasLoadedSessions(true);
     }
-  }, [existingSessions]);
+  }, [existingSessions, hasLoadedSessions]);
 
   const addEmptySession = () => {
     const defaultFormat = conferenceData?.conference?.format_type === "hybrid" ? "in-person" : (conferenceData?.conference?.format_type || "in-person");
@@ -466,7 +469,7 @@ const AssignSessionsPage: React.FC = () => {
             is_ai_generated: s.is_ai_generated,
             assigned_papers: s.assigned_papers,
             meet_link: s.meet_link,
-            video_record_url: s.video_record_url,
+            record_video_url: s.record_video_url,
             format_type: s.format_type,
           };
         }),
@@ -528,7 +531,7 @@ const AssignSessionsPage: React.FC = () => {
       });
 
       setSuccessMsg("All configurations finalized and saved!");
-      setTimeout(() => navigate({ to: "/conferences" }), 1500);
+      setTimeout(() => navigate({ to: "/conferences/$conferenceId", params: { conferenceId: conferenceId.toString() } }), 1500);
     } catch (e) {
       setError("Failed to update chairs.");
     }
@@ -555,7 +558,7 @@ const AssignSessionsPage: React.FC = () => {
           </h2>
           <p className="text-slate-600 mt-2">Failed to load papers.</p>
           <Button
-            onClick={() => navigate({ to: "/conferences" })}
+            onClick={() => navigate({ to: "/conferences/$conferenceId", params: { conferenceId: conferenceId.toString() } })}
             className="mt-6"
           >
             Go Back
@@ -573,7 +576,7 @@ const AssignSessionsPage: React.FC = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate({ to: "/conferences" })}
+                onClick={() => navigate({ to: "/conferences/$conferenceId", params: { conferenceId: conferenceId.toString() } })}
                 className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />
@@ -984,20 +987,29 @@ const AssignSessionsPage: React.FC = () => {
                                       <input
                                         type="text"
                                         placeholder="https://meet.google.com/..."
-                                        className="w-full pl-9 pr-9 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
+                                        className="w-full pl-9 pr-16 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
                                         value={session.meet_link || ""}
                                         onChange={(e) => updateSession(session.temp_id, "meet_link", e.target.value)}
                                       />
                                       {session.meet_link && (
-                                        <a
-                                          href={session.meet_link.startsWith('http') ? session.meet_link : `https://${session.meet_link}`}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors"
-                                          title="Open link"
-                                        >
-                                          <LinkIcon className="w-4 h-4" />
-                                        </a>
+                                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-white pl-1 rounded-r-lg">
+                                          <a
+                                            href={session.meet_link.startsWith('http') ? session.meet_link : `https://${session.meet_link}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="p-1 text-slate-400 hover:text-indigo-600 transition-colors rounded-md hover:bg-slate-100"
+                                            title="Open link"
+                                          >
+                                            <LinkIcon className="w-3.5 h-3.5" />
+                                          </a>
+                                          <button
+                                            onClick={() => updateSession(session.temp_id, "meet_link", "")}
+                                            className="p-1 text-slate-400 hover:text-red-500 transition-colors rounded-md hover:bg-red-50"
+                                            title="Remove link"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
                                       )}
                                     </div>
                                     {!session.meet_link && (
@@ -1024,13 +1036,33 @@ const AssignSessionsPage: React.FC = () => {
                                     <input
                                       type="text"
                                       placeholder="https://youtube.com/watch?v=..."
-                                      className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-100 focus:border-red-500 outline-none transition-all"
-                                      value={session.video_record_url || ""}
+                                      className="w-full pl-9 pr-16 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-100 focus:border-red-500 outline-none transition-all"
+                                      value={session.record_video_url || ""}
                                       onChange={(e) => {
-                                        updateSession(session.temp_id, "video_record_url", e.target.value);
+                                        updateSession(session.temp_id, "record_video_url", e.target.value);
                                       }}
                                     />
-                                    {session.video_record_url && !session.video_record_url.match(/^(https?\:\/\/)?(www\.youtube\.com|youtu\.be)\/.+$/) && (
+                                    {session.record_video_url && (
+                                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-white pl-1 rounded-r-lg">
+                                        <a
+                                          href={session.record_video_url.startsWith('http') ? session.record_video_url : `https://${session.record_video_url}`}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="p-1 text-slate-400 hover:text-red-600 transition-colors rounded-md hover:bg-slate-100"
+                                          title="Open link"
+                                        >
+                                          <LinkIcon className="w-3.5 h-3.5" />
+                                        </a>
+                                        <button
+                                          onClick={() => updateSession(session.temp_id, "record_video_url", "")}
+                                          className="p-1 text-slate-400 hover:text-red-500 transition-colors rounded-md hover:bg-red-50"
+                                          title="Remove link"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    )}
+                                    {session.record_video_url && !session.record_video_url.match(/^(https?\:\/\/)?(www\.youtube\.com|youtu\.be)\/.+$/) && (
                                       <span className="text-xs text-red-500 absolute -bottom-5 left-1">Invalid Youtube URL</span>
                                     )}
                                   </div>

@@ -8,7 +8,15 @@ import { AuthProvider } from "./features/auth/contexts/auth.context";
 import { Toaster } from "sonner";
 import LoadingScreen from "./components/LoadingScreen";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // Dữ liệu được coi là mới trong 5 phút
+      refetchOnWindowFocus: false, // Không tự động load lại khi chuyển tab/quay lại web
+      retry: 1, // Thử lại 1 lần nếu lỗi
+    },
+  },
+});
 
 const InnerApp = () => {
   const auth = useAuth();

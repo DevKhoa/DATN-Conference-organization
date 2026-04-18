@@ -33,6 +33,7 @@ class SessionInfo(BaseModel):
     room_location: Optional[str]
     format_type: Optional[str] = None
     meet_link: Optional[str] = None
+    record_video_url: Optional[str] = None
 
 class SessionLink(BaseModel):
     presentation_order: Optional[int]
