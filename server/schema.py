@@ -219,25 +219,3 @@ class QuestionResponse(BaseModel):
     status: str
     upvotes_count: int
     created_at: str
-
-class PollCreate(BaseModel):
-    session_id: int = Field(..., description="ID of the session")
-    question: str = Field(..., min_length=1, description="Poll question content")
-    options: List[str] = Field(..., min_items=2, description="List of options for the poll")
-
-class PollOptionResponse(BaseModel):
-    option_id: int
-    option_text: str
-    votes_count: int
-
-class PollResponse(BaseModel):
-    poll_id: int
-    session_id: int
-    question: str
-    is_active: bool
-    created_at: str
-    options: List[PollOptionResponse] = []
-
-class PollVoteRequest(BaseModel):
-    option_id: int = Field(..., description="ID of the option to vote for")
-    user_id: int = Field(..., description="ID of the user voting")
