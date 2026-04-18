@@ -47,16 +47,21 @@ async def create_question(request: QuestionCreate):
         
         is_authorized = is_chair
         
-        # 2. If not chair, check if the user has a PAID registration for a ticket linked to this session
+        # 2. If not chair, check if the user has an attendance record for this session
         if not is_authorized:
-            # Get user's PAID tickets
-            regs_res = supabase_client.table("registrations").select("ticket_id").eq("user_id", request.author_id).eq("payment_status", "PAID").execute()
-            paid_ticket_ids = [r["ticket_id"] for r in regs_res.data]
+            # First get all registration IDs for the user
+            regs_res = supabase_client.table("registrations").select("registration_id").eq("user_id", request.author_id).execute()
+            reg_ids = [r["registration_id"] for r in (regs_res.data or [])]
             
-            if paid_ticket_ids:
-                # Check if any of these tickets are assigned to the session
-                valid_tickets_res = supabase_client.table("ticket_session").select("ticket_id").eq("session_id", session_id).in_("ticket_id", paid_ticket_ids).execute()
-                if valid_tickets_res.data:
+            if reg_ids:
+                # Check if any of these registration IDs are linked to the session in attendences table
+                # Attendance records are only created upon successful payment confirmation.
+                attendance_check = supabase_client.table("attendences") \
+                    .select("at_id") \
+                    .eq("session_id", session_id) \
+                    .in_("registration_id", reg_ids) \
+                    .execute()
+                if attendance_check.data:
                     is_authorized = True
 
         if not is_authorized:
@@ -108,9 +113,9 @@ async def get_session_questions(
                 is_admin_or_chair = True
             else:
                 # Check Admin / Secretariat
-                # Get role ids
-                roles_res = supabase_client.table("roles").select("role_id, role_name").in_("role_name", ["ADMIN", "SECRETARIAT"]).execute()
-                role_ids = [r["role_id"] for r in roles_res.data]
+                # Get role ids case-insensitively
+                roles_res = supabase_client.table("roles").select("role_id, role_name").execute()
+                role_ids = [r["role_id"] for r in (roles_res.data or []) if r["role_name"].upper() in ["ADMIN", "SECRETARIAT"]]
                 if role_ids:
                     user_roles_res = supabase_client.table("user_roles").select("role_id").eq("user_id", user_id).in_("role_id", role_ids).execute()
                     if user_roles_res.data:
@@ -147,14 +152,14 @@ async def get_session_questions(
 async def get_conference_questions(conf_id: int):
     logger.info(f"Retrieving all questions for conference {conf_id}")
     try:
-        # Get all sessions for this conf
-        sessions_res = supabase_client.table("sessions").select("session_id").eq("conference_id", conf_id).execute()
-        session_ids = [s["session_id"] for s in sessions_res.data]
+        # Get all paper IDs for this conference to filter questions
+        papers_res = supabase_client.table("papers").select("paper_id").eq("submitted_conf", conf_id).execute()
+        paper_ids = [p["paper_id"] for p in (papers_res.data or [])]
         
-        if not session_ids:
+        if not paper_ids:
             return []
             
-        query = supabase_client.table("questions").select("*, author:author_id(full_name)").in_("session_id", session_ids)
+        query = supabase_client.table("questions").select("*, author:author_id(full_name)").in_("paper_id", paper_ids)
         res = query.order("created_at", desc=True).execute()
         
         questions_list = []
@@ -288,13 +293,22 @@ async def approve_question(
 ):
     logger.info(f"User {user_id} approving question {id}")
     try:
-        # Check permissions
-        roles_res = supabase_client.table("roles").select("role_id").in_("role_name", ["ADMIN", "SECRETARIAT"]).execute()
-        role_ids = [r["role_id"] for r in roles_res.data]
-        user_roles_res = supabase_client.table("user_roles").select("role_id").eq("user_id", user_id).in_("role_id", role_ids).execute()
+        # Check permissions case-insensitively
+        roles_res = supabase_client.table("roles").select("role_id, role_name").execute()
+        all_roles = roles_res.data or []
+        role_ids = [r["role_id"] for r in all_roles if r["role_name"].upper() in ["ADMIN", "SECRETARIAT"]]
         
-        if not user_roles_res.data:
-            raise HTTPException(status_code=403, detail="Forbidden: Only Admin or Secretariat can approve questions")
+        logger.info(f"All roles in DB: {all_roles}")
+        logger.info(f"Target role_ids: {role_ids}")
+        
+        user_roles_res = []
+        if role_ids:
+            user_roles_res = supabase_client.table("user_roles").select("role_id").eq("user_id", user_id).in_("role_id", role_ids).execute()
+        
+        logger.info(f"User {user_id} roles found: {user_roles_res.data if user_roles_res else 'None'}")
+        
+        if not role_ids or not (user_roles_res and user_roles_res.data):
+             raise HTTPException(status_code=403, detail="Forbidden: Only Admin or Secretariat can approve questions")
             
         update_res = supabase_client.table("questions").update({"is_approved": True}).eq("question_id", id).execute()
         if not update_res.data:
@@ -322,18 +336,19 @@ async def answer_question(
         session_id = q_res.data["session_id"]
         
         # Check authorization (Must be primary author)
-        paper_res = supabase_client.table("papers").select("primary_author_id").eq("paper_id", paper_id).single().execute()
+        paper_res = supabase_client.table("papers").select("primary_author_id, submitted_conf").eq("paper_id", paper_id).single().execute()
         if not paper_res.data or paper_res.data["primary_author_id"] != payload.user_id:
             raise HTTPException(status_code=403, detail="Forbidden: Only the primary author of the paper can answer")
+        
+        conf_id = paper_res.data.get("submitted_conf")
             
         # Check timeframe constraint
-        # Get session start time & conf end date
-        sess_res = supabase_client.table("sessions").select("start_time, conference_id").eq("session_id", session_id).single().execute()
+        # Get session start time
+        sess_res = supabase_client.table("sessions").select("start_time").eq("session_id", session_id).single().execute()
         if not sess_res.data:
              raise HTTPException(status_code=404, detail="Session not found")
              
         start_time_str = sess_res.data.get("start_time")
-        conf_id = sess_res.data.get("conference_id")
         
         conf_res = supabase_client.table("conferences").select("end_date").eq("conf_id", conf_id).single().execute()
         end_date_str = conf_res.data.get("end_date") if conf_res.data else None
