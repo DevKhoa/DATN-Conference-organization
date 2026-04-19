@@ -221,3 +221,33 @@ class MeetCreationResponse(BaseModel):
     event_id: str
     meet_link: str
     html_link: str
+
+class QuestionCreate(BaseModel):
+    paper_id: int = Field(..., description="ID of the paper")
+    author_id: int = Field(..., description="ID of the user asking the question")
+    content: str = Field(..., min_length=1, description="Question content")
+    attendee_type: str = Field(..., description="'in-person' or 'virtual'")
+
+class QuestionStatusUpdate(BaseModel):
+    status: str = Field(..., description="'asking', 'answering', or 'done'")
+
+class QuestionAnswer(BaseModel):
+    user_id: int = Field(..., description="ID of the user answering (must be author)")
+    answer_type: str = Field(..., description="'direct' or 'written'")
+    answer_content: Optional[str] = Field(None, description="Written answer text")
+
+class QuestionResponse(BaseModel):
+    question_id: int
+    session_id: int
+    paper_id: int
+    author_id: int
+    author_name: Optional[str] = None
+    content: str
+    attendee_type: str
+    status: str
+    is_approved: bool
+    answer_type: Optional[str] = None
+    answer_content: Optional[str] = None
+    answered_at: Optional[str] = None
+    upvotes_count: int
+    created_at: str
