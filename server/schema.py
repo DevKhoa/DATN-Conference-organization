@@ -251,3 +251,4 @@ class QuestionResponse(BaseModel):
     answered_at: Optional[str] = None
     upvotes_count: int
     created_at: str
+    is_upvoted: bool = False

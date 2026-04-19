@@ -54,6 +54,54 @@ export interface MyPaperDetailResult {
   reviews: MyPaperReview[];
 }
 
+export interface PublicPaperDetail {
+  paper_id: number;
+  title: string | null;
+  abstract: string | null;
+  primary_author_id: number | null;
+  author: {
+    full_name: string | null;
+  } | null;
+  conference?: {
+    conf_name: string | null;
+  } | null;
+  session_links?: {
+    session: {
+      format_type: string | null;
+    } | null;
+  }[] | null;
+}
+
+export const usePublicPaperDetailQuery = (paperId: number | null) => {
+  return useQuery({
+    queryKey: [PapersKeys.PublicPaperDetail, paperId],
+    queryFn: async () => {
+      if (!paperId) throw new Error("Invalid paper id.");
+
+      const { data, error } = await supabase
+        .from("papers")
+        .select(`
+          paper_id, title, abstract, primary_author_id,
+          author:profiles!primary_author_id(full_name),
+          conference:conferences!submitted_conf(conf_name),
+          session_links:session_papers(session:sessions(format_type))
+        `)
+        .eq("paper_id", paperId)
+        .single();
+
+      if (error) throw error;
+
+      return {
+        ...data,
+        author: Array.isArray(data.author) ? data.author[0] ?? null : data.author ?? null,
+        conference: Array.isArray(data.conference) ? data.conference[0] ?? null : data.conference ?? null,
+        session_links: data.session_links,
+      } as PublicPaperDetail;
+    },
+    enabled: !!paperId,
+  });
+};
+
 export const useAcceptedPapersQuery = (conferenceId: number) => {
   return useQuery({
     queryKey: [PapersKeys.AcceptedPapers, conferenceId],

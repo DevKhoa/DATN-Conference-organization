@@ -43,6 +43,7 @@ import { useCreateRegistrationMutation } from "@/features/registrations/services
 import { useToggleMeetMutation } from "@/features/sessions/services/mutations";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { QAManager } from "@/features/qa/components/QAManager";
 
 type ChairDisplayPerson = {
   user_id: number;
@@ -972,6 +973,7 @@ const ConferenceDetailPage: React.FC = () => {
                                                                   .abstract
                                                               }
                                                             </p>
+                                                            <QAManager paperId={sp.paper.paper_id} />
                                                           </div>
                                                         </div>
                                                       </div>

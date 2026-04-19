@@ -30,6 +30,7 @@ type ConferenceDetailSession = {
       paper_id: number;
       title: string | null;
       abstract: string | null;
+      primary_author_id: number | null;
       author: {
         full_name: string | null;
       } | null;
@@ -124,7 +125,7 @@ export const useConferenceDetailQuery = (conferenceId: number | null) => {
               session_papers (
                 presentation_order, start_time, end_time,
                 paper:papers (
-                  paper_id, title, abstract,
+                  paper_id, title, abstract, primary_author_id,
                   author:profiles!primary_author_id ( full_name )
                 )
               )

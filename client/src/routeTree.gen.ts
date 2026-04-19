@@ -33,6 +33,7 @@ import { Route as appConferencesCreateRouteImport } from "./routes/(app)/confere
 import { Route as appAgendaMeRouteImport } from "./routes/(app)/agenda.me"
 import { Route as appPapersMeIndexRouteImport } from "./routes/(app)/papers/me/index"
 import { Route as appPapersMePaperIdRouteImport } from "./routes/(app)/papers/me/$paperId"
+import { Route as ConferencesConferenceIdPapersPaperIdQaRouteImport } from "./routes/conferences_.$conferenceId.papers.$paperId.qa"
 
 const RegisterSuccessRoute = RegisterSuccessRouteImport.update({
   id: "/register-success",
@@ -153,6 +154,12 @@ const appPapersMePaperIdRoute = appPapersMePaperIdRouteImport.update({
   path: "/papers/me/$paperId",
   getParentRoute: () => appRouteRoute,
 } as any)
+const ConferencesConferenceIdPapersPaperIdQaRoute =
+  ConferencesConferenceIdPapersPaperIdQaRouteImport.update({
+    id: "/conferences_/$conferenceId/papers/$paperId/qa",
+    path: "/conferences/$conferenceId/papers/$paperId/qa",
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute
@@ -178,6 +185,7 @@ export interface FileRoutesByFullPath {
   "/sessions/assign": typeof appSessionsAssignRoute
   "/papers/me/$paperId": typeof appPapersMePaperIdRoute
   "/papers/me/": typeof appPapersMeIndexRoute
+  "/conferences/$conferenceId/papers/$paperId/qa": typeof ConferencesConferenceIdPapersPaperIdQaRoute
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute
@@ -203,6 +211,7 @@ export interface FileRoutesByTo {
   "/sessions/assign": typeof appSessionsAssignRoute
   "/papers/me/$paperId": typeof appPapersMePaperIdRoute
   "/papers/me": typeof appPapersMeIndexRoute
+  "/conferences/$conferenceId/papers/$paperId/qa": typeof ConferencesConferenceIdPapersPaperIdQaRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -230,6 +239,7 @@ export interface FileRoutesById {
   "/(app)/sessions/assign": typeof appSessionsAssignRoute
   "/(app)/papers/me/$paperId": typeof appPapersMePaperIdRoute
   "/(app)/papers/me/": typeof appPapersMeIndexRoute
+  "/conferences_/$conferenceId/papers/$paperId/qa": typeof ConferencesConferenceIdPapersPaperIdQaRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -257,6 +267,7 @@ export interface FileRouteTypes {
     | "/sessions/assign"
     | "/papers/me/$paperId"
     | "/papers/me/"
+    | "/conferences/$conferenceId/papers/$paperId/qa"
   fileRoutesByTo: FileRoutesByTo
   to:
     | "/"
@@ -282,6 +293,7 @@ export interface FileRouteTypes {
     | "/sessions/assign"
     | "/papers/me/$paperId"
     | "/papers/me"
+    | "/conferences/$conferenceId/papers/$paperId/qa"
   id:
     | "__root__"
     | "/"
@@ -308,6 +320,7 @@ export interface FileRouteTypes {
     | "/(app)/sessions/assign"
     | "/(app)/papers/me/$paperId"
     | "/(app)/papers/me/"
+    | "/conferences_/$conferenceId/papers/$paperId/qa"
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -323,6 +336,7 @@ export interface RootRouteChildren {
   PapersPaperIdRoute: typeof PapersPaperIdRoute
   ConferencesIndexRoute: typeof ConferencesIndexRoute
   PapersIndexRoute: typeof PapersIndexRoute
+  ConferencesConferenceIdPapersPaperIdQaRoute: typeof ConferencesConferenceIdPapersPaperIdQaRoute
 }
 
 declare module "@tanstack/react-router" {
@@ -495,6 +509,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof appPapersMePaperIdRouteImport
       parentRoute: typeof appRouteRoute
     }
+    "/conferences_/$conferenceId/papers/$paperId/qa": {
+      id: "/conferences_/$conferenceId/papers/$paperId/qa"
+      path: "/conferences/$conferenceId/papers/$paperId/qa"
+      fullPath: "/conferences/$conferenceId/papers/$paperId/qa"
+      preLoaderRoute: typeof ConferencesConferenceIdPapersPaperIdQaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -545,6 +566,8 @@ const rootRouteChildren: RootRouteChildren = {
   PapersPaperIdRoute: PapersPaperIdRoute,
   ConferencesIndexRoute: ConferencesIndexRoute,
   PapersIndexRoute: PapersIndexRoute,
+  ConferencesConferenceIdPapersPaperIdQaRoute:
+    ConferencesConferenceIdPapersPaperIdQaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

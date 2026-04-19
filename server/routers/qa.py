@@ -7,7 +7,7 @@ from utils import logger, supabase_client
 
 router = APIRouter(tags=["qa"])
 
-def format_question_response(q_record, author_name=None):
+def format_question_response(q_record, author_name=None, is_upvoted=False):
     return QuestionResponse(
         question_id=q_record["question_id"],
         session_id=q_record["session_id"],
@@ -22,7 +22,8 @@ def format_question_response(q_record, author_name=None):
         answer_content=q_record.get("answer_content"),
         answered_at=q_record.get("answered_at"),
         upvotes_count=q_record.get("upvotes_count", 0),
-        created_at=q_record["created_at"]
+        created_at=q_record["created_at"],
+        is_upvoted=is_upvoted
     )
 
 @router.post("/questions", response_model=QuestionResponse)
@@ -86,7 +87,7 @@ async def create_question(request: QuestionCreate):
         inserted_q = create_res.data[0]
         
         # Fetch author name
-        profile_res = supabase_client.table("users").select("full_name").eq("user_id", request.author_id).single().execute()
+        profile_res = supabase_client.table("profiles").select("full_name").eq("user_id", request.author_id).single().execute()
         author_name = profile_res.data["full_name"] if profile_res.data else None
         
         return format_question_response(inserted_q, author_name)
@@ -129,6 +130,12 @@ async def get_session_questions(
             
         res = query.order("upvotes_count", desc=True).order("created_at", desc=False).execute()
         
+        # Get upvoted question IDs for this user
+        upvoted_ids = set()
+        if user_id:
+            upvotes_res = supabase_client.table("question_upvotes").select("question_id").eq("user_id", user_id).execute()
+            upvoted_ids = {u["question_id"] for u in (upvotes_res.data or [])}
+        
         questions_list = []
         for q in res.data:
             author_name = None
@@ -137,8 +144,9 @@ async def get_session_questions(
                     author_name = q["author"].get("full_name")
                 elif isinstance(q["author"], list) and len(q["author"]) > 0:
                     author_name = q["author"][0].get("full_name")
-                    
-            questions_list.append(format_question_response(q, author_name))
+            
+            is_upvoted = q["question_id"] in upvoted_ids
+            questions_list.append(format_question_response(q, author_name, is_upvoted))
             
         return questions_list
         
@@ -149,7 +157,10 @@ async def get_session_questions(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/conferences/{conf_id}/questions", response_model=List[QuestionResponse])
-async def get_conference_questions(conf_id: int):
+async def get_conference_questions(
+    conf_id: int,
+    user_id: int = Query(None, description="Current user ID for upvote status")
+):
     logger.info(f"Retrieving all questions for conference {conf_id}")
     try:
         # Get all paper IDs for this conference to filter questions
@@ -162,6 +173,12 @@ async def get_conference_questions(conf_id: int):
         query = supabase_client.table("questions").select("*, author:author_id(full_name)").in_("paper_id", paper_ids)
         res = query.order("created_at", desc=True).execute()
         
+        # Get upvoted question IDs for this user
+        upvoted_ids = set()
+        if user_id:
+            upvotes_res = supabase_client.table("question_upvotes").select("question_id").eq("user_id", user_id).execute()
+            upvoted_ids = {u["question_id"] for u in (upvotes_res.data or [])}
+        
         questions_list = []
         for q in res.data:
             author_name = None
@@ -170,8 +187,9 @@ async def get_conference_questions(conf_id: int):
                     author_name = q["author"].get("full_name")
                 elif isinstance(q["author"], list) and len(q["author"]) > 0:
                     author_name = q["author"][0].get("full_name")
-                    
-            questions_list.append(format_question_response(q, author_name))
+            
+            is_upvoted = q["question_id"] in upvoted_ids
+            questions_list.append(format_question_response(q, author_name, is_upvoted))
             
         return questions_list
     except Exception as e:
@@ -179,11 +197,20 @@ async def get_conference_questions(conf_id: int):
         raise HTTPException(status_code=500, detail="Internal server error")
         
 @router.get("/papers/{paper_id}/questions", response_model=List[QuestionResponse])
-async def get_paper_questions(paper_id: int):
+async def get_paper_questions(
+    paper_id: int,
+    user_id: int = Query(None, description="Current user ID for upvote status")
+):
     logger.info(f"Retrieving all questions for paper {paper_id}")
     try:
         query = supabase_client.table("questions").select("*, author:author_id(full_name)").eq("paper_id", paper_id)
         res = query.order("upvotes_count", desc=True).execute()
+        
+        # Get upvoted question IDs for this user
+        upvoted_ids = set()
+        if user_id:
+            upvotes_res = supabase_client.table("question_upvotes").select("question_id").eq("user_id", user_id).execute()
+            upvoted_ids = {u["question_id"] for u in (upvotes_res.data or [])}
         
         questions_list = []
         for q in res.data:
@@ -193,7 +220,9 @@ async def get_paper_questions(paper_id: int):
                     author_name = q["author"].get("full_name")
                 elif isinstance(q["author"], list) and len(q["author"]) > 0:
                     author_name = q["author"][0].get("full_name")
-            questions_list.append(format_question_response(q, author_name))
+            
+            is_upvoted = q["question_id"] in upvoted_ids
+            questions_list.append(format_question_response(q, author_name, is_upvoted))
             
         return questions_list
     except Exception as e:
@@ -358,10 +387,11 @@ async def answer_question(
         # Note: timezone adjustments may be needed based on system config, keeping it simple
         # Assuming UTC strings from DB
         try:
-            if start_time_str:
-                tz_start = datetime.fromisoformat(start_time_str.replace("Z", "+00:00")).replace(tzinfo=None)
-                if now < tz_start:
-                   raise HTTPException(status_code=400, detail="Cannot answer before the session starts")
+            # We allow answering before session starts for convenience
+            # if start_time_str:
+            #     tz_start = datetime.fromisoformat(start_time_str.replace("Z", "+00:00")).replace(tzinfo=None)
+            #     if now < tz_start:
+            #        raise HTTPException(status_code=400, detail="Cannot answer before the session starts")
             
             if end_date_str:
                 # end_date is just DATE format "YYYY-MM-DD"
