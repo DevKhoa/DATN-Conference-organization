@@ -10,7 +10,6 @@ export interface TicketConfig {
   currency: string;
   is_active: boolean;
   assigned_session_ids: number[];
-  ticket_type: "in-person" | "virtual";
 }
 
 export interface SessionOption {
@@ -29,5 +28,4 @@ export interface TicketFormData {
   description: string;
   price: string;
   session_ids: number[];
-  ticket_type: "in-person" | "virtual";
 }

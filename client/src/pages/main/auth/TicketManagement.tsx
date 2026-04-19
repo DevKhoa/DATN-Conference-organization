@@ -49,7 +49,6 @@ const EMPTY_FORM: TicketFormData = {
   description: "",
   price: "",
   session_ids: [],
-  ticket_type: "virtual",
 };
 
 
@@ -107,7 +106,6 @@ const TicketManagementPage = () => {
     setEditingId(null);
     setForm({
       ...EMPTY_FORM,
-      ticket_type: conferenceType === "hybrid" ? "virtual" : (conferenceType as "in-person" | "virtual")
     });
     setFormError("");
     setIsModalOpen(true);
@@ -131,7 +129,6 @@ const TicketManagementPage = () => {
       description: ticket.description || "",
       price: ticket.price !== null ? String(ticket.price) : "",
       session_ids: ticket.assigned_session_ids,
-      ticket_type: ticket.ticket_type || "virtual",
     });
 
     setFormError("");
@@ -173,7 +170,6 @@ const TicketManagementPage = () => {
       description: form.description.trim() || null,
       price: form.price !== "" ? parseFloat(form.price) : null,
       session_ids: form.session_ids,
-      ticket_type: form.ticket_type,
     };
 
 
@@ -547,58 +543,6 @@ const TicketManagementPage = () => {
                 </div>
               </div>
 
-              {/* Ticket Type */}
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-1.5">
-                  Ticket Type <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    disabled={conferenceType === "virtual" || conferenceType === "online"}
-                    onClick={() =>
-                      setForm((p) => ({ ...p, ticket_type: "in-person" }))
-                    }
-                    className={`flex items-center justify-center gap-2 p-3 rounded-xl border transition-all ${form.ticket_type === "in-person"
-                        ? "bg-primary/10 border-primary text-primary"
-                        : "bg-background border-input text-muted-foreground hover:bg-accent"
-                      } ${conferenceType === "virtual" || conferenceType === "online"
-                        ? "opacity-50 cursor-not-allowed"
-                        : ""
-                      }`}
-                  >
-                    <Users className="w-4 h-4" />
-                    <span className="text-sm font-medium">In-person</span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={conferenceType === "in-person"}
-                    onClick={() =>
-                      setForm((p) => ({ ...p, ticket_type: "virtual" }))
-                    }
-                    className={`flex items-center justify-center gap-2 p-3 rounded-xl border transition-all ${form.ticket_type === "virtual"
-                        ? "bg-primary/10 border-primary text-primary"
-                        : "bg-background border-input text-muted-foreground hover:bg-accent"
-                      } ${conferenceType === "in-person"
-                        ? "opacity-50 cursor-not-allowed"
-                        : ""
-                      }`}
-                  >
-                    <Video className="w-4 h-4" />
-                    <span className="text-sm font-medium">Virtual</span>
-                  </button>
-                </div>
-                {conferenceType !== "hybrid" && (
-                  <p className="text-xs text-muted-foreground mt-2 inline-flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded px-2 py-1">
-                    <Info className="w-3.5 h-3.5" />
-                    Ticket type is fixed to{" "}
-                    {conferenceType === "virtual" || conferenceType === "online"
-                      ? "Virtual"
-                      : "In-person"}{" "}
-                    based on conference format.
-                  </p>
-                )}
-              </div>
 
 
               {/* Active Toggle */}

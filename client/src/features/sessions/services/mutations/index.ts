@@ -119,6 +119,9 @@ export const useSaveSessionsMutation = () => {
       queryClient.invalidateQueries({
         queryKey: [SessionKeys.SessionsByConference, conferenceId],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["conferences/detail"],
+      });
     },
   });
 };
@@ -163,6 +166,9 @@ export const useFinalizeChairsMutation = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [SessionKeys.ExistingSessions],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["conferences/detail"],
       });
     },
   });

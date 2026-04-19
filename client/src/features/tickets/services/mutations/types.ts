@@ -8,7 +8,6 @@ export interface ICreateTicketPayload {
   description: string | null;
   price: number | null;
   session_ids: number[];
-  ticket_type: "in-person" | "virtual";
 }
 
 export interface IUpdateTicketPayload extends ICreateTicketPayload {

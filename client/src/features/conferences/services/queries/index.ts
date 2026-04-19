@@ -11,6 +11,7 @@ type ConferenceDetailSession = {
   end_time: string | null;
   room_location: string | null;
   is_ai_generated: boolean | null;
+  format_type: string | null;
   meet_link?: string;
   is_meet_active?: boolean;
   record_video_url?: string;

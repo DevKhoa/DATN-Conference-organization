@@ -749,16 +749,18 @@ const ConferenceDetailPage: React.FC = () => {
                                                 }`}
                                             >
                                               <div className="p-2 bg-muted rounded-xl text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors shrink-0">
-                                                {conference.format_type?.toLowerCase() === "virtual" && (
+                                                {session.format_type?.toLowerCase() === "virtual" && (
                                                   <Monitor className="w-4 h-4" />
                                                 )}
-                                                {conference.format_type?.toLowerCase() === "in-person" && (
+                                                {session.format_type?.toLowerCase() === "in-person" && (
                                                   <MapPin className="w-4 h-4" />
                                                 )}
-                                                {conference.format_type?.toLowerCase() === "hybrid" && (
-                                                  <Globe className="w-4 h-4" />
+                                                {!session.format_type && conference.format_type?.toLowerCase() === "virtual" && (
+                                                  <Monitor className="w-4 h-4" />
                                                 )}
-                                                {!conference.format_type && <MapPin className="w-4 h-4" />}
+                                                {!session.format_type && conference.format_type?.toLowerCase() !== "virtual" && (
+                                                  <MapPin className="w-4 h-4" />
+                                                )}
                                               </div>
                                               <div className="flex flex-col">
                                                 <span>{session.session_name}</span>
@@ -769,7 +771,7 @@ const ConferenceDetailPage: React.FC = () => {
                                             </h3>
 
                                             <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                                              {conference.format_type !== "in-person" && canAccessVirtual && (
+                                              {session.format_type !== "in-person" && canAccessVirtual && (
                                                 <>
                                                   {session.meet_link !== undefined && (
                                                     <div className="flex items-center gap-1 group/meet animate-in slide-in-from-right-2 duration-300">
