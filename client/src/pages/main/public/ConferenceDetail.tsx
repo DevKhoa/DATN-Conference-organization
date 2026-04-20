@@ -386,7 +386,7 @@ const ConferenceDetailPage: React.FC = () => {
           />
           <div className="absolute inset-0 bg-linear-to-t from-foreground/95 via-foreground/40 to-transparent" />
 
-          <div className="absolute top-6 left-4 lg:left-8 z-20 w-[95%] flex justify-between items-center gap-4">
+          <div className="absolute top-6 left-4 right-4 lg:left-8 lg:right-8 z-20 flex justify-between items-center gap-4">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate({ to: "/conferences" })}
@@ -742,14 +742,14 @@ const ConferenceDetailPage: React.FC = () => {
                                           }
                                           className="p-5 md:p-6 cursor-pointer"
                                         >
-                                          <div className="flex justify-between items-start gap-4">
-                                            <h3
-                                              className={`text-lg md:text-xl font-bold transition-colors flex items-center gap-3 ${isExpanded
+                                          <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
+                                            <div
+                                              className={`text-lg md:text-xl font-bold transition-colors flex items-start gap-3 flex-1 min-w-[280px] ${isExpanded
                                                   ? "text-primary"
                                                   : "text-foreground group-hover:text-primary"
                                                 }`}
                                             >
-                                              <div className="p-2 bg-muted rounded-xl text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors shrink-0">
+                                              <div className="p-2 bg-muted rounded-xl text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors shrink-0 mt-0.5">
                                                 {session.format_type?.toLowerCase() === "virtual" && (
                                                   <Monitor className="w-4 h-4" />
                                                 )}
@@ -763,106 +763,108 @@ const ConferenceDetailPage: React.FC = () => {
                                                   <MapPin className="w-4 h-4" />
                                                 )}
                                               </div>
-                                              <div className="flex flex-col">
+                                              <div className="flex flex-col min-w-0">
                                                 <span>{session.session_name}</span>
                                                 <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-0.5">
-                                                  {session.room_location}
+                                                  {session.room_location || (session.format_type === 'virtual' ? 'Virtual Session' : 'No Location Set')}
                                                 </span>
                                               </div>
-                                            </h3>
+                                            </div>
 
-                                            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                                              {session.format_type !== "in-person" && canAccessVirtual && (
-                                                <>
-                                                  {session.meet_link !== undefined && (
-                                                    <div className="flex items-center gap-1 group/meet animate-in slide-in-from-right-2 duration-300">
+                                            <div className="flex items-center gap-3 shrink-0 ml-auto transition-all">
+                                              <div className="flex items-center gap-2 flex-wrap justify-end">
+                                                {session.format_type !== "in-person" && canAccessVirtual && (
+                                                  <>
+                                                    {session.meet_link !== undefined && (
+                                                      <div className="flex items-center gap-1 group/meet animate-in slide-in-from-right-2 duration-300">
+                                                        <button
+                                                          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 flex items-center gap-1.5 shadow-sm border ${session.meet_link && (session.is_meet_active ?? true)
+                                                              ? "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white hover:shadow-indigo-200 border-transparent"
+                                                              : "bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200"
+                                                            } shrink-0`}
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (session.meet_link && (session.is_meet_active ?? true)) {
+                                                              window.open(session.meet_link, "_blank");
+                                                            } else {
+                                                              toast.info("Room is not available now", {
+                                                                description: "The organizer has not opened this virtual room yet.",
+                                                              });
+                                                            }
+                                                          }}
+                                                        >
+                                                          <Video className="w-3.5 h-3.5" />
+                                                          Join Virtual Meeting
+                                                        </button>
+
+                                                        {canEdit && session.meet_link !== undefined && (
+                                                          <button
+                                                            onClick={(e) => {
+                                                              e.stopPropagation();
+                                                              toggleMeetMutation.mutate({
+                                                                sessionId: session.session_id,
+                                                                isActive: !(session.is_meet_active ?? true)
+                                                              });
+                                                            }}
+                                                            className={`flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200 shrink-0 ${(session.is_meet_active ?? true)
+                                                                ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100"
+                                                                : "bg-slate-100 text-slate-400 hover:bg-slate-200 border border-slate-200"
+                                                              }`}
+                                                            title={(session.is_meet_active ?? true) ? "Deactivate Meeting Room" : "Activate Meeting Room"}
+                                                          >
+                                                            {(session.is_meet_active ?? true) ? (
+                                                              <Eye className="w-4 h-4" />
+                                                            ) : (
+                                                              <EyeOff className="w-4 h-4" />
+                                                            )}
+                                                          </button>
+                                                        )}
+                                                      </div>
+                                                    )}
+
+                                                    {session.record_video_url !== undefined && (
                                                       <button
-                                                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 flex items-center gap-1.5 shadow-sm border ${session.meet_link && (session.is_meet_active ?? true)
-                                                            ? "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white hover:shadow-indigo-200 border-transparent"
+                                                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 flex items-center gap-1.5 shadow-sm border animate-in slide-in-from-right-2 duration-300 ${session.record_video_url
+                                                            ? "bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white hover:shadow-rose-200 border-transparent"
                                                             : "bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200"
                                                           } shrink-0`}
                                                         onClick={(e) => {
                                                           e.stopPropagation();
-                                                          if (session.meet_link && (session.is_meet_active ?? true)) {
-                                                            window.open(session.meet_link, "_blank");
+                                                          if (session.record_video_url) {
+                                                            window.open(session.record_video_url, "_blank");
                                                           } else {
-                                                            toast.info("Room is not available now", {
-                                                              description: "The organizer has not opened this virtual room yet.",
+                                                            toast.info("Recorded video is not available now", {
+                                                              description: "The recording will be uploaded after the conference concludes.",
                                                             });
                                                           }
                                                         }}
                                                       >
-                                                        <Video className="w-3.5 h-3.5" />
-                                                        Join Virtual Meeting
+                                                        <Youtube className="w-3.5 h-3.5" />
+                                                        Watch Recording
                                                       </button>
+                                                    )}
+                                                  </>
+                                                )}
 
-                                                      {canEdit && session.meet_link !== undefined && (
-                                                        <button
-                                                          onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            toggleMeetMutation.mutate({
-                                                              sessionId: session.session_id,
-                                                              isActive: !(session.is_meet_active ?? true)
-                                                            });
-                                                          }}
-                                                          className={`flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200 shrink-0 ${(session.is_meet_active ?? true)
-                                                              ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100"
-                                                              : "bg-slate-100 text-slate-400 hover:bg-slate-200 border border-slate-200"
-                                                            }`}
-                                                          title={(session.is_meet_active ?? true) ? "Deactivate Meeting Room" : "Activate Meeting Room"}
-                                                        >
-                                                          {(session.is_meet_active ?? true) ? (
-                                                            <Eye className="w-4 h-4" />
-                                                          ) : (
-                                                            <EyeOff className="w-4 h-4" />
-                                                          )}
-                                                        </button>
-                                                      )}
-                                                    </div>
-                                                  )}
-
-                                                  {session.record_video_url !== undefined && (
-                                                    <button
-                                                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 flex items-center gap-1.5 shadow-sm border animate-in slide-in-from-right-2 duration-300 ${session.record_video_url
-                                                          ? "bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white hover:shadow-rose-200 border-transparent"
-                                                          : "bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200"
-                                                        } shrink-0`}
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (session.record_video_url) {
-                                                          window.open(session.record_video_url, "_blank");
-                                                        } else {
-                                                          toast.info("Recorded video is not available now", {
-                                                            description: "The recording will be uploaded after the conference concludes.",
-                                                          });
-                                                        }
-                                                      }}
-                                                    >
-                                                      <Youtube className="w-3.5 h-3.5" />
-                                                      Watch Recording
-                                                    </button>
-                                                  )}
-                                                </>
-                                              )}
-
-                                              {canEdit && (
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    navigate({
-                                                      to: "/sessions/assign",
-                                                      search: {
-                                                        conferenceId,
-                                                        sessionId:
-                                                          session.session_id,
-                                                      },
-                                                    });
-                                                  }}
-                                                  className="text-xs font-bold text-muted-foreground bg-muted hover:bg-primary/10 hover:text-primary px-3 py-1.5 rounded-lg transition-colors border border-border shrink-0"
-                                                >
-                                                  Edit Session
-                                                </button>
-                                              )}
+                                                {canEdit && (
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      navigate({
+                                                        to: "/sessions/assign",
+                                                        search: {
+                                                          conferenceId,
+                                                          sessionId:
+                                                            session.session_id,
+                                                        },
+                                                      });
+                                                    }}
+                                                    className="text-xs font-bold text-muted-foreground bg-muted hover:bg-primary/10 hover:text-primary px-3 py-1.5 rounded-lg transition-colors border border-border shrink-0"
+                                                  >
+                                                    Edit Session
+                                                  </button>
+                                                )}
+                                              </div>
 
                                               <div
                                                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 shrink-0 ${isExpanded
