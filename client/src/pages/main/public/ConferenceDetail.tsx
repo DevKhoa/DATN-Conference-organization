@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Calendar,
   MapPin,
@@ -197,6 +197,24 @@ const ConferenceDetailPage: React.FC = () => {
   const [registerError, setRegisterError] = useState("");
   const [isConferenceReady, setIsConferenceReady] = useState(false);
 
+  const [paymentSuccess, setPaymentSuccess] = useState<{
+    open: boolean;
+    orderCode: string | null;
+    ticketName: string;
+    ticketType: string;
+    currency: string;
+    price: number | null;
+    sessionDates: string[];
+  }>({
+    open: false,
+    orderCode: null,
+    ticketName: "",
+    ticketType: "",
+    currency: "VND",
+    price: null,
+    sessionDates: [],
+  });
+
   const canEdit = checkRoles([Role.ADMIN, Role.SECRETARIAT]);
   const userEmail = authSession?.user?.email ?? "";
   const createRegistrationMutation = useCreateRegistrationMutation();
@@ -222,6 +240,55 @@ const ConferenceDetailPage: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [bannerUrls]);
+
+  // Detect PayOS return redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("status");
+    const orderCode = params.get("orderCode");
+    const cancel = params.get("cancel");
+
+    if (status === "PAID" && cancel === "false" && orderCode) {
+      // Find the ticket user just purchased from available tickets
+      const paidTicket = conferenceTickets.find((t) => t.ticket_id !== undefined);
+
+      // Build unique session dates
+      const sessionDates: string[] = [];
+      if (paidTicket) {
+        const dateSet = new Set<string>();
+        paidTicket.sessions.forEach((s) => {
+          if (s.start_time) {
+            const dateStr = new Date(s.start_time).toLocaleDateString("en-US", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            });
+            dateSet.add(dateStr);
+          }
+        });
+        sessionDates.push(...dateSet);
+      }
+
+      const isFullConference =
+        paidTicket && sessions.length > 0 && paidTicket.sessions.length === sessions.length;
+
+      setPaymentSuccess({
+        open: true,
+        orderCode,
+        ticketName: paidTicket?.ticket_name ?? "Conference Ticket",
+        ticketType: isFullConference ? "Full Conference" : sessionDates.length === 1 ? sessionDates[0] : `${sessionDates.length} days`,
+        currency: paidTicket?.currency ?? "VND",
+        price: paidTicket?.price ?? null,
+        sessionDates,
+      });
+
+      // Clean URL params
+      const url = new URL(window.location.href);
+      url.search = "";
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [conferenceTickets, sessions]);
 
   useEffect(() => {
     if (sessions.length === 0) {
@@ -499,14 +566,14 @@ const ConferenceDetailPage: React.FC = () => {
             <div className="lg:col-span-2 space-y-8">
               <div
                 className={`rounded-2xl border p-5 flex items-start sm:items-center gap-4 shadow-sm ${conference.open_for_papers
-                    ? "bg-linear-to-r from-emerald-50 to-teal-50 border-emerald-100"
-                    : "bg-muted/40 border-border"
+                  ? "bg-linear-to-r from-emerald-50 to-teal-50 border-emerald-100"
+                  : "bg-muted/40 border-border"
                   }`}
               >
                 <div
                   className={`p-3 rounded-xl shrink-0 ${conference.open_for_papers
-                      ? "bg-card text-emerald-600 shadow-sm"
-                      : "bg-card text-muted-foreground shadow-sm"
+                    ? "bg-card text-emerald-600 shadow-sm"
+                    : "bg-card text-muted-foreground shadow-sm"
                     }`}
                 >
                   {conference.open_for_papers ? (
@@ -518,8 +585,8 @@ const ConferenceDetailPage: React.FC = () => {
                 <div className="grow">
                   <h3
                     className={`font-bold text-base mb-1 ${conference.open_for_papers
-                        ? "text-emerald-900"
-                        : "text-foreground"
+                      ? "text-emerald-900"
+                      : "text-foreground"
                       }`}
                   >
                     {conference.open_for_papers
@@ -528,8 +595,8 @@ const ConferenceDetailPage: React.FC = () => {
                   </h3>
                   <p
                     className={`text-sm ${conference.open_for_papers
-                        ? "text-emerald-800"
-                        : "text-muted-foreground"
+                      ? "text-emerald-800"
+                      : "text-muted-foreground"
                       }`}
                   >
                     {conference.open_for_papers
@@ -626,8 +693,8 @@ const ConferenceDetailPage: React.FC = () => {
                               <div className="flex items-center gap-4 relative z-10 hover:bg-accent/50 p-2 rounded-xl transition-colors -ml-2">
                                 <div
                                   className={`flex flex-col items-center justify-center text-white rounded-xl shadow-lg w-16 h-16 shrink-0 border-4 border-slate-50 transition-colors ${isDayExpanded
-                                      ? "bg-primary shadow-primary/20"
-                                      : "bg-muted-foreground shadow-muted/20"
+                                    ? "bg-primary shadow-primary/20"
+                                    : "bg-muted-foreground shadow-muted/20"
                                     }`}
                                 >
                                   <span className="text-xs font-bold uppercase tracking-wider opacity-80">
@@ -677,8 +744,8 @@ const ConferenceDetailPage: React.FC = () => {
                                         <div className="bg-muted py-2 flex flex-col items-center w-full">
                                           <span
                                             className={`text-sm font-bold font-mono tracking-tight ${isExpanded
-                                                ? "text-primary"
-                                                : "text-muted-foreground"
+                                              ? "text-primary"
+                                              : "text-muted-foreground"
                                               }`}
                                           >
                                             {startTime}
@@ -688,8 +755,8 @@ const ConferenceDetailPage: React.FC = () => {
                                           </span>
                                           <div
                                             className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-300 relative bg-white ${isExpanded
-                                                ? "border-primary shadow-[0_0_0_4px_rgba(59,130,246,0.1)] scale-110"
-                                                : "border-border group-hover:border-primary/40"
+                                              ? "border-primary shadow-[0_0_0_4px_rgba(59,130,246,0.1)] scale-110"
+                                              : "border-border group-hover:border-primary/40"
                                               }`}
                                           >
                                             {isExpanded && (
@@ -701,8 +768,8 @@ const ConferenceDetailPage: React.FC = () => {
 
                                       <div
                                         className={`grow bg-white rounded-2xl transition-all duration-300 border relative z-10 ${isExpanded
-                                            ? "shadow-lg border-primary/30 ring-1 ring-primary/20 translate-x-1"
-                                            : "shadow-sm border-border hover:shadow-md hover:border-border/80"
+                                          ? "shadow-lg border-primary/30 ring-1 ring-primary/20 translate-x-1"
+                                          : "shadow-sm border-border hover:shadow-md hover:border-border/80"
                                           }`}
                                       >
                                         <div
@@ -722,8 +789,8 @@ const ConferenceDetailPage: React.FC = () => {
 
                                               <h3
                                                 className={`text-lg md:text-xl font-bold transition-colors ${isExpanded
-                                                    ? "text-primary"
-                                                    : "text-foreground group-hover:text-primary"
+                                                  ? "text-primary"
+                                                  : "text-foreground group-hover:text-primary"
                                                   }`}
                                               >
                                                 {session.session_name}
@@ -752,8 +819,8 @@ const ConferenceDetailPage: React.FC = () => {
 
                                               <div
                                                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${isExpanded
-                                                    ? "bg-primary/10 text-primary rotate-180"
-                                                    : "bg-muted text-muted-foreground"
+                                                  ? "bg-primary/10 text-primary rotate-180"
+                                                  : "bg-muted text-muted-foreground"
                                                   }`}
                                               >
                                                 <ChevronDown className="w-5 h-5" />
@@ -1015,18 +1082,18 @@ const ConferenceDetailPage: React.FC = () => {
                                 setSelectedTicketId(ticket.ticket_id)
                               }
                               className={`rounded-xl border-2 p-4 transition-all ${soldOut
-                                  ? "border-border bg-muted/40 opacity-60 cursor-not-allowed"
-                                  : isSelected
-                                    ? "border-primary bg-primary/10 cursor-pointer shadow-md"
-                                    : "border-border hover:border-primary/30 hover:bg-accent cursor-pointer"
+                                ? "border-border bg-muted/40 opacity-60 cursor-not-allowed"
+                                : isSelected
+                                  ? "border-primary bg-primary/10 cursor-pointer shadow-md"
+                                  : "border-border hover:border-primary/30 hover:bg-accent cursor-pointer"
                                 }`}
                             >
                               <div className="flex justify-between items-start gap-3">
                                 <div className="flex items-start gap-3 grow min-w-0">
                                   <div
                                     className={`mt-0.5 w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all ${isSelected
-                                        ? "border-primary bg-primary"
-                                        : "border-border"
+                                      ? "border-primary bg-primary"
+                                      : "border-border"
                                       }`}
                                   >
                                     {isSelected && (
@@ -1317,6 +1384,107 @@ const ConferenceDetailPage: React.FC = () => {
                     disabled={selectedSessionsForCheckin.length === 0}
                   >
                     Start Scanning
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Payment Success Modal */}
+        {paymentSuccess.open && (
+          <div className="fixed inset-0 z-[60] bg-foreground/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
+            <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300 border border-border">
+              <div className="flex flex-col items-center text-center p-8">
+                {/* Animated Checkmark */}
+                <div className="relative mb-6">
+                  <div className="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                    <div className="w-14 h-14 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                      <CheckCircle className="w-8 h-8 text-white" />
+                    </div>
+                  </div>
+                  <div className="absolute -inset-2 rounded-full border-2 border-emerald-500/20 animate-ping" style={{ animationDuration: "2s" }} />
+                </div>
+
+                <h3 className="text-2xl font-extrabold text-foreground mb-1">
+                  Payment Successful!
+                </h3>
+                <p className="text-muted-foreground text-sm mb-6">
+                  Your registration has been confirmed.
+                </p>
+
+                {/* Ticket Details Card */}
+                <div className="w-full rounded-xl border border-border bg-muted/40 p-5 text-left space-y-3 mb-6">
+                  <div>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">
+                      Conference
+                    </p>
+                    <p className="font-bold text-foreground text-lg leading-tight">
+                      {conference?.conf_name}
+                    </p>
+                  </div>
+
+                  <div className="h-px bg-border" />
+
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">
+                        Ticket
+                      </p>
+                      <p className="font-semibold text-foreground">
+                        {paymentSuccess.ticketName}
+                      </p>
+                      <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary">
+                        {paymentSuccess.ticketType}
+                      </span>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">
+                        Amount
+                      </p>
+                      <p className="font-extrabold text-primary text-lg">
+                        {formatTicketPrice(paymentSuccess.price, paymentSuccess.currency)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {paymentSuccess.sessionDates.length > 0 && (
+                    <>
+                      <div className="h-px bg-border" />
+                      <div>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
+                          Schedule
+                        </p>
+                        <div className="space-y-1">
+                          {paymentSuccess.sessionDates.map((d) => (
+                            <div key={d} className="flex items-center gap-2 text-sm text-foreground">
+                              <Calendar className="w-3.5 h-3.5 text-primary/70 shrink-0" />
+                              <span>{d}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <p className="text-xs text-muted-foreground mb-5">
+                  A confirmation email with your QR check-in code has been sent to your inbox.
+                </p>
+
+                <div className="flex gap-3 w-full">
+                  <Button
+                    variant="outline"
+                    onClick={() => setPaymentSuccess((p) => ({ ...p, open: false }))}
+                    className="flex-1 justify-center"
+                  >
+                    Stay Here
+                  </Button>
+                  <Button
+                    onClick={() => navigate({ to: "/" })}
+                    className="flex-1 justify-center"
+                  >
+                    Go to Homepage
                   </Button>
                 </div>
               </div>
