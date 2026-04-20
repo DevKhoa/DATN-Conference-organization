@@ -49,8 +49,11 @@ const toLocalDatetime = (iso: string) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-const formatPrice = (price: number | null) => {
+const formatPrice = (price: number | null, currency = "VND") => {
   if (price === null || price === undefined) return "Free";
+  if (currency === "USD") {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(price);
+  }
   return new Intl.NumberFormat("vi-VN").format(price) + " VND";
 };
 
@@ -232,11 +235,11 @@ const TicketManagementPage = () => {
           return;
         }
         if (newOpen < eOpen && newPrice >= ePrice) {
-          setFormError(`Pricing Escalation Error: This ticket opens on ${formatShortDatetime(form.open_time)}, which is BEFORE the existing '${t.ticket_name}' ticket (opens ${formatShortDatetime(t.open_time)}). Therefore, its price (${formatPrice(newPrice)}) must be STRICTLY CHEAPER than ${formatPrice(ePrice)}.`);
+          setFormError(`Pricing Escalation Error: This ticket opens on ${formatShortDatetime(form.open_time)}, which is BEFORE the existing '${t.ticket_name}' ticket (opens ${formatShortDatetime(t.open_time)}). Therefore, its price (${formatPrice(newPrice, form.currency)}) must be STRICTLY CHEAPER than ${formatPrice(ePrice, form.currency)}.`);
           return;
         }
         if (newOpen > eOpen && newPrice <= ePrice) {
-          setFormError(`Pricing Escalation Error: This ticket opens on ${formatShortDatetime(form.open_time)}, which is AFTER the existing '${t.ticket_name}' ticket (opens ${formatShortDatetime(t.open_time)}). Therefore, its price (${formatPrice(newPrice)}) must be MORE EXPENSIVE than ${formatPrice(ePrice)}.`);
+          setFormError(`Pricing Escalation Error: This ticket opens on ${formatShortDatetime(form.open_time)}, which is AFTER the existing '${t.ticket_name}' ticket (opens ${formatShortDatetime(t.open_time)}). Therefore, its price (${formatPrice(newPrice, form.currency)}) must be MORE EXPENSIVE than ${formatPrice(ePrice, form.currency)}.`);
           return;
         }
       }
@@ -286,7 +289,7 @@ const TicketManagementPage = () => {
         allDatesCovered = false;
       } else {
         sumSingle += minForDate;
-        singleDayContext.push(`${date}: ${formatPrice(minForDate)}`);
+        singleDayContext.push(`${date}: ${formatPrice(minForDate, form.currency)}`);
       }
     }
 
@@ -295,9 +298,9 @@ const TicketManagementPage = () => {
         const details = singleDayContext.join(" + ");
         if (ticketScope === "SINGLE") {
           const comboRef = minFullTicketName ? `'${minFullTicketName}'` : "the combo";
-          setFormError(`Price Rule Violation: You are setting the single ticket for ${selectedDate} to ${formatPrice(newPrice)}. The Full Conference combo ${comboRef} (Class: ${form.ticket_type}) is priced at ${formatPrice(minFullPrice)}. The REQUIRED total sum of all single-day tickets of this class (${details} = ${formatPrice(sumSingle)}) MUST BE STRICTLY GREATER than the Full Combo price (${formatPrice(minFullPrice)}). Please increase this ticket's price.`);
+          setFormError(`Price Rule Violation: You are setting the single ticket for ${selectedDate} to ${formatPrice(newPrice, form.currency)}. The Full Conference combo ${comboRef} (Class: ${form.ticket_type}) is priced at ${formatPrice(minFullPrice, form.currency)}. The REQUIRED total sum of all single-day tickets of this class (${details} = ${formatPrice(sumSingle, form.currency)}) MUST BE STRICTLY GREATER than the Full Combo price (${formatPrice(minFullPrice, form.currency)}). Please increase this ticket's price.`);
         } else {
-          setFormError(`Price Rule Violation: You are setting the Full Conference ticket to ${formatPrice(newPrice)}. However, the sum of configured cheapest single-day tickets (Class: ${form.ticket_type}) is ${formatPrice(sumSingle)} (Breakdown: ${details}). The Full Conference ticket MUST BE CHEAPER than the sum of single-day options in the same class.`);
+          setFormError(`Price Rule Violation: You are setting the Full Conference ticket to ${formatPrice(newPrice, form.currency)}. However, the sum of configured cheapest single-day tickets (Class: ${form.ticket_type}) is ${formatPrice(sumSingle, form.currency)} (Breakdown: ${details}). The Full Conference ticket MUST BE CHEAPER than the sum of single-day options in the same class.`);
         }
         return;
       }
@@ -479,7 +482,7 @@ const TicketManagementPage = () => {
                           <div className="flex items-center gap-1.5 text-sm">
                             <Tag className="w-3.5 h-3.5 text-primary shrink-0" />
                             <span className="font-bold text-foreground">
-                              {formatPrice(ticket.price)}
+                              {formatPrice(ticket.price, ticket.currency ?? "VND")}
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -661,7 +664,6 @@ const TicketManagementPage = () => {
                   >
                     <option value="VND">VND</option>
                     <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
                   </select>
                 </div>
               </div>
