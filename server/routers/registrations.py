@@ -3,7 +3,7 @@ import time
 from datetime import datetime, timezone
 
 from payos.types import CreatePaymentLinkRequest
-from utils import logger, supabase_client, payos_client
+from utils import logger, supabase_client, payos_client, get_exchange_rate_to_vnd
 from qr_service import QRService
 from my_email import send_email_with_attachment
 
@@ -80,17 +80,22 @@ async def _create_payment_for_registration(
 ):
     """Shared payment creation logic used by both registration endpoints."""
     ticket_id = ticket_info["ticket_id"]
-    total_amount = int(ticket_info.get("price") or 0)
+    original_price = float(ticket_info.get("price") or 0)
+    currency = (ticket_info.get("currency") or "VND").upper()
 
-    if total_amount <= 0:
+    if original_price <= 0:
         raise HTTPException(status_code=400, detail="Ticket price must be greater than 0.")
+
+    # Real-time currency conversion to VND
+    rate = get_exchange_rate_to_vnd(currency)
+    total_amount = int(original_price * rate)
 
     MIN_AMOUNT = 2_000
     MAX_AMOUNT = 2_000_000_000
     if not (MIN_AMOUNT <= total_amount <= MAX_AMOUNT):
         raise HTTPException(
             status_code=400,
-            detail=f"Ticket price ({total_amount:,} VND) is outside the allowed range ({MIN_AMOUNT:,} – {MAX_AMOUNT:,} VND)."
+            detail=f"Ticket price after conversion ({total_amount:,} VND) is outside the allowed range ({MIN_AMOUNT:,} – {MAX_AMOUNT:,} VND)."
         )
 
     # Fetch sessions for the ticket_data snapshot

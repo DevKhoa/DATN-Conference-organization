@@ -135,6 +135,39 @@ with open("Prompts/cv_retriever.txt", 'r') as f:
 
 
 #======================================== HELPER FUNCTIONS ========================================#
+
+_FALLBACK_RATES_TO_VND: dict[str, float] = {
+    "VND": 1.0,
+    "USD": 25450.0,
+    "EUR": 27100.0,
+}
+
+def get_exchange_rate_to_vnd(from_currency: str) -> float:
+    """
+    Lấy tỷ giá realtime từ open.er-api.com.
+    Nếu API lỗi hoặc timeout, fallback về tỷ giá cứng.
+    """
+    currency = from_currency.upper()
+    if currency == "VND":
+        return 1.0
+    try:
+        import requests as _req
+        resp = _req.get(
+            f"https://open.er-api.com/v6/latest/{currency}",
+            timeout=5,
+        )
+        data = resp.json()
+        if data.get("result") == "success":
+            rate = data["rates"].get("VND")
+            if rate:
+                logger.info(f"[ExchangeRate] 1 {currency} = {rate} VND (realtime)")
+                return float(rate)
+    except Exception as e:
+        logger.error(f"[ExchangeRate] Không lấy được tỷ giá realtime: {e}")
+    fallback = _FALLBACK_RATES_TO_VND.get(currency, 1.0)
+    logger.warning(f"[ExchangeRate] Dùng tỷ giá fallback: 1 {currency} = {fallback} VND")
+    return fallback
+
 def load_file_local(file_path):
    
     if not os.path.exists(file_path):

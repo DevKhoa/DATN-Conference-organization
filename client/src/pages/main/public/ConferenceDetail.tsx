@@ -80,13 +80,12 @@ const formatDateRange = (start: string | null, end: string | null) => {
   return `${s.toLocaleDateString("en-US", { month: "long", day: "numeric" })} - ${e.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
 };
 
-const formatCurrencyVnd = (price: number | null) => {
+const formatTicketPrice = (price: number | null, currency = "VND") => {
   if (!price) return "Free";
-
-  return new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "VND",
-  }).format(price);
+  if (currency === "USD") {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(price);
+  }
+  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(price);
 };
 
 const ChairSection: React.FC<{ chair: ChairDisplayPerson }> = ({ chair }) => {
@@ -499,18 +498,16 @@ const ConferenceDetailPage: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
               <div
-                className={`rounded-2xl border p-5 flex items-start sm:items-center gap-4 shadow-sm ${
-                  conference.open_for_papers
+                className={`rounded-2xl border p-5 flex items-start sm:items-center gap-4 shadow-sm ${conference.open_for_papers
                     ? "bg-linear-to-r from-emerald-50 to-teal-50 border-emerald-100"
                     : "bg-muted/40 border-border"
-                }`}
+                  }`}
               >
                 <div
-                  className={`p-3 rounded-xl shrink-0 ${
-                    conference.open_for_papers
+                  className={`p-3 rounded-xl shrink-0 ${conference.open_for_papers
                       ? "bg-card text-emerald-600 shadow-sm"
                       : "bg-card text-muted-foreground shadow-sm"
-                  }`}
+                    }`}
                 >
                   {conference.open_for_papers ? (
                     <FileText className="w-6 h-6" />
@@ -520,22 +517,20 @@ const ConferenceDetailPage: React.FC = () => {
                 </div>
                 <div className="grow">
                   <h3
-                    className={`font-bold text-base mb-1 ${
-                      conference.open_for_papers
+                    className={`font-bold text-base mb-1 ${conference.open_for_papers
                         ? "text-emerald-900"
                         : "text-foreground"
-                    }`}
+                      }`}
                   >
                     {conference.open_for_papers
                       ? "Call for Papers is Active"
                       : "Submissions Closed"}
                   </h3>
                   <p
-                    className={`text-sm ${
-                      conference.open_for_papers
+                    className={`text-sm ${conference.open_for_papers
                         ? "text-emerald-800"
                         : "text-muted-foreground"
-                    }`}
+                      }`}
                   >
                     {conference.open_for_papers
                       ? "This conference is still open for paper submissions."
@@ -630,11 +625,10 @@ const ConferenceDetailPage: React.FC = () => {
                             >
                               <div className="flex items-center gap-4 relative z-10 hover:bg-accent/50 p-2 rounded-xl transition-colors -ml-2">
                                 <div
-                                  className={`flex flex-col items-center justify-center text-white rounded-xl shadow-lg w-16 h-16 shrink-0 border-4 border-slate-50 transition-colors ${
-                                    isDayExpanded
+                                  className={`flex flex-col items-center justify-center text-white rounded-xl shadow-lg w-16 h-16 shrink-0 border-4 border-slate-50 transition-colors ${isDayExpanded
                                       ? "bg-primary shadow-primary/20"
                                       : "bg-muted-foreground shadow-muted/20"
-                                  }`}
+                                    }`}
                                 >
                                   <span className="text-xs font-bold uppercase tracking-wider opacity-80">
                                     {dateInfo.weekday.substring(0, 3)}
@@ -682,11 +676,10 @@ const ConferenceDetailPage: React.FC = () => {
                                       <div className="flex flex-col items-center shrink-0 w-16 z-10">
                                         <div className="bg-muted py-2 flex flex-col items-center w-full">
                                           <span
-                                            className={`text-sm font-bold font-mono tracking-tight ${
-                                              isExpanded
+                                            className={`text-sm font-bold font-mono tracking-tight ${isExpanded
                                                 ? "text-primary"
                                                 : "text-muted-foreground"
-                                            }`}
+                                              }`}
                                           >
                                             {startTime}
                                           </span>
@@ -694,11 +687,10 @@ const ConferenceDetailPage: React.FC = () => {
                                             {endTime}
                                           </span>
                                           <div
-                                            className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-300 relative bg-white ${
-                                              isExpanded
+                                            className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-300 relative bg-white ${isExpanded
                                                 ? "border-primary shadow-[0_0_0_4px_rgba(59,130,246,0.1)] scale-110"
                                                 : "border-border group-hover:border-primary/40"
-                                            }`}
+                                              }`}
                                           >
                                             {isExpanded && (
                                               <div className="absolute inset-0.5 rounded-full bg-primary" />
@@ -708,11 +700,10 @@ const ConferenceDetailPage: React.FC = () => {
                                       </div>
 
                                       <div
-                                        className={`grow bg-white rounded-2xl transition-all duration-300 border relative z-10 ${
-                                          isExpanded
+                                        className={`grow bg-white rounded-2xl transition-all duration-300 border relative z-10 ${isExpanded
                                             ? "shadow-lg border-primary/30 ring-1 ring-primary/20 translate-x-1"
                                             : "shadow-sm border-border hover:shadow-md hover:border-border/80"
-                                        }`}
+                                          }`}
                                       >
                                         <div
                                           onClick={() =>
@@ -730,11 +721,10 @@ const ConferenceDetailPage: React.FC = () => {
                                               </div>
 
                                               <h3
-                                                className={`text-lg md:text-xl font-bold transition-colors ${
-                                                  isExpanded
+                                                className={`text-lg md:text-xl font-bold transition-colors ${isExpanded
                                                     ? "text-primary"
                                                     : "text-foreground group-hover:text-primary"
-                                                }`}
+                                                  }`}
                                               >
                                                 {session.session_name}
                                               </h3>
@@ -761,11 +751,10 @@ const ConferenceDetailPage: React.FC = () => {
                                               )}
 
                                               <div
-                                                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
-                                                  isExpanded
+                                                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${isExpanded
                                                     ? "bg-primary/10 text-primary rotate-180"
                                                     : "bg-muted text-muted-foreground"
-                                                }`}
+                                                  }`}
                                               >
                                                 <ChevronDown className="w-5 h-5" />
                                               </div>
@@ -820,7 +809,7 @@ const ConferenceDetailPage: React.FC = () => {
 
                                               <div className="space-y-4">
                                                 {session.session_papers &&
-                                                session.session_papers.length >
+                                                  session.session_papers.length >
                                                   0 ? (
                                                   session.session_papers.map(
                                                     (sp, paperIdx) => (
@@ -841,20 +830,20 @@ const ConferenceDetailPage: React.FC = () => {
                                                               </h5>
                                                               {(sp.start_time ||
                                                                 sp.end_time) && (
-                                                                <span className="text-[10px] font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20 shrink-0 whitespace-nowrap">
-                                                                  {sp.start_time
-                                                                    ? formatTimeOnly(
+                                                                  <span className="text-[10px] font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20 shrink-0 whitespace-nowrap">
+                                                                    {sp.start_time
+                                                                      ? formatTimeOnly(
                                                                         sp.start_time,
                                                                       )
-                                                                    : ""}{" "}
-                                                                  -{" "}
-                                                                  {sp.end_time
-                                                                    ? formatTimeOnly(
+                                                                      : ""}{" "}
+                                                                    -{" "}
+                                                                    {sp.end_time
+                                                                      ? formatTimeOnly(
                                                                         sp.end_time,
                                                                       )
-                                                                    : ""}
-                                                                </span>
-                                                              )}
+                                                                      : ""}
+                                                                  </span>
+                                                                )}
                                                             </div>
                                                             <div className="flex items-center text-sm text-muted-foreground mb-2">
                                                               <User className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
@@ -1009,13 +998,13 @@ const ConferenceDetailPage: React.FC = () => {
                           const soldOut =
                             ticket.quantity_limit !== null &&
                             (ticket.sold_quantity || 0) >=
-                              ticket.quantity_limit;
+                            ticket.quantity_limit;
                           const isSelected =
                             selectedTicketId === ticket.ticket_id;
                           const remaining =
                             ticket.quantity_limit !== null
                               ? ticket.quantity_limit -
-                                (ticket.sold_quantity || 0)
+                              (ticket.sold_quantity || 0)
                               : null;
 
                           return (
@@ -1025,22 +1014,20 @@ const ConferenceDetailPage: React.FC = () => {
                                 !soldOut &&
                                 setSelectedTicketId(ticket.ticket_id)
                               }
-                              className={`rounded-xl border-2 p-4 transition-all ${
-                                soldOut
+                              className={`rounded-xl border-2 p-4 transition-all ${soldOut
                                   ? "border-border bg-muted/40 opacity-60 cursor-not-allowed"
                                   : isSelected
                                     ? "border-primary bg-primary/10 cursor-pointer shadow-md"
                                     : "border-border hover:border-primary/30 hover:bg-accent cursor-pointer"
-                              }`}
+                                }`}
                             >
                               <div className="flex justify-between items-start gap-3">
                                 <div className="flex items-start gap-3 grow min-w-0">
                                   <div
-                                    className={`mt-0.5 w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all ${
-                                      isSelected
+                                    className={`mt-0.5 w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center transition-all ${isSelected
                                         ? "border-primary bg-primary"
                                         : "border-border"
-                                    }`}
+                                      }`}
                                   >
                                     {isSelected && (
                                       <CheckCircle className="w-3 h-3 text-primary-foreground" />
@@ -1061,7 +1048,7 @@ const ConferenceDetailPage: React.FC = () => {
 
                                 <div className="text-right shrink-0">
                                   <p className="font-extrabold text-primary text-lg">
-                                    {formatCurrencyVnd(ticket.price)}
+                                    {formatTicketPrice(ticket.price, ticket.currency ?? "VND")}
                                   </p>
                                   {soldOut ? (
                                     <span className="text-xs font-semibold text-destructive">
@@ -1143,7 +1130,7 @@ const ConferenceDetailPage: React.FC = () => {
                               )}
                             </div>
                             <p className="font-extrabold text-primary text-xl ml-4">
-                              {formatCurrencyVnd(ticket.price)}
+                              {formatTicketPrice(ticket.price, ticket.currency ?? "VND")}
                             </p>
                           </div>
 
