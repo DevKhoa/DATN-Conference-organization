@@ -6,13 +6,13 @@ export interface QuestionResponse {
   author_name: string | null;
   content: string;
   attendee_type: "in-person" | "virtual";
-  status: "asking" | "answering" | "done";
-  is_approved: boolean;
+  status: "pending" | "approved" | "denied" | "done";
   answer_type: "direct" | "written" | null;
   answer_content: string | null;
   answered_at: string | null;
   upvotes_count: number;
   created_at: string;
+  is_upvoted: boolean;
 }
 
 export interface QuestionCreate {
@@ -23,7 +23,7 @@ export interface QuestionCreate {
 }
 
 export interface QuestionStatusUpdate {
-  status: "asking" | "answering" | "done";
+  status: "pending" | "approved" | "denied" | "done";
 }
 
 export interface QuestionAnswer {

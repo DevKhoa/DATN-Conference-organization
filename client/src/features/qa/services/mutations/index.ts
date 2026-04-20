@@ -63,6 +63,20 @@ export const useApproveQuestionMutation = () => {
   });
 };
 
+export const useRejectQuestionMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ questionId, userId }: { questionId: number; userId: number }) => {
+      const data = await request.patch<QuestionResponse>(`/questions/${questionId}/reject?user_id=${userId}`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QAKeys.All });
+      queryClient.invalidateQueries({ queryKey: [ConferencesKeys.ConferenceDetail] });
+    },
+  });
+};
+
 export const useAnswerQuestionMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({

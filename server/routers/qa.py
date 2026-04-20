@@ -1,11 +1,13 @@
 from fastapi import APIRouter, HTTPException, Query, Path
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 
 from schema import QuestionCreate, QuestionStatusUpdate, QuestionResponse, QuestionAnswer
 from utils import logger, supabase_client
 
 router = APIRouter(tags=["qa"])
+
+# --- HELPERS ---
 
 def format_question_response(q_record, author_name=None, is_upvoted=False):
     return QuestionResponse(
@@ -17,7 +19,6 @@ def format_question_response(q_record, author_name=None, is_upvoted=False):
         content=q_record["content"],
         attendee_type=q_record["attendee_type"],
         status=q_record["status"],
-        is_approved=q_record.get("is_approved", False),
         answer_type=q_record.get("answer_type"),
         answer_content=q_record.get("answer_content"),
         answered_at=q_record.get("answered_at"),
@@ -25,6 +26,46 @@ def format_question_response(q_record, author_name=None, is_upvoted=False):
         created_at=q_record["created_at"],
         is_upvoted=is_upvoted
     )
+
+async def _is_moderator(user_id: Optional[int]) -> bool:
+    """Checks if the user has ADMIN or SECRETARIAT roles."""
+    if not user_id:
+        return False
+    try:
+        roles_res = supabase_client.table("roles").select("role_id, role_name").execute()
+        admin_role_ids = [r["role_id"] for r in (roles_res.data or []) if r["role_name"].upper() in ["ADMIN", "SECRETARIAT"]]
+        
+        if admin_role_ids:
+            user_roles_res = supabase_client.table("user_roles").select("role_id").eq("user_id", user_id).in_("role_id", admin_role_ids).execute()
+            return bool(user_roles_res.data)
+    except Exception as e:
+        logger.error(f"Error checking moderator status: {e}")
+    return False
+
+def _can_view_question(q: dict, user_id: Optional[int], is_mod: bool, user_authored_paper_ids: set = None) -> bool:
+    """Centralized visibility logic for questions."""
+    status = q.get("status")
+    author_id = q.get("author_id")
+    paper_id = q.get("paper_id")
+    
+    # 1. Moderators see everything
+    if is_mod:
+        return True
+    
+    # 2. Original author of the QUESTION sees their own question regardless of status
+    if user_id and author_id == user_id:
+        return True
+    
+    # 3. Approved/Done questions are visible to everyone with access
+    if status in ["approved", "done"]:
+        return True
+    
+    # Paper authors used to see pending questions, but user explicitly asked to hide them.
+    # So even if user_authored_paper_ids matches, we return False for pending/denied if not question author/mod.
+
+    return False
+
+# --- ROUTES ---
 
 @router.post("/questions", response_model=QuestionResponse)
 async def create_question(request: QuestionCreate):
@@ -34,29 +75,22 @@ async def create_question(request: QuestionCreate):
         raise HTTPException(status_code=400, detail="attendee_type must be 'in-person' or 'virtual'")
 
     try:
-        # Check if paper and session link exist
         session_paper_res = supabase_client.table("session_papers").select("session_id").eq("paper_id", request.paper_id).execute()
         if not session_paper_res.data:
             raise HTTPException(status_code=400, detail="Paper is not assigned to any session")
         
         session_id = session_paper_res.data[0]["session_id"]
         
-        # Check authorization: user must be chair OR have paid ticket for the session
-        # 1. Check if chair
         session_res = supabase_client.table("sessions").select("chair_person_id").eq("session_id", session_id).single().execute()
         is_chair = session_res.data and session_res.data.get("chair_person_id") == request.author_id
         
         is_authorized = is_chair
         
-        # 2. If not chair, check if the user has an attendance record for this session
         if not is_authorized:
-            # First get all registration IDs for the user
             regs_res = supabase_client.table("registrations").select("registration_id").eq("user_id", request.author_id).execute()
             reg_ids = [r["registration_id"] for r in (regs_res.data or [])]
             
             if reg_ids:
-                # Check if any of these registration IDs are linked to the session in attendences table
-                # Attendance records are only created upon successful payment confirmation.
                 attendance_check = supabase_client.table("attendences") \
                     .select("at_id") \
                     .eq("session_id", session_id) \
@@ -74,8 +108,7 @@ async def create_question(request: QuestionCreate):
             "author_id": request.author_id,
             "content": request.content.strip(),
             "attendee_type": request.attendee_type,
-            "status": "asking",
-            "is_approved": False,
+            "status": "pending",
             "upvotes_count": 0
         }
         
@@ -86,7 +119,6 @@ async def create_question(request: QuestionCreate):
             
         inserted_q = create_res.data[0]
         
-        # Fetch author name
         profile_res = supabase_client.table("profiles").select("full_name").eq("user_id", request.author_id).single().execute()
         author_name = profile_res.data["full_name"] if profile_res.data else None
         
@@ -101,59 +133,45 @@ async def create_question(request: QuestionCreate):
 @router.get("/sessions/{session_id}/questions", response_model=List[QuestionResponse])
 async def get_session_questions(
     session_id: int, 
-    user_id: int = Query(None, description="Current user ID for permission check")
+    user_id: int = Query(..., description="Current user ID for permission check")
 ):
     logger.info(f"Retrieving questions for session {session_id} by user {user_id}")
     try:
-        # Check permissions: Admin/Secretariat/Chair vs Normal User
-        is_admin_or_chair = False
-        if user_id:
-            # Check Chair
-            sess = supabase_client.table("sessions").select("chair_person_id").eq("session_id", session_id).execute()
-            if sess.data and sess.data[0].get("chair_person_id") == user_id:
-                is_admin_or_chair = True
-            else:
-                # Check Admin / Secretariat
-                # Get role ids case-insensitively
-                roles_res = supabase_client.table("roles").select("role_id, role_name").execute()
-                role_ids = [r["role_id"] for r in (roles_res.data or []) if r["role_name"].upper() in ["ADMIN", "SECRETARIAT"]]
-                if role_ids:
-                    user_roles_res = supabase_client.table("user_roles").select("role_id").eq("user_id", user_id).in_("role_id", role_ids).execute()
-                    if user_roles_res.data:
-                        is_admin_or_chair = True
+        is_mod = await _is_moderator(user_id)
         
-        query = supabase_client.table("questions").select("*, author:author_id(full_name)").eq("session_id", session_id)
+        # Paper authored check
+        query_all = supabase_client.table("questions").select("paper_id").eq("session_id", session_id).execute()
+        paper_ids = list(set([q["paper_id"] for q in (query_all.data or [])]))
+        authored_paper_ids = set()
+        if paper_ids:
+            papers_res = supabase_client.table("papers").select("paper_id, primary_author_id").in_("paper_id", paper_ids).execute()
+            authored_paper_ids = {p["paper_id"] for p in (papers_res.data or []) if p.get("primary_author_id") == user_id}
         
-        # Only show approved questions for normal users
-        if not is_admin_or_chair:
-            query = query.eq("is_approved", True)
-            
-        res = query.order("upvotes_count", desc=True).order("created_at", desc=False).execute()
+        # Get questions
+        res = supabase_client.table("questions").select("*, author:author_id(full_name)").eq("session_id", session_id) \
+            .order("upvotes_count", desc=True).order("created_at", desc=False).execute()
         
-        # Get upvoted question IDs for this user
         upvoted_ids = set()
         if user_id:
-            upvotes_res = supabase_client.table("question_upvotes").select("question_id").eq("user_id", user_id).execute()
-            upvoted_ids = {u["question_id"] for u in (upvotes_res.data or [])}
-        
+            u_res = supabase_client.table("question_upvotes").select("question_id").eq("user_id", user_id).eq("is_upvoted", True).execute()
+            upvoted_ids = {u["question_id"] for u in (u_res.data or [])}
+
         questions_list = []
-        for q in res.data:
-            author_name = None
-            if q.get("author"):
-                if isinstance(q["author"], dict):
-                    author_name = q["author"].get("full_name")
-                elif isinstance(q["author"], list) and len(q["author"]) > 0:
-                    author_name = q["author"][0].get("full_name")
-            
-            is_upvoted = q["question_id"] in upvoted_ids
-            questions_list.append(format_question_response(q, author_name, is_upvoted))
+        for q in (res.data or []):
+            if _can_view_question(q, user_id, is_mod, authored_paper_ids):
+                author_name = None
+                if q.get("author"):
+                    if isinstance(q["author"], dict):
+                        author_name = q["author"].get("full_name")
+                    elif isinstance(q["author"], list) and len(q["author"]) > 0:
+                        author_name = q["author"][0].get("full_name")
+                
+                is_upvoted = q["question_id"] in upvoted_ids
+                questions_list.append(format_question_response(q, author_name, is_upvoted))
             
         return questions_list
-        
-    except HTTPException as he:
-        raise he
     except Exception as e:
-        logger.error(f"Error retrieving questions: {str(e)}")
+        logger.error(f"Error in get_session_questions: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/conferences/{conf_id}/questions", response_model=List[QuestionResponse])
@@ -161,72 +179,78 @@ async def get_conference_questions(
     conf_id: int,
     user_id: int = Query(None, description="Current user ID for upvote status")
 ):
-    logger.info(f"Retrieving all questions for conference {conf_id}")
     try:
-        # Get all paper IDs for this conference to filter questions
-        papers_res = supabase_client.table("papers").select("paper_id").eq("submitted_conf", conf_id).execute()
+        is_mod = await _is_moderator(user_id)
+        
+        papers_res = supabase_client.table("papers").select("paper_id, primary_author_id").eq("submitted_conf", conf_id).execute()
         paper_ids = [p["paper_id"] for p in (papers_res.data or [])]
+        authored_paper_ids = {p["paper_id"] for p in (papers_res.data or []) if p.get("primary_author_id") == user_id}
         
         if not paper_ids:
             return []
             
-        query = supabase_client.table("questions").select("*, author:author_id(full_name)").in_("paper_id", paper_ids)
-        res = query.order("created_at", desc=True).execute()
+        res = supabase_client.table("questions").select("*, author:author_id(full_name)").in_("paper_id", paper_ids) \
+            .order("created_at", desc=True).execute()
         
-        # Get upvoted question IDs for this user
         upvoted_ids = set()
         if user_id:
-            upvotes_res = supabase_client.table("question_upvotes").select("question_id").eq("user_id", user_id).execute()
-            upvoted_ids = {u["question_id"] for u in (upvotes_res.data or [])}
-        
+            u_res = supabase_client.table("question_upvotes").select("question_id").eq("user_id", user_id).eq("is_upvoted", True).execute()
+            upvoted_ids = {u["question_id"] for u in (u_res.data or [])}
+
         questions_list = []
-        for q in res.data:
-            author_name = None
-            if q.get("author"):
-                if isinstance(q["author"], dict):
-                    author_name = q["author"].get("full_name")
-                elif isinstance(q["author"], list) and len(q["author"]) > 0:
-                    author_name = q["author"][0].get("full_name")
-            
-            is_upvoted = q["question_id"] in upvoted_ids
-            questions_list.append(format_question_response(q, author_name, is_upvoted))
+        for q in (res.data or []):
+            if _can_view_question(q, user_id, is_mod, authored_paper_ids):
+                author_name = None
+                if q.get("author"):
+                    if isinstance(q["author"], dict):
+                        author_name = q["author"].get("full_name")
+                    elif isinstance(q["author"], list) and len(q["author"]) > 0:
+                        author_name = q["author"][0].get("full_name")
+                
+                is_upvoted = q["question_id"] in upvoted_ids
+                questions_list.append(format_question_response(q, author_name, is_upvoted))
             
         return questions_list
     except Exception as e:
-        logger.error(f"Error retrieving conf questions: {str(e)}")
+        logger.error(f"Error in get_conference_questions: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
-        
+
 @router.get("/papers/{paper_id}/questions", response_model=List[QuestionResponse])
 async def get_paper_questions(
     paper_id: int,
     user_id: int = Query(None, description="Current user ID for upvote status")
 ):
-    logger.info(f"Retrieving all questions for paper {paper_id}")
     try:
-        query = supabase_client.table("questions").select("*, author:author_id(full_name)").eq("paper_id", paper_id)
-        res = query.order("upvotes_count", desc=True).execute()
+        is_mod = await _is_moderator(user_id)
         
-        # Get upvoted question IDs for this user
+        paper_res = supabase_client.table("papers").select("primary_author_id").eq("paper_id", paper_id).single().execute()
+        is_paper_author = paper_res.data and paper_res.data.get("primary_author_id") == user_id
+        authored_paper_ids = {paper_id} if is_paper_author else set()
+        
+        res = supabase_client.table("questions").select("*, author:author_id(full_name)").eq("paper_id", paper_id) \
+            .order("upvotes_count", desc=True).execute()
+        
         upvoted_ids = set()
         if user_id:
-            upvotes_res = supabase_client.table("question_upvotes").select("question_id").eq("user_id", user_id).execute()
-            upvoted_ids = {u["question_id"] for u in (upvotes_res.data or [])}
-        
+            u_res = supabase_client.table("question_upvotes").select("question_id").eq("user_id", user_id).eq("is_upvoted", True).execute()
+            upvoted_ids = {u["question_id"] for u in (u_res.data or [])}
+
         questions_list = []
-        for q in res.data:
-            author_name = None
-            if q.get("author"):
-                if isinstance(q["author"], dict):
-                    author_name = q["author"].get("full_name")
-                elif isinstance(q["author"], list) and len(q["author"]) > 0:
-                    author_name = q["author"][0].get("full_name")
-            
-            is_upvoted = q["question_id"] in upvoted_ids
-            questions_list.append(format_question_response(q, author_name, is_upvoted))
+        for q in (res.data or []):
+            if _can_view_question(q, user_id, is_mod, authored_paper_ids):
+                author_name = None
+                if q.get("author"):
+                    if isinstance(q["author"], dict):
+                        author_name = q["author"].get("full_name")
+                    elif isinstance(q["author"], list) and len(q["author"]) > 0:
+                        author_name = q["author"][0].get("full_name")
+                
+                is_upvoted = q["question_id"] in upvoted_ids
+                questions_list.append(format_question_response(q, author_name, is_upvoted))
             
         return questions_list
     except Exception as e:
-        logger.error(f"Error retrieving paper questions: {str(e)}")
+        logger.error(f"Error in get_paper_questions: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/questions/{id}/upvote")
@@ -234,69 +258,70 @@ async def upvote_question(
     id: int = Path(..., description="ID of the question"),
     user_id: int = Query(..., description="ID of the user upvoting")
 ):
-    logger.info(f"User {user_id} upvoting question {id}")
     try:
-        q_res = supabase_client.table("questions").select("question_id, upvotes_count").eq("question_id", id).single().execute()
+        q_res = supabase_client.table("questions").select("question_id, upvotes_count, status").eq("question_id", id).single().execute()
         if not q_res.data:
             raise HTTPException(status_code=404, detail="Question not found")
             
-        try:
-            upvote_res = supabase_client.table("question_upvotes").insert({
-                "question_id": id,
-                "user_id": user_id
-            }).execute()
-        except Exception as e:
-            err_msg = str(e).lower()
-            if "duplicate key" in err_msg or "23505" in err_msg or "unique" in err_msg:
-                raise HTTPException(status_code=409, detail="User already upvoted this question")
-            raise Exception(f"Database error: {err_msg}")
+        if q_res.data.get("status") not in ["approved", "done"]:
+            raise HTTPException(status_code=400, detail="Chỉ có thể upvote những câu hỏi đã được duyệt hoặc đã trả lời xong.")
             
-        if hasattr(upvote_res, 'error') and upvote_res.error:
-            if upvote_res.error.code == '23505':
-                raise HTTPException(status_code=409, detail="User already upvoted this question")
-            raise Exception(upvote_res.error.message)
-            
-        new_count = q_res.data.get("upvotes_count", 0) + 1
-        supabase_client.table("questions").update({"upvotes_count": new_count}).eq("question_id", id).execute()
+        upvote_check = supabase_client.table("question_upvotes").select("upvote_id, is_upvoted").eq("question_id", id).eq("user_id", user_id).execute()
         
+        if upvote_check.data:
+            upvote_record = upvote_check.data[0]
+            if upvote_record.get("is_upvoted"):
+                raise HTTPException(status_code=409, detail="User already upvoted this question")
+            else:
+                supabase_client.table("question_upvotes").update({"is_upvoted": True}).eq("upvote_id", upvote_record["upvote_id"]).execute()
+        else:
+            supabase_client.table("question_upvotes").insert({
+                "question_id": id,
+                "user_id": user_id,
+                "is_upvoted": True
+            }).execute()
+
+        count_res = supabase_client.table("question_upvotes").select("upvote_id").eq("question_id", id).eq("is_upvoted", True).execute()
+        new_count = len(count_res.data) if count_res.data else 0
+        
+        supabase_client.table("questions").update({"upvotes_count": new_count}).eq("question_id", id).execute()
         return {"status": "success", "message": "Upvote added", "upvotes_count": new_count}
         
     except HTTPException as he:
         raise he
     except Exception as e:
-        err_str = str(e).lower()
-        if "duplicate key" in err_str or "unique" in err_str:
-             raise HTTPException(status_code=409, detail="User already upvoted this question")
-        logger.error(f"Error upvoting question: {str(e)}")
+        logger.error(f"Error upvoting: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.delete("/questions/{id}/upvote")
 async def remove_upvote_question(
-    id: int = Path(..., description="ID of the question"),
-    user_id: int = Query(..., description="ID of the user removing their upvote")
+    id: int = Path(...),
+    user_id: int = Query(...)
 ):
-    logger.info(f"User {user_id} removing upvote from question {id}")
     try:
-        q_res = supabase_client.table("questions").select("question_id, upvotes_count").eq("question_id", id).single().execute()
+        q_res = supabase_client.table("questions").select("question_id, status").eq("question_id", id).single().execute()
         if not q_res.data:
             raise HTTPException(status_code=404, detail="Question not found")
             
-        del_res = supabase_client.table("question_upvotes").delete().eq("question_id", id).eq("user_id", user_id).execute()
-        
-        if not del_res.data:
-            raise HTTPException(status_code=404, detail="Upvote not found for this user/question")
+        if q_res.data.get("status") not in ["approved", "done"]:
+            raise HTTPException(status_code=400, detail="Chỉ có thể tương tác với những câu hỏi đã được duyệt hoặc đã trả lời xong.")
             
-        current_count = q_res.data.get("upvotes_count", 0)
-        new_count = max(0, current_count - 1)
+        upvote_check = supabase_client.table("question_upvotes").select("upvote_id, is_upvoted").eq("question_id", id).eq("user_id", user_id).execute()
+        
+        if not upvote_check.data or not upvote_check.data[0].get("is_upvoted"):
+            raise HTTPException(status_code=404, detail="Upvote not found")
+            
+        supabase_client.table("question_upvotes").update({"is_upvoted": False}).eq("upvote_id", upvote_check.data[0]["upvote_id"]).execute()
+        
+        count_res = supabase_client.table("question_upvotes").select("upvote_id").eq("question_id", id).eq("is_upvoted", True).execute()
+        new_count = len(count_res.data) if count_res.data else 0
         
         supabase_client.table("questions").update({"upvotes_count": new_count}).eq("question_id", id).execute()
-        
         return {"status": "success", "message": "Upvote removed", "upvotes_count": new_count}
-        
     except HTTPException as he:
         raise he
     except Exception as e:
-        logger.error(f"Error removing upvote: {str(e)}")
+        logger.error(f"Error removing upvote: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.patch("/questions/{id}/status", response_model=QuestionResponse)
@@ -304,122 +329,67 @@ async def update_question_status(
     id: int = Path(...),
     status_update: QuestionStatusUpdate = ...
 ):
-    if status_update.status not in ["asking", "answering", "done"]:
+    if status_update.status not in ["pending", "approved", "denied", "done"]:
         raise HTTPException(status_code=400, detail="Invalid status")
     try:
         update_res = supabase_client.table("questions").update({"status": status_update.status}).eq("question_id", id).execute()
         if not update_res.data:
             raise HTTPException(status_code=404, detail="Question not found")
-        q = update_res.data[0]
-        return format_question_response(q)
+        return format_question_response(update_res.data[0])
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.patch("/questions/{id}/approve", response_model=QuestionResponse)
 async def approve_question(
-    id: int = Path(..., description="Question ID"),
-    user_id: int = Query(..., description="User ID of the updater")
+    id: int = Path(...),
+    user_id: int = Query(...)
 ):
-    logger.info(f"User {user_id} approving question {id}")
-    try:
-        # Check permissions case-insensitively
-        roles_res = supabase_client.table("roles").select("role_id, role_name").execute()
-        all_roles = roles_res.data or []
-        role_ids = [r["role_id"] for r in all_roles if r["role_name"].upper() in ["ADMIN", "SECRETARIAT"]]
-        
-        logger.info(f"All roles in DB: {all_roles}")
-        logger.info(f"Target role_ids: {role_ids}")
-        
-        user_roles_res = []
-        if role_ids:
-            user_roles_res = supabase_client.table("user_roles").select("role_id").eq("user_id", user_id).in_("role_id", role_ids).execute()
-        
-        logger.info(f"User {user_id} roles found: {user_roles_res.data if user_roles_res else 'None'}")
-        
-        if not role_ids or not (user_roles_res and user_roles_res.data):
-             raise HTTPException(status_code=403, detail="Forbidden: Only Admin or Secretariat can approve questions")
+    if not await _is_moderator(user_id):
+         raise HTTPException(status_code=403, detail="Forbidden: Only Admin or Secretariat can approve questions")
             
-        update_res = supabase_client.table("questions").update({"is_approved": True}).eq("question_id", id).execute()
-        if not update_res.data:
-            raise HTTPException(status_code=404, detail="Question not found")
+    update_res = supabase_client.table("questions").update({"status": "approved"}).eq("question_id", id).execute()
+    if not update_res.data:
+        raise HTTPException(status_code=404, detail="Question not found")
+    return format_question_response(update_res.data[0])
+
+@router.patch("/questions/{id}/reject", response_model=QuestionResponse)
+async def reject_question(
+    id: int = Path(...),
+    user_id: int = Query(...)
+):
+    if not await _is_moderator(user_id):
+         raise HTTPException(status_code=403, detail="Forbidden: Only Admin or Secretariat can reject questions")
             
-        return format_question_response(update_res.data[0])
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    update_res = supabase_client.table("questions").update({"status": "denied"}).eq("question_id", id).execute()
+    if not update_res.data:
+        raise HTTPException(status_code=404, detail="Question not found")
+    return format_question_response(update_res.data[0])
 
 @router.patch("/questions/{id}/answer", response_model=QuestionResponse)
 async def answer_question(
-    id: int = Path(..., description="Question ID"),
+    id: int = Path(...),
     payload: QuestionAnswer = ...
 ):
-    logger.info(f"User {payload.user_id} answering question {id}")
     try:
-        # Get question info
-        q_res = supabase_client.table("questions").select("session_id, paper_id").eq("question_id", id).single().execute()
+        q_res = supabase_client.table("questions").select("paper_id").eq("question_id", id).single().execute()
         if not q_res.data:
              raise HTTPException(status_code=404, detail="Question not found")
              
         paper_id = q_res.data["paper_id"]
-        session_id = q_res.data["session_id"]
-        
-        # Check authorization (Must be primary author)
-        paper_res = supabase_client.table("papers").select("primary_author_id, submitted_conf").eq("paper_id", paper_id).single().execute()
+        paper_res = supabase_client.table("papers").select("primary_author_id").eq("paper_id", paper_id).single().execute()
         if not paper_res.data or paper_res.data["primary_author_id"] != payload.user_id:
             raise HTTPException(status_code=403, detail="Forbidden: Only the primary author of the paper can answer")
         
-        conf_id = paper_res.data.get("submitted_conf")
-            
-        # Check timeframe constraint
-        # Get session start time
-        sess_res = supabase_client.table("sessions").select("start_time").eq("session_id", session_id).single().execute()
-        if not sess_res.data:
-             raise HTTPException(status_code=404, detail="Session not found")
-             
-        start_time_str = sess_res.data.get("start_time")
-        
-        conf_res = supabase_client.table("conferences").select("end_date").eq("conf_id", conf_id).single().execute()
-        end_date_str = conf_res.data.get("end_date") if conf_res.data else None
-        
-        # Datetime logic check
-        now = datetime.now()
-        # Note: timezone adjustments may be needed based on system config, keeping it simple
-        # Assuming UTC strings from DB
-        try:
-            # We allow answering before session starts for convenience
-            # if start_time_str:
-            #     tz_start = datetime.fromisoformat(start_time_str.replace("Z", "+00:00")).replace(tzinfo=None)
-            #     if now < tz_start:
-            #        raise HTTPException(status_code=400, detail="Cannot answer before the session starts")
-            
-            if end_date_str:
-                # end_date is just DATE format "YYYY-MM-DD"
-                end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
-                # the day closes at 23:59:59
-                if now.date() > end_date.date():
-                   raise HTTPException(status_code=400, detail="Cannot answer after the conference ends")
-        except ValueError as ve:
-             logger.warning(f"Time parsing error ignored: {ve}")
-             # Or pass timeframe validation if times are not set
-             pass
-
-        if payload.answer_type not in ["direct", "written"]:
-            raise HTTPException(status_code=400, detail="Invalid answer_type")
-            
         update_data = {
             "answer_type": payload.answer_type,
             "answer_content": payload.answer_content if payload.answer_type == "written" else None,
-            "status": "done" if payload.answer_type == "written" else "answering",
+            "status": "done",
             "answered_at": datetime.now().isoformat()
         }
-        
         update_res = supabase_client.table("questions").update(update_data).eq("question_id", id).execute()
-        
         return format_question_response(update_res.data[0])
-        
     except HTTPException as he:
         raise he
     except Exception as e:
-        logger.error(f"Error answering question: {str(e)}")
+        logger.error(f"Error answering: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")

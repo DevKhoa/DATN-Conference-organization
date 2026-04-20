@@ -229,7 +229,7 @@ class QuestionCreate(BaseModel):
     attendee_type: str = Field(..., description="'in-person' or 'virtual'")
 
 class QuestionStatusUpdate(BaseModel):
-    status: str = Field(..., description="'asking', 'answering', or 'done'")
+    status: str = Field(..., description="'pending', 'approved', 'denied', or 'done'")
 
 class QuestionAnswer(BaseModel):
     user_id: int = Field(..., description="ID of the user answering (must be author)")
@@ -245,7 +245,6 @@ class QuestionResponse(BaseModel):
     content: str
     attendee_type: str
     status: str
-    is_approved: bool
     answer_type: Optional[str] = None
     answer_content: Optional[str] = None
     answered_at: Optional[str] = None

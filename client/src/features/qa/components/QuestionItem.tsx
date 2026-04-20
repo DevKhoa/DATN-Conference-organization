@@ -5,6 +5,7 @@ import type { QuestionResponse } from "@/features/qa/types";
 import { 
   useUpvoteQuestionMutation, 
   useApproveQuestionMutation, 
+  useRejectQuestionMutation,
   useUpdateQuestionStatusMutation,
   useAnswerQuestionMutation,
   useRemoveUpvoteQuestionMutation
@@ -32,6 +33,7 @@ export const QuestionItem = ({
   const upvoteMutation = useUpvoteQuestionMutation();
   const removeUpvoteMutation = useRemoveUpvoteQuestionMutation();
   const approveMutation = useApproveQuestionMutation();
+  const rejectMutation = useRejectQuestionMutation();
   const statusMutation = useUpdateQuestionStatusMutation();
   const answerMutation = useAnswerQuestionMutation();
 
@@ -47,6 +49,11 @@ export const QuestionItem = ({
   const handleApprove = () => {
     if (!userId) return;
     approveMutation.mutate({ questionId: question.question_id, userId });
+  };
+
+  const handleReject = () => {
+    if (!userId) return;
+    rejectMutation.mutate({ questionId: question.question_id, userId });
   };
 
   const handleSubmitReply = () => {
@@ -78,12 +85,17 @@ export const QuestionItem = ({
     });
   };
 
-  const isPendingApproval = !question.is_approved;
-  const isAnswering = question.status === "answering";
+  const isPending = question.status === "pending";
+  const isApproved = question.status === "approved" || question.status === "done";
+  const isDenied = question.status === "denied";
   const isDone = question.status === "done";
 
+  // Note: 'answering' status was removed in the provided BE code, it's now 'approved' or 'done'
+  // But we can still support visual feedback for "Live Answering" if we want to add it back 
+  // currently we'll stick to the provided statuses.
+
   return (
-    <div className={`p-4 rounded-xl border ${isAnswering ? 'border-primary shadow-sm bg-primary/5' : 'border-border bg-card'} transition-all`}>
+    <div className={`p-4 rounded-xl border ${isApproved ? 'border-primary shadow-sm bg-primary/5' : 'border-border bg-card'} transition-all`}>
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-2">
           <span className="font-bold text-sm text-foreground">{question.author_name || "Attendee"}</span>
@@ -96,19 +108,24 @@ export const QuestionItem = ({
         </div>
         
         <div className="flex items-center gap-2">
-          {isPendingApproval && (
+          {isPending && (
             <span className="flex items-center text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full font-medium">
-              <AlertCircle className="w-3 h-3 mr-1" /> Pending
+              <Clock className="w-3 h-3 mr-1" /> Pending
             </span>
           )}
-          {isAnswering && (
-            <span className="flex items-center text-xs text-primary bg-primary/10 px-2 py-1 rounded-full font-bold animate-pulse">
-              <Volume2 className="w-3 h-3 mr-1" /> Live Answering...
+          {isDenied && (
+            <span className="flex items-center text-xs text-rose-600 bg-rose-50 px-2 py-1 rounded-full font-medium">
+              <AlertCircle className="w-3 h-3 mr-1" /> Denied
             </span>
           )}
           {isDone && (
             <span className="flex items-center text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full font-medium">
               <CheckCircle className="w-3 h-3 mr-1" /> Answered
+            </span>
+          )}
+          {isApproved && !isDone && (
+             <span className="flex items-center text-xs text-primary bg-primary/10 px-2 py-1 rounded-full font-medium">
+              <MessageCircle className="w-3 h-3 mr-1" /> Approved
             </span>
           )}
         </div>
@@ -145,17 +162,26 @@ export const QuestionItem = ({
           {question.upvotes_count} Upvotes
         </button>
 
-        {isModerator && isPendingApproval && (
-          <button 
-            onClick={handleApprove}
-            disabled={approveMutation.isPending}
-            className="text-xs font-bold text-emerald-600 hover:text-emerald-700"
-          >
-            Approve Question
-          </button>
+        {isModerator && isPending && (
+          <div className="flex items-center gap-3 border-l border-border pl-4">
+            <button 
+              onClick={handleApprove}
+              disabled={approveMutation.isPending}
+              className="text-xs font-bold text-emerald-600 hover:text-emerald-700"
+            >
+              Approve
+            </button>
+            <button 
+              onClick={handleReject}
+              disabled={rejectMutation.isPending}
+              className="text-xs font-bold text-rose-600 hover:text-rose-700"
+            >
+              Reject
+            </button>
+          </div>
         )}
 
-        {isAuthor && question.is_approved && !isDone && (
+        {isAuthor && isApproved && !isDone && (
           <div className="flex items-center gap-3 border-l border-border pl-4">
             <button 
               onClick={() => setIsReplying(!isReplying)}

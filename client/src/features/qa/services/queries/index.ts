@@ -5,7 +5,7 @@ import type { QuestionResponse } from "@/features/qa/types";
 
 export const useSessionQuestionsQuery = (sessionId: number | null, userId?: number | null) => {
   return useQuery({
-    queryKey: QAKeys.BySession(sessionId!),
+    queryKey: QAKeys.BySession(sessionId!, userId),
     queryFn: sessionId
       ? async () => {
           const url = userId 
@@ -22,7 +22,7 @@ export const useSessionQuestionsQuery = (sessionId: number | null, userId?: numb
 
 export const usePaperQuestionsQuery = (paperId: number | null, userId?: number | null) => {
   return useQuery({
-    queryKey: QAKeys.ByPaper(paperId!),
+    queryKey: QAKeys.ByPaper(paperId!, userId),
     queryFn: paperId
       ? async () => {
           const url = userId 

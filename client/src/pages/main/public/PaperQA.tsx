@@ -4,6 +4,7 @@ import { usePublicPaperDetailQuery } from "@/features/papers/services/queries";
 import { usePaperQuestionsQuery } from "@/features/qa/services/queries";
 import { QuestionItem } from "@/features/qa/components/QuestionItem";
 import { QuestionForm } from "@/features/qa/components/QuestionForm";
+import { QuestionFilters, FilterStatus, SortOption } from "@/features/qa/components/QuestionFilters";
 import useAuth from "@/features/auth/hooks/useAuth";
 import { Role } from "@/features/auth/types";
 import { ArrowLeft, MessageSquare, AlertCircle, Loader2 } from "lucide-react";
@@ -18,6 +19,33 @@ const PaperQAPage = () => {
 
   const { data: paperData, isLoading: isPaperLoading } = usePublicPaperDetailQuery(paperIdNum);
   const { data: questions = [], isLoading: isQuestionsLoading } = usePaperQuestionsQuery(paperIdNum, userId);
+
+  const [filterStatus, setFilterStatus] = React.useState<FilterStatus>("all");
+  const [sortBy, setSortBy] = React.useState<SortOption>("most-upvoted");
+
+  // Filtering and Sorting logic
+  const processedQuestions = React.useMemo(() => {
+    let result = [...questions];
+
+    // Filter
+    if (filterStatus !== "all") {
+      result = result.filter(q => q.status === filterStatus);
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      if (sortBy === "most-upvoted") {
+        return b.upvotes_count - a.upvotes_count;
+      } else if (sortBy === "newest") {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      } else if (sortBy === "oldest") {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      }
+      return 0;
+    });
+
+    return result;
+  }, [questions, filterStatus, sortBy]);
 
   if (isPaperLoading) {
     return (
@@ -98,6 +126,16 @@ const PaperQAPage = () => {
           </div>
 
           <div className="bg-card border border-border rounded-xl p-4 sm:p-6 shadow-sm">
+            <QuestionFilters 
+              currentFilter={filterStatus}
+              onFilterChange={setFilterStatus}
+              currentSort={sortBy}
+              onSortChange={setSortBy}
+              totalCount={questions.length}
+              isModerator={isModerator}
+              isAuthor={isAuthor}
+            />
+
             {!isAuthor && userId && (
               <div className="mb-8 p-4 bg-muted/20 rounded-xl border border-dashed border-border">
                 <h3 className="text-sm font-bold mb-2">Ask a Question</h3>
@@ -119,21 +157,21 @@ const PaperQAPage = () => {
                 <div className="flex justify-center py-8">
                   <Loader2 className="w-6 h-6 text-primary animate-spin" />
                 </div>
-              ) : questions.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
+              ) : processedQuestions.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground bg-muted/10 rounded-xl border border-dashed border-border">
                   <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                  <p className="text-sm">No questions have been asked yet.</p>
-                  <p className="text-xs mt-1">Be the first to start the discussion!</p>
+                  <p className="text-sm font-medium">No questions found.</p>
+                  <p className="text-xs mt-1">Try adjusting your filters or ask a new question!</p>
                 </div>
               ) : (
-                questions.map(q => (
+                processedQuestions.map(q => (
                   <QuestionItem 
                     key={q.question_id} 
                     question={q} 
                     userId={userId}
                     isAuthor={isAuthor}
                     isModerator={isModerator}
-                    isSessionActive={false} // Wait, we might not know if session is active here easily. For the sake of simplification on public page, maybe live answering is disabled or we assume true? Let's pass false for now.
+                    isSessionActive={false} 
                   />
                 ))
               )}
