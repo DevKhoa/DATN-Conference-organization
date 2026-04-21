@@ -28,7 +28,7 @@ async def auto_generate_sessions(request: AutoSessionRequest):
             
         selected_papers = papers_res.data
         if not selected_papers:
-            raise HTTPException(status_code=404, detail="Could not find relevance paper from given id")
+            raise HTTPException(status_code=404, detail="Could not find the specified papers.")
 
         assigned_res = supabase_client.table("session_papers")\
             .select("paper_id")\
@@ -44,7 +44,7 @@ async def auto_generate_sessions(request: AutoSessionRequest):
             logger.warning(f"Skipping {skipped_count} papers because they are already assigned to a session.")
             
         if not valid_papers:
-            raise HTTPException(status_code=400, detail="All selected papers already have sessions")
+            raise HTTPException(status_code=400, detail="All selected papers are already assigned to a session.")
 
         df = pd.DataFrame(valid_papers)
         logger.info(f"Proceeding with {len(df)} valid papers.")
@@ -52,13 +52,13 @@ async def auto_generate_sessions(request: AutoSessionRequest):
         total_papers = len(df)
         
         if total_papers < request.n_session:
-             raise HTTPException(status_code=400, detail=f"Insufficient papers! Available: {total_papers}, but requested {request.n_session} sessions.")
+             raise HTTPException(status_code=400, detail=f"Not enough papers to create the requested number of sessions. (Available: {total_papers}, Required: {request.n_session})")
 
         if request.max_paper * request.n_session < total_papers:
-            raise HTTPException(status_code=400, detail=f"Capacity overflow! The current configuration cannot accommodate all papers. Please increase 'n_session' or 'max_paper'.")
+            raise HTTPException(status_code=400, detail="The current configuration cannot accommodate all papers. Please increase the number of sessions or maximum papers per session.")
         
         if request.min_paper * request.n_session > total_papers:
-             raise HTTPException(status_code=400, detail=f"Minimum requirement not met! Not enough papers to fill {request.n_session} sessions with at least {request.min_paper} papers each. Please decrease 'n_session' or 'min_paper'.")
+             raise HTTPException(status_code=400, detail=f"Minimum requirement not met. Not enough papers to fill {request.n_session} sessions with at least {request.min_paper} papers each.")
 
         logger.info("Generating embeddings...")
         df['abstract'] = df['abstract'].fillna('')
@@ -111,7 +111,7 @@ async def auto_generate_sessions(request: AutoSessionRequest):
 
     except Exception as e:
         logger.error(f"Auto-schedule failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="The auto-scheduling process failed. Please try again later.")
 
 
 @router.post("/sessions/{session_id}/recommend-chair", response_model=SessionChairResponse)
@@ -140,7 +140,7 @@ async def recommend_chair_for_session(
         papers = [item['paper'] for item in session_data.get('session_papers', []) if item.get('paper')]
 
         if not papers:
-            raise HTTPException(status_code=400, detail="Session has no papers. Cannot analyze context.")
+            raise HTTPException(status_code=400, detail="This session has no papers to analyze.")
 
         combined_text_parts = [f"Session Context: {session_data['session_name']}"]
         excluded_author_ids = []
@@ -169,7 +169,7 @@ async def recommend_chair_for_session(
             session_vector = embed_response.embeddings[0].values
         except Exception as e:
             logger.error(f"GenAI Embedding Error: {e}")
-            raise HTTPException(status_code=500, detail="Failed to generate AI embedding.")
+            raise HTTPException(status_code=500, detail="AI analysis is temporarily unavailable. Please try again later.")
 
         rpc_params = {
             "query_embedding": session_vector,
@@ -182,7 +182,7 @@ async def recommend_chair_for_session(
 
         if hasattr(search_result, 'error') and search_result.error:
             logger.error(f"Supabase RPC Error: {search_result.error}")
-            raise HTTPException(status_code=500, detail="Database search failed.")
+            raise HTTPException(status_code=500, detail="An error occurred while searching for chair candidates.")
 
         recommendations = [
             ChairRecommendation(
@@ -204,7 +204,7 @@ async def recommend_chair_for_session(
         raise he
     except Exception as e:
         logger.error(f"Internal Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again later.")
 
 @router.get("/sessions/google-auth-url", response_model=SessionAuthResponse)
 async def get_google_auth_url(email: str = Query(..., description="Email of the user to link with Google Meet"), redirect_uri: str = Query("http://localhost:8080/sessions/google-oauth-callback")):
@@ -213,7 +213,7 @@ async def get_google_auth_url(email: str = Query(..., description="Email of the 
         return res
     except Exception as e:
         logger.error(f"Generate Google Auth URL failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate authorization URL: {str(e)}")
+        raise HTTPException(status_code=500, detail="We couldn't connect to Google Services. Please check your internet or try again.")
 
 @router.get("/sessions/google-oauth-callback")
 async def google_oauth_callback(
@@ -224,7 +224,7 @@ async def google_oauth_callback(
     try:
         # 1. Decode email from state
         if not state.startswith("email_"):
-            raise HTTPException(status_code=400, detail="Invalid session ID or missing email.")
+            raise HTTPException(status_code=400, detail="Google authentication failed: invalid session or missing email.")
         registered_email = state.split("_", 1)[1]
         
         # 2. Exchange code for token
@@ -239,7 +239,7 @@ async def google_oauth_callback(
         user_res = supabase_client.table("users").select("user_id").eq("email", registered_email).single().execute()
         
         if not user_res.data:
-             raise HTTPException(status_code=404, detail="User account not found in the system.")
+             raise HTTPException(status_code=404, detail="Your account was not found in our database.")
              
         # 4. Save refresh_token to DB
         if refresh_token:
@@ -248,7 +248,7 @@ async def google_oauth_callback(
             }).eq("user_id", user_res.data["user_id"]).execute()
 
             if hasattr(res, 'error') and res.error:
-                raise HTTPException(status_code=500, detail=f"Database Update Error: {res.error}")
+                raise HTTPException(status_code=500, detail="We couldn't save your Google authorization. Please try again.")
 
 
         # 5. Return success page
@@ -298,7 +298,7 @@ async def google_oauth_callback(
 
     except Exception as e:
         logger.error(f"Google OAuth Callback error: {e}")
-        raise HTTPException(status_code=500, detail=f"Google authentication failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Google authentication failed. Please try again.")
 
 @router.post("/sessions/{session_id}/create-meet", response_model=MeetCreationResponse)
 async def create_google_meet_for_session(session_id: int, request: MeetCreationRequest):
@@ -311,7 +311,7 @@ async def create_google_meet_for_session(session_id: int, request: MeetCreationR
         profile_res = supabase_client.table("profiles").select("google_refresh_token").eq("user_id", user_res.data["user_id"]).single().execute()
         
         if not profile_res.data or not profile_res.data.get("google_refresh_token"):
-             raise HTTPException(status_code=400, detail="Account not linked with Google. Please authorize first.")
+             raise HTTPException(status_code=400, detail="Your account is not linked with Google. Please authorize first.")
              
         user_refresh_token = profile_res.data.get("google_refresh_token")
 
@@ -324,7 +324,7 @@ async def create_google_meet_for_session(session_id: int, request: MeetCreationR
             
         sess_data = sess_res.data
         if not sess_data.get("start_time") or not sess_data.get("end_time"):
-            raise HTTPException(status_code=400, detail="Session start or end time is missing. Please update session time.")
+            raise HTTPException(status_code=400, detail="Session time is missing. Please set the start and end times first.")
         
         summary = f"[{sess_data.get('session_name', 'Conference')}] - Virtual Room"
         description = f"Virtual Session hosted via DATN Conference System."
@@ -360,7 +360,7 @@ async def create_google_meet_for_session(session_id: int, request: MeetCreationR
         )
     except Exception as e:
         logger.error(f"Error creating Meet event: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to create Google Meet event. Please try again later.")
 
 @router.delete("/sessions/{session_id}/meet")
 async def delete_google_meet_for_session(session_id: int, email: str = None):
@@ -406,7 +406,7 @@ async def delete_google_meet_for_session(session_id: int, email: str = None):
 
     except Exception as e:
         logger.error(f"Error removing Meet event: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to remove Google Meet link. Please try again later.")
 
 
 @router.patch("/sessions/{session_id}/toggle-meet")
@@ -418,9 +418,9 @@ async def toggle_meet_active(session_id: int, is_active: bool = Query(..., descr
         
         if hasattr(res, 'error') and res.error:
              # Just in case the column doesn't exist yet
-             raise HTTPException(status_code=400, detail="Could not update status. Check database schema.")
+             raise HTTPException(status_code=400, detail="Unable to update virtual room status.")
              
         return {"status": "success", "is_meet_active": is_active}
     except Exception as e:
         logger.error(f"Error toggling meet status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="An error occurred while toggling meeting status.")
