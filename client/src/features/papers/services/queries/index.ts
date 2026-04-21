@@ -263,19 +263,52 @@ export const useMyPaperDetailQuery = (paperId: number | null) => {
   });
 };
 
-export const usePapersCountQuery = () => {
-  return useQuery({
-    queryKey: [PapersKeys.PapersCount],
-    queryFn: async () => {
-      const { count, error } = await supabase
-        .from("papers")
-        .select("*", { count: "exact", head: true });
+export interface PapersFilterParams {
+  searchTerm?: string;
+  statusFilter?: string;
+  conferenceFilter?: string;
+  authorFilter?: string;
+}
 
+export const usePapersCountQuery = (filters: PapersFilterParams = {}) => {
+  const { searchTerm, statusFilter, conferenceFilter, authorFilter } = filters;
+
+  return useQuery({
+    queryKey: [PapersKeys.PapersCount, searchTerm, statusFilter, conferenceFilter, authorFilter],
+    queryFn: async () => {
+      let query = supabase
+        .from("papers")
+        .select(
+          "*, author:profiles!primary_author_id (full_name), conference:conferences!submitted_conf (conf_name)",
+          { count: "exact", head: false },
+        );
+
+      if (searchTerm) {
+        query = query.or(`title.ilike.%${searchTerm}%,abstract.ilike.%${searchTerm}%`);
+      }
+      if (statusFilter && statusFilter !== "ALL") {
+        query = query.eq("status", statusFilter);
+      }
+
+      const { data, count, error } = await query;
       if (error) throw error;
 
-      return count || 0;
+      // Conference and author filters require post-filtering since they are joined tables
+      let filteredCount = count || 0;
+      if ((conferenceFilter && conferenceFilter !== "ALL") || (authorFilter && authorFilter !== "ALL")) {
+        const rows = data || [];
+        const filtered = rows.filter((p: any) => {
+          const conf = Array.isArray(p.conference) ? p.conference[0] : p.conference;
+          const auth = Array.isArray(p.author) ? p.author[0] : p.author;
+          if (conferenceFilter && conferenceFilter !== "ALL" && conf?.conf_name !== conferenceFilter) return false;
+          if (authorFilter && authorFilter !== "ALL" && auth?.full_name !== authorFilter) return false;
+          return true;
+        });
+        filteredCount = filtered.length;
+      }
+
+      return filteredCount;
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes - count changes less frequently
   });
 };
 
@@ -283,17 +316,17 @@ export const usePaginatedPapersQuery = ({
   page,
   pageSize,
   totalCount = 0,
-}: PaginatedParams) => {
-  return useQuery({
-    queryKey: [PapersKeys.PaginatedPapers, page, pageSize, totalCount],
-    queryFn: async () => {
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
+  filters = {},
+}: PaginatedParams & { filters?: PapersFilterParams }) => {
+  const { searchTerm, statusFilter, conferenceFilter, authorFilter } = filters;
 
+  return useQuery({
+    queryKey: [PapersKeys.PaginatedPapers, page, pageSize, totalCount, searchTerm, statusFilter, conferenceFilter, authorFilter],
+    queryFn: async () => {
       const totalPages = Math.ceil(totalCount / pageSize);
 
-      // Fetch paginated papers with relations
-      const { data, error } = await supabase
+      // Build the main query with filters applied server-side
+      let query = supabase
         .from("papers")
         .select(
           `
@@ -302,10 +335,50 @@ export const usePaginatedPapersQuery = ({
           conference:conferences!submitted_conf (conf_name)
         `,
         )
-        .order("created_at", { ascending: false })
-        .range(from, to);
+        .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (searchTerm) {
+        query = query.or(`title.ilike.%${searchTerm}%,abstract.ilike.%${searchTerm}%`);
+      }
+      if (statusFilter && statusFilter !== "ALL") {
+        query = query.eq("status", statusFilter);
+      }
+
+      // For conference/author filters on joined tables, we fetch all matching rows then paginate client-side
+      const needsJoinFilter = (conferenceFilter && conferenceFilter !== "ALL") || (authorFilter && authorFilter !== "ALL");
+
+      let papers: any[];
+
+      if (needsJoinFilter) {
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const normalized = (data || []).map((p: any) => ({
+          ...p,
+          author: Array.isArray(p.author) ? p.author[0] ?? null : p.author ?? null,
+          conference: Array.isArray(p.conference) ? p.conference[0] ?? null : p.conference ?? null,
+        }));
+
+        const filtered = normalized.filter((p: any) => {
+          if (conferenceFilter && conferenceFilter !== "ALL" && p.conference?.conf_name !== conferenceFilter) return false;
+          if (authorFilter && authorFilter !== "ALL" && p.author?.full_name !== authorFilter) return false;
+          return true;
+        });
+
+        const from = (page - 1) * pageSize;
+        papers = filtered.slice(from, from + pageSize);
+      } else {
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
+        const { data, error } = await query.range(from, to);
+        if (error) throw error;
+
+        papers = (data || []).map((p: any) => ({
+          ...p,
+          author: Array.isArray(p.author) ? p.author[0] ?? null : p.author ?? null,
+          conference: Array.isArray(p.conference) ? p.conference[0] ?? null : p.conference ?? null,
+        }));
+      }
 
       // Fetch ALL unique conferences for filter dropdown
       const { data: allConfsData } = await supabase
@@ -318,15 +391,6 @@ export const usePaginatedPapersQuery = ({
         .from("papers")
         .select("author:profiles!primary_author_id (full_name)")
         .not("primary_author_id", "is", null);
-
-      const rawPapers = data || [];
-
-      // Normalize: Supabase FK joins can return object or array — always flatten to object
-      const papers = rawPapers.map((p: any) => ({
-        ...p,
-        author: Array.isArray(p.author) ? p.author[0] ?? null : p.author ?? null,
-        conference: Array.isArray(p.conference) ? p.conference[0] ?? null : p.conference ?? null,
-      }));
 
       const uniqueConfs = Array.from(
         new Set(

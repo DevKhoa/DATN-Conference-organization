@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Search,
   Filter,
@@ -46,16 +46,45 @@ const PapersPage = () => {
   const navigate = useNavigate();
   const { checkRoles } = useAuth();
 
+  // Filters State
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [conferenceFilter, setConferenceFilter] = useState<string>("ALL");
+  const [authorFilter, setAuthorFilter] = useState<string>("ALL");
+  const [sortBy, setSortBy] = useState<
+    "DATE_DESC" | "DATE_ASC" | "TITLE_AZ" | "DECISION"
+  >("DATE_DESC");
+
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 400);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const filters = useMemo(() => ({
+    searchTerm: debouncedSearch || undefined,
+    statusFilter,
+    conferenceFilter,
+    authorFilter,
+  }), [debouncedSearch, statusFilter, conferenceFilter, authorFilter]);
+
   // Pagination state and utilities
   const {
     currentPage,
+    setCurrentPage,
     handlePageChange,
     getPageNumbers,
     canGoPrevious,
     canGoNext,
   } = usePagination();
 
-  const { data: totalCount = 0 } = usePapersCountQuery();
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, conferenceFilter, authorFilter, setCurrentPage]);
+
+  const { data: totalCount = 0 } = usePapersCountQuery(filters);
 
   // Query with pagination
   const {
@@ -66,6 +95,7 @@ const PapersPage = () => {
     page: currentPage,
     pageSize: ITEMS_PER_PAGE,
     totalCount: totalCount,
+    filters,
   });
 
   const papers = paginatedData?.data || [];
@@ -79,15 +109,6 @@ const PapersPage = () => {
 
   // Hero Carousel State
   const [currentHeroSlide, setCurrentHeroSlide] = useState(0);
-
-  // Filters State
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [conferenceFilter, setConferenceFilter] = useState<string>("ALL");
-  const [authorFilter, setAuthorFilter] = useState<string>("ALL");
-  const [sortBy, setSortBy] = useState<
-    "DATE_DESC" | "DATE_ASC" | "TITLE_AZ" | "DECISION"
-  >("DATE_DESC");
 
   // Mobile Filters Toggle
   const [showFilters, setShowFilters] = useState(false);
@@ -158,38 +179,21 @@ const PapersPage = () => {
     }
   };
 
-  // --- Filtering Logic ---
+  // --- Client-side Sorting (filtering is now server-side) ---
 
   const filteredPapers = useMemo(() => {
-    let result = [...papers];
+    const result = [...papers];
 
-    // 1. Text Search (Title & Abstract)
-    if (searchTerm) {
-      const lowerTerm = searchTerm.toLowerCase();
-      result = result.filter(
-        (p) =>
-          (p.title && p.title.toLowerCase().includes(lowerTerm)) ||
-          (p.abstract && p.abstract.toLowerCase().includes(lowerTerm)),
-      );
-    }
+    // When searching, prioritize title matches over abstract-only matches
+    const lowerSearch = debouncedSearch?.toLowerCase() || "";
 
-    // 2. Status Filter
-    if (statusFilter !== "ALL") {
-      result = result.filter((p) => p.status?.toUpperCase() === statusFilter);
-    }
-
-    // 3. Conference Filter
-    if (conferenceFilter !== "ALL") {
-      result = result.filter((p) => getConferenceName(p) === conferenceFilter);
-    }
-
-    // 4. Author Filter
-    if (authorFilter !== "ALL") {
-      result = result.filter((p) => getAuthorName(p) === authorFilter);
-    }
-
-    // 5. Sorting
     result.sort((a, b) => {
+      if (lowerSearch) {
+        const aTitle = a.title?.toLowerCase().includes(lowerSearch) ? 0 : 1;
+        const bTitle = b.title?.toLowerCase().includes(lowerSearch) ? 0 : 1;
+        if (aTitle !== bTitle) return aTitle - bTitle;
+      }
+
       switch (sortBy) {
         case "DATE_ASC":
           return (
@@ -216,14 +220,7 @@ const PapersPage = () => {
     });
 
     return result;
-  }, [
-    papers,
-    searchTerm,
-    statusFilter,
-    conferenceFilter,
-    authorFilter,
-    sortBy,
-  ]);
+  }, [papers, sortBy, debouncedSearch]);
 
   // --- Render ---
 
@@ -345,9 +342,19 @@ const PapersPage = () => {
 
                 {/* Conference Filter */}
                 <div className="mb-5">
-                  <label className="block text-xs font-bold text-muted-foreground uppercase mb-2">
-                    Conference
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-muted-foreground uppercase">
+                      Conference
+                    </label>
+                    {conferenceFilter !== "ALL" && (
+                      <button
+                        onClick={() => setConferenceFilter("ALL")}
+                        className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                      >
+                        <X className="w-3 h-3" /> Clear
+                      </button>
+                    )}
+                  </div>
                   <div className="relative">
                     <select
                       value={conferenceFilter}
@@ -367,9 +374,19 @@ const PapersPage = () => {
 
                 {/* Author Filter */}
                 <div className="mb-2">
-                  <label className="block text-xs font-bold text-muted-foreground uppercase mb-2">
-                    Primary Author
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-muted-foreground uppercase">
+                      Primary Author
+                    </label>
+                    {authorFilter !== "ALL" && (
+                      <button
+                        onClick={() => setAuthorFilter("ALL")}
+                        className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                      >
+                        <X className="w-3 h-3" /> Clear
+                      </button>
+                    )}
+                  </div>
                   <div className="relative">
                     <select
                       value={authorFilter}
