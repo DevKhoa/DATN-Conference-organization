@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   ArrowLeft,
   Plus,
@@ -39,6 +39,7 @@ const EMPTY_FORM: TicketFormData = {
   description: "",
   price: "",
   session_ids: [],
+  ticket_type: "Standard",
 };
 
 const toLocalDatetime = (iso: string) => {
@@ -48,8 +49,11 @@ const toLocalDatetime = (iso: string) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-const formatPrice = (price: number | null) => {
+const formatPrice = (price: number | null, currency = "VND") => {
   if (price === null || price === undefined) return "Free";
+  if (currency === "USD") {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(price);
+  }
   return new Intl.NumberFormat("vi-VN").format(price) + " VND";
 };
 
@@ -89,6 +93,20 @@ const TicketManagementPage = () => {
   const [form, setForm] = useState<TicketFormData>(EMPTY_FORM);
   const [formError, setFormError] = useState("");
 
+  const [ticketScope, setTicketScope] = useState<"FULL" | "SINGLE">("FULL");
+  const [selectedDate, setSelectedDate] = useState<string>("");
+
+  const sessionsByDate = useMemo(() => {
+    const map = new Map<string, typeof sessions>();
+    sessions.forEach(s => {
+      const date = new Date(s.start_time).toISOString().split('T')[0];
+      if (!map.has(date)) map.set(date, []);
+      map.get(date)!.push(s);
+    });
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [sessions]);
+
+
   // Delete state
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
@@ -101,6 +119,8 @@ const TicketManagementPage = () => {
     setEditingId(null);
     setForm(EMPTY_FORM);
     setFormError("");
+    setTicketScope("FULL");
+    setSelectedDate("");
     setIsModalOpen(true);
   };
 
@@ -117,8 +137,34 @@ const TicketManagementPage = () => {
       description: ticket.description || "",
       price: ticket.price !== null ? String(ticket.price) : "",
       session_ids: ticket.assigned_session_ids,
+      ticket_type: ticket.ticket_type || "Standard",
     });
     setFormError("");
+
+    // Deduce scope
+    let scope: "FULL" | "SINGLE" = "FULL";
+    let selDate = "";
+
+    const assignedDates = new Set<string>();
+    ticket.assigned_session_ids.forEach(sid => {
+      const session = sessions.find(s => s.session_id === sid);
+      if (session) {
+        const date = new Date(session.start_time).toISOString().split('T')[0];
+        assignedDates.add(date);
+      }
+    });
+
+    if (ticket.assigned_session_ids.length === sessions.length && sessions.length > 0) {
+      scope = "FULL";
+    } else if (assignedDates.size === 1) {
+      scope = "SINGLE";
+      selDate = Array.from(assignedDates)[0];
+    } else {
+      scope = "FULL";
+    }
+
+    setTicketScope(scope);
+    setSelectedDate(selDate);
     setIsModalOpen(true);
   };
 
@@ -129,17 +175,135 @@ const TicketManagementPage = () => {
       setFormError("Ticket name is required.");
       return;
     }
-    if (!form.open_time) {
-      setFormError("Open time is required.");
+    if (!form.open_time || !form.close_time) {
+      setFormError("Open time and Close time are required.");
       return;
     }
-    if (!form.close_time) {
-      setFormError("Close time is required.");
-      return;
+
+    let finalSessionIds: number[] = [];
+    if (ticketScope === "FULL") {
+      finalSessionIds = sessions.map(s => s.session_id);
+      if (finalSessionIds.length === 0) {
+        setFormError("Cannot create Full Conference ticket because there are no sessions.");
+        return;
+      }
+    } else {
+      if (!selectedDate) {
+        setFormError("Please select a date for the single day ticket.");
+        return;
+      }
+      finalSessionIds = sessionsByDate.find(([d]) => d === selectedDate)?.[1].map(s => s.session_id) || [];
     }
-    if (new Date(form.open_time) >= new Date(form.close_time)) {
+
+    const newOpen = new Date(form.open_time).getTime();
+    const newClose = new Date(form.close_time).getTime();
+    const newPrice = form.price !== "" ? parseFloat(form.price) : 0;
+
+    if (newOpen >= newClose) {
       setFormError("Close time must be after open time.");
       return;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const openDate = new Date(form.open_time);
+    openDate.setHours(0, 0, 0, 0);
+    if (openDate < today && editingId === null) {
+      setFormError("Sale start time must be from today onwards.");
+      return;
+    }
+
+    // Filter existing tickets belonging to the same Ticket Class (case-insensitive)
+    const currentTicketTypeLower = form.ticket_type.trim().toLowerCase();
+    const sameClassTickets = tickets.filter(
+      t => t.ticket_id !== editingId &&
+        (t.ticket_type || "Standard").toLowerCase() === currentTicketTypeLower
+    );
+
+    // Overlap and escalation inside SAME ticket class and same scope
+    for (const t of sameClassTickets) {
+      const isSameCoverage = t.assigned_session_ids.length === finalSessionIds.length &&
+        t.assigned_session_ids.every(id => finalSessionIds.includes(id));
+
+      if (isSameCoverage) {
+        const eOpen = new Date(t.open_time).getTime();
+        const eClose = new Date(t.close_time).getTime();
+        const ePrice = t.price || 0;
+
+        if (newOpen < eClose && newClose > eOpen) {
+          setFormError(`Time Overlap Error: The sale period (${formatShortDatetime(form.open_time)} - ${formatShortDatetime(form.close_time)}) overlaps with existing ticket '${t.ticket_name}' (${formatShortDatetime(t.open_time)} - ${formatShortDatetime(t.close_time)}). You cannot have overlapping sale times for the SAME ticket class (${form.ticket_type}) on the exact same days.`);
+          return;
+        }
+        if (newOpen < eOpen && newPrice >= ePrice) {
+          setFormError(`Pricing Escalation Error: This ticket opens on ${formatShortDatetime(form.open_time)}, which is BEFORE the existing '${t.ticket_name}' ticket (opens ${formatShortDatetime(t.open_time)}). Therefore, its price (${formatPrice(newPrice, form.currency)}) must be STRICTLY CHEAPER than ${formatPrice(ePrice, form.currency)}.`);
+          return;
+        }
+        if (newOpen > eOpen && newPrice <= ePrice) {
+          setFormError(`Pricing Escalation Error: This ticket opens on ${formatShortDatetime(form.open_time)}, which is AFTER the existing '${t.ticket_name}' ticket (opens ${formatShortDatetime(t.open_time)}). Therefore, its price (${formatPrice(newPrice, form.currency)}) must be MORE EXPENSIVE than ${formatPrice(ePrice, form.currency)}.`);
+          return;
+        }
+      }
+    }
+
+    // Total vs Single sum validation (ONLY for the same ticket class)
+    const fullTickets = sameClassTickets.filter(t =>
+      t.assigned_session_ids.length > 0 &&
+      t.assigned_session_ids.length === sessions.length
+    );
+
+    // Calculate the cheapest Full Conference Ticket price
+    let minFullTicketPriceVal = Infinity;
+    let minFullTicketName = "";
+    for (const t of fullTickets) {
+      if ((t.price || 0) < minFullTicketPriceVal) {
+        minFullTicketPriceVal = t.price || 0;
+        minFullTicketName = t.ticket_name;
+      }
+    }
+
+    let minFullPrice = minFullTicketPriceVal;
+    if (ticketScope === "FULL") {
+      minFullPrice = Math.min(minFullPrice, newPrice);
+    }
+
+    let sumSingle = 0;
+    let allDatesCovered = true;
+    const singleDayContext: string[] = [];
+
+    for (const [date, s] of sessionsByDate) {
+      const dateSids = s.map(x => x.session_id);
+      const singleTicketsForDate = sameClassTickets.filter(t =>
+        t.assigned_session_ids.length === dateSids.length &&
+        t.assigned_session_ids.every(id => dateSids.includes(id))
+      );
+
+      let minForDate = Infinity;
+      if (singleTicketsForDate.length > 0) {
+        minForDate = singleTicketsForDate.reduce((m, t) => Math.min(m, t.price || 0), Infinity);
+      }
+      if (ticketScope === "SINGLE" && date === selectedDate) {
+        minForDate = Math.min(minForDate, newPrice);
+      }
+
+      if (minForDate === Infinity) {
+        allDatesCovered = false;
+      } else {
+        sumSingle += minForDate;
+        singleDayContext.push(`${date}: ${formatPrice(minForDate, form.currency)}`);
+      }
+    }
+
+    if (minFullPrice !== Infinity && allDatesCovered) {
+      if (minFullPrice >= sumSingle) {
+        const details = singleDayContext.join(" + ");
+        if (ticketScope === "SINGLE") {
+          const comboRef = minFullTicketName ? `'${minFullTicketName}'` : "the combo";
+          setFormError(`Price Rule Violation: You are setting the single ticket for ${selectedDate} to ${formatPrice(newPrice, form.currency)}. The Full Conference combo ${comboRef} (Class: ${form.ticket_type}) is priced at ${formatPrice(minFullPrice, form.currency)}. The REQUIRED total sum of all single-day tickets of this class (${details} = ${formatPrice(sumSingle, form.currency)}) MUST BE STRICTLY GREATER than the Full Combo price (${formatPrice(minFullPrice, form.currency)}). Please increase this ticket's price.`);
+        } else {
+          setFormError(`Price Rule Violation: You are setting the Full Conference ticket to ${formatPrice(newPrice, form.currency)}. However, the sum of configured cheapest single-day tickets (Class: ${form.ticket_type}) is ${formatPrice(sumSingle, form.currency)} (Breakdown: ${details}). The Full Conference ticket MUST BE CHEAPER than the sum of single-day options in the same class.`);
+        }
+        return;
+      }
     }
 
     setFormError("");
@@ -154,8 +318,9 @@ const TicketManagementPage = () => {
       close_time: new Date(form.close_time).toISOString(),
       is_active: form.is_active,
       description: form.description.trim() || null,
-      price: form.price !== "" ? parseFloat(form.price) : null,
-      session_ids: form.session_ids,
+      price: newPrice,
+      session_ids: finalSessionIds,
+      ticket_type: form.ticket_type.trim(),
     };
 
     try {
@@ -306,13 +471,18 @@ const TicketManagementPage = () => {
                               {ticket.is_active ? "Scheduled" : "Inactive"}
                             </span>
                           )}
+                          {(ticket.ticket_type) && (
+                            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold border border-primary/20 text-primary capitalize bg-primary/5">
+                              {ticket.ticket_type}
+                            </span>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-y-2 gap-x-4">
                           <div className="flex items-center gap-1.5 text-sm">
                             <Tag className="w-3.5 h-3.5 text-primary shrink-0" />
                             <span className="font-bold text-foreground">
-                              {formatPrice(ticket.price)}
+                              {formatPrice(ticket.price, ticket.currency ?? "VND")}
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -432,20 +602,36 @@ const TicketManagementPage = () => {
                 </div>
               )}
 
-              {/* Ticket Name */}
-              <div>
-                <label className="block text-sm font-semibold text-foreground mb-1.5">
-                  Ticket Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.ticket_name}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, ticket_name: e.target.value }))
-                  }
-                  placeholder="e.g. Early Bird, Regular, VIP"
-                  className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition"
-                />
+              {/* Ticket Name & Class */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-foreground mb-1.5">
+                    Ticket Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.ticket_name}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, ticket_name: e.target.value }))
+                    }
+                    placeholder="e.g. Early Bird, Regular"
+                    className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-foreground mb-1.5">
+                    Ticket Class <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.ticket_type}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, ticket_type: e.target.value }))
+                    }
+                    placeholder="e.g. VIP, Standard"
+                    className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition capitalize"
+                  />
+                </div>
               </div>
 
               {/* Price + Currency */}
@@ -478,7 +664,6 @@ const TicketManagementPage = () => {
                   >
                     <option value="VND">VND</option>
                     <option value="USD">USD</option>
-                    <option value="EUR">EUR</option>
                   </select>
                 </div>
               </div>
@@ -572,44 +757,40 @@ const TicketManagementPage = () => {
                 />
               </div>
 
-              {/* Sessions Multi-select */}
+              {/* Scope Selection */}
               <div>
                 <label className="block text-sm font-semibold text-foreground mb-1.5">
-                  Included Sessions
-                  <span className="ml-2 text-xs font-normal text-muted-foreground">
-                    ({form.session_ids.length} selected)
-                  </span>
+                  Ticket Coverage <span className="text-red-500">*</span>
                 </label>
-                {sessions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground italic">
-                    No sessions available for this conference.
-                  </p>
-                ) : (
-                  <div className="space-y-1.5 max-h-44 overflow-y-auto border border-border rounded-xl p-2">
-                    {sessions.map((s) => (
-                      <label
-                        key={s.session_id}
-                        className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent cursor-pointer transition-colors"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={form.session_ids.includes(s.session_id)}
-                          onChange={() => toggleSession(s.session_id)}
-                          className="w-4 h-4 text-primary rounded border-input focus:ring-ring cursor-pointer"
-                        />
-                        <div>
-                          <p className="text-sm font-medium text-foreground">
-                            {s.session_name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatShortDatetime(s.start_time)}
-                          </p>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                )}
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" value="FULL" checked={ticketScope === "FULL"} onChange={() => setTicketScope("FULL")} className="w-4 h-4 text-primary focus:ring-primary border-gray-300" />
+                    <span className="text-sm font-medium">Full Conference (All Days)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" value="SINGLE" checked={ticketScope === "SINGLE"} onChange={() => setTicketScope("SINGLE")} className="w-4 h-4 text-primary focus:ring-primary border-gray-300" />
+                    <span className="text-sm font-medium">Single Day</span>
+                  </label>
+                </div>
               </div>
+
+              {ticketScope === "SINGLE" && (
+                <div>
+                  <label className="block text-sm font-semibold text-foreground mb-1.5">
+                    Select Day <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition"
+                  >
+                    <option value="">-- Choose Date --</option>
+                    {sessionsByDate.map(([date, sList]) => (
+                      <option key={date} value={date}>{date} ({sList.length} sessions)</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Modal Footer */}

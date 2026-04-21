@@ -11,6 +11,8 @@ import {
   LayoutGrid,
   Loader2,
   RefreshCw,
+  Globe,
+  Video,
 } from "lucide-react";
 import {
   format,
@@ -28,7 +30,14 @@ import {
   addMonths,
   subMonths,
 } from "date-fns";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezonePlugin from "dayjs/plugin/timezone";
 import { useNavigate } from "@tanstack/react-router";
+
+dayjs.extend(utc);
+dayjs.extend(timezonePlugin);
+const userTimezone = dayjs.tz.guess();
 import { DefaultLayout } from "@/layouts/DefaultLayout";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,11 +45,15 @@ import {
   type AgendaSession,
 } from "@/features/sessions/services/queries";
 
-type Session = AgendaSession;
+type Session = AgendaSession & {
+  displayStartJS: Date;
+  displayEndJS: Date;
+  displayDateOnly: string;
+};
 
 type ViewMode = "list" | "timeline";
 
-const HOUR_HEIGHT = 72;
+const HOUR_HEIGHT = 160;
 
 /** Computes side-by-side column layout for overlapping sessions. */
 function computeColumnLayout(
@@ -48,21 +61,36 @@ function computeColumnLayout(
 ): Map<number, { col: number; totalCols: number }> {
   const sorted = [...sessions].sort(
     (a, b) =>
-      parseISO(a.start_time).getTime() - parseISO(b.start_time).getTime(),
+      a.displayStartJS.getTime() - b.displayStartJS.getTime(),
   );
   const result = new Map<number, { col: number; totalCols: number }>();
 
   // Build clusters of mutually-overlapping sessions
+  const getVisualEnd = (s: Session) => {
+    const start = s.displayStartJS;
+    const end = s.displayEndJS;
+    if (!isSameDay(start, end)) {
+      // Span until the end of the day visually
+      const startHour = start.getHours();
+      const startMin = start.getMinutes();
+      const minsUntilMidnight = 24 * 60 - (startHour * 60 + startMin);
+      return new Date(start.getTime() + minsUntilMidnight * 60000);
+    }
+    return end;
+  };
+
   const clusters: Session[][] = [];
   for (const session of sorted) {
-    const s = parseISO(session.start_time);
-    const e = parseISO(session.end_time);
+    const sStart = session.displayStartJS;
+    const sEnd = getVisualEnd(session);
     let placed = false;
     for (const cluster of clusters) {
       if (
-        cluster.some(
-          (c) => s < parseISO(c.end_time) && e > parseISO(c.start_time),
-        )
+        cluster.some((c) => {
+          const cStart = c.displayStartJS;
+          const cEnd = getVisualEnd(c);
+          return sStart < cEnd && sEnd > cStart;
+        })
       ) {
         cluster.push(session);
         placed = true;
@@ -76,10 +104,12 @@ function computeColumnLayout(
     // Greedy column assignment within each cluster
     const cols: Session[][] = [];
     for (const session of cluster) {
-      const s = parseISO(session.start_time);
+      const sStart = session.displayStartJS;
+      const sEnd = getVisualEnd(session);
       let assigned = false;
       for (let c = 0; c < cols.length; c++) {
-        if (parseISO(cols[c][cols[c].length - 1].end_time) <= s) {
+        const lastInCol = cols[c][cols[c].length - 1];
+        if (getVisualEnd(lastInCol) <= sStart) {
           cols[c].push(session);
           assigned = true;
           break;
@@ -106,7 +136,9 @@ export default function MyAgendaPage() {
   } = useMyAgendaSessionsQuery();
 
   // State for View Toggle
+
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [useUserTimezone, setUseUserTimezone] = useState(false);
 
   // States for Timeline view
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -116,10 +148,27 @@ export default function MyAgendaPage() {
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
 
   // Derived data
+  const hasTimezoneDifference = useMemo(() => sessions.some(s => s.timezone && s.timezone !== userTimezone), [sessions]);
+
+  const displaySessions = useMemo<Session[]>(() => {
+    return sessions.map((s) => {
+      const startTz = dayjs.tz(s.start_time, s.timezone || userTimezone);
+      const endTz = dayjs.tz(s.end_time, s.timezone || userTimezone);
+      const displayStart = useUserTimezone ? startTz.tz(userTimezone) : startTz;
+      const displayEnd = useUserTimezone ? endTz.tz(userTimezone) : endTz;
+      return {
+        ...s,
+        displayStartJS: new Date(displayStart.year(), displayStart.month(), displayStart.date(), displayStart.hour(), displayStart.minute()),
+        displayEndJS: new Date(displayEnd.year(), displayEnd.month(), displayEnd.date(), displayEnd.hour(), displayEnd.minute()),
+        displayDateOnly: displayStart.format("YYYY-MM-DD"),
+      } as Session;
+    }).sort((a, b) => a.displayStartJS.getTime() - b.displayStartJS.getTime());
+  }, [sessions, useUserTimezone]);
+
   const sessionCountByDate = useMemo(() => {
     const map: Record<string, number> = {};
-    sessions.forEach((s) => {
-      const d = format(parseISO(s.start_time), "yyyy-MM-dd");
+    displaySessions.forEach((s) => {
+      const d = format(s.displayStartJS, "yyyy-MM-dd");
       map[d] = (map[d] || 0) + 1;
     });
     return map;
@@ -151,15 +200,15 @@ export default function MyAgendaPage() {
   }, [sessions, viewMode]);
 
   useEffect(() => {
-    if (sessions.length > 0) {
-      setSelectedDate(parseISO(sessions[0].start_time));
+    if (displaySessions.length > 0) {
+      setSelectedDate(displaySessions[0].displayStartJS);
     }
   }, [sessions]);
 
   // --- Helpers for Timeline View ---
   const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
-  const currentDaySessions = sessions.filter(
-    (s) => format(parseISO(s.start_time), "yyyy-MM-dd") === selectedDateStr,
+  const currentDaySessions = displaySessions.filter(
+    (s) => format(s.displayStartJS, "yyyy-MM-dd") === selectedDateStr,
   );
   const columnLayout = useMemo(
     () => computeColumnLayout(currentDaySessions),
@@ -167,16 +216,20 @@ export default function MyAgendaPage() {
   );
   const hoursArray = Array.from({ length: 24 }, (_, i) => i);
   const getEventStyle = (
-    startTime: string,
-    endTime: string,
+    start: Date,
+    end: Date,
     col: number,
     totalCols: number,
   ) => {
-    const start = parseISO(startTime);
-    const end = parseISO(endTime);
     const startHour = start.getHours();
     const startMin = start.getMinutes();
-    const durationMins = differenceInMinutes(end, start);
+
+    const crossesNextDay = !isSameDay(start, end);
+    const diff = differenceInMinutes(end, start);
+
+    // If it crosses to next day, extend it to the bottom of the screen (midnight)
+    const durationMins = crossesNextDay ? (24 * 60 - (startHour * 60 + startMin)) : diff;
+
     const top = startHour * HOUR_HEIGHT + (startMin / 60) * HOUR_HEIGHT;
     const height = Math.max((durationMins / 60) * HOUR_HEIGHT, 30);
     const GAP = 2;
@@ -197,14 +250,14 @@ export default function MyAgendaPage() {
   const selectedDayCount = sessionCountByDate[selectedDateStr] || 0;
 
   // --- Helpers for List View ---
-  const groupedSessions = sessions.reduce(
+  const groupedSessions = displaySessions.reduce(
     (acc: Record<string, Session[]>, session) => {
-      const dateStr = format(parseISO(session.start_time), "yyyy-MM-dd");
+      const dateStr = session.displayDateOnly;
       if (!acc[dateStr]) acc[dateStr] = [];
       acc[dateStr].push(session);
       return acc;
     },
-    {},
+    {} as Record<string, Session[]>,
   );
 
   // --- Render ---
@@ -286,25 +339,43 @@ export default function MyAgendaPage() {
             </p>
           </div>
 
+
+          {/* TIMEZONE TOGGLE */}
+          {(true) && (
+            <div className="flex bg-muted p-1 rounded-lg ml-auto mr-4">
+              <button
+                onClick={() => setUseUserTimezone(!useUserTimezone)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${useUserTimezone
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                  } ${!useUserTimezone && hasTimezoneDifference ? "ring-2 ring-primary/60 relative overflow-hidden before:absolute before:inset-0 before:bg-primary/20 before:animate-pulse" : ""}`}
+                title="Toggle Timezone"
+              >
+                <Globe size={16} className={hasTimezoneDifference && !useUserTimezone ? "text-primary/80 animate-bounce shadow-glow shrink-0" : "shrink-0"} />
+                <span className="flex flex-col items-start leading-[1.1] text-left">
+                  <span className="text-[10px] uppercase font-bold opacity-70 tracking-wider">Viewing</span>
+                  <span>{useUserTimezone ? `My Timezone (${userTimezone})` : "Conference Time"}</span>
+                </span>
+              </button>
+            </div>
+          )}
           {/* VIEW TOGGLE BUTTONS */}
           <div className="flex bg-muted p-1 rounded-lg">
             <button
               onClick={() => setViewMode("list")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                viewMode === "list"
-                  ? "bg-card text-primary shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
-              }`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${viewMode === "list"
+                ? "bg-card text-primary shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                }`}
             >
               <List size={16} /> Schedule
             </button>
             <button
               onClick={() => setViewMode("timeline")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                viewMode === "timeline"
-                  ? "bg-card text-primary shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
-              }`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${viewMode === "timeline"
+                ? "bg-card text-primary shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                }`}
             >
               <LayoutGrid size={16} /> Timeline
             </button>
@@ -353,15 +424,22 @@ export default function MyAgendaPage() {
                                     size={16}
                                     className="text-muted-foreground"
                                   />
-                                  <span>
-                                    {format(
-                                      parseISO(session.start_time),
-                                      "HH:mm",
-                                    )}{" "}
-                                    -{" "}
-                                    {format(
-                                      parseISO(session.end_time),
-                                      "HH:mm",
+                                  <span className="flex items-center flex-wrap gap-2">
+                                    <span>
+                                      {format(
+                                        session.displayStartJS,
+                                        "HH:mm",
+                                      )}{" "}
+                                      -{" "}
+                                      {format(
+                                        session.displayEndJS,
+                                        "HH:mm",
+                                      )}
+                                    </span>
+                                    {!isSameDay(session.displayStartJS, session.displayEndJS) && (
+                                      <span className="bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-purple-500/20">
+                                        +Multi-Day ({format(session.displayEndJS, "dd/MM")})
+                                      </span>
                                     )}
                                   </span>
                                 </div>
@@ -595,13 +673,17 @@ export default function MyAgendaPage() {
                       col: 0,
                       totalCols: 1,
                     };
+                    const isNextDay = !isSameDay(session.displayStartJS, session.displayEndJS);
                     return (
                       <div
                         key={session.session_id}
-                        className="absolute overflow-hidden cursor-pointer group z-20 rounded-md border-l-[3px] border-l-primary border border-primary/20 bg-primary/10 hover:bg-primary/15 transition-colors shadow-sm px-2 py-1"
+                        className={`absolute cursor-pointer group z-20 rounded-md border-l-[3px] border hover:-translate-y-0.5 transition-all shadow-sm px-2 py-1 ${isNextDay
+                          ? "border-l-purple-500 border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 bg-[radial-gradient(#e9d5ff_1px,transparent_1px)] [background-size:16px_16px]"
+                          : "border-l-primary border-primary/20 bg-primary/10 hover:bg-primary/15"
+                          }`}
                         style={getEventStyle(
-                          session.start_time,
-                          session.end_time,
+                          session.displayStartJS,
+                          session.displayEndJS,
                           layout.col,
                           layout.totalCols,
                         )}
@@ -612,31 +694,38 @@ export default function MyAgendaPage() {
                           });
                         }}
                       >
-                        <div className="flex items-start justify-between gap-1">
-                          <span className="text-[11px] font-semibold text-foreground truncate leading-tight group-hover:text-primary">
-                            {session.session_name}
-                          </span>
-                          <span className="text-[10px] font-medium text-primary whitespace-nowrap bg-card/80 px-1.5 py-0.5 rounded shrink-0 leading-tight">
-                            {format(parseISO(session.start_time), "HH:mm")}–
-                            {format(parseISO(session.end_time), "HH:mm")}
-                          </span>
-                        </div>
-                        <div className="text-[10px] text-muted-foreground truncate mt-0.5 leading-tight">
-                          {session.conference_name}
-                        </div>
-                        <div className="flex flex-wrap gap-x-2.5 gap-y-0 text-[10px] text-muted-foreground mt-0.5 leading-tight">
-                          <span className="flex items-center gap-0.5">
-                            <MapPin size={8} className="shrink-0" />
-                            <span className="truncate max-w-30">
-                              {session.room_location || "TBD"}
+                        <div className="flex flex-col h-full relative">
+                          <div className="flex items-start justify-between gap-1">
+                            <span className={`text-[11px] font-semibold text-foreground truncate leading-tight transition-colors ${isNextDay ? "group-hover:text-purple-600" : "group-hover:text-primary"}`}>
+                              {session.session_name}
                             </span>
-                          </span>
-                          <span className="flex items-center gap-0.5">
-                            <User size={8} className="shrink-0" />
-                            <span className="truncate max-w-30">
-                              {session.chair_name}
-                            </span>
-                          </span>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground truncate mt-0.5 leading-tight">
+                            {session.conference_name}
+                          </div>
+                          <div className={`text-[10px] font-medium mt-auto pt-1 leading-tight inline-flex items-center flex-wrap gap-1 ${isNextDay ? "text-purple-600" : "text-primary"}`}>
+                            <span>{format(session.displayStartJS, "HH:mm")}–{format(session.displayEndJS, "HH:mm")} {isNextDay && <span className="font-bold">({format(session.displayEndJS, "dd/MM")})</span>}</span>
+                          </div>
+
+                          {/* Hover Details Card */}
+                          <div className="absolute left-0 bottom-full mb-2 w-max max-w-[250px] bg-foreground text-background text-xs p-3 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] pointer-events-none before:content-[''] before:absolute before:top-full before:left-4 before:-ml-1 before:border-4 before:border-transparent before:border-t-foreground">
+                            <div className="font-bold text-sm mb-1 leading-tight">{session.session_name}</div>
+                            <div className="text-muted font-medium mb-3 leading-tight">{session.conference_name}</div>
+                            <div className="flex flex-col gap-2 text-background/90">
+                              <span className="flex items-center gap-1.5 flex-wrap">
+                                <Clock size={12} className="text-muted" />
+                                <span>{format(session.displayStartJS, "HH:mm")}–{format(session.displayEndJS, "HH:mm")} {isNextDay && <span className="font-bold">({format(session.displayEndJS, "dd/MM")})</span>}</span>
+                              </span>
+                              <span className="flex items-center gap-1.5 bg-background/20 w-fit px-2 py-1 rounded">
+                                <MapPin size={12} className="text-muted" />
+                                {session.room_location || "TBD"}
+                              </span>
+                              <span className="flex items-center gap-1.5 bg-background/20 w-fit px-2 py-1 rounded">
+                                <User size={12} className="text-muted" />
+                                {session.chair_name}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
