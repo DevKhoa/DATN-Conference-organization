@@ -1,7 +1,14 @@
 import React, { useState } from "react";
 import { ThumbsUp, CheckCircle, Clock, Volume2, MessageCircle, AlertCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import type { AxiosError } from "axios";
 import type { QuestionResponse } from "@/features/qa/types";
+
+// Extract user-friendly message from FastAPI error responses
+function getErrorMessage(error: unknown, fallback: string): string {
+  const axiosError = error as AxiosError<{ detail: string }>;
+  return axiosError?.response?.data?.detail ?? fallback;
+}
 import { 
   useUpvoteQuestionMutation, 
   useApproveQuestionMutation, 
@@ -224,7 +231,7 @@ export const QuestionItem = ({
           {answerMutation.isError && (
             <div className="text-[10px] text-destructive flex items-center bg-destructive/5 p-1.5 rounded border border-destructive/10">
               <AlertCircle className="w-3 h-3 mr-1" />
-              {answerMutation.error instanceof Error ? answerMutation.error.message : "Failed to send answer. Please try again."}
+              {getErrorMessage(answerMutation.error, "Failed to send your answer. Please try again.")}
             </div>
           )}
         </div>

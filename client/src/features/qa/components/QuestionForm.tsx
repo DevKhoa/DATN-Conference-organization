@@ -1,8 +1,15 @@
 import React, { useState } from "react";
 import { Send, AlertCircle } from "lucide-react";
+import type { AxiosError } from "axios";
 import useAuth from "@/features/auth/hooks/useAuth";
 import { useCreateQuestionMutation } from "@/features/qa/services/mutations";
 import { Button } from "@/components/ui/button";
+
+// Extract user-friendly message from FastAPI error responses
+function getErrorMessage(error: unknown, fallback: string): string {
+  const axiosError = error as AxiosError<{ detail: string }>;
+  return axiosError?.response?.data?.detail ?? fallback;
+}
 
 interface QuestionFormProps {
   paperId: number;
@@ -75,7 +82,7 @@ export const QuestionForm = ({ paperId, defaultAttendeeType }: QuestionFormProps
       {createMutation.isError && (
         <div className="mt-2 text-xs text-destructive flex items-center bg-destructive/10 p-2 rounded border border-destructive/20">
           <AlertCircle className="w-3 h-3 mr-1" />
-          {createMutation.error instanceof Error ? createMutation.error.message : "Failed to post question. You might not have access."}
+          {getErrorMessage(createMutation.error, "Failed to post your question. Please try again.")}
         </div>
       )}
     </form>
