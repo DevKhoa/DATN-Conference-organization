@@ -117,10 +117,10 @@ const PapersPage = () => {
   };
 
   const getConferenceName = (paper: (typeof papers)[number]) =>
-    paper.conference?.[0]?.conf_name ?? "";
+    paper.conference?.conf_name ?? "";
 
   const getAuthorName = (paper: (typeof papers)[number]) =>
-    paper.author?.[0]?.full_name ?? "";
+    paper.author?.full_name ?? "";
 
   const getStatusBadge = (status: string) => {
     const s = status ? status.toUpperCase() : "UNKNOWN";
@@ -245,8 +245,8 @@ const PapersPage = () => {
               />
               {/* Slightly lighter overlay with gradient for better text centering */}
               <div className="absolute inset-0 bg-slate-950/50" />
-              <div 
-                className="absolute inset-0" 
+              <div
+                className="absolute inset-0"
                 style={{ background: 'radial-gradient(circle, rgba(2, 6, 23, 0.45) 0%, transparent 70%)' }}
               />
             </div>

@@ -233,11 +233,11 @@ export const useMyPaperDetailQuery = (paperId: number | null) => {
         ...paperData,
         conference: Array.isArray((paperData as any).conference)
           ? (((paperData as any).conference[0] ?? null) as {
-              conf_name: string | null;
-            } | null)
+            conf_name: string | null;
+          } | null)
           : (((paperData as any).conference ?? null) as {
-              conf_name: string | null;
-            } | null),
+            conf_name: string | null;
+          } | null),
       } as MyPaperDetail;
 
       const normalizedReviews = ((reviewsData || []) as Array<any>).map(
@@ -292,7 +292,7 @@ export const usePaginatedPapersQuery = ({
 
       const totalPages = Math.ceil(totalCount / pageSize);
 
-      // Get paginated data with relations
+      // Fetch paginated papers with relations
       const { data, error } = await supabase
         .from("papers")
         .select(
@@ -307,17 +307,43 @@ export const usePaginatedPapersQuery = ({
 
       if (error) throw error;
 
-      const papers = data || [];
+      // Fetch ALL unique conferences for filter dropdown
+      const { data: allConfsData } = await supabase
+        .from("papers")
+        .select("conference:conferences!submitted_conf (conf_name)")
+        .not("submitted_conf", "is", null);
 
-      // Extract unique filter options from current page data
-      // Note: For full filter options, you may want to fetch all unique values separately
+      // Fetch ALL unique authors for filter dropdown
+      const { data: allAuthorsData } = await supabase
+        .from("papers")
+        .select("author:profiles!primary_author_id (full_name)")
+        .not("primary_author_id", "is", null);
+
+      const rawPapers = data || [];
+
+      // Normalize: Supabase FK joins can return object or array — always flatten to object
+      const papers = rawPapers.map((p: any) => ({
+        ...p,
+        author: Array.isArray(p.author) ? p.author[0] ?? null : p.author ?? null,
+        conference: Array.isArray(p.conference) ? p.conference[0] ?? null : p.conference ?? null,
+      }));
+
       const uniqueConfs = Array.from(
         new Set(
-          papers.map((p: any) => p.conference?.conf_name).filter(Boolean),
+          (allConfsData || []).map((p: any) => {
+            const c = Array.isArray(p.conference) ? p.conference[0] : p.conference;
+            return c?.conf_name;
+          }).filter(Boolean),
         ),
       ) as string[];
+
       const uniqueAuthors = Array.from(
-        new Set(papers.map((p: any) => p.author?.full_name).filter(Boolean)),
+        new Set(
+          (allAuthorsData || []).map((p: any) => {
+            const a = Array.isArray(p.author) ? p.author[0] : p.author;
+            return a?.full_name;
+          }).filter(Boolean),
+        ),
       ) as string[];
 
       return {
