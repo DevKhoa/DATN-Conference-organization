@@ -141,7 +141,7 @@ const AssignSessionsPage: React.FC = () => {
       session_name: "New Session",
       start_time: "",
       end_time: "",
-      room_location: "",
+      room_location: defaultFormat === "virtual" ? "Virtual" : "",
       is_ai_generated: false,
       assigned_papers: [],
       format_type: defaultFormat,
@@ -151,7 +151,20 @@ const AssignSessionsPage: React.FC = () => {
 
   const updateSession = (id: string, field: keyof LocalSession, value: any) => {
     setSessions((prev) =>
-      prev.map((s) => (s.temp_id === id ? { ...s, [field]: value } : s)),
+      prev.map((s) => {
+        if (s.temp_id !== id) return s;
+        const updated = { ...s, [field]: value };
+        // Auto-set room_location when format_type changes
+        if (field === "format_type") {
+          if (value === "virtual") {
+            updated.room_location = "Virtual";
+          } else if (s.room_location === "Virtual") {
+            // Clear auto-set value when switching away from virtual
+            updated.room_location = "";
+          }
+        }
+        return updated;
+      }),
     );
   };
 
@@ -307,7 +320,7 @@ const AssignSessionsPage: React.FC = () => {
             aiS.name?.replace("AI Generated", "Grouped") || "Grouped Session",
           start_time: "",
           end_time: "",
-          room_location: "",
+          room_location: (conferenceData?.conference?.format_type === "virtual") ? "Virtual" : "",
           is_ai_generated: true,
           assigned_papers: mappedIds.map((id) => ({
             paper_id: id,
