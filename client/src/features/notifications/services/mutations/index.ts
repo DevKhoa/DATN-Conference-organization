@@ -17,6 +17,7 @@ export const useMarkNotificationAsReadMutation = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [NotificationsKeys.UserNotifications],
+        exact: false,
       });
     },
   });
@@ -39,6 +40,7 @@ export const useMarkAllNotificationsAsReadMutation = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [NotificationsKeys.UserNotifications],
+        exact: false,
       });
     },
   });

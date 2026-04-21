@@ -4,6 +4,7 @@ import type { PropsWithChildren } from "react";
 import { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { Role } from "@/features/auth/types";
+import { useQueryClient } from "@tanstack/react-query";
 
 export type AuthState = {
   isLoading: boolean;
@@ -30,6 +31,8 @@ const AuthProvider = ({ children }: PropsWithChildren) => {
     return requiredRoles.some((role) => userRolesUpper.includes(role.toUpperCase()));
   };
 
+  const queryClient = useQueryClient();
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -40,13 +43,16 @@ const AuthProvider = ({ children }: PropsWithChildren) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (_event === "SIGNED_OUT") {
+        queryClient.clear();
+      }
       setSession(session);
       setRoles(session?.user.user_metadata.roles || []);
       setIsLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {

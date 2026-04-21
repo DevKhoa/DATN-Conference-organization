@@ -44,7 +44,7 @@ export const useUserNotifications = () => {
   const userId = session?.user?.user_metadata["user_id"] as number | undefined;
 
   return useQuery<UserNotification[]>({
-    queryKey: [NotificationsKeys.UserNotifications],
+    queryKey: [NotificationsKeys.UserNotifications, userId],
     enabled: Boolean(userId),
     queryFn: async () => {
       if (!userId) return [];
