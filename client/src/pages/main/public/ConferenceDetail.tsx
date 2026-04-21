@@ -231,6 +231,19 @@ const ConferenceDetailPage: React.FC = () => {
   const currentUserId = authSession?.user?.user_metadata?.["user_id"] as number | undefined;
   const createRegistrationMutation = useCreateRegistrationMutation();
   const toggleMeetMutation = useToggleMeetMutation();
+
+  const isPastEvent = useMemo(() => {
+    if (!conference) return false;
+    const now = Date.now();
+    const endStr = conference.end_date || conference.start_date;
+    if (!endStr) return false;
+    const endObj = new Date(endStr);
+    endObj.setHours(23, 59, 59, 999);
+    return now > endObj.getTime();
+  }, [conference]);
+
+  const isOpenForSubmission = conference?.open_for_papers && !isPastEvent;
+
   const { data: conferenceTickets = [], isLoading: ticketsLoading } =
     useConferenceTicketsQuery(conferenceId, isRegisterModalOpen);
 
@@ -614,18 +627,18 @@ const ConferenceDetailPage: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
               <div
-                className={`rounded-2xl border p-5 flex items-start sm:items-center gap-4 shadow-sm ${conference.open_for_papers
+                className={`rounded-2xl border p-5 flex items-start sm:items-center gap-4 shadow-sm ${isOpenForSubmission
                   ? "bg-linear-to-r from-emerald-50 to-teal-50 border-emerald-100"
-                  : "bg-muted/40 border-border"
+                  : "bg-linear-to-r from-rose-50 to-pink-50 border-rose-100"
                   }`}
               >
                 <div
-                  className={`p-3 rounded-xl shrink-0 ${conference.open_for_papers
-                    ? "bg-card text-emerald-600 shadow-sm"
-                    : "bg-card text-muted-foreground shadow-sm"
+                  className={`p-3 rounded-xl shrink-0 ${isOpenForSubmission
+                    ? "bg-white text-emerald-600 shadow-sm border border-emerald-100"
+                    : "bg-white text-rose-600 shadow-sm border border-rose-100"
                     }`}
                 >
-                  {conference.open_for_papers ? (
+                  {isOpenForSubmission ? (
                     <FileText className="w-6 h-6" />
                   ) : (
                     <Info className="w-6 h-6" />
@@ -633,22 +646,22 @@ const ConferenceDetailPage: React.FC = () => {
                 </div>
                 <div className="grow">
                   <h3
-                    className={`font-bold text-base mb-1 ${conference.open_for_papers
+                    className={`font-bold text-base mb-1 ${isOpenForSubmission
                       ? "text-emerald-900"
-                      : "text-foreground"
+                      : "text-rose-900"
                       }`}
                   >
-                    {conference.open_for_papers
+                    {isOpenForSubmission
                       ? "Call for Papers is Active"
                       : "Submissions Closed"}
                   </h3>
                   <p
-                    className={`text-sm ${conference.open_for_papers
+                    className={`text-sm ${isOpenForSubmission
                       ? "text-emerald-800"
-                      : "text-muted-foreground"
+                      : "text-rose-800"
                       }`}
                   >
-                    {conference.open_for_papers
+                    {isOpenForSubmission
                       ? "This conference is still open for paper submissions."
                       : "This conference is no longer accepting paper submissions."}
                   </p>
@@ -830,8 +843,8 @@ const ConferenceDetailPage: React.FC = () => {
                                           <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
                                             <div
                                               className={`text-lg md:text-xl font-bold transition-colors flex items-start gap-3 flex-1 min-w-[280px] ${isExpanded
-                                                  ? "text-primary"
-                                                  : "text-foreground group-hover:text-primary"
+                                                ? "text-primary"
+                                                : "text-foreground group-hover:text-primary"
                                                 }`}
                                             >
                                               <div className="p-2 bg-muted rounded-xl text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors shrink-0 mt-0.5">
@@ -864,8 +877,8 @@ const ConferenceDetailPage: React.FC = () => {
                                                       <div className="flex items-center gap-1 group/meet animate-in slide-in-from-right-2 duration-300">
                                                         <button
                                                           className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 flex items-center gap-1.5 shadow-sm border ${session.meet_link && (session.is_meet_active ?? true)
-                                                              ? "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white hover:shadow-indigo-200 border-transparent"
-                                                              : "bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200"
+                                                            ? "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white hover:shadow-indigo-200 border-transparent"
+                                                            : "bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200"
                                                             } shrink-0`}
                                                           onClick={(e) => {
                                                             e.stopPropagation();
@@ -892,8 +905,8 @@ const ConferenceDetailPage: React.FC = () => {
                                                               });
                                                             }}
                                                             className={`flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200 shrink-0 ${(session.is_meet_active ?? true)
-                                                                ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100"
-                                                                : "bg-slate-100 text-slate-400 hover:bg-slate-200 border border-slate-200"
+                                                              ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100"
+                                                              : "bg-slate-100 text-slate-400 hover:bg-slate-200 border border-slate-200"
                                                               }`}
                                                             title={(session.is_meet_active ?? true) ? "Deactivate Meeting Room" : "Activate Meeting Room"}
                                                           >
@@ -910,8 +923,8 @@ const ConferenceDetailPage: React.FC = () => {
                                                     {session.record_video_url !== undefined && (
                                                       <button
                                                         className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 flex items-center gap-1.5 shadow-sm border animate-in slide-in-from-right-2 duration-300 ${session.record_video_url
-                                                            ? "bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white hover:shadow-rose-200 border-transparent"
-                                                            : "bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200"
+                                                          ? "bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white hover:shadow-rose-200 border-transparent"
+                                                          : "bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200"
                                                           } shrink-0`}
                                                         onClick={(e) => {
                                                           e.stopPropagation();

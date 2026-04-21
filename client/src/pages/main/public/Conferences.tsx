@@ -68,7 +68,7 @@ const ConferencesPage: React.FC = () => {
   // Filter States
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [sortOrder, setSortOrder] = useState<"UPCOMING" | "AZ">("UPCOMING");
+  const [sortOrder, setSortOrder] = useState<"START_DATE_ASC" | "START_DATE_DESC" | "ONGOING_FIRST" | "UPCOMING_FIRST" | "CLOSED_FIRST" | "AZ">("START_DATE_ASC");
   const [selectedKeyword, setSelectedKeyword] = useState<string>("");
 
   // Topic search state
@@ -141,6 +141,27 @@ const ConferencesPage: React.FC = () => {
     });
   };
 
+  // Helper to determine if an event is ongoing(1), upcoming(2), or closed(3)
+  const getEventTimingScore = (conf: (typeof conferences)[number]) => {
+    const now = Date.now();
+    const start = conf.start_date ? new Date(conf.start_date).getTime() : 0;
+
+    // If no end_date, fall back to start_date
+    const endStr = conf.end_date || conf.start_date;
+    const endObj = endStr ? new Date(endStr) : new Date(0);
+    // End of the day
+    endObj.setHours(23, 59, 59, 999);
+    const end = endObj.getTime();
+
+    if (now >= start && now <= end) return 1; // Ongoing
+    if (now < start) return 2; // Upcoming
+    return 3; // Closed
+  };
+
+  const isPastEvent = (conf: (typeof conferences)[number]) => {
+    return getEventTimingScore(conf) === 3;
+  };
+
   const filteredConferences = useMemo(() => {
     return conferences
       .filter((conf) => {
@@ -154,19 +175,55 @@ const ConferencesPage: React.FC = () => {
         const matchesKeyword =
           !selectedKeyword ||
           getConferenceKeywords(conf).includes(selectedKeyword);
-        return matchesSearch && matchesStatus && matchesKeyword;
+
+        // Filter by timing status if sortOrder is one of the temporal filters
+        let matchesTiming = true;
+        const score = getEventTimingScore(conf);
+        if (sortOrder === "ONGOING_FIRST") {
+          matchesTiming = score === 1;
+        } else if (sortOrder === "UPCOMING_FIRST") {
+          matchesTiming = score === 2;
+        } else if (sortOrder === "CLOSED_FIRST") {
+          matchesTiming = score === 3;
+        }
+
+        return matchesSearch && matchesStatus && matchesKeyword && matchesTiming;
       })
       .sort((a, b) => {
-        if (sortOrder === "UPCOMING") {
+        if (sortOrder === "START_DATE_ASC") {
           return (
             new Date(a.start_date ?? 0).getTime() -
             new Date(b.start_date ?? 0).getTime()
           );
+        } else if (sortOrder === "START_DATE_DESC") {
+          return (
+            new Date(b.start_date ?? 0).getTime() -
+            new Date(a.start_date ?? 0).getTime()
+          );
+        } else if (sortOrder === "ONGOING_FIRST") {
+          const scoreA = getEventTimingScore(a);
+          const scoreB = getEventTimingScore(b);
+          // Timing scores: 1:Ongoing, 2:Upcoming, 3:Closed
+          if (scoreA === 1 && scoreB !== 1) return -1;
+          if (scoreB === 1 && scoreA !== 1) return 1;
+          return new Date(a.start_date ?? 0).getTime() - new Date(b.start_date ?? 0).getTime();
+        } else if (sortOrder === "UPCOMING_FIRST") {
+          const scoreA = getEventTimingScore(a);
+          const scoreB = getEventTimingScore(b);
+          if (scoreA === 2 && scoreB !== 2) return -1;
+          if (scoreB === 2 && scoreA !== 2) return 1;
+          return new Date(a.start_date ?? 0).getTime() - new Date(b.start_date ?? 0).getTime();
+        } else if (sortOrder === "CLOSED_FIRST") {
+          const scoreA = getEventTimingScore(a);
+          const scoreB = getEventTimingScore(b);
+          if (scoreA === 3 && scoreB !== 3) return -1;
+          if (scoreB === 3 && scoreA !== 3) return 1;
+          return new Date(b.start_date ?? 0).getTime() - new Date(a.start_date ?? 0).getTime();
         } else {
           return a.conf_name.localeCompare(b.conf_name);
         }
       });
-  }, [conferences, searchTerm, statusFilter, selectedKeyword, sortOrder]);
+  }, [conferences, searchTerm, statusFilter, selectedKeyword, sortOrder, getEventTimingScore]);
 
   const paginatedFilteredConferences = useMemo(() => {
     const from = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -195,8 +252,8 @@ const ConferencesPage: React.FC = () => {
           />
           {/* Brighter overlay with supportive radial gradient for text legibility */}
           <div className="absolute inset-0 bg-slate-950/50" />
-          <div 
-            className="absolute inset-0" 
+          <div
+            className="absolute inset-0"
             style={{ background: 'radial-gradient(circle, rgba(2, 6, 23, 0.45) 0%, transparent 70%)' }}
           />
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
@@ -269,13 +326,17 @@ const ConferencesPage: React.FC = () => {
                     Sort By
                   </label>
                   <select
-                    className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground focus:ring-2 focus:ring-ring outline-none"
+                    className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring outline-none"
                     value={sortOrder}
                     onChange={(e) =>
-                      setSortOrder(e.target.value as "UPCOMING" | "AZ")
+                      setSortOrder(e.target.value as any)
                     }
                   >
-                    <option value="UPCOMING">Upcoming Dates</option>
+                    <option value="START_DATE_ASC">Start Date (Earliest first)</option>
+                    <option value="START_DATE_DESC">Start Date (Latest first)</option>
+                    <option value="ONGOING_FIRST">Status: Ongoing</option>
+                    <option value="UPCOMING_FIRST">Status: Upcoming</option>
+                    <option value="CLOSED_FIRST">Status: Closed</option>
                     <option value="AZ">Alphabetical (A-Z)</option>
                   </select>
                 </div>
@@ -319,8 +380,8 @@ const ConferencesPage: React.FC = () => {
                     <button
                       onClick={() => setSelectedKeyword("")}
                       className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all border ${selectedKeyword === ""
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                          : "bg-background text-muted-foreground border-border hover:border-border hover:bg-accent"
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                        : "bg-background text-muted-foreground border-border hover:border-border hover:bg-accent"
                         }`}
                     >
                       All Topics
@@ -335,8 +396,8 @@ const ConferencesPage: React.FC = () => {
                           )
                         }
                         className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all border ${selectedKeyword === keyword
-                            ? "bg-primary/10 text-primary border-primary/20 shadow-sm font-semibold"
-                            : "bg-background text-muted-foreground border-border hover:border-primary/30 hover:text-primary"
+                          ? "bg-primary/10 text-primary border-primary/20 shadow-sm font-semibold"
+                          : "bg-background text-muted-foreground border-border hover:border-primary/30 hover:text-primary"
                           }`}
                       >
                         {keyword}
@@ -430,7 +491,7 @@ const ConferencesPage: React.FC = () => {
                   </div>
                   <div className="p-6 grow flex flex-col">
                     {/* Open for Paper Submission CTA */}
-                    {conf.open_for_papers && (
+                    {conf.open_for_papers && !isPastEvent(conf) && (
                       <div className="mb-3">
                         <span className="inline-flex items-center px-3 py-1 rounded-full bg-secondary text-secondary-foreground text-[11px] font-bold uppercase tracking-wider border border-border shadow-sm">
                           <FileText className="w-3 h-3 mr-1.5" />
