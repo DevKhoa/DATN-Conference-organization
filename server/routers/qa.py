@@ -72,12 +72,12 @@ async def create_question(request: QuestionCreate):
     logger.info(f"User {request.author_id} creates a question for paper {request.paper_id}")
     
     if request.attendee_type not in ["in-person", "virtual"]:
-        raise HTTPException(status_code=400, detail="attendee_type must be 'in-person' or 'virtual'")
+        raise HTTPException(status_code=400, detail="Invalid attendance type. Please select either 'in-person' or 'virtual'.")
 
     try:
         session_paper_res = supabase_client.table("session_papers").select("session_id").eq("paper_id", request.paper_id).execute()
         if not session_paper_res.data:
-            raise HTTPException(status_code=400, detail="Paper is not assigned to any session")
+            raise HTTPException(status_code=400, detail="This paper has not been assigned to any session yet.")
         
         session_id = session_paper_res.data[0]["session_id"]
         
@@ -100,7 +100,7 @@ async def create_question(request: QuestionCreate):
                     is_authorized = True
 
         if not is_authorized:
-            raise HTTPException(status_code=403, detail="Forbidden: You haven't purchased a ticket for this session or are not the chair.")
+            raise HTTPException(status_code=403, detail="Access denied. You must have a ticket for this session to ask questions.")
             
         new_question_data = {
             "session_id": session_id,
@@ -115,7 +115,7 @@ async def create_question(request: QuestionCreate):
         create_res = supabase_client.table("questions").insert(new_question_data).execute()
         
         if not create_res.data:
-            raise HTTPException(status_code=500, detail="Failed to create question")
+            raise HTTPException(status_code=500, detail="We couldn't post your question. Please try again later.")
             
         inserted_q = create_res.data[0]
         
@@ -128,7 +128,7 @@ async def create_question(request: QuestionCreate):
         raise he
     except Exception as e:
         logger.error(f"Error creating question: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Something went wrong on our end. Please try again later.")
 
 @router.get("/sessions/{session_id}/questions", response_model=List[QuestionResponse])
 async def get_session_questions(
@@ -172,7 +172,7 @@ async def get_session_questions(
         return questions_list
     except Exception as e:
         logger.error(f"Error in get_session_questions: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Something went wrong on our end. Please try again later.")
 
 @router.get("/conferences/{conf_id}/questions", response_model=List[QuestionResponse])
 async def get_conference_questions(
@@ -213,7 +213,7 @@ async def get_conference_questions(
         return questions_list
     except Exception as e:
         logger.error(f"Error in get_conference_questions: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Something went wrong on our end. Please try again later.")
 
 @router.get("/papers/{paper_id}/questions", response_model=List[QuestionResponse])
 async def get_paper_questions(
@@ -251,7 +251,7 @@ async def get_paper_questions(
         return questions_list
     except Exception as e:
         logger.error(f"Error in get_paper_questions: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Something went wrong on our end. Please try again later.")
 
 @router.post("/questions/{id}/upvote")
 async def upvote_question(
@@ -261,17 +261,17 @@ async def upvote_question(
     try:
         q_res = supabase_client.table("questions").select("question_id, upvotes_count, status").eq("question_id", id).single().execute()
         if not q_res.data:
-            raise HTTPException(status_code=404, detail="Question not found")
+            raise HTTPException(status_code=404, detail="The requested question could not be found.")
             
         if q_res.data.get("status") not in ["approved", "done"]:
-            raise HTTPException(status_code=400, detail="Chỉ có thể upvote những câu hỏi đã được duyệt hoặc đã trả lời xong.")
+            raise HTTPException(status_code=400, detail="You can only upvote questions that have been approved or answered.")
             
         upvote_check = supabase_client.table("question_upvotes").select("upvote_id, is_upvoted").eq("question_id", id).eq("user_id", user_id).execute()
         
         if upvote_check.data:
             upvote_record = upvote_check.data[0]
             if upvote_record.get("is_upvoted"):
-                raise HTTPException(status_code=409, detail="User already upvoted this question")
+                raise HTTPException(status_code=409, detail="You have already upvoted this question.")
             else:
                 supabase_client.table("question_upvotes").update({"is_upvoted": True}).eq("upvote_id", upvote_record["upvote_id"]).execute()
         else:
@@ -291,7 +291,7 @@ async def upvote_question(
         raise he
     except Exception as e:
         logger.error(f"Error upvoting: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Something went wrong on our end. Please try again later.")
 
 @router.delete("/questions/{id}/upvote")
 async def remove_upvote_question(
@@ -301,15 +301,15 @@ async def remove_upvote_question(
     try:
         q_res = supabase_client.table("questions").select("question_id, status").eq("question_id", id).single().execute()
         if not q_res.data:
-            raise HTTPException(status_code=404, detail="Question not found")
+            raise HTTPException(status_code=404, detail="The requested question could not be found.")
             
         if q_res.data.get("status") not in ["approved", "done"]:
-            raise HTTPException(status_code=400, detail="Chỉ có thể tương tác với những câu hỏi đã được duyệt hoặc đã trả lời xong.")
+            raise HTTPException(status_code=400, detail="You can only interact with questions that have been approved or answered.")
             
         upvote_check = supabase_client.table("question_upvotes").select("upvote_id, is_upvoted").eq("question_id", id).eq("user_id", user_id).execute()
         
         if not upvote_check.data or not upvote_check.data[0].get("is_upvoted"):
-            raise HTTPException(status_code=404, detail="Upvote not found")
+            raise HTTPException(status_code=404, detail="You haven't upvoted this question yet.")
             
         supabase_client.table("question_upvotes").update({"is_upvoted": False}).eq("upvote_id", upvote_check.data[0]["upvote_id"]).execute()
         
@@ -322,7 +322,7 @@ async def remove_upvote_question(
         raise he
     except Exception as e:
         logger.error(f"Error removing upvote: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Something went wrong on our end. Please try again later.")
 
 @router.patch("/questions/{id}/status", response_model=QuestionResponse)
 async def update_question_status(
@@ -330,14 +330,14 @@ async def update_question_status(
     status_update: QuestionStatusUpdate = ...
 ):
     if status_update.status not in ["pending", "approved", "denied", "done"]:
-        raise HTTPException(status_code=400, detail="Invalid status")
+        raise HTTPException(status_code=400, detail="The provided status is invalid.")
     try:
         update_res = supabase_client.table("questions").update({"status": status_update.status}).eq("question_id", id).execute()
         if not update_res.data:
-            raise HTTPException(status_code=404, detail="Question not found")
+            raise HTTPException(status_code=404, detail="The requested question could not be found.")
         return format_question_response(update_res.data[0])
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to update question status. Please try again later.")
 
 @router.patch("/questions/{id}/approve", response_model=QuestionResponse)
 async def approve_question(
@@ -345,11 +345,11 @@ async def approve_question(
     user_id: int = Query(...)
 ):
     if not await _is_moderator(user_id):
-         raise HTTPException(status_code=403, detail="Forbidden: Only Admin or Secretariat can approve questions")
+         raise HTTPException(status_code=403, detail="Access denied. Only administrators or secretariat members can approve questions.")
             
     update_res = supabase_client.table("questions").update({"status": "approved"}).eq("question_id", id).execute()
     if not update_res.data:
-        raise HTTPException(status_code=404, detail="Question not found")
+        raise HTTPException(status_code=404, detail="The requested question could not be found.")
     return format_question_response(update_res.data[0])
 
 @router.patch("/questions/{id}/reject", response_model=QuestionResponse)
@@ -358,11 +358,11 @@ async def reject_question(
     user_id: int = Query(...)
 ):
     if not await _is_moderator(user_id):
-         raise HTTPException(status_code=403, detail="Forbidden: Only Admin or Secretariat can reject questions")
+         raise HTTPException(status_code=403, detail="Access denied. Only administrators or secretariat members can reject questions.")
             
     update_res = supabase_client.table("questions").update({"status": "denied"}).eq("question_id", id).execute()
     if not update_res.data:
-        raise HTTPException(status_code=404, detail="Question not found")
+        raise HTTPException(status_code=404, detail="The requested question could not be found.")
     return format_question_response(update_res.data[0])
 
 @router.patch("/questions/{id}/answer", response_model=QuestionResponse)
@@ -373,12 +373,12 @@ async def answer_question(
     try:
         q_res = supabase_client.table("questions").select("paper_id").eq("question_id", id).single().execute()
         if not q_res.data:
-             raise HTTPException(status_code=404, detail="Question not found")
+             raise HTTPException(status_code=404, detail="The requested question could not be found.")
              
         paper_id = q_res.data["paper_id"]
         paper_res = supabase_client.table("papers").select("primary_author_id").eq("paper_id", paper_id).single().execute()
         if not paper_res.data or paper_res.data["primary_author_id"] != payload.user_id:
-            raise HTTPException(status_code=403, detail="Forbidden: Only the primary author of the paper can answer")
+            raise HTTPException(status_code=403, detail="Access denied. Only the primary author of the paper can provide an answer.")
         
         update_data = {
             "answer_type": payload.answer_type,
@@ -392,4 +392,4 @@ async def answer_question(
         raise he
     except Exception as e:
         logger.error(f"Error answering: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Something went wrong while processing your answer. Please try again later.")

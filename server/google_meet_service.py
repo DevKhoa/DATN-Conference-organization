@@ -59,11 +59,11 @@ class GoogleMeetService:
         })
         
         if res.status_code != 200:
-            raise HTTPException(status_code=400, detail=f"Google Error: {res.text}")
+            raise HTTPException(status_code=400, detail="Google authentication failed. Please try again.")
             
         token_data = res.json()
         if "refresh_token" not in token_data:
-            raise HTTPException(status_code=400, detail="Thành công nhưng không có refresh_token. Hãy chắc chắn bạn đã chạy lại Get Auth URL và đồng ý quyền.")
+            raise HTTPException(status_code=400, detail="Authentication succeeded, but we couldn't retrieve a refresh token. Please try again and ensure you grant all permissions.")
             
         # Dùng access_token để lấy thông tin Email của tài khoản Google vừa đăng nhập
         access_token = token_data.get("access_token")
@@ -137,7 +137,7 @@ class GoogleMeetService:
             token_uri = web.get('token_uri', "https://oauth2.googleapis.com/token")
 
         if not user_refresh_token:
-            raise HTTPException(status_code=400, detail="Tài khoản của bạn chưa liên kết với Google. Hãy thực hiện liên kết trước.")
+            raise HTTPException(status_code=400, detail="Your account is not linked with Google. Please authorize first.")
 
         creds = Credentials(
             token=None,
@@ -188,7 +188,7 @@ class GoogleMeetService:
             }
         except Exception as e:
             logger.error(f"Error creating Google Meet Calendar Event: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail="Failed to create Google Meet event. Please try again later.")
 
     def delete_meet_event(self, event_id: str, user_refresh_token: str):
         """
@@ -222,6 +222,6 @@ class GoogleMeetService:
             service.events().delete(calendarId='primary', eventId=event_id).execute()
         except Exception as e:
             logger.error(f"Error deleting Google Meet Calendar Event: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail="Failed to delete Google Meet event. Please try again later.")
 
 meet_service = GoogleMeetService()
