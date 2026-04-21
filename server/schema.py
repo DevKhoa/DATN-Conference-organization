@@ -9,6 +9,8 @@ class AuthorInfo(BaseModel):
 class ConferenceInfo(BaseModel):
     conf_name: str
     is_active: bool
+    format_type: Optional[str] = None
+    timezone: Optional[str] = None
 
 class VersionInfo(BaseModel):
     version_id: int
@@ -29,6 +31,9 @@ class SessionInfo(BaseModel):
     session_name: str
     start_time: Optional[str]
     room_location: Optional[str]
+    format_type: Optional[str] = None
+    meet_link: Optional[str] = None
+    record_video_url: Optional[str] = None
 
 class SessionLink(BaseModel):
     presentation_order: Optional[int]
@@ -199,3 +204,50 @@ class CVBaseModel(BaseModel):
         None,
         description="Any additional information that does not fit into the categories above"
     )
+
+class SessionAuthResponse(BaseModel):
+    auth_url: str
+    state: str
+
+class GoogleMeetCallbackRequest(BaseModel):
+    state: str
+    code: str
+
+class MeetCreationRequest(BaseModel):
+    session_id: int
+    email: str = Field(..., description="Email của người uỷ quyền tạo phòng hẹn")
+
+class MeetCreationResponse(BaseModel):
+    event_id: str
+    meet_link: str
+    html_link: str
+
+class QuestionCreate(BaseModel):
+    paper_id: int = Field(..., description="ID of the paper")
+    author_id: int = Field(..., description="ID of the user asking the question")
+    content: str = Field(..., min_length=1, description="Question content")
+    attendee_type: str = Field(..., description="'in-person' or 'virtual'")
+
+class QuestionStatusUpdate(BaseModel):
+    status: str = Field(..., description="'pending', 'approved', 'denied', or 'done'")
+
+class QuestionAnswer(BaseModel):
+    user_id: int = Field(..., description="ID of the user answering (must be author)")
+    answer_type: str = Field(..., description="'direct' or 'written'")
+    answer_content: Optional[str] = Field(None, description="Written answer text")
+
+class QuestionResponse(BaseModel):
+    question_id: int
+    session_id: int
+    paper_id: int
+    author_id: int
+    author_name: Optional[str] = None
+    content: str
+    attendee_type: str
+    status: str
+    answer_type: Optional[str] = None
+    answer_content: Optional[str] = None
+    answered_at: Optional[str] = None
+    upvotes_count: int
+    created_at: str
+    is_upvoted: bool = False

@@ -26,7 +26,8 @@ const AuthProvider = ({ children }: PropsWithChildren) => {
 
   const checkRoles = (requiredRoles: Role[]) => {
     if (!requiredRoles.length) return true;
-    return requiredRoles.some((role) => roles.includes(role));
+    const userRolesUpper = roles.map(r => r.toUpperCase());
+    return requiredRoles.some((role) => userRolesUpper.includes(role.toUpperCase()));
   };
 
   useEffect(() => {

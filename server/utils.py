@@ -82,7 +82,7 @@ class Logger:
 USER_ID = "agent"
 MODEL = 'gemini-2.5-flash'
 
-SERP_API_KEY = os.environ['SERP_API_KEY']
+SERP_API_KEY = os.environ.get('SERP_API_KEY')
 
 EMBEDDING_MODEL_NAME = "gemini-embedding-001"
 
@@ -105,8 +105,13 @@ MAX_PAPER_SIZE_MB = 5
 logger = Logger()
 
 genai_client = genai.Client()
-language_client = language_v2.LanguageServiceClient()
-storage_client = storage.Client()
+try:
+    language_client = language_v2.LanguageServiceClient()
+    storage_client = storage.Client()
+except Exception as e:
+    logger.warning(f"Google Cloud credentials (Language/Storage) not found: {e}. Some features will fail.")
+    language_client = None
+    storage_client = None
 
 embedding_model = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL_NAME, output_dimensionality=VECTOR_DIMENSION)
 supabase_client = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY"))
@@ -114,11 +119,15 @@ supabase_client = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("
 PAYOS_CLIENT_ID = os.environ.get("PAYOS_CLIENT_ID")
 PAYOS_API_KEY = os.environ.get("PAYOS_API_KEY")
 PAYOS_CHECKSUM_KEY = os.environ.get("PAYOS_CHECKSUM_KEY")
-payos_client = AsyncPayOS(
-    client_id=PAYOS_CLIENT_ID,
-    api_key=PAYOS_API_KEY,
-    checksum_key=PAYOS_CHECKSUM_KEY
-)
+try:
+    payos_client = AsyncPayOS(
+        client_id=PAYOS_CLIENT_ID,
+        api_key=PAYOS_API_KEY,
+        checksum_key=PAYOS_CHECKSUM_KEY
+    )
+except Exception as e:
+    logger.warning(f"PayOS credentials missing: {e}. Payment features will fail.")
+    payos_client = None
 
 
 with open("Prompts/session_title_giver.txt", 'r') as f:

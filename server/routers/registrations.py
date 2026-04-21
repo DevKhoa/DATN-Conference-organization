@@ -52,7 +52,7 @@ async def create_registration_before_payment(
         }).execute()
 
         if not reg_res.data:
-            raise HTTPException(status_code=500, detail="Failed to create registration.")
+            raise HTTPException(status_code=500, detail="Failed to create registration record.")
 
         registration_id = reg_res.data[0]["registration_id"]
         logger.info(f"Registration {registration_id} created for user {request.user_id}, ticket {request.ticket_id}")
@@ -69,7 +69,7 @@ async def create_registration_before_payment(
         raise he
     except Exception as e:
         logger.error(f"Create registration failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to process registration: {str(e)}")
 
 
 async def _create_payment_for_registration(
@@ -178,11 +178,11 @@ async def create_registration_payment(
             .execute()
 
         if not reg_res.data:
-            raise HTTPException(status_code=404, detail="Registration not found.")
+            raise HTTPException(status_code=404, detail="Registration record not found.")
 
         ticket_id = reg_res.data.get("ticket_id")
         if not ticket_id:
-            raise HTTPException(status_code=400, detail="Registration has no associated ticket.")
+            raise HTTPException(status_code=400, detail="No valid ticket associated with this registration.")
 
         # 2. Check if this registration has already been paid
         trans_res = supabase_client.table("transactions") \
@@ -192,7 +192,7 @@ async def create_registration_payment(
 
         non_pending_statuses = {"COMPLETED"}
         if any(t.get("status") in non_pending_statuses for t in (trans_res.data or [])):
-            raise HTTPException(status_code=400, detail="This registration has already been paid.")
+            raise HTTPException(status_code=400, detail="This registration has already been paid successfully.")
 
         # 3. Fetch ticket config (price is the source of truth)
         ticket_res = supabase_client.table("ticket_configs") \
@@ -202,7 +202,7 @@ async def create_registration_payment(
             .execute()
 
         if not ticket_res.data:
-            raise HTTPException(status_code=404, detail="Ticket config not found.")
+            raise HTTPException(status_code=404, detail="Ticket not found.")
 
         return await _create_payment_for_registration(
             registration_id=registration_id,
@@ -215,7 +215,7 @@ async def create_registration_payment(
         raise he
     except Exception as e:
         logger.error(f"Payment creation for registration {registration_id} failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to initialize payment: {str(e)}")
 
 def _send_registration_qr_email(
     registration_id: int,

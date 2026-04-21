@@ -18,7 +18,7 @@ async def add_conference_banner(
     temp_file_path = None
     try:
         if not file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
-             raise HTTPException(status_code=400, detail="Only accept images extension (png, jpg, jpeg, webp)")
+             raise HTTPException(status_code=400, detail="Only image files (png, jpg, jpeg, webp) are allowed.")
 
         file_ext = file.filename.split(".")[-1]
         unique_filename = f"{uuid.uuid4()}.{file_ext}"
@@ -33,7 +33,7 @@ async def add_conference_banner(
             public_url = storage_service.upload_blob(temp_file_path, gcs_path)
             
             if not public_url:
-                raise HTTPException(status_code=500, detail="Error uploading GCS Storage")
+                raise HTTPException(status_code=500, detail="Failed to upload banner to storage.")
 
       
         res = supabase_client.table("conferences").select("banner_urls").eq("conf_id", conf_id).single().execute()
@@ -51,14 +51,15 @@ async def add_conference_banner(
 
         return {
             "status": "success",
-            "message": "banner added",
+            "message": "Banner added successfully",
             "url": public_url,
+
             "all_banners": current_banners
         }
 
     except Exception as e:
         logger.error(f"Add Banner Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to add banner: {str(e)}")
 
 @router.delete("/conferences/{conf_id}/banners")
 async def remove_conference_banner(
@@ -71,7 +72,7 @@ async def remove_conference_banner(
         current_banners = res.data.get("banner_urls")
 
         if not current_banners or url_to_remove not in current_banners:
-            raise HTTPException(status_code=404, detail="URL not found or banner not in this conference")
+            raise HTTPException(status_code=404, detail="Banner URL not found in this conference.")
 
         deleted = storage_service.delete_file(url_to_remove)
         
@@ -86,7 +87,7 @@ async def remove_conference_banner(
 
         return {
             "status": "success",
-            "message": "Banner removed sucessfully",
+            "message": "Banner removed successfully",
             "remaining_banners": new_banners
         }
 
@@ -94,4 +95,4 @@ async def remove_conference_banner(
         raise he
     except Exception as e:
         logger.error(f"Remove Banner Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to remove banner: {str(e)}")

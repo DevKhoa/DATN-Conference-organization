@@ -15,6 +15,7 @@ interface RawTicketConfig {
   description: string | null;
   currency: string | null;
   is_active: boolean | null;
+  ticket_type: string | null;
   ticket_session?: { session_id: number }[];
 }
 
@@ -37,12 +38,13 @@ export const useTicketsBySessionQuery = (sessionId: number | null) => {
 
       if (error) throw error;
 
-      return (data || []).map((t) => ({
+      return (data || []).map((t: any) => ({
         ...t,
         currency: t.currency || "VND",
         is_active: t.is_active ?? true,
         sold_quantity: t.sold_quantity ?? 0,
         assigned_session_ids: [] as number[],
+        ticket_type: (t.ticket_type as "in-person" | "virtual") || "virtual",
       })) as TicketConfig[];
     },
     enabled: !!sessionId,
@@ -117,7 +119,7 @@ export const useTicketsByConferenceQuery = (conferenceId: number | null) => {
 
           if (ticketError) throw ticketError;
 
-          return (ticketData || []).map((t: RawTicketConfig) => ({
+          return (ticketData || []).map((t: any) => ({
             ticket_id: t.ticket_id,
             ticket_name: t.ticket_name,
             price: t.price,
@@ -131,6 +133,7 @@ export const useTicketsByConferenceQuery = (conferenceId: number | null) => {
             assigned_session_ids: (t.ticket_session || []).map(
               (ts) => ts.session_id,
             ),
+            ticket_type: (t.ticket_type as "in-person" | "virtual") || "virtual",
           })) as TicketConfig[];
         }
       : skipToken,

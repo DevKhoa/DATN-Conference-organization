@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type {
   IAutoGeneratePayload,
   IAutoGenerateResponse,
@@ -7,10 +7,13 @@ import type {
   IRecommendChairPayload,
   IRecommendChairResponse,
   IFinalizeChairsPayload,
+  IMeetCreationResponse,
 } from "./types";
 import { supabase } from "@/lib/supabase";
 import { request } from "@/lib/axios";
 import { formatPaperTime, formatToLocal } from "@/utils/time";
+import { SessionKeys } from "../queries/keys";
+import { toast } from "sonner";
 
 export const useAutoGenerateSessionsMutation = () => {
   return useMutation({
@@ -30,18 +33,16 @@ export const useAutoGenerateSessionsMutation = () => {
 };
 
 export const useSaveSessionsMutation = () => {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({ conferenceId, sessions }: ISaveSessionPayload) => {
-      const savedSessions: ISaveSessionResponse["savedSessions"] = [];
-
-      for (const s of sessions) {
+      const savePromises = sessions.map(async (s) => {
         let currentDbId = s.db_id;
-
         const localStart = formatToLocal(s.start_time);
         const localEnd = formatToLocal(s.end_time);
 
         if (currentDbId) {
-          // Update existing session
           const { error: uError } = await supabase
             .from("sessions")
             .update({
@@ -49,20 +50,21 @@ export const useSaveSessionsMutation = () => {
               start_time: localStart,
               end_time: localEnd,
               room_location: s.room_location,
+              format_type: s.format_type,
               conf_id: conferenceId,
+              meet_link: s.meet_link,
+              record_video_url: s.record_video_url,
             })
             .eq("session_id", currentDbId);
 
           if (uError) throw uError;
 
-          // Delete existing session papers
           const { error: delError } = await supabase
             .from("session_papers")
             .delete()
             .eq("session_id", currentDbId);
           if (delError) throw delError;
         } else {
-          // Insert new session
           const { data: sData, error: sError } = await supabase
             .from("sessions")
             .insert([
@@ -72,8 +74,11 @@ export const useSaveSessionsMutation = () => {
                 start_time: localStart,
                 end_time: localEnd,
                 room_location: s.room_location,
+                format_type: s.format_type,
                 is_ai_generated: s.is_ai_generated,
                 chair_person_id: null,
+                meet_link: s.meet_link,
+                record_video_url: s.record_video_url,
               },
             ])
             .select()
@@ -83,7 +88,6 @@ export const useSaveSessionsMutation = () => {
           currentDbId = sData.session_id;
         }
 
-        // Insert session papers
         if (s.assigned_papers.length > 0) {
           const paperInserts = s.assigned_papers.map((p, idx) => ({
             session_id: currentDbId,
@@ -102,10 +106,22 @@ export const useSaveSessionsMutation = () => {
           if (pError) throw pError;
         }
 
-        savedSessions.push({ temp_id: s.temp_id, db_id: currentDbId! });
-      }
+        return { temp_id: s.temp_id, db_id: currentDbId! };
+      });
 
-      return { savedSessions };
+      const results = await Promise.all(savePromises);
+      return { savedSessions: results };
+    },
+    onSuccess: (_, { conferenceId }) => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ExistingSessions, conferenceId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.SessionsByConference, conferenceId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["conferences/detail"],
+      });
     },
   });
 };
@@ -129,9 +145,11 @@ export const useRecommendChairMutation = () => {
 };
 
 export const useFinalizeChairsMutation = () => {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({ sessions }: IFinalizeChairsPayload) => {
-      for (const s of sessions) {
+      const updatePromises = sessions.map(async (s) => {
         if (s.db_id && s.chair_person_id) {
           const { error } = await supabase
             .from("sessions")
@@ -140,9 +158,125 @@ export const useFinalizeChairsMutation = () => {
 
           if (error) throw error;
         }
-      }
+      });
 
+      await Promise.all(updatePromises);
       return { success: true };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ExistingSessions],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["conferences/detail"],
+      });
+    },
+  });
+};
+
+export const useDeleteMeetMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      email,
+    }: {
+      sessionId: number;
+      email: string;
+    }) => {
+      const data = await request.delete<{ status: string; message: string }>(
+        `/sessions/${sessionId}/meet`,
+        { params: { email } },
+      );
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ExistingSessions],
+      });
+    },
+  });
+};
+
+export const useCreateMeetMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      email,
+    }: {
+      sessionId: number;
+      email: string;
+    }) => {
+      const data = await request.post<IMeetCreationResponse>(
+        `/sessions/${sessionId}/create-meet`,
+        { session_id: sessionId, email },
+      );
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ExistingSessions],
+      });
+    },
+  });
+};
+
+export const useToggleMeetMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      isActive,
+    }: {
+      sessionId: number;
+      isActive: boolean;
+    }) => {
+      const data = await request.patch<{ status: string; is_meet_active: boolean }>(
+        `/sessions/${sessionId}/toggle-meet`,
+        undefined,
+        { is_active: isActive }
+      );
+      return data;
+    },
+    onMutate: async ({ sessionId, isActive }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["conferences/detail"] });
+
+      // Snapshot the previous value
+      const previousData = queryClient.getQueriesData({ queryKey: ["conferences/detail"] });
+
+      // Optimistically update
+      queryClient.setQueriesData({ queryKey: ["conferences/detail"] }, (old: any) => {
+        if (!old) return old;
+        // In ConferenceDetail result, the data contains { conference, sessions }
+        if (old.sessions && Array.isArray(old.sessions)) {
+          return {
+            ...old,
+            sessions: old.sessions.map((s: any) =>
+              s.session_id === sessionId ? { ...s, is_meet_active: isActive } : s
+            ),
+          };
+        }
+        return old;
+      });
+
+      return { previousData };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousData) {
+        context.previousData.forEach(([key, value]) => {
+          queryClient.setQueryData(key, value);
+        });
+      }
+      toast.error("Failed to update meeting status");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["conferences/detail"] });
+      queryClient.invalidateQueries({ queryKey: [SessionKeys.ExistingSessions] });
     },
   });
 };

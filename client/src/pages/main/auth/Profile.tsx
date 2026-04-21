@@ -60,6 +60,9 @@ const ProfilePage: React.FC = () => {
     organization: "",
   });
 
+  // Google Connect State
+  const [connectingGoogle, setConnectingGoogle] = useState(false);
+
   // Bio/Description State
   const [bioMode, setBioMode] = useState<"VIEW" | "MANUAL" | "CV" | "SCHOLAR">(
     "VIEW",
@@ -255,6 +258,27 @@ const ProfilePage: React.FC = () => {
       setError("Failed to import Scholar profile.");
     } finally {
       setTimeout(() => setSuccessMsg(""), 3000);
+    }
+  };
+
+  // --- INTEGRATION HANDLERS ---
+  const handleConnectGoogle = async () => {
+    if (!profile?.email) return;
+    setConnectingGoogle(true);
+    setError("");
+    try {
+      const response = await fetch(`http://localhost:8080/sessions/google-auth-url?email=${encodeURIComponent(profile.email)}`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || "Failed to get auth URL. Please log in again.");
+      }
+      if (data.auth_url) {
+        window.location.href = data.auth_url;
+      }
+    } catch (e: any) {
+      setError(e.message || "Failed to get auth URL. Please log in again or try later.");
+    } finally {
+      setConnectingGoogle(false);
     }
   };
 
@@ -787,6 +811,40 @@ const ProfilePage: React.FC = () => {
                       </div>
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* SECTION 3: INTEGRATIONS */}
+              <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+                <div className="px-6 py-4 border-b border-border bg-muted/30">
+                  <h3 className="text-lg font-semibold text-foreground">
+                    Integrations
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Connect third-party apps to enhance your experience.
+                  </p>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-muted/50 rounded-xl border border-border gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-background rounded-full flex items-center justify-center shadow-sm border border-border shrink-0">
+                        <Calendar className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-foreground">Google Calendar & Meet</h4>
+                        <p className="text-xs text-muted-foreground">Used for hosting Virtual & Hybrid sessions.</p>
+                      </div>
+                    </div>
+                    <Button 
+                      onClick={handleConnectGoogle} 
+                      disabled={connectingGoogle}
+                      variant="outline" 
+                      className="border-primary/50 text-primary hover:bg-primary/10 w-full sm:w-auto"
+                    >
+                      {connectingGoogle ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <LinkIcon className="w-4 h-4 mr-2" />}
+                      Connect Google
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>

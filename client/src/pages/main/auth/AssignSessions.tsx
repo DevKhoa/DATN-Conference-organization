@@ -20,10 +20,15 @@ import {
   Search as SearchIcon,
   ChevronDown,
   ChevronUp,
+  Video,
+  Youtube,
+  Link as LinkIcon
 } from "lucide-react";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import { useNavigate } from "@tanstack/react-router";
+import { supabase } from "@/lib/supabase";
+import useAuth from "@/features/auth/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Route } from "@/routes/(app)/sessions.assign";
 import { DefaultLayout } from "@/layouts/DefaultLayout";
@@ -36,12 +41,15 @@ import {
   useSaveSessionsMutation,
   useRecommendChairMutation,
   useFinalizeChairsMutation,
+  useDeleteMeetMutation,
+  useCreateMeetMutation,
 } from "@/features/sessions/services/mutations";
 import { useExistingSessionsQuery } from "@/features/sessions/services/queries";
 import { LocalSession, SessionPaperDetail } from "@/features/sessions/types";
 import { useAcceptedPapersQuery } from "@/features/papers/services/queries";
 import { ChairCandidate } from "@/features/users/services/queries/types";
 import { useChairCandidatesQuery } from "@/features/users/services/queries";
+import { useConferenceDetailQuery } from "@/features/conferences/services/queries";
 import { formatToLocal } from "@/utils/time";
 
 dayjs.extend(customParseFormat);
@@ -63,15 +71,28 @@ const AssignSessionsPage: React.FC = () => {
   const { data: existingSessions = [], isLoading: isLoadingExistingSessions } =
     useExistingSessionsQuery(conferenceId, initialSessionId!);
 
+  const { data: conferenceData } = useConferenceDetailQuery(conferenceId);
+  const isOnlineConference = conferenceData?.conference?.format_type === "virtual";
+
   // Mutation hooks
   const autoGenerateMutation = useAutoGenerateSessionsMutation();
   const saveSessionsMutation = useSaveSessionsMutation();
   const recommendChairMutation = useRecommendChairMutation();
   const finalizeChairsMutation = useFinalizeChairsMutation();
+  const deleteMeetMutation = useDeleteMeetMutation();
+  const createMeetMutation = useCreateMeetMutation();
+
+  const { session: authSession } = useAuth();
+  const currentUserEmail = authSession?.user?.email;
 
   const [step, setStep] = useState<"CREATE" | "CHAIRS">("CREATE");
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  // Create Meet Logic
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [generatingMeetId, setGeneratingMeetId] = useState<string | null>(null);
+  const [deletingMeetId, setDeletingMeetId] = useState<string | null>(null);
 
   const [sessions, setSessions] = useState<LocalSession[]>([]);
 
@@ -95,6 +116,7 @@ const AssignSessionsPage: React.FC = () => {
   const [chairSearchQueries, setChairSearchQueries] = useState<
     Record<string, string>
   >({});
+  const [isAuthorizing, setIsAuthorizing] = useState(false);
   const [expandedSessions, setExpandedSessions] = useState<
     Record<string, boolean>
   >({});
@@ -102,14 +124,18 @@ const AssignSessionsPage: React.FC = () => {
     Record<string, boolean>
   >({});
 
+  const [hasLoadedSessions, setHasLoadedSessions] = useState(false);
+
   // Fetch existing sessions if editing
   React.useEffect(() => {
-    if (existingSessions.length > 0) {
+    if (existingSessions.length > 0 && !hasLoadedSessions) {
       setSessions(existingSessions);
+      setHasLoadedSessions(true);
     }
-  }, [existingSessions]);
+  }, [existingSessions, hasLoadedSessions]);
 
   const addEmptySession = () => {
+    const defaultFormat = conferenceData?.conference?.format_type === "hybrid" ? "in-person" : (conferenceData?.conference?.format_type || "in-person");
     const newSession: LocalSession = {
       temp_id: Math.random().toString(36).substr(2, 9),
       session_name: "New Session",
@@ -118,6 +144,7 @@ const AssignSessionsPage: React.FC = () => {
       room_location: "",
       is_ai_generated: false,
       assigned_papers: [],
+      format_type: defaultFormat,
     };
     setSessions([...sessions, newSession]);
   };
@@ -287,6 +314,7 @@ const AssignSessionsPage: React.FC = () => {
             start_time: "",
             end_time: "",
           })),
+          format_type: conferenceData?.conference?.format_type === "hybrid" ? "in-person" : (conferenceData?.conference?.format_type || "in-person"),
         };
       });
 
@@ -299,10 +327,171 @@ const AssignSessionsPage: React.FC = () => {
     }
   };
 
+  const handleCreateMeetLink = async (session: LocalSession) => {
+    if (!session.db_id) {
+      setError("Vui lòng Save (Lưu) session vào database trước khi tạo link Meet.");
+      return;
+    }
+    if (!session.start_time || !session.end_time) {
+      setError("Vui lòng thiết lập thời gian trước khi tạo Meet Link.");
+      return;
+    }
+    const localStart = new Date(formatToLocal(session.start_time));
+    const localEnd = new Date(formatToLocal(session.end_time));
+    if (localStart >= localEnd) {
+      setError("Thời gian bắt đầu phải trước thời gian kết thúc.");
+      return;
+    }
+    if (!currentUserEmail) {
+      setError("Không tìm thấy email người dùng hiện tại.");
+      return;
+    }
+
+    setGeneratingMeetId(session.temp_id);
+    setError("");
+    setSuccessMsg("");
+
+    try {
+      const data = await createMeetMutation.mutateAsync({
+        sessionId: session.db_id,
+        email: currentUserEmail,
+      });
+
+      // Success
+      updateSession(session.temp_id, "meet_link", data.meet_link);
+      setSuccessMsg("Google Meet link created successfully!");
+    } catch (err: any) {
+      // Check for specific 400 error about linked account
+      if (err.response?.status === 400 && err.response?.data?.detail?.includes("liên kết với Google")) {
+        setShowAuthModal(true);
+      } else {
+        const cleanMessage = err.message?.replace(/^\d+:\s*/, "");
+        setError("Meet Creation Error: " + cleanMessage);
+      }
+    } finally {
+      setGeneratingMeetId(null);
+    }
+  };
+
+  const handleRemoveMeetLink = async (session: LocalSession) => {
+    if (!session.db_id) {
+      // If it's not saved yet, just clear it locally
+      updateSession(session.temp_id, "meet_link", "");
+      return;
+    }
+
+    setDeletingMeetId(session.temp_id);
+    setError("");
+    setSuccessMsg("");
+
+    try {
+      if (!currentUserEmail) throw new Error("Missing user email");
+      await deleteMeetMutation.mutateAsync({
+        sessionId: session.db_id,
+        email: currentUserEmail,
+      });
+      updateSession(session.temp_id, "meet_link", "");
+      setSuccessMsg("Google Meet link removed successfully!");
+    } catch (err: any) {
+      const cleanMessage = err.message?.replace(/^\d+:\s*/, "");
+      setError("Meet Deletion Error: " + cleanMessage);
+    } finally {
+      setDeletingMeetId(null);
+    }
+  };
+
+  const handleRemoveYoutubeLink = async (session: LocalSession) => {
+    if (!session.db_id) {
+      updateSession(session.temp_id, "record_video_url", "");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("sessions")
+        .update({ record_video_url: null })
+        .eq("session_id", session.db_id);
+
+      if (error) throw error;
+      
+      updateSession(session.temp_id, "record_video_url", "");
+      setSuccessMsg("YouTube link removed successfully!");
+    } catch (err: any) {
+      setError("Error removing YouTube link: " + err.message);
+    }
+  };
+
+  const handleStartGoogleAuthPopup = async () => {
+    if (!currentUserEmail) return;
+    setIsAuthorizing(true);
+
+    // Open popup synchronously to avoid gesture expiration
+    const width = 500;
+    const height = 600;
+    const left = (window.innerWidth - width) / 2;
+    const top = (window.innerHeight - height) / 2;
+    // Open a blank page first
+    const authWindow = window.open(
+      "",
+      "GoogleAuth",
+      `width=${width},height=${height},top=${top},left=${left}`
+    );
+
+    if (!authWindow) {
+      setError("Popup blocked. Please allow popups.");
+      setIsAuthorizing(false);
+      return;
+    }
+
+    try {
+      const authUrlRes = await fetch(`http://localhost:8080/sessions/google-auth-url?email=${encodeURIComponent(currentUserEmail)}`);
+      const authUrlData = await authUrlRes.json();
+
+      if (authUrlData.auth_url) {
+        // Redirect the already-opened popup
+        authWindow.location.href = authUrlData.auth_url;
+
+        // Mechanism 1: postMessage (Traditional)
+        const messageListener = (event: MessageEvent) => {
+          if (event.data?.type === 'google-auth-success') {
+            cleanup();
+          }
+        };
+        window.addEventListener('message', messageListener);
+
+        // Mechanism 2: localStorage Polling (Ultra-robust to avoid reloads)
+        const pollInterval = setInterval(() => {
+          const status = localStorage.getItem('google-auth-status');
+          if (status && status.startsWith('success_')) {
+            localStorage.removeItem('google-auth-status');
+            cleanup();
+          }
+        }, 1000);
+
+        function cleanup() {
+          window.removeEventListener('message', messageListener);
+          clearInterval(pollInterval);
+          setShowAuthModal(false);
+          setSuccessMsg("Authorization successful! You can now create Meet links.");
+          if (authWindow && !authWindow.closed) authWindow.close();
+        }
+      } else {
+        authWindow.close();
+        setError("Could not initialize authorization flow.");
+      }
+    } catch (e: any) {
+      if (authWindow) authWindow.close();
+      const cleanMsg = e.message?.replace(/^\d+:\s*/, "");
+      setError("Authorization Error: " + (cleanMsg || "Unknown reason."));
+    } finally {
+      setIsAuthorizing(false);
+    }
+  };
+
   const handleSaveSessions = async () => {
     for (const s of sessions) {
-      if (!s.session_name || !s.start_time || !s.end_time || !s.room_location) {
-        setError(`Please fill in all details for session: ${s.session_name}`);
+      if (!s.session_name || !s.start_time || !s.end_time || (!isOnlineConference && !s.room_location)) {
+        setError(`Please fill in all details for session: ${s.session_name}${!isOnlineConference ? " (including location)" : ""}`);
         return;
       }
       const localStart = formatToLocal(s.start_time);
@@ -328,6 +517,9 @@ const AssignSessionsPage: React.FC = () => {
             room_location: s.room_location,
             is_ai_generated: s.is_ai_generated,
             assigned_papers: s.assigned_papers,
+            meet_link: s.meet_link,
+            record_video_url: s.record_video_url,
+            format_type: s.format_type,
           };
         }),
       });
@@ -343,15 +535,20 @@ const AssignSessionsPage: React.FC = () => {
       setSessions(updatedSessions);
       setStep("CHAIRS");
       setSuccessMsg(
-        "Sessions structured successfully! Moving to chair assignment.",
+        "Sessions saved successfully! Moving to chair assignment.",
       );
-    } catch (err) {
-      setError("Failed to save to database: " + err.message);
+    } catch (err: any) {
+      const cleanMsg = err.message?.replace(/^\d+:\s*/, "");
+      setError("Save Error: " + cleanMsg);
     }
   };
 
   const handleRecommendChair = async (session: LocalSession) => {
     if (!session.db_id) return;
+    if (session.assigned_papers.length === 0) {
+      setError("This session has no papers. Cannot analyze context to suggest a Chair.");
+      return;
+    }
     setRecommendingFor(session.temp_id);
 
     try {
@@ -383,10 +580,11 @@ const AssignSessionsPage: React.FC = () => {
         })),
       });
 
-      setSuccessMsg("All configurations finalized and saved!");
-      setTimeout(() => navigate({ to: "/conferences" }), 1500);
-    } catch (e) {
-      setError("Failed to update chairs.");
+      setSuccessMsg("All configurations finalized and saved successfully!");
+      setTimeout(() => navigate({ to: "/conferences/$conferenceId", params: { conferenceId: conferenceId.toString() } }), 1500);
+    } catch (e: any) {
+      const cleanMsg = e.message?.replace(/^\d+:\s*/, "");
+      setError("Finalization Error: " + cleanMsg);
     }
   };
 
@@ -411,7 +609,7 @@ const AssignSessionsPage: React.FC = () => {
           </h2>
           <p className="text-slate-600 mt-2">Failed to load papers.</p>
           <Button
-            onClick={() => navigate({ to: "/conferences" })}
+            onClick={() => navigate({ to: "/conferences/$conferenceId", params: { conferenceId: conferenceId.toString() } })}
             className="mt-6"
           >
             Go Back
@@ -429,15 +627,26 @@ const AssignSessionsPage: React.FC = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate({ to: "/conferences" })}
+                onClick={() => navigate({ to: "/conferences/$conferenceId", params: { conferenceId: conferenceId.toString() } })}
                 className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  Session Manager
-                </h1>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                    Session Manager
+                  </h1>
+                  {conferenceData?.conference?.format_type && (
+                    <span className={`px-2 py-0.5 mt-1 rounded-md text-[10px] font-bold uppercase tracking-wider border shadow-sm ${conferenceData.conference.format_type === 'virtual' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                      conferenceData.conference.format_type === 'hybrid' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                        'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      }`}>
+                      {conferenceData.conference.format_type === 'virtual' ? 'Virtual' :
+                        conferenceData.conference.format_type === 'hybrid' ? 'Hybrid' : 'In-person'}
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2 mt-1">
                   <span
                     className={`text-xs font-medium px-2.5 py-1 rounded-full ${step === "CREATE" ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-500"}`}
@@ -465,7 +674,7 @@ const AssignSessionsPage: React.FC = () => {
                   className="shadow-sm"
                 >
                   {saveSessionsMutation.isPending ||
-                  finalizeChairsMutation.isPending ? (
+                    finalizeChairsMutation.isPending ? (
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
                   ) : (
                     <Save className="w-4 h-4 mr-2" />
@@ -483,7 +692,7 @@ const AssignSessionsPage: React.FC = () => {
                   className="bg-slate-900 hover:bg-slate-800 text-white shadow-md"
                 >
                   {saveSessionsMutation.isPending ||
-                  finalizeChairsMutation.isPending ? (
+                    finalizeChairsMutation.isPending ? (
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
                   ) : (
                     <CheckCircle className="w-4 h-4 mr-2" />
@@ -643,11 +852,10 @@ const AssignSessionsPage: React.FC = () => {
                             draggable={!isAssigned}
                             onDragStart={(e) => handleDragStart(e, p.paper_id)}
                             onDragEnd={handleDragEnd}
-                            className={`p-4 rounded-xl border transition-all ${
-                              isAssigned
-                                ? "bg-slate-50 border-transparent opacity-50"
-                                : "bg-white border-slate-200 shadow-sm cursor-grab hover:shadow-md hover:border-indigo-300 active:cursor-grabbing"
-                            } ${draggedPaperId === p.paper_id ? "opacity-50 scale-95" : ""}`}
+                            className={`p-4 rounded-xl border transition-all ${isAssigned
+                              ? "bg-slate-50 border-transparent opacity-50"
+                              : "bg-white border-slate-200 shadow-sm cursor-grab hover:shadow-md hover:border-indigo-300 active:cursor-grabbing"
+                              } ${draggedPaperId === p.paper_id ? "opacity-50 scale-95" : ""}`}
                           >
                             <div className="flex items-start gap-2">
                               {!isAssigned && (
@@ -706,11 +914,10 @@ const AssignSessionsPage: React.FC = () => {
                     {sessions.map((session, idx) => (
                       <div
                         key={session.temp_id}
-                        className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all hover:shadow-md ${
-                          dragOverSessionId === session.temp_id
-                            ? "border-indigo-400 ring-4 ring-indigo-50 scale-[1.01]"
-                            : "border-slate-200"
-                        }`}
+                        className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all hover:shadow-md ${dragOverSessionId === session.temp_id
+                          ? "border-indigo-400 ring-4 ring-indigo-50 scale-[1.01]"
+                          : "border-slate-200"
+                          }`}
                         onDragOver={(e) => handleDragOver(e, session.temp_id)}
                         onDragLeave={(e) => handleDragLeave(e, session.temp_id)}
                         onDrop={(e) => handleDrop(e, session.temp_id)}
@@ -719,8 +926,46 @@ const AssignSessionsPage: React.FC = () => {
                         <div className="p-5 sm:p-6 bg-slate-50/80 border-b border-slate-100 flex flex-col xl:flex-row gap-5 items-start">
                           <div className="flex-grow space-y-4 w-full">
                             <div className="flex items-center gap-3">
-                              <div className="bg-slate-200 text-slate-700 w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0">
-                                {idx + 1}
+                              <div className="flex flex-wrap items-center gap-2">
+                                {/* Session Index */}
+                                <div className="bg-slate-200 text-slate-700 w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0">
+                                  {idx + 1}
+                                </div>
+
+                                {/* Format Selection / Info */}
+                                {conferenceData?.conference?.format_type === 'hybrid' ? (
+                                  <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        updateSession(session.temp_id, 'format_type', 'in-person');
+                                      }}
+                                      className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${session.format_type === 'in-person'
+                                        ? "bg-white text-emerald-700 shadow-sm"
+                                        : "text-slate-500 hover:text-slate-700"
+                                        }`}
+                                    >
+                                      In-person
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        updateSession(session.temp_id, 'format_type', 'virtual');
+                                      }}
+                                      className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${session.format_type === 'virtual'
+                                        ? "bg-white text-indigo-700 shadow-sm"
+                                        : "text-slate-500 hover:text-slate-700"
+                                        }`}
+                                    >
+                                      Virtual
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${session.format_type === 'virtual' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'
+                                    }`}>
+                                    {session.format_type === 'virtual' ? 'Virtual' : 'In-person'}
+                                  </span>
+                                )}
                               </div>
                               <input
                                 type="text"
@@ -768,7 +1013,7 @@ const AssignSessionsPage: React.FC = () => {
                                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
                                 <input
                                   type="text"
-                                  placeholder="Room / Hall"
+                                  placeholder={session.format_type === 'virtual' ? "Room / Hall (Optional for Online)" : "Room / Hall"}
                                   className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
                                   value={session.room_location}
                                   onChange={(e) =>
@@ -781,6 +1026,111 @@ const AssignSessionsPage: React.FC = () => {
                                 />
                               </div>
                             </div>
+
+                            {/* MEET & YOUTUBE LINKS - Only show if session is virtual */}
+                            {session.format_type === 'virtual' && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 xl:ml-11">
+                                <div className="flex flex-col gap-1.5">
+                                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest pl-1">Virtual Room (Meet)</label>
+                                  <div className="flex items-center gap-2">
+                                    <div className="relative group w-full">
+                                      <Video className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
+                                      <input
+                                        type="text"
+                                        placeholder="https://meet.google.com/..."
+                                        className="w-full pl-9 pr-16 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
+                                        value={session.meet_link || ""}
+                                        onChange={(e) => updateSession(session.temp_id, "meet_link", e.target.value)}
+                                      />
+                                      {session.meet_link && (
+                                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-white pl-1 rounded-r-lg">
+                                          <a
+                                            href={session.meet_link.startsWith('http') ? session.meet_link : `https://${session.meet_link}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="p-1 text-slate-400 hover:text-indigo-600 transition-colors rounded-md hover:bg-slate-100"
+                                            title="Open link"
+                                          >
+                                            <LinkIcon className="w-3.5 h-3.5" />
+                                          </a>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleRemoveMeetLink(session);
+                                            }}
+                                            disabled={deletingMeetId === session.temp_id}
+                                            className="p-1 text-slate-400 hover:text-red-500 transition-colors rounded-md hover:bg-red-50 disabled:opacity-50"
+                                            title="Remove link"
+                                          >
+                                            {deletingMeetId === session.temp_id ? (
+                                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            ) : (
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            )}
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {!session.meet_link && (
+                                      <Button
+                                        onClick={() => handleCreateMeetLink(session)}
+                                        disabled={generatingMeetId === session.temp_id}
+                                        variant="outline"
+                                        title="Auto-generate Meet link"
+                                        className="px-3 shrink-0 text-indigo-700 border-indigo-200 bg-white hover:bg-indigo-50 rounded-xl"
+                                      >
+                                        {generatingMeetId === session.temp_id ? (
+                                          <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                          <Zap className="w-4 h-4" />
+                                        )}
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex flex-col gap-1.5">
+                                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest pl-1">Archive Room (Youtube)</label>
+                                  <div className="relative group">
+                                    <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-red-500 transition-colors pointer-events-none" />
+                                    <input
+                                      type="text"
+                                      placeholder="https://youtube.com/watch?v=..."
+                                      className="w-full pl-9 pr-16 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-100 focus:border-red-500 outline-none transition-all"
+                                      value={session.record_video_url || ""}
+                                      onChange={(e) => {
+                                        updateSession(session.temp_id, "record_video_url", e.target.value);
+                                      }}
+                                    />
+                                    {session.record_video_url && (
+                                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-white pl-1 rounded-r-lg">
+                                        <a
+                                          href={session.record_video_url.startsWith('http') ? session.record_video_url : `https://${session.record_video_url}`}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="p-1 text-slate-400 hover:text-red-600 transition-colors rounded-md hover:bg-slate-100"
+                                          title="Open link"
+                                        >
+                                          <LinkIcon className="w-3.5 h-3.5" />
+                                        </a>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRemoveYoutubeLink(session);
+                                          }}
+                                          className="p-1 text-slate-400 hover:text-red-500 transition-colors rounded-md hover:bg-red-50"
+                                          title="Remove link"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    )}
+                                    {session.record_video_url && !session.record_video_url.match(/^(https?\:\/\/)?(www\.youtube\.com|youtu\.be)\/.+$/) && (
+                                      <span className="text-xs text-red-500 absolute -bottom-5 left-1">Invalid Youtube URL</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                           <button
                             onClick={() => removeSession(session.temp_id)}
@@ -1032,9 +1382,9 @@ const AssignSessionsPage: React.FC = () => {
                                 ? chairSearchQueries[session.temp_id]
                                 : session.chair_person_id
                                   ? availableChairs.find(
-                                      (c) =>
-                                        c.user_id === session.chair_person_id,
-                                    )?.full_name || ""
+                                    (c) =>
+                                      c.user_id === session.chair_person_id,
+                                  )?.full_name || ""
                                   : ""
                             }
                             onChange={(e) => {
@@ -1056,7 +1406,7 @@ const AssignSessionsPage: React.FC = () => {
                               if (
                                 session.chair_person_id &&
                                 chairSearchQueries[session.temp_id] ===
-                                  undefined
+                                undefined
                               ) {
                                 setChairSearchQueries({
                                   ...chairSearchQueries,
@@ -1069,64 +1419,64 @@ const AssignSessionsPage: React.FC = () => {
                           {/* Autocomplete Dropdown */}
                           {chairSearchQueries[session.temp_id] !==
                             undefined && (
-                            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 max-h-48 overflow-y-auto">
-                              {availableChairs.filter((c) =>
-                                c.full_name
-                                  .toLowerCase()
-                                  .includes(
-                                    chairSearchQueries[
-                                      session.temp_id
-                                    ].toLowerCase(),
-                                  ),
-                              ).length === 0 ? (
-                                <div className="p-3 text-sm text-slate-500 text-center">
-                                  No chairs found
-                                </div>
-                              ) : (
-                                availableChairs
-                                  .filter((c) =>
-                                    c.full_name
-                                      .toLowerCase()
-                                      .includes(
-                                        chairSearchQueries[
-                                          session.temp_id
-                                        ].toLowerCase(),
-                                      ),
-                                  )
-                                  .map((c) => (
-                                    <div
-                                      key={c.user_id}
-                                      className="p-3 hover:bg-indigo-50 cursor-pointer flex justify-between items-center group transition-colors"
-                                      onMouseDown={(e) => {
-                                        e.preventDefault(); // Ngăn input mất focus ngay lập tức
-                                        updateSession(
-                                          session.temp_id,
-                                          "chair_person_id",
-                                          c.user_id,
-                                        );
-                                        // Clear query, giữ trạng thái undefined để hiện tên
-                                        const newQ = { ...chairSearchQueries };
-                                        delete newQ[session.temp_id];
-                                        setChairSearchQueries(newQ);
-                                      }}
-                                    >
-                                      <div>
-                                        <div className="text-sm font-bold text-slate-700 group-hover:text-indigo-700">
-                                          {c.full_name}
+                              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 max-h-48 overflow-y-auto">
+                                {availableChairs.filter((c) =>
+                                  c.full_name
+                                    .toLowerCase()
+                                    .includes(
+                                      chairSearchQueries[
+                                        session.temp_id
+                                      ].toLowerCase(),
+                                    ),
+                                ).length === 0 ? (
+                                  <div className="p-3 text-sm text-slate-500 text-center">
+                                    No chairs found
+                                  </div>
+                                ) : (
+                                  availableChairs
+                                    .filter((c) =>
+                                      c.full_name
+                                        .toLowerCase()
+                                        .includes(
+                                          chairSearchQueries[
+                                            session.temp_id
+                                          ].toLowerCase(),
+                                        ),
+                                    )
+                                    .map((c) => (
+                                      <div
+                                        key={c.user_id}
+                                        className="p-3 hover:bg-indigo-50 cursor-pointer flex justify-between items-center group transition-colors"
+                                        onMouseDown={(e) => {
+                                          e.preventDefault(); // Ngăn input mất focus ngay lập tức
+                                          updateSession(
+                                            session.temp_id,
+                                            "chair_person_id",
+                                            c.user_id,
+                                          );
+                                          // Clear query, giữ trạng thái undefined để hiện tên
+                                          const newQ = { ...chairSearchQueries };
+                                          delete newQ[session.temp_id];
+                                          setChairSearchQueries(newQ);
+                                        }}
+                                      >
+                                        <div>
+                                          <div className="text-sm font-bold text-slate-700 group-hover:text-indigo-700">
+                                            {c.full_name}
+                                          </div>
+                                          <div className="text-xs text-slate-500">
+                                            {c.organization}
+                                          </div>
                                         </div>
-                                        <div className="text-xs text-slate-500">
-                                          {c.organization}
-                                        </div>
+                                        {session.chair_person_id ===
+                                          c.user_id && (
+                                            <CheckCircle className="w-4 h-4 text-indigo-600" />
+                                          )}
                                       </div>
-                                      {session.chair_person_id ===
-                                        c.user_id && (
-                                        <CheckCircle className="w-4 h-4 text-indigo-600" />
-                                      )}
-                                    </div>
-                                  ))
-                              )}
-                            </div>
-                          )}
+                                    ))
+                                )}
+                              </div>
+                            )}
                         </div>
 
                         {/* Selected Badge */}
@@ -1235,6 +1585,39 @@ const AssignSessionsPage: React.FC = () => {
           )}
         </div>
       </div>
+      {/* Auth Modal UI */}
+      {showAuthModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95">
+            <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
+              <Video className="w-6 h-6 text-indigo-600" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">
+              Kết nối Google Calendar
+            </h3>
+            <p className="text-slate-600 text-sm mb-6">
+              Bạn cần cấp quyền cho hệ thống truy cập Google Calendar để tự động tạo phòng họp Meet cá nhân. Một cửa sổ Popup sẽ mở ra để bạn thực hiện uỷ quyền.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => setShowAuthModal(false)}
+                disabled={isAuthorizing}
+              >
+                Hủy
+              </Button>
+              <Button
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={handleStartGoogleAuthPopup}
+                disabled={isAuthorizing}
+              >
+                {isAuthorizing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Video className="w-4 h-4 mr-2" />}
+                Kết nối ngay
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </DefaultLayout>
   );
 };

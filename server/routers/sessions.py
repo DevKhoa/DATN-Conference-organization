@@ -3,11 +3,13 @@ import numpy as np
 from k_means_constrained import KMeansConstrained
 
 from fastapi import APIRouter, HTTPException, Query, Path
+from fastapi.responses import RedirectResponse
 from google.genai import types
 
-from schema import AutoSessionRequest, SessionChairResponse, ChairRecommendation
+from schema import AutoSessionRequest, SessionChairResponse, ChairRecommendation, SessionAuthResponse, GoogleMeetCallbackRequest, MeetCreationRequest, MeetCreationResponse
 from utils import logger, supabase_client, genai_client, EMBEDDING_MODEL_NAME, VECTOR_DIMENSION, CHAIR_ROLE_ID
 from auto_session import get_batch_embeddings, generate_session_title
+from google_meet_service import meet_service
 
 
 router = APIRouter(tags=["sessions"])
@@ -202,4 +204,223 @@ async def recommend_chair_for_session(
         raise he
     except Exception as e:
         logger.error(f"Internal Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/sessions/google-auth-url", response_model=SessionAuthResponse)
+async def get_google_auth_url(email: str = Query(..., description="Email of the user to link with Google Meet"), redirect_uri: str = Query("http://localhost:8080/sessions/google-oauth-callback")):
+    try:
+        res = meet_service.get_auth_url(redirect_uri, email)
+        return res
+    except Exception as e:
+        logger.error(f"Generate Google Auth URL failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate authorization URL: {str(e)}")
+
+@router.get("/sessions/google-oauth-callback")
+async def google_oauth_callback(
+    code: str = Query(..., description="Authorization code from Google"),
+    state: str = Query(..., description="State containing the user email"),
+    redirect_uri: str = Query("http://localhost:8080/sessions/google-oauth-callback")
+):
+    try:
+        # 1. Decode email from state
+        if not state.startswith("email_"):
+            raise HTTPException(status_code=400, detail="Invalid session ID or missing email.")
+        registered_email = state.split("_", 1)[1]
+        
+        # 2. Exchange code for token
+        token_data = meet_service.fetch_token(redirect_uri, code)
+        refresh_token = token_data.get("refresh_token")
+        google_email = token_data.get("google_email")
+        
+        if not refresh_token:
+             logger.warning("Could not retrieve refresh_token (user may have already granted access).")
+
+        # 3. Check User in DB
+        user_res = supabase_client.table("users").select("user_id").eq("email", registered_email).single().execute()
+        
+        if not user_res.data:
+             raise HTTPException(status_code=404, detail="User account not found in the system.")
+             
+        # 4. Save refresh_token to DB
+        if refresh_token:
+            res = supabase_client.table("profiles").update({
+                "google_refresh_token": refresh_token
+            }).eq("user_id", user_res.data["user_id"]).execute()
+
+            if hasattr(res, 'error') and res.error:
+                raise HTTPException(status_code=500, detail=f"Database Update Error: {res.error}")
+
+
+        # 5. Return success page
+        html_content = """
+        <html>
+        <head>
+            <title>Authentication Successful</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: #f8fafc; color: #1e293b; }
+                .card { background: white; padding: 2.5rem; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); text-align: center; max-width: 450px; }
+                h1 { color: #10b981; margin-bottom: 1rem; }
+                p { margin-bottom: 2rem; color: #475569; }
+                button, .btn { display: inline-block; text-decoration: none; background: #4f46e5; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; cursor: pointer; font-weight: 600; font-size: 1rem; transition: background 0.2s;}
+                button:hover, .btn:hover { background: #4338ca; }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <h1>✓ Success!</h1>
+                <p>You have successfully authorized Google.</p>
+                <div id="action-container">
+                    <button onclick="handleReturn()">Return to application</button>
+                </div>
+            </div>
+            <script>
+                function handleReturn() {
+                    localStorage.setItem('google-auth-status', 'success_' + Date.now());
+
+                    if (window.opener) {
+                        try {
+                            window.opener.postMessage({ type: 'google-auth-success' }, '*');
+                        } catch (e) {}
+                        window.close();
+                    } else {
+                        window.location.href = "http://192.168.20.12:3000/profile";
+                    }
+                }
+
+                setTimeout(() => handleReturn(), 1000);
+            </script>
+        </body>
+        </html>
+        """
+        
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=html_content)
+
+    except Exception as e:
+        logger.error(f"Google OAuth Callback error: {e}")
+        raise HTTPException(status_code=500, detail=f"Google authentication failed: {str(e)}")
+
+@router.post("/sessions/{session_id}/create-meet", response_model=MeetCreationResponse)
+async def create_google_meet_for_session(session_id: int, request: MeetCreationRequest):
+    try:
+        # 1. Query Database for user refresh_token
+        user_res = supabase_client.table("users").select("user_id").eq("email", request.email).single().execute()
+        if not user_res.data:
+            raise HTTPException(status_code=400, detail="User not found.")
+
+        profile_res = supabase_client.table("profiles").select("google_refresh_token").eq("user_id", user_res.data["user_id"]).single().execute()
+        
+        if not profile_res.data or not profile_res.data.get("google_refresh_token"):
+             raise HTTPException(status_code=400, detail="Account not linked with Google. Please authorize first.")
+             
+        user_refresh_token = profile_res.data.get("google_refresh_token")
+
+        
+        # 2. Query Session info
+        sess_res = supabase_client.table("sessions").select("session_name, start_time, end_time").eq("session_id", session_id).single().execute()
+        
+        if not sess_res.data:
+            raise HTTPException(status_code=404, detail="Session not found.")
+            
+        sess_data = sess_res.data
+        if not sess_data.get("start_time") or not sess_data.get("end_time"):
+            raise HTTPException(status_code=400, detail="Session start or end time is missing. Please update session time.")
+        
+        summary = f"[{sess_data.get('session_name', 'Conference')}] - Virtual Room"
+        description = f"Virtual Session hosted via DATN Conference System."
+        
+        event_res = meet_service.create_meet_event(
+            summary=summary,
+            description=description,
+            start_time=sess_data.get("start_time"),
+            end_time=sess_data.get("end_time"),
+            user_refresh_token=user_refresh_token
+        )
+        
+        # Try to save both link and event_id. If column google_event_id is missing, fallback to just meet_link.
+        try:
+            supabase_client.table("sessions").update({
+                "meet_link": event_res["meet_link"],
+                "google_event_id": event_res.get("event_id") or event_res.get("id"),
+                "is_meet_active": True
+            }).eq("session_id", session_id).execute()
+        except Exception as e:
+            logger.warning(f"Database update with google_event_id or is_meet_active failed, falling back to meet_link only: {e}")
+            try:
+                supabase_client.table("sessions").update({
+                    "meet_link": event_res["meet_link"]
+                }).eq("session_id", session_id).execute()
+            except Exception as e2:
+                logger.error(f"Critical Database error saving meet_link: {e2}")
+
+        return MeetCreationResponse(
+            event_id=event_res.get("event_id") or event_res.get("id") or "",
+            meet_link=event_res["meet_link"],
+            html_link=event_res.get("html_link") or ""
+        )
+    except Exception as e:
+        logger.error(f"Error creating Meet event: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/sessions/{session_id}/meet")
+async def delete_google_meet_for_session(session_id: int, email: str = None):
+    try:
+        # 1. Fetch Google account info via email (more reliable than joining tables with missing columns)
+        user_refresh_token = None
+        if email:
+            user_res = supabase_client.table("users").select("user_id").eq("email", email).single().execute()
+            if user_res.data:
+                profile_res = supabase_client.table("profiles").select("google_refresh_token").eq("user_id", user_res.data["user_id"]).single().execute()
+                if profile_res.data:
+                    user_refresh_token = profile_res.data.get("google_refresh_token")
+
+        # 2. Get google_event_id from session (handle missing column gracefully)
+        google_event_id = None
+        try:
+            sess_res = supabase_client.table("sessions").select("google_event_id").eq("session_id", session_id).single().execute()
+            if sess_res.data:
+                google_event_id = sess_res.data.get("google_event_id")
+        except:
+            logger.warning("google_event_id column missing in sessions table.")
+
+        # 3. Call Google API if we have both
+        if google_event_id and user_refresh_token:
+            try:
+                meet_service.delete_meet_event(google_event_id, user_refresh_token)
+            except Exception as e:
+                logger.error(f"Google Calendar API deletion failed: {e}")
+
+        # 4. Clear data from DB (handle missing column gracefully)
+        try:
+             supabase_client.table("sessions").update({
+                 "meet_link": None,
+                 "google_event_id": None
+             }).eq("session_id", session_id).execute()
+        except:
+             # Fallback to only clearing meet_link
+             supabase_client.table("sessions").update({
+                 "meet_link": None
+             }).eq("session_id", session_id).execute()
+
+        return {"status": "success", "message": "Google Meet link removed successfully."}
+
+    except Exception as e:
+        logger.error(f"Error removing Meet event: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/sessions/{session_id}/toggle-meet")
+async def toggle_meet_active(session_id: int, is_active: bool = Query(..., description="Active status of the room")):
+    try:
+        res = supabase_client.table("sessions").update({
+            "is_meet_active": is_active
+        }).eq("session_id", session_id).execute()
+        
+        if hasattr(res, 'error') and res.error:
+             # Just in case the column doesn't exist yet
+             raise HTTPException(status_code=400, detail="Could not update status. Check database schema.")
+             
+        return {"status": "success", "is_meet_active": is_active}
+    except Exception as e:
+        logger.error(f"Error toggling meet status: {e}")
         raise HTTPException(status_code=500, detail=str(e))

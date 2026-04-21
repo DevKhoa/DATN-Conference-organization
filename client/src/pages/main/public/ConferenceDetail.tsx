@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Calendar,
   MapPin,
@@ -21,6 +22,12 @@ import {
   AlertCircle,
   CreditCard,
   CheckCircle,
+  Video,
+  Youtube,
+  Eye,
+  EyeOff,
+  Globe,
+  Monitor,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "@tanstack/react-router";
@@ -33,6 +40,10 @@ import {
   useConferenceTicketsQuery,
 } from "@/features/conferences/services/queries";
 import { useCreateRegistrationMutation } from "@/features/registrations/services/mutations";
+import { useToggleMeetMutation } from "@/features/sessions/services/mutations";
+import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
+import { QAManager } from "@/features/qa/components/QAManager";
 
 type ChairDisplayPerson = {
   user_id: number;
@@ -217,9 +228,30 @@ const ConferenceDetailPage: React.FC = () => {
 
   const canEdit = checkRoles([Role.ADMIN, Role.SECRETARIAT]);
   const userEmail = authSession?.user?.email ?? "";
+  const currentUserId = authSession?.user?.user_metadata?.["user_id"] as number | undefined;
   const createRegistrationMutation = useCreateRegistrationMutation();
+  const toggleMeetMutation = useToggleMeetMutation();
   const { data: conferenceTickets = [], isLoading: ticketsLoading } =
     useConferenceTicketsQuery(conferenceId, isRegisterModalOpen);
+
+  const { data: hasRegistration } = useQuery({
+    queryKey: ["user-conference-registration", conferenceId, currentUserId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("registrations")
+        .select(
+          `registration_id, ticket_configs!inner ( ticket_session!inner ( sessions!inner ( conf_id ) ) )`
+        )
+        .eq("user_id", currentUserId!)
+        .eq("ticket_configs.ticket_session.sessions.conf_id", conferenceId!);
+
+      if (error) throw error;
+      return (data?.length ?? 0) > 0;
+    },
+    enabled: !!currentUserId && !!conferenceId,
+  });
+
+  const canAccessVirtual = canEdit || !!hasRegistration;
 
   const bannerUrls = useMemo(() => {
     if (!conference?.banner_urls || !Array.isArray(conference.banner_urls)) {
@@ -420,14 +452,31 @@ const ConferenceDetailPage: React.FC = () => {
           />
           <div className="absolute inset-0 bg-linear-to-t from-foreground/95 via-foreground/40 to-transparent" />
 
-          <div className="absolute top-6 left-4 lg:left-8 z-20 w-[95%] flex justify-between items-center gap-4">
-            <button
-              onClick={() => navigate({ to: "/conferences" })}
-              className="flex items-center gap-2 text-primary-foreground/90 hover:text-primary-foreground bg-background/10 hover:bg-background/20 backdrop-blur-md px-4 py-2 rounded-full transition-all border border-background/10"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span className="text-sm font-medium">Back to List</span>
-            </button>
+          <div className="absolute top-6 left-4 right-4 lg:left-8 lg:right-8 z-20 flex justify-between items-center gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate({ to: "/conferences" })}
+                className="flex items-center gap-2 text-primary-foreground/90 hover:text-primary-foreground bg-background/10 hover:bg-background/20 backdrop-blur-md px-4 py-2 rounded-full transition-all border border-background/10"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="text-sm font-medium">Back to List</span>
+              </button>
+
+              <div className="flex items-center gap-2 bg-background/10 backdrop-blur-md px-4 py-2 rounded-full border border-background/10 text-primary-foreground/90 animate-in fade-in slide-in-from-left-4 duration-500">
+                {conference.format_type?.toLowerCase() === "virtual" && (
+                  <Monitor className="w-4 h-4 text-indigo-400" />
+                )}
+                {conference.format_type?.toLowerCase() === "in-person" && (
+                  <MapPin className="w-4 h-4 text-emerald-400" />
+                )}
+                {conference.format_type?.toLowerCase() === "hybrid" && (
+                  <Globe className="w-4 h-4 text-amber-400" />
+                )}
+                <span className="text-xs font-bold uppercase tracking-widest">
+                  {conference.format_type || "In-person"}
+                </span>
+              </div>
+            </div>
 
             <div className="flex items-center gap-2 flex-wrap justify-end">
               {canEdit && sessions.length > 0 && (
@@ -778,44 +827,129 @@ const ConferenceDetailPage: React.FC = () => {
                                           }
                                           className="p-5 md:p-6 cursor-pointer"
                                         >
-                                          <div className="flex justify-between items-start gap-4">
-                                            <div className="space-y-2">
-                                              <div className="flex flex-wrap items-center gap-2">
-                                                <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-muted text-muted-foreground text-xs font-bold uppercase tracking-wider">
-                                                  <MapPin className="w-3 h-3 mr-1" />
-                                                  {session.room_location}
-                                                </span>
-                                              </div>
-
-                                              <h3
-                                                className={`text-lg md:text-xl font-bold transition-colors ${isExpanded
+                                          <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
+                                            <div
+                                              className={`text-lg md:text-xl font-bold transition-colors flex items-start gap-3 flex-1 min-w-[280px] ${isExpanded
                                                   ? "text-primary"
                                                   : "text-foreground group-hover:text-primary"
-                                                  }`}
-                                              >
-                                                {session.session_name}
-                                              </h3>
+                                                }`}
+                                            >
+                                              <div className="p-2 bg-muted rounded-xl text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors shrink-0 mt-0.5">
+                                                {session.format_type?.toLowerCase() === "virtual" && (
+                                                  <Monitor className="w-4 h-4" />
+                                                )}
+                                                {session.format_type?.toLowerCase() === "in-person" && (
+                                                  <MapPin className="w-4 h-4" />
+                                                )}
+                                                {!session.format_type && conference.format_type?.toLowerCase() === "virtual" && (
+                                                  <Monitor className="w-4 h-4" />
+                                                )}
+                                                {!session.format_type && conference.format_type?.toLowerCase() !== "virtual" && (
+                                                  <MapPin className="w-4 h-4" />
+                                                )}
+                                              </div>
+                                              <div className="flex flex-col min-w-0">
+                                                <span>{session.session_name}</span>
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-0.5">
+                                                  {session.room_location || (session.format_type === 'virtual' ? 'Virtual Session' : 'No Location Set')}
+                                                </span>
+                                              </div>
                                             </div>
 
-                                            <div className="flex items-center gap-3 shrink-0">
-                                              {canEdit && (
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    navigate({
-                                                      to: "/sessions/assign",
-                                                      search: {
-                                                        conferenceId,
-                                                        sessionId:
-                                                          session.session_id,
-                                                      },
-                                                    });
-                                                  }}
-                                                  className="text-xs font-bold text-muted-foreground bg-muted hover:bg-primary/10 hover:text-primary px-3 py-1.5 rounded-lg transition-colors border border-border"
-                                                >
-                                                  Edit Session
-                                                </button>
-                                              )}
+                                            <div className="flex items-center gap-3 shrink-0 ml-auto transition-all">
+                                              <div className="flex items-center gap-2 flex-wrap justify-end">
+                                                {session.format_type !== "in-person" && canAccessVirtual && (
+                                                  <>
+                                                    {session.meet_link !== undefined && (
+                                                      <div className="flex items-center gap-1 group/meet animate-in slide-in-from-right-2 duration-300">
+                                                        <button
+                                                          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 flex items-center gap-1.5 shadow-sm border ${session.meet_link && (session.is_meet_active ?? true)
+                                                              ? "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white hover:shadow-indigo-200 border-transparent"
+                                                              : "bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200"
+                                                            } shrink-0`}
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (session.meet_link && (session.is_meet_active ?? true)) {
+                                                              window.open(session.meet_link, "_blank");
+                                                            } else {
+                                                              toast.info("Room is not available now", {
+                                                                description: "The organizer has not opened this virtual room yet.",
+                                                              });
+                                                            }
+                                                          }}
+                                                        >
+                                                          <Video className="w-3.5 h-3.5" />
+                                                          Join Virtual Meeting
+                                                        </button>
+
+                                                        {canEdit && session.meet_link !== undefined && (
+                                                          <button
+                                                            onClick={(e) => {
+                                                              e.stopPropagation();
+                                                              toggleMeetMutation.mutate({
+                                                                sessionId: session.session_id,
+                                                                isActive: !(session.is_meet_active ?? true)
+                                                              });
+                                                            }}
+                                                            className={`flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200 shrink-0 ${(session.is_meet_active ?? true)
+                                                                ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100"
+                                                                : "bg-slate-100 text-slate-400 hover:bg-slate-200 border border-slate-200"
+                                                              }`}
+                                                            title={(session.is_meet_active ?? true) ? "Deactivate Meeting Room" : "Activate Meeting Room"}
+                                                          >
+                                                            {(session.is_meet_active ?? true) ? (
+                                                              <Eye className="w-4 h-4" />
+                                                            ) : (
+                                                              <EyeOff className="w-4 h-4" />
+                                                            )}
+                                                          </button>
+                                                        )}
+                                                      </div>
+                                                    )}
+
+                                                    {session.record_video_url !== undefined && (
+                                                      <button
+                                                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 flex items-center gap-1.5 shadow-sm border animate-in slide-in-from-right-2 duration-300 ${session.record_video_url
+                                                            ? "bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white hover:shadow-rose-200 border-transparent"
+                                                            : "bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200"
+                                                          } shrink-0`}
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          if (session.record_video_url) {
+                                                            window.open(session.record_video_url, "_blank");
+                                                          } else {
+                                                            toast.info("Recorded video is not available now", {
+                                                              description: "The recording will be uploaded after the conference concludes.",
+                                                            });
+                                                          }
+                                                        }}
+                                                      >
+                                                        <Youtube className="w-3.5 h-3.5" />
+                                                        Watch Recording
+                                                      </button>
+                                                    )}
+                                                  </>
+                                                )}
+
+                                                {canEdit && (
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      navigate({
+                                                        to: "/sessions/assign",
+                                                        search: {
+                                                          conferenceId,
+                                                          sessionId:
+                                                            session.session_id,
+                                                        },
+                                                      });
+                                                    }}
+                                                    className="text-xs font-bold text-muted-foreground bg-muted hover:bg-primary/10 hover:text-primary px-3 py-1.5 rounded-lg transition-colors border border-border shrink-0"
+                                                  >
+                                                    Edit Session
+                                                  </button>
+                                                )}
+                                              </div>
 
                                               <div
                                                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${isExpanded
@@ -926,6 +1060,7 @@ const ConferenceDetailPage: React.FC = () => {
                                                                   .abstract
                                                               }
                                                             </p>
+                                                            <QAManager paperId={sp.paper.paper_id} />
                                                           </div>
                                                         </div>
                                                       </div>

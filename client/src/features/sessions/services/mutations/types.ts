@@ -28,6 +28,9 @@ export interface ISaveSessionPayload {
     room_location: string;
     is_ai_generated: boolean;
     assigned_papers: SessionPaperDetail[];
+    format_type: string;
+    meet_link?: string;
+    record_video_url?: string;
   }>;
 }
 
@@ -59,4 +62,10 @@ export interface IFinalizeChairsPayload {
     db_id?: number;
     chair_person_id?: number;
   }>;
+}
+
+export interface IMeetCreationResponse {
+  event_id: string;
+  meet_link: string;
+  html_link: string;
 }
