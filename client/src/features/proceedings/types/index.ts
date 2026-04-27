@@ -70,7 +70,10 @@ export interface ProceedingsData {
     date: string;
     location: string;
     sponsorLogos: SponsorLogo[];
+    organizerLogos: SponsorLogo[];
   };
+  isbn?: string;
+  publisher?: string;
   foreword: string;
   committee: CommitteeMember[];
   generalInfo: {
@@ -80,6 +83,7 @@ export interface ProceedingsData {
     coffeeInternetInfo: string;
     galaDinner: string;
     floorPlan: string;
+    breakInfo: string;
   };
   summarySchedule: ScheduleItem[];
   keynotes: KeynoteSpeaker[];
