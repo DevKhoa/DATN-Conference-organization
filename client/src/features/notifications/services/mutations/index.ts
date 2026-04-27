@@ -134,15 +134,35 @@ export const resolveNotificationTargetUsers = async ({
     }
 
     if (selectedRoles.includes("chairperson")) {
-      let chairQuery = supabase.from("sessions").select("chair_person_id");
-      if (confIds) chairQuery = chairQuery.in("conf_id", confIds);
+      if (confIds) {
+        const { data: sessionsData } = await supabase
+          .from("sessions")
+          .select("session_id")
+          .in("conf_id", confIds);
 
-      const { data: chairData } = await chairQuery;
-      userIdSets.push(
-        (chairData || [])
-          .map((session: any) => session.chair_person_id)
-          .filter(Boolean),
-      );
+        const sessionIds = (sessionsData || [])
+          .map((session: any) => session.session_id)
+          .filter(Boolean);
+
+        if (sessionIds.length > 0) {
+          const { data: chairData } = await supabase
+            .from("session_chairs")
+            .select("user_id")
+            .in("session_id", sessionIds);
+
+          userIdSets.push(
+            (chairData || []).map((chair: any) => chair.user_id).filter(Boolean)
+          );
+        }
+      } else {
+        const { data: chairData } = await supabase
+          .from("session_chairs")
+          .select("user_id");
+
+        userIdSets.push(
+          (chairData || []).map((chair: any) => chair.user_id).filter(Boolean)
+        );
+      }
     }
 
     if (selectedRoles.includes("attendee")) {

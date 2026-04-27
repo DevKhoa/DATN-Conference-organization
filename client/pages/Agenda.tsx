@@ -233,7 +233,7 @@ export default function MyAgenda({
           end_time,
           room_location,
           conferences!inner(conf_id, conf_name),
-          users!chair_person_id(full_name)
+          session_chairs(profiles(full_name))
         `,
         )
         .order("start_time", { ascending: true });
@@ -255,7 +255,7 @@ export default function MyAgenda({
         room_location: s.room_location,
         conference_name: s.conferences?.conf_name || "Unknown",
         conf_id: s.conferences?.conf_id ?? 0,
-        chair_name: s.users?.full_name || "Unassigned",
+        chair_name: s.session_chairs?.map((c: any) => c.profiles?.full_name).filter(Boolean).join(", ") || "Unassigned",
       }));
 
       setSessions(formattedSessions);
@@ -359,21 +359,19 @@ export default function MyAgenda({
         <div className="flex bg-gray-100 p-1 rounded-lg">
           <button
             onClick={() => setViewMode("list")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              viewMode === "list"
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${viewMode === "list"
                 ? "bg-white text-blue-600 shadow-sm"
                 : "text-gray-500 hover:text-gray-700 hover:bg-gray-200"
-            }`}
+              }`}
           >
             <List size={16} /> Schedule
           </button>
           <button
             onClick={() => setViewMode("timeline")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              viewMode === "timeline"
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${viewMode === "timeline"
                 ? "bg-white text-blue-600 shadow-sm"
                 : "text-gray-500 hover:text-gray-700 hover:bg-gray-200"
-            }`}
+              }`}
           >
             <LayoutGrid size={16} /> Timeline
           </button>

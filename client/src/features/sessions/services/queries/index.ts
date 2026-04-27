@@ -142,15 +142,15 @@ export const useSessionsByConferenceQuery = (conferenceId: number | null) => {
     queryKey: [SessionKeys.SessionsByConference, conferenceId],
     queryFn: conferenceId
       ? async () => {
-          const { data, error } = await supabase
-            .from("sessions")
-            .select("session_id, session_name, room_location")
-            .eq("conf_id", conferenceId);
+        const { data, error } = await supabase
+          .from("sessions")
+          .select("session_id, session_name, room_location")
+          .eq("conf_id", conferenceId);
 
-          if (error) throw error;
+        if (error) throw error;
 
-          return (data || []) as Session[];
-        }
+        return (data || []) as Session[];
+      }
       : skipToken,
     enabled: !!conferenceId,
   });
@@ -212,7 +212,7 @@ export const useMyAgendaSessionsQuery = () => {
       room_location,
       session_type,
       conferences!inner(conf_id, conf_name, timezone),
-      profiles!chair_person_id(full_name)
+      session_chairs(profiles(full_name))
     `,
         )
         .order("start_time", { ascending: true });
@@ -233,7 +233,7 @@ export const useMyAgendaSessionsQuery = () => {
           room_location: s.room_location,
           conference_name: s.conferences?.conf_name || "Unknown",
           conf_id: s.conferences?.conf_id ?? 0,
-          chair_name: s.profiles?.full_name || "Unassigned",
+          chair_name: s.session_chairs?.map((c: any) => c.profiles?.full_name).filter(Boolean).join(", ") || "Unassigned",
           timezone: s.conferences?.timezone,
           session_type: s.session_type,
         }),
