@@ -14,7 +14,16 @@ export interface SaveProceedingsConfigPayload {
   roomAssignments: string;
   internetInfo: string;
   galaInfo: string;
-  keynotesJson: string;
+  isbn?: string;
+  publisher?: string;
+  templateName?: string;
+  pdfUrl?: string;
+  breakInfo?: string;
+  roomMapUrl?: string;
+  committeeSelection?: any[];
+  sponsorLogos?: any[];
+  organizerLogos?: any[];
+  keynotes?: any[];
 }
 
 export interface UploadProceedingsPdfCachePayload {
@@ -44,7 +53,16 @@ export const useSaveProceedingsConfigMutation = () => {
       roomAssignments,
       internetInfo,
       galaInfo,
-      keynotesJson,
+      isbn,
+      publisher,
+      templateName,
+      pdfUrl,
+      breakInfo,
+      roomMapUrl,
+      committeeSelection,
+      sponsorLogos,
+      organizerLogos,
+      keynotes,
     }: SaveProceedingsConfigPayload) => {
       const { error } = await supabase.from("proceedings_configs").upsert({
         conf_id: confId,
@@ -55,7 +73,16 @@ export const useSaveProceedingsConfigMutation = () => {
         room_assignments: roomAssignments,
         internet_info: internetInfo,
         gala_info: galaInfo,
-        keynotes_json: keynotesJson,
+        isbn,
+        publisher,
+        template_name: templateName,
+        pdf_url: pdfUrl,
+        break_info: breakInfo,
+        room_map_url: roomMapUrl,
+        committee_selection: committeeSelection,
+        sponsor_logos: sponsorLogos,
+        organizer_logos: organizerLogos,
+        keynotes_json: keynotes,
       });
 
       if (error) {
