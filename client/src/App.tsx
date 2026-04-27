@@ -1,0 +1,47 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { RouterProvider } from "@tanstack/react-router";
+
+import "./index.css";
+import useAuth from "./features/auth/hooks/useAuth";
+import { router } from "./lib/router";
+import { AuthProvider } from "./features/auth/contexts/auth.context";
+import NotificationRealtimeListener from "./features/notifications/components/NotificationRealtimeListener";
+import { Toaster } from "sonner";
+import LoadingScreen from "./components/LoadingScreen";
+import { TooltipProvider } from "./components/ui/tooltip";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // Dữ liệu được coi là mới trong 5 phút
+      refetchOnWindowFocus: false, // Không tự động load lại khi chuyển tab/quay lại web
+      retry: 1, // Thử lại 1 lần nếu lỗi
+    },
+  },
+});
+
+const InnerApp = () => {
+  const auth = useAuth();
+
+  return (
+    <LoadingScreen isLoading={auth?.isLoading ?? true} minDisplayTime={800}>
+      <NotificationRealtimeListener />
+      <RouterProvider router={router} context={{ auth }} />
+    </LoadingScreen>
+  );
+};
+
+const App = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <InnerApp />
+          <Toaster />
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+};
+
+export default App;

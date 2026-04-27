@@ -1,0 +1,332 @@
+import os
+import sys
+import logging
+import json
+import re
+import pathlib
+
+
+from typing import TypedDict, Optional, Literal, Any, Dict, List, Union
+
+import smtplib
+from email.message import EmailMessage
+
+from pypdf import PdfReader
+
+from google import genai
+from google.cloud import language_v2
+from google.cloud import storage
+
+from langchain_core.documents import Document
+from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+
+from supabase.client import create_client
+from payos import AsyncPayOS
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+#======================================== LOGGING ========================================#
+
+class Logger:
+    """
+    A custom logging utility that routes logs to different streams based on severity.
+    
+    Attributes:
+        logger (logging.Logger): The internal logger instance.
+    """
+
+    def __init__(self, name=__name__):
+        self.logger = logging.getLogger(name)
+        self.logger.setLevel(logging.DEBUG)
+        self.logger.propagate = False
+
+        if not self.logger.handlers:
+            self._setup()
+
+    def _setup(self):
+        stdout = logging.StreamHandler(sys.stdout)
+        stdout.setLevel(logging.DEBUG)
+        stdout.addFilter(lambda r: r.levelno < logging.WARNING)
+
+        stderr = logging.StreamHandler(sys.stderr)
+        stderr.setLevel(logging.WARNING)
+
+        formatter = logging.Formatter("[%(levelname)s]: [%(funcName)s] %(message)s")
+
+        stdout.setFormatter(formatter)
+        stderr.setFormatter(formatter)
+
+        self.logger.addHandler(stdout)
+        self.logger.addHandler(stderr)
+
+    def debug(self, message: str):
+        self.logger.debug(message, stacklevel=2)
+
+    def info(self, message: str):
+        self.logger.info(message, stacklevel=2)
+
+    def warning(self, message: str):
+        self.logger.warning(message, stacklevel=2)
+
+    def error(self, message: str):
+        self.logger.error(message, stacklevel=2)
+
+    def critical(self, message: str):
+        self.logger.critical(message, stacklevel=2)
+
+#======================================== CONSTANTS ========================================#
+
+USER_ID = "agent"
+MODEL = 'gemini-3-flash-preview'
+
+SERP_API_KEY = os.environ['SERP_API_KEY']
+
+EMBEDDING_MODEL_NAME = "gemini-embedding-001"
+
+BUCKET_NAME = "conferences-organization-bucket-master"
+FILE_TEMP_DIR = "temp_storage"
+
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+
+CHUNK_SIZE = 1000 
+CHUNK_OVERLAP = 200
+VECTOR_DIMENSION = 1536
+
+AUTHOR_ROLE_ID = 3
+CHAIR_ROLE_ID = 6
+REVIEWER_ROLE_ID = 4
+
+MAX_CV_SIZE_MB = 3
+MAX_PAPER_SIZE_MB = 5
+
+logger = Logger()
+
+genai_client = genai.Client()
+language_client = language_v2.LanguageServiceClient()
+storage_client = storage.Client()
+
+embedding_model = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL_NAME, output_dimensionality=VECTOR_DIMENSION)
+supabase_client = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY"))
+
+PAYOS_CLIENT_ID = os.environ.get("PAYOS_CLIENT_ID")
+PAYOS_API_KEY = os.environ.get("PAYOS_API_KEY")
+PAYOS_CHECKSUM_KEY = os.environ.get("PAYOS_CHECKSUM_KEY")
+payos_client = AsyncPayOS(
+    client_id=PAYOS_CLIENT_ID,
+    api_key=PAYOS_API_KEY,
+    checksum_key=PAYOS_CHECKSUM_KEY
+)
+
+
+PROMPTS_DIR = pathlib.Path(__file__).resolve().parents[2] / "Prompts"
+
+
+def _load_prompt_file(filename: str) -> str:
+    prompt_path = PROMPTS_DIR / filename
+    with open(prompt_path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+SESSION_TITLE_GIVER = _load_prompt_file("session_title_giver.txt")
+
+FORMAT_REVIEWER = _load_prompt_file("format_reviewer.txt")
+
+SCHOLAR_PROMPT = _load_prompt_file("scholar_retriever.txt")
+
+CV_RETRIEVER = _load_prompt_file("cv_retriever.txt")
+
+ASSISTANCE_INSTRUCTION = _load_prompt_file("assistance_agent.txt")
+
+CONV_TITLE_GIVER = _load_prompt_file("conversation_title_giver.txt")
+
+#======================================== HELPER FUNCTIONS ========================================#
+
+_FALLBACK_RATES_TO_VND: dict[str, float] = {
+    "VND": 1.0,
+    "USD": 25450.0,
+    "EUR": 27100.0,
+}
+
+def get_exchange_rate_to_vnd(from_currency: str) -> float:
+    """
+    Lấy tỷ giá realtime từ open.er-api.com.
+    Nếu API lỗi hoặc timeout, fallback về tỷ giá cứng.
+    """
+    currency = from_currency.upper()
+    if currency == "VND":
+        return 1.0
+    try:
+        import requests as _req
+        resp = _req.get(
+            f"https://open.er-api.com/v6/latest/{currency}",
+            timeout=5,
+        )
+        data = resp.json()
+        if data.get("result") == "success":
+            rate = data["rates"].get("VND")
+            if rate:
+                logger.info(f"[ExchangeRate] 1 {currency} = {rate} VND (realtime)")
+                return float(rate)
+    except Exception as e:
+        logger.error(f"[ExchangeRate] Không lấy được tỷ giá realtime: {e}")
+    fallback = _FALLBACK_RATES_TO_VND.get(currency, 1.0)
+    logger.warning(f"[ExchangeRate] Dùng tỷ giá fallback: 1 {currency} = {fallback} VND")
+    return fallback
+
+def load_file_local(file_path):
+   
+    if not os.path.exists(file_path):
+        logger.error(f"File path not exists: {file_path}")
+        return None
+
+    _, file_extension = os.path.splitext(file_path)
+    file_extension = file_extension.lower()
+    
+    loader = None
+    docs = []
+
+    try:
+        if file_extension == ".pdf":
+            loader = PyPDFLoader(file_path)
+            
+        elif file_extension == ".docx":
+            loader = Docx2txtLoader(file_path)
+            
+        elif file_extension == ".txt":
+            loader = TextLoader(file_path, encoding="utf-8")
+            
+        else:
+            logger.error(f"{file_extension} file extension not supported")
+            return None
+
+        docs = loader.load()
+        logger.info(f"Loaded file from {file_path}")
+        return docs
+    except Exception as e:
+        logger.error(f"Error when loading file {e}")
+        return None
+
+def clean_text(text: str) -> str:
+        if not text:
+            return ""
+        text = re.sub(r'(?<!\n)\n(?!\n)', ' ', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
+
+def clean_documents(docs: List[Document]) -> List[Document]:
+        cleaned_docs = []
+        for doc in docs:
+            original_text = doc.page_content
+            cleaned_text = clean_text(original_text)
+            
+            doc.page_content = cleaned_text
+            cleaned_docs.append(doc)
+        return cleaned_docs
+
+def extract_text_from_pdf(pdf_path):
+    reader = PdfReader(pdf_path)
+    total_text = ""
+    for page in reader.pages:
+        total_text += page.extract_text() or "" 
+    return total_text
+
+def valid_check(file_path: pathlib.Path, max_size_mb: float, extensions: List[str]) -> Dict[str, Union[bool, str]]:
+    
+    if not file_path.exists() or not file_path.is_file():
+        return {"valid": False, "code": "FILE_NOT_FOUND"}
+
+    allowed_exts = [ext.lower() for ext in extensions]
+    current_ext = file_path.suffix.lower()
+    
+    if current_ext not in allowed_exts:
+        return {"valid": False, "code": "INVALID_EXTENSION"}
+
+    max_size_bytes = max_size_mb * 1024 * 1024
+    current_size_bytes = file_path.stat().st_size
+    
+    if current_size_bytes > max_size_bytes:
+        return {"valid": False, "code": "FILE_TOO_LARGE"}
+
+    return {"valid": True, "code": "SUCCESS"}
+
+def is_image_file(filename: str) -> bool:
+    _, ext = os.path.splitext(filename)
+    return ext.lower() in ALLOWED_IMAGE_EXTENSIONS
+
+
+def format_cv_profile(cv: dict) -> str:
+    lines = []
+
+    # Personal Information
+    pi = cv.get("personal_information", {})
+    full_name = pi.get("full_name", "Unknown Name")
+    lines.append(f"# {full_name}")
+    
+    contact = []
+    if pi.get("email"):
+        contact.append(f"Email: {pi['email']}")
+    if pi.get("phone"):
+        contact.append(f"Phone: {pi['phone']}")
+    if pi.get("location"):
+        contact.append(f"Location: {pi['location']}")
+    if pi.get("linkedin"):
+        contact.append(f"LinkedIn: {pi['linkedin']}")
+    if pi.get("github"):
+        contact.append(f"GitHub: {pi['github']}")
+    if pi.get("portfolio"):
+        contact.append(f"Portfolio: {pi['portfolio']}")
+
+    if contact:
+        lines.append(" | ".join(contact))
+
+    # Professional Summary (Affiliations, Research Interests, etc.)
+    if cv.get("professional_summary"):
+        lines.append("\n## Professional Summary")
+        lines.append(cv["professional_summary"])
+
+    # Education
+    if cv.get("education"):
+        lines.append("\n## Education")
+        for edu in cv["education"]:
+            line = f"**{edu.get('institution', 'Unknown Institution')}**"
+            if edu.get("degree") or edu.get("field_of_study"):
+                line += f" — {edu.get('degree', '')} {edu.get('field_of_study', '')}".strip()
+            if edu.get("start_year") or edu.get("end_year"):
+                line += f" ({edu.get('start_year','')} - {edu.get('end_year','')})"
+            lines.append(line)
+
+    # Work Experience
+    if cv.get("work_experience"):
+        lines.append("\n## Work Experience")
+        for job in cv["work_experience"]:
+            lines.append(
+                f"**{job.get('position', 'Unknown Position')} — {job.get('company', 'Unknown Company')}** "
+                f"({job.get('start_date','')} - {job.get('end_date','')})"
+            )
+            # Dùng .get() tránh lỗi nếu list responsibilities bị null hoặc thiếu
+            for r in job.get("responsibilities", []):
+                lines.append(f"- {r}")
+            lines.append("\n")
+
+    # Research Fields
+    if cv.get("research_fields"):
+        lines.append("\n## Research Fields")
+        for field in cv["research_fields"]:
+            lines.append(f"- {field}")
+
+    # Research Directions
+    if cv.get("research_directions"):
+        lines.append("\n## Research Directions")
+        for direction in cv["research_directions"]:
+            lines.append(f"- {direction}")
+
+    # Research Themes
+    if cv.get("research_themes"):
+        lines.append("\n## Research Themes")
+        for theme in cv["research_themes"]:
+            lines.append(f"- {theme}")
+
+    return "\n".join(lines).strip()
