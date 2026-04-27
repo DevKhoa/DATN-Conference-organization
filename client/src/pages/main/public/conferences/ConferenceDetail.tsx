@@ -172,13 +172,25 @@ const ConferenceDetailPage = () => {
   return (
     <DefaultLayout meta={{ title: conference.conf_name }}>
       <div className="min-h-screen bg-background pb-24 text-foreground">
-        <div className="relative overflow-hidden bg-foreground">
-          <div className="absolute inset-0 bg-linear-to-t from-foreground/95 via-foreground/40 to-transparent" />
-          <div className="relative mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <div className="relative overflow-hidden rounded-b-[2rem] lg:rounded-b-[3rem] border-b border-white/10 shadow-2xl">
+          <div className="absolute inset-0 bg-slate-950" />
+          {bannerUrls.length > 0 && (
+            <div className="absolute inset-0">
+              <img
+                src={bannerUrls[0]}
+                alt=""
+                className="h-full w-full object-cover opacity-40"
+              />
+            </div>
+          )}
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" />
+          <div className="absolute inset-0 bg-linear-to-br from-indigo-500/10 via-transparent to-purple-500/10" />
+          
+          <div className="relative mx-auto flex max-w-7xl flex-col gap-6 px-4 pt-12 pb-20 sm:px-6 lg:px-8 lg:pt-16 lg:pb-28">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Button
                 variant="outline"
-                className="bg-background/10 text-primary-foreground backdrop-blur-md hover:bg-background/20"
+                className="bg-white/10 border-white/10 text-white backdrop-blur-md hover:bg-white/20"
                 onClick={() => navigate({ to: "/conferences" })}
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
@@ -188,7 +200,7 @@ const ConferenceDetailPage = () => {
               {canEdit && (
                 <Button
                   variant="outline"
-                  className="bg-background/10 text-primary-foreground backdrop-blur-md hover:bg-background/20"
+                  className="bg-white/10 border-white/10 text-white backdrop-blur-md hover:bg-white/20"
                   onClick={() =>
                     navigate({
                       to: "/sessions",
@@ -202,35 +214,35 @@ const ConferenceDetailPage = () => {
               )}
             </div>
 
-            <div className="max-w-4xl">
-              <div className="mb-4 inline-flex items-center rounded-full bg-primary px-3 py-1 text-xs font-bold uppercase tracking-wide text-primary-foreground">
+            <div className="max-w-4xl mb-4">
+              <div className="mb-4 inline-flex items-center rounded-full bg-primary/20 px-3 py-1 text-xs font-bold uppercase tracking-wide text-primary-foreground shadow-sm">
                 {conference.status} Conference
               </div>
-              <h1 className="text-3xl font-extrabold tracking-tight text-primary-foreground md:text-5xl">
+              <h1 className="text-3xl font-extrabold tracking-tight text-white md:text-5xl drop-shadow-sm">
                 {conference.conf_name}
               </h1>
-              <div className="mt-4 flex flex-col gap-3 text-sm text-primary-foreground/80 sm:flex-row sm:items-center sm:gap-4">
-                <div className="flex items-center gap-2 rounded-lg border border-background/10 bg-foreground/30 px-3 py-1.5 backdrop-blur-sm">
-                  <Calendar className="h-4 w-4 text-primary-foreground/70" />
-                  <span>
+              <div className="mt-4 flex flex-col gap-3 text-sm text-white/80 sm:flex-row sm:items-center sm:gap-4">
+                <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 backdrop-blur-sm">
+                  <Calendar className="h-4 w-4 text-primary" />
+                  <span className="font-medium">
                     {formatDateRange(
                       conference.start_date,
                       conference.end_date,
                     )}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 rounded-lg border border-background/10 bg-foreground/30 px-3 py-1.5 backdrop-blur-sm">
-                  <MapPin className="h-4 w-4 text-primary-foreground/70" />
-                  <span>{conference.location}</span>
+                <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 backdrop-blur-sm">
+                  <MapPin className="h-4 w-4 text-primary" />
+                  <span className="font-medium">{conference.location}</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="mx-auto -mt-12 max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-            <div className="space-y-8 lg:col-span-2">
+        <div className="mx-auto mt-14 max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-10 lg:flex-row">
+            <div className="min-w-0 flex-1 space-y-8">
               <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
                 <div className="mb-6 flex items-center gap-3">
                   <div className="rounded-lg bg-primary/10 p-2">
@@ -389,8 +401,8 @@ const ConferenceDetailPage = () => {
               </section>
             </div>
 
-            <aside className="lg:col-span-1">
-              <div className="sticky top-8 space-y-6">
+            <aside className="w-full shrink-0 lg:w-80">
+              <div className="sticky top-24 space-y-6">
                 <div className="rounded-2xl border border-border bg-card p-6 text-center shadow-xl">
                   <h3 className="mb-2 text-xl font-bold">
                     Conference Overview

@@ -31,6 +31,7 @@ import { Route as appSessionsRouteRouteImport } from "./routes/(app)/sessions/ro
 import { Route as appSessionsIndexRouteImport } from "./routes/(app)/sessions/index"
 import { Route as appSubscriptionsMeRouteImport } from "./routes/(app)/subscriptions.me"
 import { Route as appSessionsChairInvitationsRouteImport } from "./routes/(app)/sessions/chair-invitations"
+import { Route as appSessionsAssignRouteImport } from "./routes/(app)/sessions.assign"
 import { Route as appPapersSubmitRouteImport } from "./routes/(app)/papers.submit"
 import { Route as appNotificationsCreateRouteImport } from "./routes/(app)/notifications.create"
 import { Route as appConferencesCreateRouteImport } from "./routes/(app)/conferences.create"
@@ -149,6 +150,11 @@ const appSessionsChairInvitationsRoute =
     path: "/chair-invitations",
     getParentRoute: () => appSessionsRouteRoute,
   } as any)
+const appSessionsAssignRoute = appSessionsAssignRouteImport.update({
+  id: "/assign",
+  path: "/assign",
+  getParentRoute: () => appSessionsRouteRoute,
+} as any)
 const appPapersSubmitRoute = appPapersSubmitRouteImport.update({
   id: "/papers/submit",
   path: "/papers/submit",
@@ -209,6 +215,7 @@ export interface FileRoutesByFullPath {
   "/conferences/create": typeof appConferencesCreateRoute
   "/notifications/create": typeof appNotificationsCreateRoute
   "/papers/submit": typeof appPapersSubmitRoute
+  "/sessions/assign": typeof appSessionsAssignRoute
   "/sessions/chair-invitations": typeof appSessionsChairInvitationsRoute
   "/subscriptions/me": typeof appSubscriptionsMeRoute
   "/sessions/": typeof appSessionsIndexRoute
@@ -238,6 +245,7 @@ export interface FileRoutesByTo {
   "/conferences/create": typeof appConferencesCreateRoute
   "/notifications/create": typeof appNotificationsCreateRoute
   "/papers/submit": typeof appPapersSubmitRoute
+  "/sessions/assign": typeof appSessionsAssignRoute
   "/sessions/chair-invitations": typeof appSessionsChairInvitationsRoute
   "/subscriptions/me": typeof appSubscriptionsMeRoute
   "/sessions": typeof appSessionsIndexRoute
@@ -270,6 +278,7 @@ export interface FileRoutesById {
   "/(app)/conferences/create": typeof appConferencesCreateRoute
   "/(app)/notifications/create": typeof appNotificationsCreateRoute
   "/(app)/papers/submit": typeof appPapersSubmitRoute
+  "/(app)/sessions/assign": typeof appSessionsAssignRoute
   "/(app)/sessions/chair-invitations": typeof appSessionsChairInvitationsRoute
   "/(app)/subscriptions/me": typeof appSubscriptionsMeRoute
   "/(app)/sessions/": typeof appSessionsIndexRoute
@@ -302,6 +311,7 @@ export interface FileRouteTypes {
     | "/conferences/create"
     | "/notifications/create"
     | "/papers/submit"
+    | "/sessions/assign"
     | "/sessions/chair-invitations"
     | "/subscriptions/me"
     | "/sessions/"
@@ -331,6 +341,7 @@ export interface FileRouteTypes {
     | "/conferences/create"
     | "/notifications/create"
     | "/papers/submit"
+    | "/sessions/assign"
     | "/sessions/chair-invitations"
     | "/subscriptions/me"
     | "/sessions"
@@ -362,6 +373,7 @@ export interface FileRouteTypes {
     | "/(app)/conferences/create"
     | "/(app)/notifications/create"
     | "/(app)/papers/submit"
+    | "/(app)/sessions/assign"
     | "/(app)/sessions/chair-invitations"
     | "/(app)/subscriptions/me"
     | "/(app)/sessions/"
@@ -543,6 +555,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof appSessionsChairInvitationsRouteImport
       parentRoute: typeof appSessionsRouteRoute
     }
+    "/(app)/sessions/assign": {
+      id: "/(app)/sessions/assign"
+      path: "/assign"
+      fullPath: "/sessions/assign"
+      preLoaderRoute: typeof appSessionsAssignRouteImport
+      parentRoute: typeof appSessionsRouteRoute
+    }
     "/(app)/papers/submit": {
       id: "/(app)/papers/submit"
       path: "/papers/submit"
@@ -596,11 +615,13 @@ declare module "@tanstack/react-router" {
 }
 
 interface appSessionsRouteRouteChildren {
+  appSessionsAssignRoute: typeof appSessionsAssignRoute
   appSessionsChairInvitationsRoute: typeof appSessionsChairInvitationsRoute
   appSessionsIndexRoute: typeof appSessionsIndexRoute
 }
 
 const appSessionsRouteRouteChildren: appSessionsRouteRouteChildren = {
+  appSessionsAssignRoute: appSessionsAssignRoute,
   appSessionsChairInvitationsRoute: appSessionsChairInvitationsRoute,
   appSessionsIndexRoute: appSessionsIndexRoute,
 }
