@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 class AuthorInfo(BaseModel):
     full_name: str
@@ -97,13 +97,6 @@ class EmailSchema(BaseModel):
     subject: str
     body: str
 
-# class ChairRecommendation(BaseModel):
-#     user_id: int
-#     full_name: str
-#     organization: Optional[str]
-#     email: str
-#     similarity_score: float
-
 class ChairRecommendation(BaseModel):
     user_id: int
     full_name: str
@@ -116,6 +109,40 @@ class SessionChairResponse(BaseModel):
     session_id: int
     session_name: str
     recommended_chairs: List[ChairRecommendation]
+
+class ChairInvitationCreateRequest(BaseModel):
+    email: EmailStr
+    invited_by: Optional[int] = Field(
+        None,
+        description="Optional profile user_id of the person creating the invitation",
+    )
+
+
+class ChairInvitationDecisionRequest(BaseModel):
+    user_id: Optional[int] = Field(
+        None,
+        description="Optional profile user_id of the invitee when accepting or rejecting",
+    )
+    email: Optional[EmailStr] = Field(
+        None,
+        description="Optional email to verify the invitee identity",
+    )
+
+
+class ChairInvitationResponse(BaseModel):
+    invitation_id: str
+    conf_id: int
+    conf_name: Optional[str] = None
+    session_id: int
+    session_name: Optional[str] = None
+    email: str
+    status: str
+    token: str
+    invited_by: Optional[int] = None
+    created_at: Optional[str] = None
+    responded_at: Optional[str] = None
+    invitee_user_id: Optional[int] = None
+    invite_link: Optional[str] = None
 
 class ScholarImportRequest(BaseModel):
     scholar_url: str
@@ -153,66 +180,59 @@ class SubscriptionUpgradeRequest(BaseModel):
     returnUrl: str = Field(..., description="URL to redirect after payment completion or cancellation")
 
 class PersonalInformation(BaseModel):
-    full_name: str = Field(description="Full name of the candidate")
-    email: Optional[str] = Field(None, description="Email address of the candidate")
-    phone: Optional[str] = Field(None, description="Contact phone number")
-    location: Optional[str] = Field(None, description="Current location or address")
-    linkedin: Optional[str] = Field(None, description="Link to the candidate's LinkedIn profile")
-    github: Optional[str] = Field(None, description="Link to the candidate's GitHub profile")
-    portfolio: Optional[str] = Field(None, description="Link to personal website or portfolio")
+    full_name:  Optional[str] = Field(None, description="Full name of the candidate")
+    email:      Optional[str] = Field(None, description="Email address of the candidate")
+    phone:      Optional[str] = Field(None, description="Contact phone number")
+    location:   Optional[str] = Field(None, description="Current location or address")
+    linkedin:   Optional[str] = Field(None, description="Full URL to LinkedIn profile, or null if not present")
+    github:     Optional[str] = Field(None, description="Full URL to GitHub profile, or null if not present")
+    portfolio:  Optional[str] = Field(None, description="Full URL to personal website, or null if not present")
 
 class Education(BaseModel):
-    institution: str = Field(description="Name of the university or educational institution")
-    degree: Optional[str] = Field(None, description="Degree obtained (e.g., Bachelor, Master, Engineer)")
+    institution:    Optional[str] = Field(None, description="Name of the university or institution")
+    degree:         Optional[str] = Field(None, description="Degree obtained (e.g. Bachelor, Master)")
     field_of_study: Optional[str] = Field(None, description="Academic major or field of study")
-    start_year: Optional[str] = Field(None, description="Year when the study program started")
-    end_year: Optional[str] = Field(None, description="Year of graduation or 'Present' if still studying")
+    gpa:            Optional[str] = Field(None, description="GPA if mentioned")
+    start_year:     Optional[str] = Field(None, description="Year the program started")
+    end_year:       Optional[str] = Field(None, description="Graduation year or 'Present'")
 
 class WorkExperience(BaseModel):
-    company: str = Field(description="Name of the company or organization")
-    position: str = Field(description="Job title or role held by the candidate")
-    start_date: Optional[str] = Field(None, description="Start date of the job (month/year)")
-    end_date: Optional[str] = Field(None, description="End date of the job (month/year) or 'Present'")
-    responsibilities: List[str] = Field(
-        default_factory=list,
-        description="List of responsibilities, tasks, and achievements in this role"
-    )
-
-class Skills(BaseModel):
-    technical_skills: List[str] = Field(
-        default_factory=list,
-        description="List of technical skills such as programming languages, frameworks, and tools"
-    )
-    soft_skills: List[str] = Field(
-        default_factory=list,
-        description="List of soft skills such as teamwork, communication, and leadership"
-    )
+    company:            Optional[str]       = Field(None, description="Company or organization name")
+    position:           Optional[str]       = Field(None, description="Job title or role")
+    location:           Optional[str]       = Field(None, description="Work location")
+    start_date:         Optional[str]       = Field(None, description="Start date (month/year)")
+    end_date:           Optional[str]       = Field(None, description="End date (month/year) or 'Present'")
+    responsibilities:   Optional[List[str]] = Field(None, description="Responsibilities and achievements")
 
 class Project(BaseModel):
-    name: str = Field(description="Name of the project")
-    description: Optional[str] = Field(
-        None,
-        description="Brief description of the project and the candidate's role"
-    )
-    technologies: List[str] = Field(
-        default_factory=list,
-        description="List of technologies, frameworks, or programming languages used in the project"
-    )
+    name:           Optional[str]       = Field(None, description="Project name")
+    start_date:     Optional[str]       = Field(None, description="Start date")
+    end_date:       Optional[str]       = Field(None, description="End date")
+    technologies:   Optional[List[str]] = Field(None, description="Tech stack used")
+    description:    Optional[List[str]] = Field(None, description="Key contributions and outcomes")
+
+class Skills(BaseModel):
+    programming_languages:      Optional[List[str]] = Field(None, description="e.g. Python, C++, SQL")
+    frameworks_and_libraries:   Optional[List[str]] = Field(None, description="e.g. PyTorch, LangChain")
+
+class Article(BaseModel):
+    title:  Optional[str] = Field(None, description="Title of the paper or article")
+    venue:  Optional[str] = Field(None, description="Conference or journal name")
+    link:   Optional[str] = Field(None, description="URL to the paper")
 
 
 class CVBaseModel(BaseModel):
-    personal_information: PersonalInformation
+    personal_information:   Optional[PersonalInformation]   = Field(None, description="Personal and contact information")
+    professional_summary:   Optional[str]                   = Field(None, description="Career objective or professional summary")
+    education:              Optional[List[Education]]        = Field(None, description="Educational background — null if none found")
+    work_experience:        Optional[List[WorkExperience]]   = Field(None, description="Employment history — null if none found")
+    projects:               Optional[List[Project]]          = Field(None, description="Personal or academic projects — null if none found")
+    skills:                 Optional[Skills]                 = Field(None, description="Technical skills grouped by category")
+    research_fields:        Optional[List[str]]              = Field(None, description="Research disciplines — null if not a research CV")
+    research_directions:    Optional[List[str]]              = Field(None, description="Research goals — null if not a research CV")
+    research_themes:        Optional[List[str]]              = Field(None, description="Overarching research themes — null if not a research CV")
+    articles:               Optional[List[Article]]          = Field(None, description="Academic publications — null if none found")
 
-    professional_summary: Optional[str] = Field(
-        None,
-        description="Professional summary or career objective statement"
-    )
-
-    education: List[Education] = Field(default_factory=list)
-    work_experience: List[WorkExperience] = Field(default_factory=list)
-    research_fields: List[str] = Field(description="List of author research fields")
-    research_directions: List[str] = Field(description="List of author research directions")
-    research_themes: List[str] = Field(description="List of author research themes")
 
 class SendMessagePayload(BaseModel):
     parent_id: Optional[int] = None  

@@ -14,6 +14,7 @@ import { request } from "@/lib/axios";
 import { formatPaperTime, formatToLocal } from "@/utils/time";
 import { SessionKeys } from "../queries/keys";
 import { toast } from "sonner";
+import { ConferencesKeys } from "@/features/conferences/services/queries/keys";
 
 export const useAutoGenerateSessionsMutation = () => {
   return useMutation({
@@ -120,7 +121,8 @@ export const useSaveSessionsMutation = () => {
         queryKey: [SessionKeys.SessionsByConference, conferenceId],
       });
       queryClient.invalidateQueries({
-        queryKey: ["conferences/detail"],
+        queryKey: [ConferencesKeys.ConferenceDetail, conferenceId],
+        exact: false,
       });
     },
   });
@@ -286,6 +288,35 @@ export const useToggleMeetMutation = () => {
       queryClient.invalidateQueries({ queryKey: ["conferences/detail"] });
       queryClient.invalidateQueries({
         queryKey: [SessionKeys.ExistingSessions],
+      });
+    },
+  });
+};
+
+export const useCreateChairInvitationMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      email,
+      invitedBy,
+    }: {
+      sessionId: number;
+      email: string;
+      invitedBy?: number;
+    }) => {
+      return request.post(`/sessions/${sessionId}/chair-invitations`, {
+        email,
+        invited_by: invitedBy,
+      });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ChairInvitations, variables.sessionId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ChairInvitations],
       });
     },
   });

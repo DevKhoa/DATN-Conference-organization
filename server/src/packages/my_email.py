@@ -6,6 +6,10 @@ from packages.utils import logger
 SENDER_EMAIL = os.environ['GMAIL']
 APP_PASSWORD =  os.environ['GMAIL_APP_PASSWORD']
 
+
+def normalize_email(email: str) -> str:
+    return email.strip().lower()
+
 def send_email(recipient_email : str, subject : str, body : str):
     msg = EmailMessage()
     msg['From'] = SENDER_EMAIL

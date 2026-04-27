@@ -19,6 +19,8 @@ import { supabase } from "../../../lib/supabase";
 import { useNavigate } from "@tanstack/react-router";
 import { Route } from "@/routes/papers/$paperId";
 import { DefaultLayout } from "@/layouts/DefaultLayout";
+import { useMyCurrentSubscriptionQuery } from "@/features/subscriptions/services/queries";
+import { isSubscriptionUsable } from "@/features/subscriptions/utils";
 
 // --- Data Interfaces ---
 interface Author {
@@ -66,6 +68,9 @@ const PaperDetailPage: React.FC = () => {
   const [reviews, setReviews] = useState<ReviewData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const { data: currentSubscription } = useMyCurrentSubscriptionQuery();
+
+  const hasValidSubscription = !!!currentSubscription;
 
   useEffect(() => {
     fetchPaperDetails();
@@ -239,7 +244,7 @@ const PaperDetailPage: React.FC = () => {
                   <Share2 className="w-5 h-5 mr-2" />
                   Share
                 </Button>
-                {pdfUrl && (
+                {pdfUrl && hasValidSubscription && (
                   <a
                     href={pdfUrl}
                     download
@@ -251,6 +256,14 @@ const PaperDetailPage: React.FC = () => {
                       Download PDF
                     </Button>
                   </a>
+                )}
+                {pdfUrl && !hasValidSubscription && (
+                  <Button
+                    size="sm"
+                    onClick={() => navigate({ to: "/subscriptions" })}
+                  >
+                    Subscribe to Download
+                  </Button>
                 )}
               </div>
             </div>
@@ -277,15 +290,20 @@ const PaperDetailPage: React.FC = () => {
                   <h3 className="font-bold text-slate-900 flex items-center">
                     <Eye className="w-5 h-5 mr-2 text-brand-500" /> Preview
                   </h3>
-                  {pdfUrl && (
+                  {pdfUrl && hasValidSubscription && (
                     <span className="text-xs text-slate-500">
                       Viewing latest version
+                    </span>
+                  )}
+                  {pdfUrl && !hasValidSubscription && (
+                    <span className="text-xs text-amber-700 bg-amber-100 px-2 py-1 rounded border border-amber-200">
+                      Limited to first 2 pages
                     </span>
                   )}
                 </div>
 
                 <div className="bg-slate-100 h-[500px] md:h-[600px] flex items-center justify-center relative">
-                  {pdfUrl ? (
+                  {pdfUrl && hasValidSubscription ? (
                     <iframe
                       src={`${pdfUrl}#toolbar=0`}
                       className="w-full h-full"
@@ -302,6 +320,37 @@ const PaperDetailPage: React.FC = () => {
                         .
                       </p>
                     </iframe>
+                  ) : pdfUrl ? (
+                    <div className="w-full h-full overflow-y-auto p-4 md:p-6 space-y-6">
+                      {[1, 2].map((pageNum) => (
+                        <div
+                          key={pageNum}
+                          className="mx-auto max-w-4xl bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden"
+                        >
+                          <div className="px-4 py-2 border-b border-slate-100 text-xs text-slate-500 bg-slate-50">
+                            Preview page {pageNum}
+                          </div>
+                          <iframe
+                            src={`${pdfUrl}#page=${pageNum}&toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
+                            className="w-full h-[520px] pointer-events-none"
+                            title={`Paper PDF Preview page ${pageNum}`}
+                          />
+                        </div>
+                      ))}
+
+                      <div className="mx-auto max-w-4xl rounded-lg border border-dashed border-amber-300 bg-amber-50 p-4 text-center">
+                        <p className="text-sm text-amber-800 mb-3">
+                          Subscribe to unlock full-paper preview and PDF
+                          download.
+                        </p>
+                        <Button
+                          size="sm"
+                          onClick={() => navigate({ to: "/subscriptions" })}
+                        >
+                          View Subscription Plans
+                        </Button>
+                      </div>
+                    </div>
                   ) : (
                     <div className="text-center p-8">
                       <div className="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mx-auto mb-4">

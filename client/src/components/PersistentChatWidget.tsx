@@ -286,14 +286,7 @@ export const PersistentChatWidget: React.FC = () => {
   };
 
   // Only show if logged in
-  if (!session?.user) return null;
-
-  const hasValidSubscription = isSubscriptionUsable(
-    currentSubscription?.status,
-    currentSubscription?.expires_at,
-  );
-
-  if (!hasValidSubscription) return null;
+  if (!session?.user || !currentSubscription) return null;
 
   return (
     <div className="fixed bottom-4 right-4 z-50">

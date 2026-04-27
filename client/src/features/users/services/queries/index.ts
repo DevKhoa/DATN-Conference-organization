@@ -10,21 +10,50 @@ import {
   ROLE_PRIORITY,
 } from "@/features/auth/types";
 
-export const useChairCandidatesQuery = () => {
+export const CHAIR_CANDIDATE_SEARCH_KEYS = [
+  "full_name",
+  "email",
+  "organization",
+] as const;
+
+export type ChairCandidateSearchKey =
+  (typeof CHAIR_CANDIDATE_SEARCH_KEYS)[number];
+
+type UseChairCandidatesQueryParams = {
+  searchKey?: ChairCandidateSearchKey;
+  searchTerm?: string;
+  limit?: number;
+  enabled?: boolean;
+};
+
+export const useChairCandidatesQuery = ({
+  searchKey = CHAIR_CANDIDATE_SEARCH_KEYS[0],
+  searchTerm = "",
+  limit,
+  enabled = true,
+}: UseChairCandidatesQueryParams = {}) => {
+  const normalizedSearchTerm = searchTerm.trim();
+
   return useQuery({
-    queryKey: [UsersKeys.ChairCandidates],
+    queryKey: [
+      UsersKeys.ChairCandidates,
+      searchKey,
+      normalizedSearchTerm,
+      limit,
+    ],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select(
-          "user_id, full_name, email, organization, user_roles!inner(role_id)",
-        )
-        // TODO: need to change since user_roles no longer used
-        .eq("user_roles.role_id", 6);
+      const { data, error } = await supabase.rpc("get_chair_candidates", {
+        p_search_key: searchKey,
+        p_search_term: normalizedSearchTerm,
+        p_limit: typeof limit === "number" ? limit : undefined,
+        p_role_id: 6,
+      });
 
       if (error) throw error;
 
-      const formatted: ChairCandidate[] = (data || []).map((u: any) => ({
+      const rows = Array.isArray(data) ? data : [];
+
+      const formatted: ChairCandidate[] = rows.map((u: any) => ({
         user_id: u.user_id,
         full_name: u.full_name,
         email: u.email,
@@ -33,6 +62,7 @@ export const useChairCandidatesQuery = () => {
 
       return formatted;
     },
+    enabled,
   });
 };
 

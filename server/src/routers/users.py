@@ -2,9 +2,11 @@ import os
 import shutil
 import tempfile
 import pathlib
-import uuid
 import re
 import json
+import asyncio
+import uuid
+
 
 from fastapi import APIRouter, HTTPException, File, UploadFile
 from google.genai import types
@@ -185,7 +187,6 @@ async def upload_user_avatar_api(
 
         original_name = file.filename
         
-        import uuid
         random_name = f"{uuid.uuid4()}_{original_name}"
         
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -232,7 +233,6 @@ async def upload_user_avatar_api(
     except Exception as e:
         logger.error(f"Avatar Upload API Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
-
 
 @router.post("/users/{user_id}/import-scholar")
 async def import_scholar_profile(user_id: int, request: ScholarImportRequest):
@@ -284,6 +284,11 @@ async def import_scholar_profile(user_id: int, request: ScholarImportRequest):
         
         research_bio = json.loads(AI_response.text)
 
+        articles_md = '\n'.join([
+            f"- [{article.get('title', 'No title')}]({article.get('link', '#')}) — {article.get('publication', 'Unknown venue')}"
+            for article in articles_list
+        ])
+
         author_profile = f"""
             ## {author_name.upper()}
 
@@ -300,6 +305,9 @@ async def import_scholar_profile(user_id: int, request: ScholarImportRequest):
 
             ### Research Themes
             {'\n'.join([f"- {theme}" for theme in research_bio.get('research_themes', [])])}
+
+            ### Articles
+            {articles_md}
             """.strip()
 
         cleaned_text = '\n'.join([line.strip() for line in author_profile.strip().split('\n')])
@@ -340,3 +348,4 @@ async def import_scholar_profile(user_id: int, request: ScholarImportRequest):
     except Exception as e:
         logger.error(f"API Error Import Scholar Profile: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error while importing Scholar profile")
+

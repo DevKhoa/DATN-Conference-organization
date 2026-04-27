@@ -256,77 +256,118 @@ def is_image_file(filename: str) -> bool:
     _, ext = os.path.splitext(filename)
     return ext.lower() in ALLOWED_IMAGE_EXTENSIONS
 
+def format_cv_profile(data: dict) -> str:
+    sections = []
 
-def format_cv_profile(cv: dict) -> str:
-    lines = []
+    pi = data.get("personal_information") or {}
+    name = pi.get("full_name") or "UNKNOWN"
+    sections.append(f"# {name.upper()}")
 
-    # Personal Information
-    pi = cv.get("personal_information", {})
-    full_name = pi.get("full_name", "Unknown Name")
-    lines.append(f"# {full_name}")
-    
-    contact = []
-    if pi.get("email"):
-        contact.append(f"Email: {pi['email']}")
-    if pi.get("phone"):
-        contact.append(f"Phone: {pi['phone']}")
-    if pi.get("location"):
-        contact.append(f"Location: {pi['location']}")
-    if pi.get("linkedin"):
-        contact.append(f"LinkedIn: {pi['linkedin']}")
-    if pi.get("github"):
-        contact.append(f"GitHub: {pi['github']}")
-    if pi.get("portfolio"):
-        contact.append(f"Portfolio: {pi['portfolio']}")
+    contacts = []
+    if pi.get("email"):     contacts.append(f"{pi['email']}")
+    if pi.get("phone"):     contacts.append(f"{pi['phone']}")
+    if pi.get("location"):  contacts.append(f"{pi['location']}")
+    if pi.get("linkedin"):  contacts.append(f"[LinkedIn]({pi['linkedin']})")
+    if pi.get("github"):    contacts.append(f"[GitHub]({pi['github']})")
+    if pi.get("portfolio"): contacts.append(f"[Portfolio]({pi['portfolio']})")
+    if contacts:
+        sections.append(" · ".join(contacts))
 
-    if contact:
-        lines.append(" | ".join(contact))
+    if summary := data.get("professional_summary"):
+        sections.append("## Professional Summary")
+        sections.append(summary)
 
-    # Professional Summary (Affiliations, Research Interests, etc.)
-    if cv.get("professional_summary"):
-        lines.append("\n## Professional Summary")
-        lines.append(cv["professional_summary"])
+    education = data.get("education") or []
+    if education:
+        sections.append("## Education")
+        for edu in education:
+            degree      = edu.get("degree") or ""
+            field       = edu.get("field_of_study") or ""
+            institution = edu.get("institution") or ""
+            start       = edu.get("start_year") or ""
+            end         = edu.get("end_year") or ""
+            gpa         = edu.get("gpa")
 
-    # Education
-    if cv.get("education"):
-        lines.append("\n## Education")
-        for edu in cv["education"]:
-            line = f"**{edu.get('institution', 'Unknown Institution')}**"
-            if edu.get("degree") or edu.get("field_of_study"):
-                line += f" — {edu.get('degree', '')} {edu.get('field_of_study', '')}".strip()
-            if edu.get("start_year") or edu.get("end_year"):
-                line += f" ({edu.get('start_year','')} - {edu.get('end_year','')})"
-            lines.append(line)
+            title = " in ".join(filter(None, [degree, field]))
+            period = " – ".join(filter(None, [start, end]))
+            header = " · ".join(filter(None, [institution, period]))
 
-    # Work Experience
-    if cv.get("work_experience"):
-        lines.append("\n## Work Experience")
-        for job in cv["work_experience"]:
-            lines.append(
-                f"**{job.get('position', 'Unknown Position')} — {job.get('company', 'Unknown Company')}** "
-                f"({job.get('start_date','')} - {job.get('end_date','')})"
-            )
-            # Dùng .get() tránh lỗi nếu list responsibilities bị null hoặc thiếu
-            for r in job.get("responsibilities", []):
-                lines.append(f"- {r}")
-            lines.append("\n")
+            sections.append(f"**{title}**  \n{header}")
+            if gpa:
+                sections.append(f"- GPA: {gpa}")
 
-    # Research Fields
-    if cv.get("research_fields"):
-        lines.append("\n## Research Fields")
-        for field in cv["research_fields"]:
-            lines.append(f"- {field}")
+    work_list = data.get("work_experience") or []
+    if work_list:
+        sections.append("## Work Experience")
+        for job in work_list:
+            position  = job.get("position") or ""
+            company   = job.get("company") or ""
+            location  = job.get("location") or ""
+            start     = job.get("start_date") or ""
+            end       = job.get("end_date") or ""
+            duties    = job.get("responsibilities") or []
 
-    # Research Directions
-    if cv.get("research_directions"):
-        lines.append("\n## Research Directions")
-        for direction in cv["research_directions"]:
-            lines.append(f"- {direction}")
+            period = " – ".join(filter(None, [start, end]))
+            meta   = " · ".join(filter(None, [company, location, period]))
 
-    # Research Themes
-    if cv.get("research_themes"):
-        lines.append("\n## Research Themes")
-        for theme in cv["research_themes"]:
-            lines.append(f"- {theme}")
+            sections.append(f"**{position}**  \n{meta}")
+            for duty in duties:
+                sections.append(f"- {duty}")
 
-    return "\n".join(lines).strip()
+    projects = data.get("projects") or []
+    if projects:
+        sections.append("## Projects")
+        for proj in projects:
+            name_p  = proj.get("name") or "Unnamed Project"
+            start   = proj.get("start_date") or ""
+            end     = proj.get("end_date") or ""
+            techs   = proj.get("technologies") or []
+            descs   = proj.get("description") or []
+
+            period = " – ".join(filter(None, [start, end]))
+            header = f"**{name_p}**" + (f" · {period}" if period else "")
+            sections.append(header)
+
+            if techs:
+                sections.append(f"`{'` · `'.join(techs)}`")
+            for desc in descs:
+                sections.append(f"- {desc}")
+
+    skills = data.get("skills") or {}
+    if skills:
+        sections.append("## Skills")
+        skill_map = {
+            "Programming Languages":    skills.get("programming_languages"),
+            "Frameworks & Libraries":   skills.get("frameworks_and_libraries"),
+        }
+        for label, items in skill_map.items():
+            if items:
+                sections.append(f"**{label}:** {', '.join(items)}")
+
+    research_fields     = data.get("research_fields") or []
+    research_directions = data.get("research_directions") or []
+    research_themes     = data.get("research_themes") or []
+
+    if any([research_fields, research_directions, research_themes]):
+        sections.append("## Research")
+        if research_fields:
+            sections.append("**Fields**")
+            sections.extend([f"- {f}" for f in research_fields])
+        if research_directions:
+            sections.append("**Directions**")
+            sections.extend([f"- {d}" for d in research_directions])
+        if research_themes:
+            sections.append("**Themes**")
+            sections.extend([f"- {t}" for t in research_themes])
+
+    articles = data.get("articles") or []
+    if articles:
+        sections.append("## Publications")
+        for a in articles:
+            title = a.get("title") or "Untitled"
+            venue = a.get("venue") or "Unknown venue"
+            link  = a.get("link")
+            title_md = f"[{title}]({link})" if link else title
+            sections.append(f"- {title_md} — *{venue}*")
+
+    return "\n\n".join(sections)

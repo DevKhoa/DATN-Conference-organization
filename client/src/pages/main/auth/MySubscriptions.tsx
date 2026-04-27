@@ -95,6 +95,20 @@ const MySubscriptionsPage = () => {
     );
   }, [activeSubscription, plans]);
 
+  const tokensUsagePercentage = useMemo(() => {
+    if (!activeSubscription) return 0;
+
+    const monthlyTokens = activeSubscription.monthly_tokens ?? 0;
+    const tokensRemaining = activeSubscription.tokens_remaining ?? 0;
+
+    if (monthlyTokens <= 0) return 0;
+
+    const usedTokens = monthlyTokens - tokensRemaining;
+    const rawPercentage = (usedTokens / monthlyTokens) * 100;
+
+    return Math.max(0, Math.min(100, rawPercentage));
+  }, [activeSubscription]);
+
   const [selectedUpgradePlanCode, setSelectedUpgradePlanCode] = useState<
     string | null
   >(null);
@@ -227,25 +241,29 @@ const MySubscriptionsPage = () => {
                         Expires {fmtDate(activeSubscription.expires_at)}
                       </p>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 md:w-auto">
-                      <div className="rounded-xl border border-border bg-card px-4 py-3">
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Tokens Left
-                        </p>
-                        <p className="mt-1 text-xl font-bold">
-                          {activeSubscription.tokens_remaining?.toLocaleString() ??
-                            "-"}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-border bg-card px-4 py-3">
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Monthly Quota
-                        </p>
-                        <p className="mt-1 text-xl font-bold">
-                          {activeSubscription.monthly_tokens?.toLocaleString() ??
-                            "-"}
-                        </p>
-                      </div>
+                  </div>
+                  <div className="mt-4 rounded-xl border border-border bg-card px-4 py-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Token Usage
+                      </p>
+                      <p className="text-sm font-semibold">
+                        {Math.round(tokensUsagePercentage)}%
+                      </p>
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {activeSubscription.tokens_remaining?.toLocaleString() ??
+                        "-"}{" "}
+                      /{" "}
+                      {activeSubscription.monthly_tokens?.toLocaleString() ??
+                        "-"}{" "}
+                      tokens left
+                    </p>
+                    <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all"
+                        style={{ width: `${tokensUsagePercentage}%` }}
+                      />
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-3">

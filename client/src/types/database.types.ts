@@ -169,6 +169,64 @@ export type Database = {
           },
         ]
       }
+      chair_invitations: {
+        Row: {
+          conf_id: number | null
+          created_at: string | null
+          email: string
+          invitation_id: string
+          invited_by: number | null
+          responded_at: string | null
+          session_id: number | null
+          status: Database["public"]["Enums"]["invitation_status"] | null
+          token: string | null
+        }
+        Insert: {
+          conf_id?: number | null
+          created_at?: string | null
+          email: string
+          invitation_id?: string
+          invited_by?: number | null
+          responded_at?: string | null
+          session_id?: number | null
+          status?: Database["public"]["Enums"]["invitation_status"] | null
+          token?: string | null
+        }
+        Update: {
+          conf_id?: number | null
+          created_at?: string | null
+          email?: string
+          invitation_id?: string
+          invited_by?: number | null
+          responded_at?: string | null
+          session_id?: number | null
+          status?: Database["public"]["Enums"]["invitation_status"] | null
+          token?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chair_invitations_conf_id_fkey"
+            columns: ["conf_id"]
+            isOneToOne: false
+            referencedRelation: "conferences"
+            referencedColumns: ["conf_id"]
+          },
+          {
+            foreignKeyName: "chair_invitations_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "chair_invitations_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["session_id"]
+          },
+        ]
+      }
       cms_contents: {
         Row: {
           body_content: string | null
@@ -219,6 +277,7 @@ export type Database = {
           is_active: boolean | null
           keywords: Json | null
           location: string | null
+          max_chairs_per_session: number
           open_for_papers: boolean | null
           sessions_ready: boolean | null
           start_date: string | null
@@ -236,6 +295,7 @@ export type Database = {
           is_active?: boolean | null
           keywords?: Json | null
           location?: string | null
+          max_chairs_per_session?: number
           open_for_papers?: boolean | null
           sessions_ready?: boolean | null
           start_date?: string | null
@@ -253,6 +313,7 @@ export type Database = {
           is_active?: boolean | null
           keywords?: Json | null
           location?: string | null
+          max_chairs_per_session?: number
           open_for_papers?: boolean | null
           sessions_ready?: boolean | null
           start_date?: string | null
@@ -829,6 +890,42 @@ export type Database = {
         }
         Relationships: []
       }
+      qa_bans: {
+        Row: {
+          banned_by: number | null
+          created_at: string
+          reason: string | null
+          user_id: number
+        }
+        Insert: {
+          banned_by?: number | null
+          created_at?: string
+          reason?: string | null
+          user_id: number
+        }
+        Update: {
+          banned_by?: number | null
+          created_at?: string
+          reason?: string | null
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qa_bans_banned_by_fkey"
+            columns: ["banned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "qa_bans_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       question_upvotes: {
         Row: {
           created_at: string | null
@@ -1112,6 +1209,39 @@ export type Database = {
         }
         Relationships: []
       }
+      session_chairs: {
+        Row: {
+          assigned_at: string | null
+          session_id: number
+          user_id: number
+        }
+        Insert: {
+          assigned_at?: string | null
+          session_id: number
+          user_id: number
+        }
+        Update: {
+          assigned_at?: string | null
+          session_id?: number
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_chairs_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["session_id"]
+          },
+          {
+            foreignKeyName: "session_chairs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       session_papers: {
         Row: {
           end_time: string | null
@@ -1153,7 +1283,6 @@ export type Database = {
       }
       sessions: {
         Row: {
-          chair_person_id: number | null
           conf_id: number | null
           end_time: string | null
           format_type: string | null
@@ -1169,7 +1298,6 @@ export type Database = {
           start_time: string | null
         }
         Insert: {
-          chair_person_id?: number | null
           conf_id?: number | null
           end_time?: string | null
           format_type?: string | null
@@ -1185,7 +1313,6 @@ export type Database = {
           start_time?: string | null
         }
         Update: {
-          chair_person_id?: number | null
           conf_id?: number | null
           end_time?: string | null
           format_type?: string | null
@@ -1201,13 +1328,6 @@ export type Database = {
           start_time?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "sessions_chair_person_id_fkey"
-            columns: ["chair_person_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
           {
             foreignKeyName: "sessions_conf_id_fkey"
             columns: ["conf_id"]
@@ -1556,6 +1676,29 @@ export type Database = {
       user_roles: {
         Row: {
           role_id: number
+          user_id: string
+        }
+        Insert: {
+          role_id: number
+          user_id: string
+        }
+        Update: {
+          role_id?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_role_id_fkey_2"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["role_id"]
+          },
+        ]
+      }
+      user_roles_temp: {
+        Row: {
+          role_id: number
           user_id: number
         }
         Insert: {
@@ -1580,29 +1723,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["user_id"]
-          },
-        ]
-      }
-      user_roles_2: {
-        Row: {
-          role_id: number
-          user_id: string
-        }
-        Insert: {
-          role_id: number
-          user_id: string
-        }
-        Update: {
-          role_id?: number
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_roles_role_id_fkey_2"
-            columns: ["role_id"]
-            isOneToOne: false
-            referencedRelation: "roles"
-            referencedColumns: ["role_id"]
           },
         ]
       }
@@ -1715,6 +1835,22 @@ export type Database = {
         Returns: undefined
       }
       exec_sql: { Args: { query: string }; Returns: Json }
+      expire_outdated_invitations: { Args: never; Returns: undefined }
+      get_chair_candidates: {
+        Args: {
+          p_limit?: number
+          p_role_id?: number
+          p_search_key?: string
+          p_search_term?: string
+        }
+        Returns: {
+          email: string
+          full_name: string
+          organization: string
+          profile_id: string
+          user_id: number
+        }[]
+      }
       get_conversation_memory: {
         Args: { max_messages?: number; start_message_id: number }
         Returns: {
@@ -1798,8 +1934,9 @@ export type Database = {
         Returns: {
           email: string
           full_name: string
+          match_score: number
           organization: string
-          similarity: number
+          similarity: string
           user_id: number
         }[]
       }
@@ -1864,6 +2001,7 @@ export type Database = {
       }
     }
     Enums: {
+      invitation_status: "PENDING" | "ACCEPTED" | "REJECTED" | "EXPIRED"
       order_type: "REGISTRATION" | "SUBSCRIPTION"
       subscription_status: "PENDING" | "ACTIVE" | "CANCELED" | "EXPIRED"
       subscription_type: "1_MONTH" | "3_MONTH" | "1_YEAR"
@@ -1995,6 +2133,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      invitation_status: ["PENDING", "ACCEPTED", "REJECTED", "EXPIRED"],
       order_type: ["REGISTRATION", "SUBSCRIPTION"],
       subscription_status: ["PENDING", "ACTIVE", "CANCELED", "EXPIRED"],
       subscription_type: ["1_MONTH", "3_MONTH", "1_YEAR"],

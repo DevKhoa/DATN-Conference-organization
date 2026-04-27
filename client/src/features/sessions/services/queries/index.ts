@@ -5,6 +5,7 @@ import { SessionKeys } from "./keys";
 import type { ExistingSession, Session, SessionPaperDetail } from "../../types";
 import { Role } from "@/features/auth/types";
 import useAuth from "@/features/auth/hooks/useAuth";
+import { request } from "@/lib/axios";
 
 export interface AgendaSession {
   session_id: number;
@@ -18,6 +19,52 @@ export interface AgendaSession {
   timezone?: string;
   session_type?: string;
 }
+
+export interface ChairInvitationItem {
+  invitation_id: string;
+  conf_id: number;
+  conf_name?: string;
+  session_id: number;
+  session_name?: string;
+  email: string;
+  status: "PENDING" | "ACCEPTED" | "REJECTED" | "EXPIRED";
+  token: string;
+  invited_by?: number;
+  created_at?: string;
+  responded_at?: string;
+  invitee_user_id?: number;
+  invite_link?: string;
+}
+
+export interface SessionChairInvitationsResponse {
+  session_id: number;
+  session_name?: string;
+  conf_id: number;
+  conf_name?: string;
+  max_chairs_per_session: number;
+  current_chairs: number;
+  active_invitations: number;
+  invitations: ChairInvitationItem[];
+}
+
+export const fetchSessionChairInvitations = async (sessionId: number) => {
+  return request.get<SessionChairInvitationsResponse>(
+    `/sessions/${sessionId}/chair-invitations`,
+  );
+};
+
+export const useSessionChairInvitationsQuery = (
+  sessionId?: number | null,
+  enabled = true,
+) => {
+  return useQuery({
+    queryKey: [SessionKeys.ChairInvitations, sessionId],
+    queryFn: sessionId
+      ? () => fetchSessionChairInvitations(sessionId)
+      : skipToken,
+    enabled: Boolean(sessionId) && enabled,
+  });
+};
 
 // Standalone function for fetching existing sessions
 export const fetchExistingSessions = async (

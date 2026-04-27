@@ -4,7 +4,15 @@ import { ConferencesKeys } from "./keys";
 import type { Conference, ConferenceDetail } from "../../types";
 import { PaginatedParams } from "@/hooks/usePagination";
 
-type ConferenceDetailSession = {
+export type ConferenceDetailChair = {
+  user_id: number;
+  full_name: string | null;
+  email: string | null;
+  description: string | null;
+  avatar_url: string | null;
+};
+
+export type ConferenceDetailSession = {
   session_id: number;
   session_name: string | null;
   start_time: string | null;
@@ -15,13 +23,8 @@ type ConferenceDetailSession = {
   meet_link?: string;
   is_meet_active?: boolean;
   record_video_url?: string;
-  chair: {
-    user_id: number;
-    full_name: string | null;
-    email: string | null;
-    description: string | null;
-    avatar_url: string | null;
-  } | null;
+  chair: ConferenceDetailChair | null;
+  chairs?: ConferenceDetailChair[];
   session_papers: Array<{
     presentation_order: number;
     start_time: string | null;
@@ -121,7 +124,6 @@ export const useConferenceDetailQuery = (conferenceId: number | null) => {
             .select(
               `
               *,
-              chair:profiles!chair_person_id ( user_id, full_name, email, description, avatar_url ),
               session_papers (
                 presentation_order, start_time, end_time,
                 paper:papers (
@@ -136,6 +138,42 @@ export const useConferenceDetailQuery = (conferenceId: number | null) => {
 
           if (sessionError) throw sessionError;
 
+          const sessionRows = (sessionData ||
+            []) as unknown as Array<ConferenceDetailSession>;
+
+          const sessionIds = sessionRows.map((session) => session.session_id);
+
+          const { data: chairData, error: chairError } = await supabase
+            .from("session_chairs")
+            .select(
+              `
+              session_id,
+              user_id,
+              assigned_at,
+              profiles!session_chairs_user_id_fkey (
+                user_id, full_name, email, description, avatar_url
+              )
+            `,
+            )
+            .in("session_id", sessionIds)
+            .order("assigned_at", { ascending: true });
+
+          if (chairError) throw chairError;
+
+          const chairMap = new Map<number, ConferenceDetailChair[]>();
+
+          (chairData || []).forEach((row: any) => {
+            const profile = Array.isArray(row.profiles)
+              ? (row.profiles[0] ?? null)
+              : (row.profiles ?? null);
+
+            if (!profile) return;
+
+            const chairs = chairMap.get(row.session_id) || [];
+            chairs.push(profile);
+            chairMap.set(row.session_id, chairs);
+          });
+
           const conference: ConferenceDetail = {
             ...confData,
             start_date: confData.start_date || "",
@@ -149,17 +187,18 @@ export const useConferenceDetailQuery = (conferenceId: number | null) => {
             keywords: normalizeStringArray(confData.keywords),
           };
 
-          const sessions = (
-            (sessionData || []) as unknown as ConferenceDetailSession[]
-          ).map((raw: any) => ({
-            ...raw,
-            chair: Array.isArray(raw.chair)
-              ? (raw.chair[0] ?? null)
-              : raw.chair,
-            session_papers: (raw.session_papers || []).sort(
-              (a: any, b: any) => a.presentation_order - b.presentation_order,
-            ),
-          }));
+          const sessions = sessionRows.map((raw) => {
+            const chairs = chairMap.get(raw.session_id) || [];
+
+            return {
+              ...raw,
+              chairs,
+              chair: chairs[0] ?? null,
+              session_papers: (raw.session_papers || []).sort(
+                (a: any, b: any) => a.presentation_order - b.presentation_order,
+              ),
+            } as ConferenceDetailSession;
+          });
 
           return { conference, sessions } as ConferenceDetailResult;
         }

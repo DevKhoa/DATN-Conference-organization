@@ -27,8 +27,10 @@ import { Route as appProfileRouteImport } from "./routes/(app)/profile"
 import { Route as appProceedingsRouteImport } from "./routes/(app)/proceedings"
 import { Route as appCheckinRouteImport } from "./routes/(app)/checkin"
 import { Route as appAttendancesRouteImport } from "./routes/(app)/attendances"
+import { Route as appSessionsRouteRouteImport } from "./routes/(app)/sessions/route"
+import { Route as appSessionsIndexRouteImport } from "./routes/(app)/sessions/index"
 import { Route as appSubscriptionsMeRouteImport } from "./routes/(app)/subscriptions.me"
-import { Route as appSessionsAssignRouteImport } from "./routes/(app)/sessions.assign"
+import { Route as appSessionsChairInvitationsRouteImport } from "./routes/(app)/sessions/chair-invitations"
 import { Route as appPapersSubmitRouteImport } from "./routes/(app)/papers.submit"
 import { Route as appNotificationsCreateRouteImport } from "./routes/(app)/notifications.create"
 import { Route as appConferencesCreateRouteImport } from "./routes/(app)/conferences.create"
@@ -126,16 +128,27 @@ const appAttendancesRoute = appAttendancesRouteImport.update({
   path: "/attendances",
   getParentRoute: () => appRouteRoute,
 } as any)
+const appSessionsRouteRoute = appSessionsRouteRouteImport.update({
+  id: "/sessions",
+  path: "/sessions",
+  getParentRoute: () => appRouteRoute,
+} as any)
+const appSessionsIndexRoute = appSessionsIndexRouteImport.update({
+  id: "/",
+  path: "/",
+  getParentRoute: () => appSessionsRouteRoute,
+} as any)
 const appSubscriptionsMeRoute = appSubscriptionsMeRouteImport.update({
   id: "/subscriptions/me",
   path: "/subscriptions/me",
   getParentRoute: () => appRouteRoute,
 } as any)
-const appSessionsAssignRoute = appSessionsAssignRouteImport.update({
-  id: "/sessions/assign",
-  path: "/sessions/assign",
-  getParentRoute: () => appRouteRoute,
-} as any)
+const appSessionsChairInvitationsRoute =
+  appSessionsChairInvitationsRouteImport.update({
+    id: "/chair-invitations",
+    path: "/chair-invitations",
+    getParentRoute: () => appSessionsRouteRoute,
+  } as any)
 const appPapersSubmitRoute = appPapersSubmitRouteImport.update({
   id: "/papers/submit",
   path: "/papers/submit",
@@ -182,6 +195,7 @@ export interface FileRoutesByFullPath {
   "/register-confirm": typeof RegisterConfirmRoute
   "/register-success": typeof RegisterSuccessRoute
   "/subscriptions": typeof SubscriptionsRoute
+  "/sessions": typeof appSessionsRouteRouteWithChildren
   "/attendances": typeof appAttendancesRoute
   "/checkin": typeof appCheckinRoute
   "/proceedings": typeof appProceedingsRoute
@@ -195,8 +209,9 @@ export interface FileRoutesByFullPath {
   "/conferences/create": typeof appConferencesCreateRoute
   "/notifications/create": typeof appNotificationsCreateRoute
   "/papers/submit": typeof appPapersSubmitRoute
-  "/sessions/assign": typeof appSessionsAssignRoute
+  "/sessions/chair-invitations": typeof appSessionsChairInvitationsRoute
   "/subscriptions/me": typeof appSubscriptionsMeRoute
+  "/sessions/": typeof appSessionsIndexRoute
   "/papers/me/$paperId": typeof appPapersMePaperIdRoute
   "/papers/me/": typeof appPapersMeIndexRoute
   "/conferences/$conferenceId/papers/$paperId/qa": typeof ConferencesConferenceIdPapersPaperIdQaRoute
@@ -223,8 +238,9 @@ export interface FileRoutesByTo {
   "/conferences/create": typeof appConferencesCreateRoute
   "/notifications/create": typeof appNotificationsCreateRoute
   "/papers/submit": typeof appPapersSubmitRoute
-  "/sessions/assign": typeof appSessionsAssignRoute
+  "/sessions/chair-invitations": typeof appSessionsChairInvitationsRoute
   "/subscriptions/me": typeof appSubscriptionsMeRoute
+  "/sessions": typeof appSessionsIndexRoute
   "/papers/me/$paperId": typeof appPapersMePaperIdRoute
   "/papers/me": typeof appPapersMeIndexRoute
   "/conferences/$conferenceId/papers/$paperId/qa": typeof ConferencesConferenceIdPapersPaperIdQaRoute
@@ -240,6 +256,7 @@ export interface FileRoutesById {
   "/register-confirm": typeof RegisterConfirmRoute
   "/register-success": typeof RegisterSuccessRoute
   "/subscriptions": typeof SubscriptionsRoute
+  "/(app)/sessions": typeof appSessionsRouteRouteWithChildren
   "/(app)/attendances": typeof appAttendancesRoute
   "/(app)/checkin": typeof appCheckinRoute
   "/(app)/proceedings": typeof appProceedingsRoute
@@ -253,8 +270,9 @@ export interface FileRoutesById {
   "/(app)/conferences/create": typeof appConferencesCreateRoute
   "/(app)/notifications/create": typeof appNotificationsCreateRoute
   "/(app)/papers/submit": typeof appPapersSubmitRoute
-  "/(app)/sessions/assign": typeof appSessionsAssignRoute
+  "/(app)/sessions/chair-invitations": typeof appSessionsChairInvitationsRoute
   "/(app)/subscriptions/me": typeof appSubscriptionsMeRoute
+  "/(app)/sessions/": typeof appSessionsIndexRoute
   "/(app)/papers/me/$paperId": typeof appPapersMePaperIdRoute
   "/(app)/papers/me/": typeof appPapersMeIndexRoute
   "/conferences_/$conferenceId/papers/$paperId/qa": typeof ConferencesConferenceIdPapersPaperIdQaRoute
@@ -270,6 +288,7 @@ export interface FileRouteTypes {
     | "/register-confirm"
     | "/register-success"
     | "/subscriptions"
+    | "/sessions"
     | "/attendances"
     | "/checkin"
     | "/proceedings"
@@ -283,8 +302,9 @@ export interface FileRouteTypes {
     | "/conferences/create"
     | "/notifications/create"
     | "/papers/submit"
-    | "/sessions/assign"
+    | "/sessions/chair-invitations"
     | "/subscriptions/me"
+    | "/sessions/"
     | "/papers/me/$paperId"
     | "/papers/me/"
     | "/conferences/$conferenceId/papers/$paperId/qa"
@@ -311,8 +331,9 @@ export interface FileRouteTypes {
     | "/conferences/create"
     | "/notifications/create"
     | "/papers/submit"
-    | "/sessions/assign"
+    | "/sessions/chair-invitations"
     | "/subscriptions/me"
+    | "/sessions"
     | "/papers/me/$paperId"
     | "/papers/me"
     | "/conferences/$conferenceId/papers/$paperId/qa"
@@ -327,6 +348,7 @@ export interface FileRouteTypes {
     | "/register-confirm"
     | "/register-success"
     | "/subscriptions"
+    | "/(app)/sessions"
     | "/(app)/attendances"
     | "/(app)/checkin"
     | "/(app)/proceedings"
@@ -340,8 +362,9 @@ export interface FileRouteTypes {
     | "/(app)/conferences/create"
     | "/(app)/notifications/create"
     | "/(app)/papers/submit"
-    | "/(app)/sessions/assign"
+    | "/(app)/sessions/chair-invitations"
     | "/(app)/subscriptions/me"
+    | "/(app)/sessions/"
     | "/(app)/papers/me/$paperId"
     | "/(app)/papers/me/"
     | "/conferences_/$conferenceId/papers/$paperId/qa"
@@ -492,6 +515,20 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof appAttendancesRouteImport
       parentRoute: typeof appRouteRoute
     }
+    "/(app)/sessions": {
+      id: "/(app)/sessions"
+      path: "/sessions"
+      fullPath: "/sessions"
+      preLoaderRoute: typeof appSessionsRouteRouteImport
+      parentRoute: typeof appRouteRoute
+    }
+    "/(app)/sessions/": {
+      id: "/(app)/sessions/"
+      path: "/"
+      fullPath: "/sessions/"
+      preLoaderRoute: typeof appSessionsIndexRouteImport
+      parentRoute: typeof appSessionsRouteRoute
+    }
     "/(app)/subscriptions/me": {
       id: "/(app)/subscriptions/me"
       path: "/subscriptions/me"
@@ -499,12 +536,12 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof appSubscriptionsMeRouteImport
       parentRoute: typeof appRouteRoute
     }
-    "/(app)/sessions/assign": {
-      id: "/(app)/sessions/assign"
-      path: "/sessions/assign"
-      fullPath: "/sessions/assign"
-      preLoaderRoute: typeof appSessionsAssignRouteImport
-      parentRoute: typeof appRouteRoute
+    "/(app)/sessions/chair-invitations": {
+      id: "/(app)/sessions/chair-invitations"
+      path: "/chair-invitations"
+      fullPath: "/sessions/chair-invitations"
+      preLoaderRoute: typeof appSessionsChairInvitationsRouteImport
+      parentRoute: typeof appSessionsRouteRoute
     }
     "/(app)/papers/submit": {
       id: "/(app)/papers/submit"
@@ -558,7 +595,21 @@ declare module "@tanstack/react-router" {
   }
 }
 
+interface appSessionsRouteRouteChildren {
+  appSessionsChairInvitationsRoute: typeof appSessionsChairInvitationsRoute
+  appSessionsIndexRoute: typeof appSessionsIndexRoute
+}
+
+const appSessionsRouteRouteChildren: appSessionsRouteRouteChildren = {
+  appSessionsChairInvitationsRoute: appSessionsChairInvitationsRoute,
+  appSessionsIndexRoute: appSessionsIndexRoute,
+}
+
+const appSessionsRouteRouteWithChildren =
+  appSessionsRouteRoute._addFileChildren(appSessionsRouteRouteChildren)
+
 interface appRouteRouteChildren {
+  appSessionsRouteRoute: typeof appSessionsRouteRouteWithChildren
   appAttendancesRoute: typeof appAttendancesRoute
   appCheckinRoute: typeof appCheckinRoute
   appProceedingsRoute: typeof appProceedingsRoute
@@ -568,13 +619,13 @@ interface appRouteRouteChildren {
   appConferencesCreateRoute: typeof appConferencesCreateRoute
   appNotificationsCreateRoute: typeof appNotificationsCreateRoute
   appPapersSubmitRoute: typeof appPapersSubmitRoute
-  appSessionsAssignRoute: typeof appSessionsAssignRoute
   appSubscriptionsMeRoute: typeof appSubscriptionsMeRoute
   appPapersMePaperIdRoute: typeof appPapersMePaperIdRoute
   appPapersMeIndexRoute: typeof appPapersMeIndexRoute
 }
 
 const appRouteRouteChildren: appRouteRouteChildren = {
+  appSessionsRouteRoute: appSessionsRouteRouteWithChildren,
   appAttendancesRoute: appAttendancesRoute,
   appCheckinRoute: appCheckinRoute,
   appProceedingsRoute: appProceedingsRoute,
@@ -584,7 +635,6 @@ const appRouteRouteChildren: appRouteRouteChildren = {
   appConferencesCreateRoute: appConferencesCreateRoute,
   appNotificationsCreateRoute: appNotificationsCreateRoute,
   appPapersSubmitRoute: appPapersSubmitRoute,
-  appSessionsAssignRoute: appSessionsAssignRoute,
   appSubscriptionsMeRoute: appSubscriptionsMeRoute,
   appPapersMePaperIdRoute: appPapersMePaperIdRoute,
   appPapersMeIndexRoute: appPapersMeIndexRoute,
