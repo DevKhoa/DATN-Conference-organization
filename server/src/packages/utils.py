@@ -142,6 +142,8 @@ ASSISTANCE_INSTRUCTION = _load_prompt_file("assistance_agent.txt")
 
 CONV_TITLE_GIVER = _load_prompt_file("conversation_title_giver.txt")
 
+PAPER_MATCH_REVIEWER = _load_prompt_file("paper_match_reviewer.txt")
+
 #======================================== HELPER FUNCTIONS ========================================#
 
 _FALLBACK_RATES_TO_VND: dict[str, float] = {

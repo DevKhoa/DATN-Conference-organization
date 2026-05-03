@@ -25,6 +25,7 @@ import {
   useDeleteConferenceBannerMutation,
   useUploadConferenceBannerMutation,
 } from "@/features/conferences/services/mutations";
+import { ICreateConferencePayload } from "@/features/conferences/services/mutations/types";
 
 const CreateConferencePage: React.FC = () => {
   const navigate = useNavigate();
@@ -38,7 +39,7 @@ const CreateConferencePage: React.FC = () => {
   const [confId, setConfId] = useState<number | null>(null);
 
   // Form Data
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ICreateConferencePayload>({
     conf_name: "",
     description: "",
     location: "",
@@ -49,6 +50,7 @@ const CreateConferencePage: React.FC = () => {
     open_for_papers: true,
     format_type: "in-person",
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    max_chairs_per_session: 1,
   });
 
   const [showTimezoneModal, setShowTimezoneModal] = useState(false);
@@ -378,6 +380,57 @@ const CreateConferencePage: React.FC = () => {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                      Max Chairs Per Session{" "}
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Plus className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                      <input
+                        id="form-max-chairs"
+                        type="number"
+                        min={1}
+                        required
+                        value={formData.max_chairs_per_session}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            max_chairs_per_session:
+                              parseInt(e.target.value) || 1,
+                          })
+                        }
+                        className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none"
+                        placeholder="e.g. 1"
+                      />
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Maximum number of chairs that can be assigned to a single
+                      session.
+                    </p>
+                  </div>
+
+                  {/* Status Dropdown */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                      Status
+                    </label>
+                    <select
+                      id="form-status"
+                      value={formData.status}
+                      onChange={(e) =>
+                        setFormData({ ...formData, status: e.target.value })
+                      }
+                      className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none bg-white"
+                    >
+                      <option value="DRAFT">Draft (Planning)</option>
+                      <option value="OPEN">Open (Live)</option>
+                      <option value="CLOSED">Closed</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                     Location
@@ -434,27 +487,8 @@ const CreateConferencePage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Status & Options Row */}
+                {/* Options Row */}
                 <div className="pt-6 border-t border-slate-100">
-                  {/* Status Dropdown */}
-                  <div className="mb-6">
-                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                      Status
-                    </label>
-                    <select
-                      id="form-status"
-                      value={formData.status}
-                      onChange={(e) =>
-                        setFormData({ ...formData, status: e.target.value })
-                      }
-                      className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none bg-white"
-                    >
-                      <option value="DRAFT">Draft (Planning)</option>
-                      <option value="OPEN">Open (Live)</option>
-                      <option value="CLOSED">Closed</option>
-                    </select>
-                  </div>
-
                   {/* Toggle Switches Container */}
                   <div className="flex flex-col sm:flex-row sm:items-center gap-6 sm:gap-12">
                     {/* Toggle: Publish Conference */}
@@ -471,7 +505,7 @@ const CreateConferencePage: React.FC = () => {
                         }
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                       <span className="ml-3 text-sm font-medium text-slate-700 group-hover:text-brand-700 transition-colors">
                         Publish Conference
                       </span>

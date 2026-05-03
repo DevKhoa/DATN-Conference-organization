@@ -13,13 +13,16 @@ from google.genai import types
 from packages.my_email import normalize_email, send_email
 from packages.schema import (
     AutoSessionRequest,
+    AuthorProfileAnalysis,
     ChairInvitationCreateRequest,
     ChairInvitationDecisionRequest,
     ChairInvitationResponse,
+    MatchReviewRequest,
+    MatchReviewResponse,
     SessionChairResponse,
     ChairRecommendation,
 )
-from packages.utils import logger, supabase_client, genai_client, EMBEDDING_MODEL_NAME, VECTOR_DIMENSION, CHAIR_ROLE_ID
+from packages.utils import logger, supabase_client, genai_client, MODEL, EMBEDDING_MODEL_NAME, VECTOR_DIMENSION, CHAIR_ROLE_ID, PAPER_MATCH_REVIEWER
 from packages.auto_session import get_batch_embeddings, generate_session_title
 
 
@@ -86,7 +89,7 @@ def _get_session_capacity(session_id: int) -> dict:
     invitations_res = supabase_client.table("chair_invitations") \
         .select("invitation_id") \
         .eq("session_id", session_id) \
-        .in_("status", ["PENDING", "ACCEPTED"]) \
+        .in_("status", ["PENDING"]) \
         .execute()
 
     return {
@@ -342,7 +345,8 @@ async def recommend_chair_for_session(
                 full_name=r['full_name'],
                 email=r['email'],
                 organization=r.get('organization'),
-                similarity_score=round(r['similarity'], 3)
+                similarity=r.get('similarity'),
+                match_score=round(r.get('match_score'), 3)
             ) for r in search_result.data
         ]
 
@@ -356,6 +360,89 @@ async def recommend_chair_for_session(
         raise he
     except Exception as e:
         logger.error(f"Internal Error: {str(e)}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again later.")
+
+
+@router.post("/sessions/{session_id}/match-review", response_model=MatchReviewResponse)
+async def match_review_for_session(
+    request: MatchReviewRequest,
+    session_id: int = Path(..., description="ID of the session"),
+):
+    logger.info(f"Running match-review for user {request.user_id} against session {session_id}")
+
+    try:
+        # Step 1: Fetch the candidate's profile description
+        profile_res = supabase_client.table("profiles") \
+            .select("description") \
+            .eq("user_id", request.user_id) \
+            .single() \
+            .execute()
+
+        profile_data = profile_res.data
+        if not profile_data:
+            raise HTTPException(status_code=404, detail="User profile not found.")
+
+        profile_description = profile_data.get("description")
+        if not profile_description:
+            raise HTTPException(
+                status_code=400,
+                detail="This user has no profile description to evaluate. Please ask them to complete their profile first."
+            )
+
+        # Step 2: Fetch session name and its papers
+        session_res = supabase_client.table("sessions") \
+            .select(
+                "session_name, "
+                "session_papers(paper:papers(title, abstract))"
+            ) \
+            .eq("session_id", session_id) \
+            .single() \
+            .execute()
+
+        if not session_res.data:
+            raise HTTPException(status_code=404, detail="Session not found.")
+
+        session_data = session_res.data
+        papers = [
+            item["paper"]
+            for item in session_data.get("session_papers", [])
+            if item.get("paper")
+        ]
+
+        if not papers:
+            raise HTTPException(status_code=400, detail="This session has no papers to analyze.")
+
+        # Step 3: Call Gemini to evaluate match
+        try:
+            ai_response = await genai_client.aio.models.generate_content(
+                model=MODEL,
+                contents=[
+                    PAPER_MATCH_REVIEWER,
+                    f"Profile:\n{profile_description}",
+                    f"Papers:\n{papers}",
+                ],
+                config={
+                    "response_mime_type": "application/json",
+                    "response_json_schema": AuthorProfileAnalysis.model_json_schema(),
+                },
+            )
+        except Exception as e:
+            logger.error(f"Gemini API Error in match-review: {e}")
+            raise HTTPException(status_code=500, detail="AI analysis is temporarily unavailable. Please try again later.")
+
+        analysis = AuthorProfileAnalysis.model_validate_json(ai_response.text)
+
+        return MatchReviewResponse(
+            session_id=session_id,
+            session_name=session_data["session_name"],
+            user_id=request.user_id,
+            analysis=analysis,
+        )
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"match-review internal error: {str(e)}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again later.")
 
 
@@ -460,7 +547,6 @@ async def create_chair_invitation(
         f"You have been invited to chair the session '{session_data.get('session_name') or session_id}'\n\n"
         f"Conference: {conference_data.get('conf_name') or conference_data.get('conf_id')}\n"
         f"Invitation link: {invite_link}\n"
-        f"Invitation token: {token}\n"
     )
 
     background_tasks.add_task(send_email, normalized_email, email_subject, email_body)
@@ -613,3 +699,40 @@ async def accept_chair_invitation(token: str, request: ChairInvitationDecisionRe
     invitee_profile = invitee_profile_res.data if invitee_profile_res.data else None
 
     return _serialize_invitation(updated_invitation, session_data, conference_data, invitee_profile["user_id"] if invitee_profile else invitee_user_id)
+
+
+@router.delete("/sessions/{session_id}/chair-invitations/{invitation_id}", response_model=ChairInvitationResponse)
+async def cancel_chair_invitation(session_id: int = Path(..., description="ID of the session"), invitation_id: str = Path(..., description="ID of the invitation")):
+    # Ensure session exists
+    session_data, conference_data = _fetch_session_and_conference(session_id)
+
+    invitation_res = supabase_client.table("chair_invitations") \
+        .select("invitation_id, conf_id, session_id, email, status, token, invited_by, created_at, responded_at") \
+        .eq("invitation_id", invitation_id) \
+        .single() \
+        .execute()
+
+    invitation = invitation_res.data
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invitation not found.")
+
+    if invitation.get("session_id") != session_id:
+        raise HTTPException(status_code=400, detail="Invitation does not belong to the specified session.")
+
+    invitation = _mark_expired_if_needed(invitation, conference_data)
+    if invitation.get("status") != "PENDING":
+        raise HTTPException(status_code=409, detail="Only pending invitations can be canceled.")
+
+    now = datetime.now(timezone.utc).isoformat()
+    update_res = supabase_client.table("chair_invitations") \
+        .update({"status": "EXPIRED", "responded_at": now}) \
+        .eq("invitation_id", invitation_id) \
+        .execute()
+
+    if not update_res.data:
+        raise HTTPException(status_code=500, detail="Failed to cancel chair invitation.")
+
+    updated_invitation = update_res.data[0]
+    invitee_profile_res = _select_profile_by_email(normalize_email(updated_invitation.get("email") or ""))
+    invitee_profile = invitee_profile_res.data if invitee_profile_res.data else None
+    return _serialize_invitation(updated_invitation, session_data, conference_data, invitee_profile["user_id"] if invitee_profile else None)

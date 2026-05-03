@@ -7,14 +7,15 @@ import {
 } from "@/components/DebouncedMultiKeySearch";
 import {
   ChairCandidateSearchKey,
-  useChairCandidatesQuery,
+  useSearchChairCandidatesBySessionQuery,
 } from "@/features/users/services/queries";
+import type { ChairCandidate } from "@/features/users/services/queries/types";
 
 type ChairCandidateSearchProps = {
   sessionTempId: string;
   selectedChairId?: number;
   selectedChairName?: string;
-  onSelectChair: (chairId: number) => void;
+  onSelectChair: (candidate: ChairCandidate) => void;
   onClearChair: () => void;
 };
 
@@ -64,12 +65,14 @@ export const ChairCandidateSearch = ({
     [],
   );
 
-  const { data: candidates = [], isLoading } = useChairCandidatesQuery({
-    searchKey: searchPayload.searchKey,
-    searchTerm: searchPayload.searchValue,
-    limit: 12,
-    enabled: isDropdownOpen,
-  });
+  const { data: candidates = [], isLoading } =
+    useSearchChairCandidatesBySessionQuery({
+      searchKey: searchPayload.searchKey,
+      searchTerm: searchPayload.searchValue,
+      limit: 12,
+      sessionId: Number(sessionTempId),
+      enabled: isDropdownOpen,
+    });
 
   const hasTypedValue = searchInputValue.trim().length > 0;
 
@@ -135,7 +138,7 @@ export const ChairCandidateSearch = ({
                   className="p-3 hover:bg-indigo-50 cursor-pointer flex justify-between items-center group transition-colors"
                   onMouseDown={(e) => {
                     e.preventDefault();
-                    onSelectChair(candidate.user_id);
+                    onSelectChair(candidate);
                     setSearchInputValue("");
                     setIsDropdownOpen(false);
                   }}

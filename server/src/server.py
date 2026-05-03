@@ -3,7 +3,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import papers, sessions, users, reviews, conferences, common, checkin, registrations, subscriptions, payments, assistance, web_socket, proceedings
+from routers import papers, sessions, users, reviews, conferences, common, checkin, registrations, subscriptions, payments, assistance, web_socket
 
 # HOST = '0.0.0.0'
 HOST = 'localhost'
@@ -30,7 +30,6 @@ app.include_router(subscriptions.router)
 app.include_router(payments.router)
 app.include_router(assistance.router)
 app.include_router(web_socket.router)
-app.include_router(proceedings.router)
 
 if __name__ == "__main__":
     uvicorn.run("server:app", host=HOST, port=PORT, reload=True)

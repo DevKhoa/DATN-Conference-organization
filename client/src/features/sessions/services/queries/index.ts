@@ -53,6 +53,110 @@ export const fetchSessionChairInvitations = async (sessionId: number) => {
   );
 };
 
+export const fetchChairInvitationByToken = async (token: string) => {
+  return request.get<ChairInvitationItem>(`/chair-invitations/${token}`);
+};
+
+export const useChairInvitationQuery = (token?: string) => {
+  return useQuery({
+    queryKey: [SessionKeys.ChairInvitations, token],
+    queryFn: token ? () => fetchChairInvitationByToken(token) : skipToken,
+    enabled: Boolean(token),
+  });
+};
+
+export const fetchMyChairInvitations = async (email: string) => {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const { data: invitationRows, error: invitationError } = await supabase
+    .from("chair_invitations")
+    .select(
+      "invitation_id, conf_id, session_id, email, status, token, invited_by, created_at, responded_at",
+    )
+    .eq("email", normalizedEmail)
+    .order("created_at", { ascending: false });
+
+  if (invitationError) {
+    throw invitationError;
+  }
+
+  if (!invitationRows || invitationRows.length === 0) {
+    return [] as ChairInvitationItem[];
+  }
+
+  const sessionIds = Array.from(
+    new Set(invitationRows.map((row) => row.session_id).filter(Boolean)),
+  );
+  const confIds = Array.from(
+    new Set(invitationRows.map((row) => row.conf_id).filter(Boolean)),
+  );
+
+  const [
+    { data: sessionRows, error: sessionError },
+    { data: confRows, error: confError },
+  ] = await Promise.all([
+    supabase
+      .from("sessions")
+      .select("session_id, session_name")
+      .in("session_id", sessionIds),
+    supabase
+      .from("conferences")
+      .select("conf_id, conf_name")
+      .in("conf_id", confIds),
+  ]);
+
+  if (sessionError) {
+    throw sessionError;
+  }
+
+  if (confError) {
+    throw confError;
+  }
+
+  const sessionNameById = new Map<number, string | null>(
+    (sessionRows || []).map((session) => [
+      session.session_id,
+      session.session_name,
+    ]),
+  );
+  const confNameById = new Map<number, string | null>(
+    (confRows || []).map((conference) => [
+      conference.conf_id,
+      conference.conf_name,
+    ]),
+  );
+
+  return invitationRows.map(
+    (invitation): ChairInvitationItem => ({
+      invitation_id: invitation.invitation_id as string,
+      conf_id: invitation.conf_id as number,
+      conf_name: confNameById.get(invitation.conf_id as number) || undefined,
+      session_id: invitation.session_id as number,
+      session_name:
+        sessionNameById.get(invitation.session_id as number) || undefined,
+      email: invitation.email as string,
+      status: invitation.status as
+        | "PENDING"
+        | "ACCEPTED"
+        | "REJECTED"
+        | "EXPIRED",
+      token: invitation.token as string,
+      invited_by: invitation.invited_by || undefined,
+      created_at: invitation.created_at || undefined,
+      responded_at: invitation.responded_at || undefined,
+      invite_link: `/chair-invitations/${invitation.token}`,
+    }),
+  );
+};
+
+export const useMyChairInvitationsQuery = (email?: string) => {
+  return useQuery({
+    queryKey: [SessionKeys.ChairInvitations, "me", email],
+    queryFn: email ? () => fetchMyChairInvitations(email) : skipToken,
+    enabled: Boolean(email),
+  });
+};
+
 export const useSessionChairInvitationsQuery = (
   sessionId?: number | null,
   enabled = true,
@@ -113,7 +217,6 @@ export const fetchExistingSessions = async (
       end_time: et,
       room_location: s.room_location,
       is_ai_generated: s.is_ai_generated,
-      chair_person_id: s.chair_person_id,
       assigned_papers: ap,
       meet_link: s.meet_link,
       record_video_url: s.record_video_url,
@@ -142,15 +245,15 @@ export const useSessionsByConferenceQuery = (conferenceId: number | null) => {
     queryKey: [SessionKeys.SessionsByConference, conferenceId],
     queryFn: conferenceId
       ? async () => {
-        const { data, error } = await supabase
-          .from("sessions")
-          .select("session_id, session_name, room_location")
-          .eq("conf_id", conferenceId);
+          const { data, error } = await supabase
+            .from("sessions")
+            .select("session_id, session_name, room_location")
+            .eq("conf_id", conferenceId);
 
-        if (error) throw error;
+          if (error) throw error;
 
-        return (data || []) as Session[];
-      }
+          return (data || []) as Session[];
+        }
       : skipToken,
     enabled: !!conferenceId,
   });
@@ -212,7 +315,12 @@ export const useMyAgendaSessionsQuery = () => {
       room_location,
       session_type,
       conferences!inner(conf_id, conf_name, timezone),
-      session_chairs(profiles(full_name))
+      session_chairs (
+        user_id,
+        profiles!session_chairs_user_id_fkey (
+          full_name
+        )
+      )
     `,
         )
         .order("start_time", { ascending: true });
@@ -225,18 +333,31 @@ export const useMyAgendaSessionsQuery = () => {
       if (sessionError) throw sessionError;
 
       const formattedSessions: AgendaSession[] = (rawSessions || []).map(
-        (s: any) => ({
-          session_id: s.session_id,
-          session_name: s.session_name,
-          start_time: s.start_time,
-          end_time: s.end_time,
-          room_location: s.room_location,
-          conference_name: s.conferences?.conf_name || "Unknown",
-          conf_id: s.conferences?.conf_id ?? 0,
-          chair_name: s.session_chairs?.map((c: any) => c.profiles?.full_name).filter(Boolean).join(", ") || "Unassigned",
-          timezone: s.conferences?.timezone,
-          session_type: s.session_type,
-        }),
+        (s: any) => {
+          const chairNames = (s.session_chairs || [])
+            .map((chair: any) => {
+              const profile = Array.isArray(chair.profiles)
+                ? (chair.profiles[0] ?? null)
+                : (chair.profiles ?? null);
+
+              return profile?.full_name;
+            })
+            .filter(Boolean);
+
+          return {
+            session_id: s.session_id,
+            session_name: s.session_name || "Untitled session",
+            start_time: s.start_time || "",
+            end_time: s.end_time || "",
+            room_location: s.room_location || "",
+            conference_name: s.conferences?.conf_name || "Unknown",
+            conf_id: s.conferences?.conf_id ?? 0,
+            chair_name:
+              chairNames.length > 0 ? chairNames.join(", ") : "Unassigned",
+            timezone: s.conferences?.timezone || undefined,
+            session_type: s.session_type || undefined,
+          };
+        },
       );
 
       return formattedSessions;

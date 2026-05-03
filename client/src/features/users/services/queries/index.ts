@@ -26,6 +26,11 @@ type UseChairCandidatesQueryParams = {
   enabled?: boolean;
 };
 
+type UseSearchChairCandidatesBySessionQueryParams =
+  UseChairCandidatesQueryParams & {
+    sessionId: number;
+  };
+
 export const useChairCandidatesQuery = ({
   searchKey = CHAIR_CANDIDATE_SEARCH_KEYS[0],
   searchTerm = "",
@@ -53,7 +58,53 @@ export const useChairCandidatesQuery = ({
 
       const rows = Array.isArray(data) ? data : [];
 
-      const formatted: ChairCandidate[] = rows.map((u: any) => ({
+      const formatted: ChairCandidate[] = rows.map((u) => ({
+        user_id: u.user_id,
+        full_name: u.full_name,
+        email: u.email,
+        organization: u.organization,
+      }));
+
+      return formatted;
+    },
+    enabled,
+  });
+};
+
+export const useSearchChairCandidatesBySessionQuery = ({
+  searchKey = CHAIR_CANDIDATE_SEARCH_KEYS[0],
+  searchTerm = "",
+  limit,
+  sessionId,
+  enabled = true,
+}: UseSearchChairCandidatesBySessionQueryParams) => {
+  const normalizedSearchTerm = searchTerm.trim();
+
+  return useQuery({
+    queryKey: [
+      UsersKeys.ChairCandidates,
+      searchKey,
+      normalizedSearchTerm,
+      limit,
+      sessionId,
+    ],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc(
+        "get_chair_candidates_by_session",
+        {
+          p_search_key: searchKey,
+          p_search_term: normalizedSearchTerm,
+          p_limit: typeof limit === "number" ? limit : undefined,
+          p_role_id: 6,
+          p_session_id: sessionId,
+        },
+      );
+
+      if (error) throw error;
+
+      const rows = Array.isArray(data) ? data : [];
+
+      const formatted: ChairCandidate[] = rows.map((u) => ({
         user_id: u.user_id,
         full_name: u.full_name,
         email: u.email,

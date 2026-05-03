@@ -1851,6 +1851,22 @@ export type Database = {
           user_id: number
         }[]
       }
+      get_chair_candidates_by_session: {
+        Args: {
+          p_limit?: number
+          p_role_id?: number
+          p_search_key?: string
+          p_search_term?: string
+          p_session_id?: number
+        }
+        Returns: {
+          email: string
+          full_name: string
+          organization: string
+          profile_id: string
+          user_id: number
+        }[]
+      }
       get_conversation_memory: {
         Args: { max_messages?: number; start_message_id: number }
         Returns: {

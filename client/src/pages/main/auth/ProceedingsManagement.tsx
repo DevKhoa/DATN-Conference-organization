@@ -729,11 +729,8 @@ const ProceedingsManagementPage: React.FC = () => {
           conferenceName: conf.conf_name,
           date: `${new Date(conf.start_date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} – ${new Date(conf.end_date).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`,
           location: conf.location,
-          sponsorLogos: config?.sponsor_logos || [], 
-          organizerLogos: config?.organizer_logos || [],
+          sponsorLogos: [], // Sẽ được convert từ URL sang base64 bên dưới
         },
-        isbn: config?.isbn || "",
-        publisher: config?.publisher || "Springer",
         foreword: config?.foreword || "",
         summarySchedule: (sessions || []).map((s) => {
           // Tính toán Day 1, Day 2... dựa trên start_date của conference
@@ -751,15 +748,14 @@ const ProceedingsManagementPage: React.FC = () => {
             topic: s.session_name,
           };
         }),
-        committee: config?.committee_selection || [...chairSet.values(), ...reviewerSet.values()],
+        committee: [...chairSet.values(), ...reviewerSet.values()],
         generalInfo: {
           venueDetails: config?.venue_details || conf.location,
           registrationHours: config?.registration_hours || "",
           roomAssignments: config?.room_assignments || "",
-          coffeeInternetInfo: config?.internet_info || config?.coffee_internet || "",
+          coffeeInternetInfo: config?.coffee_internet || "",
           galaDinner: config?.gala_info || "",
-          floorPlan: config?.room_map_url || "",
-          breakInfo: config?.break_info || "",
+          floorPlan: "",
         },
         keynotes: savedKeynotes,
         detailedSchedule: mapPapersToSchedule(papers || [], confStart),
@@ -802,14 +798,7 @@ const ProceedingsManagementPage: React.FC = () => {
         roomAssignments: procData.generalInfo.roomAssignments,
         internetInfo: procData.generalInfo.coffeeInternetInfo,
         galaInfo: procData.generalInfo.galaDinner,
-        isbn: procData.isbn,
-        publisher: procData.publisher,
-        breakInfo: procData.generalInfo.breakInfo,
-        roomMapUrl: procData.generalInfo.floorPlan,
-        committeeSelection: procData.committee,
-        sponsorLogos: procData.cover.sponsorLogos,
-        organizerLogos: procData.cover.organizerLogos,
-        keynotes: procData.keynotes,
+        keynotesJson: JSON.stringify(procData.keynotes),
       });
       setError(null);
     } catch (e: any) {

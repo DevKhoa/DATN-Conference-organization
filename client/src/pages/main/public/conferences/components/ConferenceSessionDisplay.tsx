@@ -6,8 +6,10 @@ import {
   MapPin,
   Monitor,
   User,
+  Users,
   Video,
   Youtube,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,7 +24,9 @@ type SessionDisplayProps = {
   isExpanded: boolean;
   onToggle: () => void;
   onEdit: () => void;
+  onNavigateToChairs: () => void;
   onToggleMeet: (payload: { sessionId: number; isActive: boolean }) => void;
+  onDelete?: () => void;
 };
 
 const formatTimeOnly = (isoString: string | null) => {
@@ -43,7 +47,9 @@ export const ConferenceSessionDisplay = ({
   isExpanded,
   onToggle,
   onEdit,
+  onNavigateToChairs,
   onToggleMeet,
+  onDelete,
 }: SessionDisplayProps) => {
   const chairs = session.chairs?.length
     ? session.chairs
@@ -221,6 +227,32 @@ export const ConferenceSessionDisplay = ({
                     className="shrink-0 rounded-lg border border-border bg-muted px-3 py-1.5 text-xs font-bold text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
                   >
                     Edit Session
+                  </button>
+                )}
+
+                {canEdit && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onNavigateToChairs();
+                    }}
+                    className="shrink-0 rounded-lg border border-border bg-muted px-3 py-1.5 text-xs font-bold text-muted-foreground transition-colors hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 flex items-center gap-1.5"
+                  >
+                    <Users className="h-3.5 w-3.5" />
+                    Manage Chairs
+                  </button>
+                )}
+
+                {canEdit && onDelete && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete();
+                    }}
+                    className="shrink-0 rounded-lg border border-border bg-destructive/10 px-3 py-1.5 text-xs font-bold text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground flex items-center gap-1.5 ml-2"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
                   </button>
                 )}
               </div>

@@ -5,22 +5,41 @@ import {
   ArrowLeft,
   Calendar,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
+  CheckCircle2,
   Info,
   Loader2,
+  Mail,
   MapPin,
-  Settings,
+  Layers,
+  QrCode,
+  Ticket,
+  Users,
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import useAuth from "@/features/auth/hooks/useAuth";
 import { Role } from "@/features/auth/types";
 import { useConferenceDetailQuery } from "@/features/conferences/services/queries";
 import { DefaultLayout } from "@/layouts/DefaultLayout";
 import { Route } from "@/routes/conferences/$conferenceId";
 import { supabase } from "@/lib/supabase";
-import { useToggleMeetMutation } from "@/features/sessions/services/mutations";
+import {
+  useToggleMeetMutation,
+  useDeleteSessionMutation,
+} from "@/features/sessions/services/mutations";
 import { ConferenceSessionDisplay } from "./components/ConferenceSessionDisplay";
+import { ConferenceRegistrationPanel } from "./components/ConferenceRegistrationPanel";
 
 const formatDateHeader = (isoString: string | null) => {
   if (!isoString) {
@@ -66,11 +85,21 @@ const ConferenceDetailPage = () => {
   const sessions = conferenceDetail?.sessions ?? [];
   const canEdit = checkRoles([Role.ADMIN, Role.SECRETARIAT]);
   const toggleMeetMutation = useToggleMeetMutation();
+  const deleteSessionMutation = useDeleteSessionMutation();
 
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
   const [expandedSessions, setExpandedSessions] = useState<Set<number>>(
     new Set(),
   );
+  const [isCheckinModalOpen, setIsCheckinModalOpen] = useState(false);
+  const [selectedSessionsForCheckin, setSelectedSessionsForCheckin] = useState<
+    number[]
+  >([]);
 
   const { data: hasRegistration } = useQuery({
     queryKey: ["conference-detail-registration", conferenceId],
@@ -89,6 +118,7 @@ const ConferenceDetailPage = () => {
   });
 
   const canAccessVirtual = canEdit || !!hasRegistration;
+  const canManageAttendance = checkRoles([Role.ADMIN]);
 
   const bannerUrls = useMemo(() => {
     if (!conference?.banner_urls || !Array.isArray(conference.banner_urls)) {
@@ -133,6 +163,18 @@ const ConferenceDetailPage = () => {
     setExpandedSessions(next);
   };
 
+  const checkinMutation = null; // not implemented yet
+
+  const handleOpenCheckinScanner = () => {
+    if (selectedSessionsForCheckin.length === 0) return;
+
+    setIsCheckinModalOpen(false);
+    navigate({
+      to: "/checkin",
+      search: { sessionIds: selectedSessionsForCheckin.join(",") },
+    });
+  };
+
   if (isLoading) {
     return (
       <DefaultLayout meta={{ title: "Conference Detail" }}>
@@ -172,77 +214,202 @@ const ConferenceDetailPage = () => {
   return (
     <DefaultLayout meta={{ title: conference.conf_name }}>
       <div className="min-h-screen bg-background pb-24 text-foreground">
-        <div className="relative overflow-hidden rounded-b-[2rem] lg:rounded-b-[3rem] border-b border-white/10 shadow-2xl">
-          <div className="absolute inset-0 bg-slate-950" />
+        <div className="relative overflow-hidden bg-foreground">
           {bannerUrls.length > 0 && (
-            <div className="absolute inset-0">
-              <img
-                src={bannerUrls[0]}
-                alt=""
-                className="h-full w-full object-cover opacity-40"
-              />
-            </div>
+            <img
+              src={bannerUrls[0]}
+              alt="Conference Banner"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
           )}
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" />
-          <div className="absolute inset-0 bg-linear-to-br from-indigo-500/10 via-transparent to-purple-500/10" />
-          
-          <div className="relative mx-auto flex max-w-7xl flex-col gap-6 px-4 pt-12 pb-20 sm:px-6 lg:px-8 lg:pt-16 lg:pb-28">
+          <div className="absolute inset-0 bg-linear-to-t from-foreground/95 via-foreground/60 to-foreground/40" />
+          <div className="relative mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Button
                 variant="outline"
-                className="bg-white/10 border-white/10 text-white backdrop-blur-md hover:bg-white/20"
+                className="bg-background/10 text-primary-foreground backdrop-blur-md hover:bg-background/20"
                 onClick={() => navigate({ to: "/conferences" })}
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back to List
               </Button>
 
-              {canEdit && (
-                <Button
-                  variant="outline"
-                  className="bg-white/10 border-white/10 text-white backdrop-blur-md hover:bg-white/20"
-                  onClick={() =>
-                    navigate({
-                      to: "/sessions",
-                      search: { conferenceId, sessionId: undefined },
-                    })
-                  }
-                >
-                  <Settings className="mr-2 h-4 w-4" />
-                  Manage Sessions
-                </Button>
-              )}
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                {canEdit && sessions.length > 0 && (
+                  <Button
+                    onClick={() => setIsCheckinModalOpen(true)}
+                    variant="outline"
+                    className="bg-background/10 backdrop-blur-md border-background/20 text-primary-foreground hover:bg-primary/10 hover:border-primary/30 font-bold"
+                  >
+                    <QrCode className="w-4 h-4 mr-1" />
+                    Scan QR
+                  </Button>
+                )}
+
+                {canManageAttendance && sessions.length > 0 && (
+                  <div className="relative group/attendance">
+                    <div className="flex items-center gap-2 bg-background/10 backdrop-blur-md px-4 py-2 rounded-full border border-background/10 text-primary-foreground/90 cursor-pointer hover:bg-background/20 transition-all">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span className="text-sm font-medium">Attendance</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </div>
+
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-card rounded-xl shadow-xl border border-border py-2 opacity-0 invisible group-hover/attendance:opacity-100 group-hover/attendance:visible transition-all z-50">
+                      <div className="px-4 py-2 border-b border-border">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                          Select Session
+                        </p>
+                      </div>
+                      <div className="max-h-60 overflow-y-auto">
+                        {sessions.map((session) => (
+                          <button
+                            key={session.session_id}
+                            onClick={() =>
+                              navigate({
+                                to: "/attendances",
+                                search: {
+                                  conferenceId,
+                                  sessionId: session.session_id,
+                                },
+                              })
+                            }
+                            className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-primary/10 hover:text-primary transition-colors flex items-center justify-between group/item"
+                          >
+                            <span className="font-medium truncate mr-2">
+                              {session.session_name}
+                            </span>
+                            <ChevronRight className="w-4 h-4 text-muted-foreground group-hover/item:text-primary transition-colors" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {canEdit && sessions.length > 0 && (
+                  <div className="relative group/chairs">
+                    <div className="flex items-center gap-2 bg-background/10 backdrop-blur-md px-4 py-2 rounded-full border border-background/10 text-primary-foreground/90 cursor-pointer hover:bg-background/20 transition-all">
+                      <Users className="w-4 h-4 text-blue-400" />
+                      <span className="text-sm font-medium">Manage Chairs</span>
+                      <ChevronDown className="w-4 h-4" />
+                    </div>
+
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-card rounded-xl shadow-xl border border-border py-2 opacity-0 invisible group-hover/chairs:opacity-100 group-hover/chairs:visible transition-all z-50">
+                      <div className="px-4 py-2 border-b border-border">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                          Select Session
+                        </p>
+                      </div>
+                      <div className="max-h-60 overflow-y-auto">
+                        {sessions.map((session) => (
+                          <button
+                            key={session.session_id}
+                            onClick={() =>
+                              navigate({
+                                to: "/conferences/$conferenceId/sessions/$sessionId/chairs",
+                                params: {
+                                  conferenceId: String(conferenceId),
+                                  sessionId: String(session.session_id),
+                                },
+                              })
+                            }
+                            className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-primary/10 hover:text-primary transition-colors flex items-center justify-between group/item"
+                          >
+                            <span className="font-medium truncate mr-2">
+                              {session.session_name}
+                            </span>
+                            <ChevronRight className="w-4 h-4 text-muted-foreground group-hover/item:text-primary transition-colors" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {canEdit && sessions.length > 0 && (
+                  <Button
+                    onClick={() =>
+                      navigate({
+                        to: "/conferences/$conferenceId/sessions",
+                        params: {
+                          conferenceId: String(conferenceId),
+                        },
+                      })
+                    }
+                    variant="outline"
+                    className="bg-background/10 backdrop-blur-md border-background/20 text-primary-foreground hover:bg-background/20"
+                  >
+                    <Layers className="w-4 h-4 mr-1" />
+                    Session Manager
+                  </Button>
+                )}
+
+                {canEdit && (
+                  <Button
+                    onClick={() =>
+                      navigate({
+                        to: "/tickets",
+                        search: { conferenceId },
+                      })
+                    }
+                    variant="outline"
+                    className="bg-background/10 backdrop-blur-md border-background/20 text-primary-foreground hover:bg-background/20"
+                  >
+                    <Ticket className="w-4 h-4 mr-1" />
+                    Tickets
+                  </Button>
+                )}
+
+                {canEdit && (
+                  <Button
+                    onClick={() =>
+                      navigate({
+                        to: "/notifications/create",
+                        search: {
+                          conferenceId,
+                          conferenceName: conference.conf_name,
+                        },
+                      })
+                    }
+                    variant="outline"
+                    className="bg-background/10 backdrop-blur-md border-background/20 text-primary-foreground hover:bg-background/20"
+                  >
+                    <Mail className="w-4 h-4 mr-1" />
+                    Create Notification
+                  </Button>
+                )}
+              </div>
             </div>
 
-            <div className="max-w-4xl mb-4">
-              <div className="mb-4 inline-flex items-center rounded-full bg-primary/20 px-3 py-1 text-xs font-bold uppercase tracking-wide text-primary-foreground shadow-sm">
+            <div className="max-w-4xl">
+              <div className="mb-4 inline-flex items-center rounded-full bg-primary px-3 py-1 text-xs font-bold uppercase tracking-wide text-primary-foreground">
                 {conference.status} Conference
               </div>
-              <h1 className="text-3xl font-extrabold tracking-tight text-white md:text-5xl drop-shadow-sm">
+              <h1 className="text-3xl font-extrabold tracking-tight text-primary-foreground md:text-5xl">
                 {conference.conf_name}
               </h1>
-              <div className="mt-4 flex flex-col gap-3 text-sm text-white/80 sm:flex-row sm:items-center sm:gap-4">
-                <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 backdrop-blur-sm">
-                  <Calendar className="h-4 w-4 text-primary" />
-                  <span className="font-medium">
+              <div className="mt-4 flex flex-col gap-3 text-sm text-primary-foreground/80 sm:flex-row sm:items-center sm:gap-4">
+                <div className="flex items-center gap-2 rounded-lg border border-background/10 bg-foreground/30 px-3 py-1.5 backdrop-blur-sm">
+                  <Calendar className="h-4 w-4 text-primary-foreground/70" />
+                  <span>
                     {formatDateRange(
                       conference.start_date,
                       conference.end_date,
                     )}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 backdrop-blur-sm">
-                  <MapPin className="h-4 w-4 text-primary" />
-                  <span className="font-medium">{conference.location}</span>
+                <div className="flex items-center gap-2 rounded-lg border border-background/10 bg-foreground/30 px-3 py-1.5 backdrop-blur-sm">
+                  <MapPin className="h-4 w-4 text-primary-foreground/70" />
+                  <span>{conference.location}</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="mx-auto mt-14 max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-10 lg:flex-row">
-            <div className="min-w-0 flex-1 space-y-8">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-2">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+            <div className="space-y-8 lg:col-span-2">
               <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
                 <div className="mb-6 flex items-center gap-3">
                   <div className="rounded-lg bg-primary/10 p-2">
@@ -377,16 +544,36 @@ const ConferenceDetailPage = () => {
                                       }
                                       onEdit={() =>
                                         navigate({
-                                          to: "/sessions",
-                                          search: {
-                                            conferenceId,
-                                            sessionId: session.session_id,
+                                          to: "/conferences/$conferenceId/sessions/$sessionId",
+                                          params: {
+                                            conferenceId: String(conferenceId),
+                                            sessionId: String(
+                                              session.session_id,
+                                            ),
+                                          },
+                                        })
+                                      }
+                                      onNavigateToChairs={() =>
+                                        navigate({
+                                          to: "/conferences/$conferenceId/sessions/$sessionId/chairs",
+                                          params: {
+                                            conferenceId: String(conferenceId),
+                                            sessionId: String(
+                                              session.session_id,
+                                            ),
                                           },
                                         })
                                       }
                                       onToggleMeet={(payload) =>
                                         toggleMeetMutation.mutate(payload)
                                       }
+                                      onDelete={() => {
+                                        setSessionToDelete({
+                                          id: session.session_id,
+                                          name: session.session_name!,
+                                        });
+                                        setDeleteConfirmOpen(true);
+                                      }}
                                     />
                                   );
                                 })}
@@ -401,24 +588,13 @@ const ConferenceDetailPage = () => {
               </section>
             </div>
 
-            <aside className="w-full shrink-0 lg:w-80">
-              <div className="sticky top-24 space-y-6">
-                <div className="rounded-2xl border border-border bg-card p-6 text-center shadow-xl">
-                  <h3 className="mb-2 text-xl font-bold">
-                    Conference Overview
-                  </h3>
-                  <p className="mb-6 text-sm text-muted-foreground">
-                    Use the agenda to review session details and inspect
-                    assigned chairs.
-                  </p>
-                  <Button
-                    onClick={() => navigate({ to: "/conferences" })}
-                    className="w-full justify-center"
-                  >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to Conferences
-                  </Button>
-                </div>
+            <aside className="lg:col-span-1">
+              <div className="sticky top-8 space-y-6">
+                <ConferenceRegistrationPanel
+                  conferenceId={conferenceId}
+                  conferenceName={conference.conf_name}
+                  conferenceStartDate={conference.start_date}
+                />
 
                 <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
                   <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-foreground">
@@ -448,6 +624,160 @@ const ConferenceDetailPage = () => {
             </aside>
           </div>
         </div>
+
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Session</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete the session "
+                {sessionToDelete?.name}"? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setDeleteConfirmOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (sessionToDelete) {
+                    deleteSessionMutation.mutate({
+                      sessionId: sessionToDelete.id,
+                    });
+                    setDeleteConfirmOpen(false);
+                  }
+                }}
+                disabled={deleteSessionMutation.isPending}
+              >
+                {deleteSessionMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {isCheckinModalOpen && (
+          <div className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <Dialog
+              open={deleteConfirmOpen}
+              onOpenChange={setDeleteConfirmOpen}
+            >
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Delete Session</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to delete the session "
+                    {sessionToDelete?.name}"? This action cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setDeleteConfirmOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      if (sessionToDelete) {
+                        deleteSessionMutation.mutate({
+                          sessionId: sessionToDelete.id,
+                        });
+                        setDeleteConfirmOpen(false);
+                      }
+                    }}
+                    disabled={deleteSessionMutation.isPending}
+                  >
+                    {deleteSessionMutation.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    Delete
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <div className="bg-card rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 border border-border">
+              <div className="p-6 border-b border-border flex justify-between items-center">
+                <h3 className="text-xl font-bold text-foreground flex items-center">
+                  <QrCode className="w-5 h-5 mr-2 text-primary" />
+                  Open Check-in Scanner
+                </h3>
+                <button
+                  onClick={() => setIsCheckinModalOpen(false)}
+                  className="text-muted-foreground hover:text-foreground rounded-full p-1 hover:bg-accent transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Select sessions to handle check-in now. Scanned attendees will
+                  be marked as attended for selected sessions.
+                </p>
+
+                <div className="space-y-2 max-h-60 overflow-y-auto mb-6 pr-2">
+                  {sessions.map((session) => (
+                    <label
+                      key={session.session_id}
+                      className="flex items-center p-3 rounded-lg border border-border hover:bg-accent cursor-pointer transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 text-primary rounded border-input focus:ring-ring cursor-pointer"
+                        checked={selectedSessionsForCheckin.includes(
+                          session.session_id,
+                        )}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedSessionsForCheckin([
+                              ...selectedSessionsForCheckin,
+                              session.session_id,
+                            ]);
+                          } else {
+                            setSelectedSessionsForCheckin(
+                              selectedSessionsForCheckin.filter(
+                                (id) => id !== session.session_id,
+                              ),
+                            );
+                          }
+                        }}
+                      />
+                      <span className="ml-3 text-sm font-medium text-foreground">
+                        {session.session_name}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => setIsCheckinModalOpen(false)}
+                    variant="outline"
+                    className="w-full justify-center"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleOpenCheckinScanner}
+                    className="w-full justify-center"
+                    disabled={selectedSessionsForCheckin.length === 0}
+                  >
+                    Start Scanning
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </DefaultLayout>
   );

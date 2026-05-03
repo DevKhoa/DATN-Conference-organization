@@ -3,11 +3,11 @@ import type {
   IAutoGeneratePayload,
   IAutoGenerateResponse,
   ISaveSessionPayload,
-  ISaveSessionResponse,
   IRecommendChairPayload,
   IRecommendChairResponse,
-  IFinalizeChairsPayload,
   IMeetCreationResponse,
+  IMatchReviewPayload,
+  IMatchReviewResponse,
 } from "./types";
 import { supabase } from "@/lib/supabase";
 import { request } from "@/lib/axios";
@@ -77,7 +77,6 @@ export const useSaveSessionsMutation = () => {
                 room_location: s.room_location,
                 format_type: s.format_type,
                 is_ai_generated: s.is_ai_generated,
-                chair_person_id: null,
                 meet_link: s.meet_link,
                 record_video_url: s.record_video_url,
               },
@@ -146,32 +145,13 @@ export const useRecommendChairMutation = () => {
   });
 };
 
-export const useFinalizeChairsMutation = () => {
-  const queryClient = useQueryClient();
-
+export const useMatchReviewMutation = () => {
   return useMutation({
-    mutationFn: async ({ sessions }: IFinalizeChairsPayload) => {
-      const updatePromises = sessions.map(async (s) => {
-        if (s.db_id && s.chair_person_id) {
-          const { error } = await supabase
-            .from("sessions")
-            .update({ chair_person_id: s.chair_person_id })
-            .eq("session_id", s.db_id);
-
-          if (error) throw error;
-        }
-      });
-
-      await Promise.all(updatePromises);
-      return { success: true };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [SessionKeys.ExistingSessions],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["conferences/detail"],
-      });
+    mutationFn: async ({ sessionId, userId }: IMatchReviewPayload) => {
+      return request.post<IMatchReviewResponse>(
+        `/sessions/${sessionId}/match-review`,
+        { user_id: userId },
+      );
     },
   });
 };
@@ -317,6 +297,115 @@ export const useCreateChairInvitationMutation = () => {
       });
       queryClient.invalidateQueries({
         queryKey: [SessionKeys.ChairInvitations],
+      });
+    },
+  });
+};
+
+export const useAcceptChairInvitationMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      token,
+      userId,
+      email,
+    }: {
+      token: string;
+      userId?: number;
+      email?: string;
+    }) => {
+      return request.post(`/chair-invitations/${token}/accept`, {
+        user_id: userId,
+        email,
+      });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ChairInvitations, variables.token],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ChairInvitations],
+      });
+    },
+  });
+};
+
+export const useRejectChairInvitationMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      token,
+      userId,
+      email,
+    }: {
+      token: string;
+      userId?: number;
+      email?: string;
+    }) => {
+      return request.post(`/chair-invitations/${token}/reject`, {
+        user_id: userId,
+        email,
+      });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ChairInvitations, variables.token],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ChairInvitations],
+      });
+    },
+  });
+};
+
+export const useCancelChairInvitationMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      invitationId,
+    }: {
+      sessionId: number;
+      invitationId: string;
+    }) => {
+      return request.delete(
+        `/sessions/${sessionId}/chair-invitations/${invitationId}`,
+      );
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ChairInvitations, variables.sessionId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ChairInvitations],
+      });
+    },
+  });
+};
+
+export const useDeleteSessionMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ sessionId }: { sessionId: number }) => {
+      const { error } = await supabase
+        .from("sessions")
+        .delete()
+        .eq("session_id", sessionId);
+
+      if (error) {
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ExistingSessions],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [ConferencesKeys.ConferenceDetail],
       });
     },
   });

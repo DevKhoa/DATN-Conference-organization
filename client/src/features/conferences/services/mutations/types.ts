@@ -7,8 +7,9 @@ export interface ICreateConferencePayload {
   status: string;
   is_active: boolean;
   open_for_papers: boolean;
-  keywords: string[];
-  banner_urls: string[];
+  format_type: string;
+  timezone: string;
+  max_chairs_per_session: number;
   create_time?: string;
 }
 

@@ -54,13 +54,37 @@ export interface IRecommendChairResponse {
     email: string;
     organization: string;
     similarity_score: number;
+    match_score: number;
+    similarity: string;
   }>;
+}
+
+export interface IMatchReviewPayload {
+  sessionId: number;
+  userId: number;
+}
+
+export interface IMatchReviewResponse {
+  session_id: number;
+  session_name: string;
+  user_id: number;
+  analysis: {
+    analyzed_papers: Array<{
+      new_paper_title: string;
+      relevance_score: "High" | "Medium" | "Low";
+      reasoning: string;
+      related_profile_papers?: Array<{
+        title: string;
+        reasoning: string;
+      }>;
+    }>;
+  };
 }
 
 export interface IFinalizeChairsPayload {
   sessions: Array<{
     db_id?: number;
-    chair_person_id?: number;
+    chair_user_ids?: number[];
   }>;
 }
 

@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict
+from enum import Enum
+
 
 class AuthorInfo(BaseModel):
     full_name: str
@@ -285,3 +287,51 @@ class QuestionResponse(BaseModel):
     upvotes_count: int
     created_at: str
     is_upvoted: bool = False
+
+
+class RelevanceLevel(str, Enum):
+    HIGH = "High"
+    MEDIUM = "Medium"
+    LOW = "Low"
+    
+class RelatedProfilePaper(BaseModel):
+    title: str = Field(
+        description="The exact title of the related paper from the author's existing profile."
+    )
+    reasoning: str = Field(
+        description="Explanation of why this existing paper is connected to the new paper being evaluated."
+    )
+
+class PaperEvaluation(BaseModel):
+    new_paper_title: str = Field(
+        description="The title of the new paper being evaluated."
+    )
+    relevance_score: RelevanceLevel = Field(
+        description="The assessed relevance of the new paper to the author's core research profile."
+    )
+    reasoning: str = Field(
+        description="Detailed justification for the assigned relevance score, based on the author's research interests and past work."
+    )
+    related_profile_papers: Optional[List[RelatedProfilePaper]] = Field(
+        None,
+        description=(
+            "List of existing papers from the author's profile that are relevant to this new paper. "
+            "Omit this field entirely if no existing papers are clearly related."
+        )
+    )
+
+class AuthorProfileAnalysis(BaseModel):
+    analyzed_papers: List[PaperEvaluation] = Field(
+        description="The complete list of evaluations for all newly provided papers."
+    )
+
+
+class MatchReviewRequest(BaseModel):
+    user_id: int = Field(..., description="ID of the chair candidate to evaluate against the session's papers")
+
+
+class MatchReviewResponse(BaseModel):
+    session_id: int
+    session_name: str
+    user_id: int
+    analysis: AuthorProfileAnalysis

@@ -12,7 +12,6 @@ export interface ExistingSession {
   end_time: string;
   room_location: string;
   is_ai_generated: boolean;
-  chair_person_id?: number;
   assigned_papers: SessionPaperDetail[];
   meet_link?: string;
   is_meet_active?: boolean;
@@ -29,7 +28,6 @@ export interface LocalSession {
   room_location: string;
   is_ai_generated: boolean;
   assigned_papers: SessionPaperDetail[];
-  chair_person_id?: number;
   meet_link?: string;
   is_meet_active?: boolean;
   record_video_url?: string;

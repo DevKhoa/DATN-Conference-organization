@@ -139,14 +139,17 @@ export const useNotificationConferenceUsersPoolQuery = (
       const sessionIds = sessions
         .map((session: any) => session.session_id)
         .filter(Boolean);
-
       let chairIds: number[] = [];
+
       if (sessionIds.length > 0) {
-        const { data: chairsData } = await supabase
+        const { data: sessionChairsData } = await supabase
           .from("session_chairs")
           .select("user_id")
           .in("session_id", sessionIds);
-        chairIds = (chairsData || []).map((c: any) => c.user_id).filter(Boolean);
+
+        chairIds = (sessionChairsData || [])
+          .map((sessionChair: any) => sessionChair.user_id)
+          .filter(Boolean);
       }
 
       let attendeeIds: number[] = [];

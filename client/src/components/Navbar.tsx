@@ -10,6 +10,7 @@ import {
   Wrench,
   ChevronDown,
   Calendar,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import NotificationBell from "@/features/notifications/components/NotificationBell";
@@ -46,7 +47,7 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
 
   const toggleMenu = () => setIsOpen(!isOpen);
   const toggleProfile = () => setIsProfileOpen(!isProfileOpen);
-  const { session, roles } = useAuth();
+  const { session, roles, checkRoles } = useAuth();
   const navigate = useNavigate();
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
@@ -55,6 +56,7 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
   const highestRole = getHighestRole(roles);
   const canSeeAdminTools =
     highestRole === Role.ADMIN || highestRole === Role.SECRETARIAT;
+  const canSeeChairInvitations = checkRoles([Role.CHAIR]);
   const logoutMutation = useLogoutMutation();
 
   const userData = useMemo(() => {
@@ -125,6 +127,12 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
     navigate({ to: "/subscriptions/me" });
   };
 
+  const handleChairInvitationsClick = () => {
+    setIsProfileOpen(false);
+    setIsOpen(false);
+    navigate({ to: "/chair-invitations" });
+  };
+
   const handleLinkClick = (
     e: React.MouseEvent<HTMLAnchorElement>,
     href: string,
@@ -165,7 +173,6 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
           <div className="hidden lg:flex items-center space-x-6 xl:space-x-8">
             {navLinks.map((link) => {
               const isActive = isLinkActive(currentPath, link.href);
-              const isAiAssistant = link.name === "AI Assistant";
 
               return (
                 <a
@@ -178,9 +185,7 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                     "relative inline-flex items-center gap-1.5 px-1 py-2 text-sm font-medium transition-colors",
                     isActive
                       ? "text-primary"
-                      : isAiAssistant
-                        ? "text-primary hover:text-primary/80"
-                        : "text-muted-foreground hover:text-foreground",
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {link.icon && <link.icon className="w-4 h-4" />}
@@ -283,6 +288,16 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                       <Calendar className="w-4 h-4 mr-3" />
                       My Agenda
                     </a>
+                    {canSeeChairInvitations && (
+                      <button
+                        id="btn-navbar-dropdown-chair-invitations"
+                        onClick={handleChairInvitationsClick}
+                        className="w-full flex items-center px-4 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                      >
+                        <Mail className="w-4 h-4 mr-3" />
+                        Chair Invitations
+                      </button>
+                    )}
                     <a
                       id="btn-navbar-dropdown-settings"
                       href="#settings"
@@ -348,7 +363,6 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
             {navLinks.map((link) => {
               const isActive = isLinkActive(currentPath, link.href);
-              const isAiAssistant = link.name === "AI Assistant";
 
               return (
                 <a
@@ -361,9 +375,7 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                     "inline-flex w-full items-center gap-2 rounded-md px-3 py-2 text-base font-medium transition-colors",
                     isActive
                       ? "bg-primary/10 text-primary"
-                      : isAiAssistant
-                        ? "text-primary hover:bg-accent hover:text-primary/80"
-                        : "text-foreground hover:bg-accent hover:text-primary",
+                      : "text-foreground hover:bg-accent hover:text-primary",
                   )}
                 >
                   {link.icon && <link.icon className="w-5 h-5" />}
@@ -447,6 +459,16 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                     <Calendar className="w-4 h-4 mr-2" />
                     My Agenda
                   </button>
+                  {canSeeChairInvitations && (
+                    <button
+                      id="btn-navbar-mobile-button-chair-invitations"
+                      onClick={handleChairInvitationsClick}
+                      className="w-full flex items-center justify-center px-4 py-2.5 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-accent transition-colors shadow-sm"
+                    >
+                      <Mail className="w-4 h-4 mr-2" />
+                      Chair Invitations
+                    </button>
+                  )}
                   <button
                     id="btn-navbar-mobile-button-logout"
                     onClick={() => {

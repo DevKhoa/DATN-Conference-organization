@@ -546,25 +546,10 @@ const TicketManagementPage = () => {
                           <div className="flex items-center gap-1.5 text-sm text-muted-foreground col-span-2 sm:col-span-1">
                             <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                             <span>
-                              {(() => {
-                                const assignedDates = new Set<string>();
-                                ticket.assigned_session_ids.forEach((sid) => {
-                                  const session = sessions.find((s) => s.session_id === sid);
-                                  if (session) {
-                                    const date = new Date(session.start_time).toISOString().split("T")[0];
-                                    assignedDates.add(date);
-                                  }
-                                });
-
-                                if (assignedDates.size === 1) {
-                                  return `Single Day (${Array.from(assignedDates)[0]})`;
-                                } else if (assignedDates.size > 1 && ticket.assigned_session_ids.length === sessions.length && sessions.length > 0) {
-                                  return "Full Conference";
-                                } else if (assignedDates.size > 1) {
-                                  return "Multiple Days";
-                                }
-                                return `${ticket.assigned_session_ids.length} session${ticket.assigned_session_ids.length !== 1 ? 's' : ''}`;
-                              })()}
+                              {ticket.assigned_session_ids.length} session
+                              {ticket.assigned_session_ids.length !== 1
+                                ? "s"
+                                : ""}
                             </span>
                           </div>
                         </div>
@@ -574,9 +559,6 @@ const TicketManagementPage = () => {
                           <span>
                             {formatShortDatetime(ticket.open_time)} —{" "}
                             {formatShortDatetime(ticket.close_time)}
-                          </span>
-                          <span className="ml-1 px-1.5 py-0.5 rounded-md bg-muted border border-border text-[10px] font-medium text-muted-foreground">
-                            {Intl.DateTimeFormat().resolvedOptions().timeZone} ({dayjs().format('Z')})
                           </span>
                         </div>
 
@@ -712,8 +694,8 @@ const TicketManagementPage = () => {
                     value={
                       form.currency === "VND" && form.price !== ""
                         ? new Intl.NumberFormat("vi-VN").format(
-                          Number(form.price),
-                        )
+                            Number(form.price),
+                          )
                         : form.price
                     }
                     onChange={(e) => {
@@ -783,11 +765,8 @@ const TicketManagementPage = () => {
               {/* Open Time + Close Time */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="flex items-center justify-between text-sm font-semibold text-foreground mb-1.5">
-                    <span>Open Time <span className="text-red-500">*</span></span>
-                    <span className="px-1.5 py-0.5 rounded-md bg-muted border border-border text-[10px] font-medium text-muted-foreground leading-none">
-                      {Intl.DateTimeFormat().resolvedOptions().timeZone} ({dayjs().format('Z')})
-                    </span>
+                  <label className="block text-sm font-semibold text-foreground mb-1.5">
+                    Open Time <span className="text-red-500">*</span>
                   </label>
                   <SimpleDateTimePicker
                     value={form.open_time}
@@ -798,11 +777,8 @@ const TicketManagementPage = () => {
                   />
                 </div>
                 <div>
-                  <label className="flex items-center justify-between text-sm font-semibold text-foreground mb-1.5">
-                    <span>Close Time <span className="text-red-500">*</span></span>
-                    <span className="px-1.5 py-0.5 rounded-md bg-muted border border-border text-[10px] font-medium text-muted-foreground leading-none">
-                      {Intl.DateTimeFormat().resolvedOptions().timeZone} ({dayjs().format('Z')})
-                    </span>
+                  <label className="block text-sm font-semibold text-foreground mb-1.5">
+                    Close Time <span className="text-red-500">*</span>
                   </label>
                   <SimpleDateTimePicker
                     value={form.close_time}
