@@ -544,6 +544,14 @@ const SessionManagerPage = ({
   };
 
   const handleSaveSessions = async () => {
+    for (const s of sessions) {
+      console.log("raw start:", s.start_time);
+      console.log("raw end:", s.end_time);
+      console.log("formatted start:", formatToLocal(s.start_time));
+      console.log("formatted end:", formatToLocal(s.end_time));
+      console.log("parsed start:", dayjs(formatToLocal(s.start_time)).format());
+      console.log("parsed end:", dayjs(formatToLocal(s.end_time)).format());
+    }
     // 1. STRICT VALIDATION: Missing fields, Time Format, Start > End, Conference Boundary, Paper Time Overlaps
     for (const s of sessions) {
       if (
@@ -735,13 +743,12 @@ const SessionManagerPage = ({
                   </h1>
                   {conferenceData?.conference?.format_type && (
                     <span
-                      className={`px-2 py-0.5 mt-1 rounded-md text-[10px] font-bold uppercase tracking-wider border shadow-sm ${
-                        conferenceData.conference.format_type === "virtual"
+                      className={`px-2 py-0.5 mt-1 rounded-md text-[10px] font-bold uppercase tracking-wider border shadow-sm ${conferenceData.conference.format_type === "virtual"
                           ? "bg-indigo-50 text-indigo-700 border-indigo-200"
                           : conferenceData.conference.format_type === "hybrid"
                             ? "bg-amber-50 text-amber-700 border-amber-200"
                             : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      }`}
+                        }`}
                     >
                       {conferenceData.conference.format_type === "virtual"
                         ? "Virtual"
@@ -939,11 +946,10 @@ const SessionManagerPage = ({
                           draggable={!isAssigned}
                           onDragStart={(e) => handleDragStart(e, p.paper_id)}
                           onDragEnd={handleDragEnd}
-                          className={`p-4 rounded-xl border transition-all ${
-                            isAssigned
+                          className={`p-4 rounded-xl border transition-all ${isAssigned
                               ? "bg-slate-50 border-transparent opacity-50"
                               : "bg-white border-slate-200 shadow-sm cursor-grab hover:shadow-md hover:border-indigo-300 active:cursor-grabbing"
-                          } ${draggedPaperId === p.paper_id ? "opacity-50 scale-95" : ""}`}
+                            } ${draggedPaperId === p.paper_id ? "opacity-50 scale-95" : ""}`}
                         >
                           <div className="flex items-start gap-2">
                             {!isAssigned && (
@@ -1002,11 +1008,10 @@ const SessionManagerPage = ({
                     <div
                       key={session.temp_id}
                       id={`session-card-${session.temp_id}`}
-                      className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all hover:shadow-md ${
-                        dragOverSessionId === session.temp_id
+                      className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all hover:shadow-md ${dragOverSessionId === session.temp_id
                           ? "border-indigo-400 ring-4 ring-indigo-50 scale-[1.01]"
                           : "border-slate-200"
-                      }`}
+                        }`}
                       onDragOver={(e) => handleDragOver(e, session.temp_id)}
                       onDragLeave={(e) => handleDragLeave(e, session.temp_id)}
                       onDrop={(e) => handleDrop(e, session.temp_id)}
@@ -1023,7 +1028,7 @@ const SessionManagerPage = ({
 
                               {/* Format Selection / Info */}
                               {conferenceData?.conference?.format_type ===
-                              "hybrid" ? (
+                                "hybrid" ? (
                                 <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
                                   <button
                                     onClick={(e) => {
@@ -1034,11 +1039,10 @@ const SessionManagerPage = ({
                                         "in-person",
                                       );
                                     }}
-                                    className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
-                                      session.format_type === "in-person"
+                                    className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${session.format_type === "in-person"
                                         ? "bg-white text-emerald-700 shadow-sm"
                                         : "text-slate-500 hover:text-slate-700"
-                                    }`}
+                                      }`}
                                   >
                                     In-person
                                   </button>
@@ -1051,22 +1055,20 @@ const SessionManagerPage = ({
                                         "virtual",
                                       );
                                     }}
-                                    className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
-                                      session.format_type === "virtual"
+                                    className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${session.format_type === "virtual"
                                         ? "bg-white text-indigo-700 shadow-sm"
                                         : "text-slate-500 hover:text-slate-700"
-                                    }`}
+                                      }`}
                                   >
                                     Virtual
                                   </button>
                                 </div>
                               ) : (
                                 <span
-                                  className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                                    session.format_type === "virtual"
+                                  className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${session.format_type === "virtual"
                                       ? "bg-indigo-50 text-indigo-600"
                                       : "bg-emerald-50 text-emerald-600"
-                                  }`}
+                                    }`}
                                 >
                                   {session.format_type === "virtual"
                                     ? "Virtual"
@@ -1192,7 +1194,7 @@ const SessionManagerPage = ({
                                           title="Remove link"
                                         >
                                           {deletingMeetId ===
-                                          session.temp_id ? (
+                                            session.temp_id ? (
                                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                           ) : (
                                             <Trash2 className="w-3.5 h-3.5" />

@@ -8,13 +8,21 @@ export const formatToLocal = (dateStr: string) => {
     dateStr,
     [
       "YYYY-MM-DDTHH:mm",
+      "YYYY-MM-DDTHH:mm:ss",
+      "YYYY-MM-DD HH:mm:ss",
+      "YYYY-MM-DD HH:mm",
       "DD/MM/YYYY hh:mmA",
       "DD/MM/YYYY hh:mm A",
       "DD/MM/YYYY HH:mm",
+      "DD/MM/YYYY h:mmA",
+      "DD/MM/YYYY h:mm A",
+      "DD/MM/YYYY H:mm",
     ],
-    true,
+    true
   );
-  return parsed.isValid() ? parsed.format("YYYY-MM-DD HH:mm:ss") : dateStr;
+
+  // Return with the 'T' for bulletproof cross-browser parsing later
+  return parsed.isValid() ? parsed.format("YYYY-MM-DDTHH:mm:ss") : dateStr;
 };
 
 export const formatPaperTime = (timeStr: string, sessionLocalStart: string) => {

@@ -326,7 +326,7 @@ const ConferenceDetailPage = () => {
                   </div>
                 )}
 
-                {canEdit && sessions.length > 0 && (
+                {canEdit && (
                   <Button
                     onClick={() =>
                       navigate({

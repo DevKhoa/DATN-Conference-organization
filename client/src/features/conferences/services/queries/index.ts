@@ -89,20 +89,44 @@ export const useActiveConferencesQuery = () => {
   });
 };
 
-export const useConferencesCountQuery = () => {
+export interface ConferencesFilterParams {
+  searchTerm?: string;
+  statusFilter?: string;
+  selectedKeyword?: string;
+}
+
+export const useConferencesCountQuery = (filters: ConferencesFilterParams = {}) => {
+  const { searchTerm, statusFilter, selectedKeyword } = filters;
+
   return useQuery({
-    queryKey: [ConferencesKeys.ConferencesCount],
+    queryKey: [ConferencesKeys.ConferencesCount, searchTerm, statusFilter, selectedKeyword],
     queryFn: async () => {
-      const { count, error } = await supabase
+      // FIX: Used head: true for better performance (only returns the count, no row data)
+      let query = supabase
         .from("conferences")
         .select("*", { count: "exact", head: true })
         .eq("is_active", true);
 
+      if (searchTerm) {
+        query = query.or(
+          `conf_name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`,
+        );
+      }
+
+      if (statusFilter && statusFilter !== "ALL") {
+        query = query.eq("status", statusFilter);
+      }
+
+      // FIX: Server-side array filtering
+      if (selectedKeyword) {
+        query = query.contains("keywords", [selectedKeyword]);
+      }
+
+      const { count, error } = await query;
       if (error) throw error;
 
       return count || 0;
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes - count changes less frequently
   });
 };
 
@@ -111,18 +135,18 @@ export const useConferenceDetailQuery = (conferenceId: number | null) => {
     queryKey: [ConferencesKeys.ConferenceDetail, conferenceId],
     queryFn: conferenceId
       ? async () => {
-          const { data: confData, error: confError } = await supabase
-            .from("conferences")
-            .select("*")
-            .eq("conf_id", conferenceId)
-            .single();
+        const { data: confData, error: confError } = await supabase
+          .from("conferences")
+          .select("*")
+          .eq("conf_id", conferenceId)
+          .single();
 
-          if (confError) throw confError;
+        if (confError) throw confError;
 
-          const { data: sessionData, error: sessionError } = await supabase
-            .from("sessions")
-            .select(
-              `
+        const { data: sessionData, error: sessionError } = await supabase
+          .from("sessions")
+          .select(
+            `
               *,
               session_papers (
                 presentation_order, start_time, end_time,
@@ -132,21 +156,21 @@ export const useConferenceDetailQuery = (conferenceId: number | null) => {
                 )
               )
             `,
-            )
-            .eq("conf_id", conferenceId)
-            .order("start_time", { ascending: true });
+          )
+          .eq("conf_id", conferenceId)
+          .order("start_time", { ascending: true });
 
-          if (sessionError) throw sessionError;
+        if (sessionError) throw sessionError;
 
-          const sessionRows = (sessionData ||
-            []) as unknown as Array<ConferenceDetailSession>;
+        const sessionRows = (sessionData ||
+          []) as unknown as Array<ConferenceDetailSession>;
 
-          const sessionIds = sessionRows.map((session) => session.session_id);
+        const sessionIds = sessionRows.map((session) => session.session_id);
 
-          const { data: chairData, error: chairError } = await supabase
-            .from("session_chairs")
-            .select(
-              `
+        const { data: chairData, error: chairError } = await supabase
+          .from("session_chairs")
+          .select(
+            `
               session_id,
               user_id,
               assigned_at,
@@ -154,54 +178,54 @@ export const useConferenceDetailQuery = (conferenceId: number | null) => {
                 user_id, full_name, email, description, avatar_url
               )
             `,
-            )
-            .in("session_id", sessionIds)
-            .order("assigned_at", { ascending: true });
+          )
+          .in("session_id", sessionIds)
+          .order("assigned_at", { ascending: true });
 
-          if (chairError) throw chairError;
+        if (chairError) throw chairError;
 
-          const chairMap = new Map<number, ConferenceDetailChair[]>();
+        const chairMap = new Map<number, ConferenceDetailChair[]>();
 
-          (chairData || []).forEach((row: any) => {
-            const profile = Array.isArray(row.profiles)
-              ? (row.profiles[0] ?? null)
-              : (row.profiles ?? null);
+        (chairData || []).forEach((row: any) => {
+          const profile = Array.isArray(row.profiles)
+            ? (row.profiles[0] ?? null)
+            : (row.profiles ?? null);
 
-            if (!profile) return;
+          if (!profile) return;
 
-            const chairs = chairMap.get(row.session_id) || [];
-            chairs.push(profile);
-            chairMap.set(row.session_id, chairs);
-          });
+          const chairs = chairMap.get(row.session_id) || [];
+          chairs.push(profile);
+          chairMap.set(row.session_id, chairs);
+        });
 
-          const conference: ConferenceDetail = {
-            ...confData,
-            start_date: confData.start_date || "",
-            end_date: confData.end_date || "",
-            description: confData.description || "",
-            status: confData.status || "",
-            location: confData.location || "",
-            is_active: confData.is_active ?? false,
-            open_for_papers: confData.open_for_papers ?? false,
-            banner_urls: normalizeStringArray(confData.banner_urls),
-            keywords: normalizeStringArray(confData.keywords),
-          };
+        const conference: ConferenceDetail = {
+          ...confData,
+          start_date: confData.start_date || "",
+          end_date: confData.end_date || "",
+          description: confData.description || "",
+          status: confData.status || "",
+          location: confData.location || "",
+          is_active: confData.is_active ?? false,
+          open_for_papers: confData.open_for_papers ?? false,
+          banner_urls: normalizeStringArray(confData.banner_urls),
+          keywords: normalizeStringArray(confData.keywords),
+        };
 
-          const sessions = sessionRows.map((raw) => {
-            const chairs = chairMap.get(raw.session_id) || [];
+        const sessions = sessionRows.map((raw) => {
+          const chairs = chairMap.get(raw.session_id) || [];
 
-            return {
-              ...raw,
-              chairs,
-              chair: chairs[0] ?? null,
-              session_papers: (raw.session_papers || []).sort(
-                (a: any, b: any) => a.presentation_order - b.presentation_order,
-              ),
-            } as ConferenceDetailSession;
-          });
+          return {
+            ...raw,
+            chairs,
+            chair: chairs[0] ?? null,
+            session_papers: (raw.session_papers || []).sort(
+              (a: any, b: any) => a.presentation_order - b.presentation_order,
+            ),
+          } as ConferenceDetailSession;
+        });
 
-          return { conference, sessions } as ConferenceDetailResult;
-        }
+        return { conference, sessions } as ConferenceDetailResult;
+      }
       : undefined,
     enabled: !!conferenceId,
   });
@@ -215,86 +239,86 @@ export const useConferenceTicketsQuery = (
     queryKey: [ConferencesKeys.ConferenceTickets, conferenceId],
     queryFn: conferenceId
       ? async () => {
-          const { data: sessionData, error: sessionError } = await supabase
-            .from("sessions")
-            .select("session_id, session_name, start_time, room_location")
-            .eq("conf_id", conferenceId);
+        const { data: sessionData, error: sessionError } = await supabase
+          .from("sessions")
+          .select("session_id, session_name, start_time, room_location")
+          .eq("conf_id", conferenceId);
 
-          if (sessionError) throw sessionError;
+        if (sessionError) throw sessionError;
 
-          const sessionRows = (sessionData || []) as Array<{
-            session_id: number;
-            session_name: string | null;
-            start_time: string | null;
-            room_location: string | null;
-          }>;
+        const sessionRows = (sessionData || []) as Array<{
+          session_id: number;
+          session_name: string | null;
+          start_time: string | null;
+          room_location: string | null;
+        }>;
 
-          if (sessionRows.length === 0) {
-            return [] as ConferenceTicketOption[];
-          }
+        if (sessionRows.length === 0) {
+          return [] as ConferenceTicketOption[];
+        }
 
-          const sessionMap: Record<number, (typeof sessionRows)[number]> = {};
-          sessionRows.forEach((session) => {
-            sessionMap[session.session_id] = session;
-          });
+        const sessionMap: Record<number, (typeof sessionRows)[number]> = {};
+        sessionRows.forEach((session) => {
+          sessionMap[session.session_id] = session;
+        });
 
-          const { data: tsData, error: tsError } = await supabase
-            .from("ticket_session")
-            .select("ticket_id, session_id")
-            .in(
-              "session_id",
-              sessionRows.map((session) => session.session_id),
-            );
-
-          if (tsError) throw tsError;
-
-          const ticketSessions: Record<number, number[]> = {};
-          (tsData || []).forEach(
-            (row: { ticket_id: number; session_id: number }) => {
-              if (!ticketSessions[row.ticket_id])
-                ticketSessions[row.ticket_id] = [];
-              ticketSessions[row.ticket_id].push(row.session_id);
-            },
+        const { data: tsData, error: tsError } = await supabase
+          .from("ticket_session")
+          .select("ticket_id, session_id")
+          .in(
+            "session_id",
+            sessionRows.map((session) => session.session_id),
           );
 
-          const ticketIds = Object.keys(ticketSessions).map(Number);
-          if (ticketIds.length === 0) {
-            return [] as ConferenceTicketOption[];
-          }
+        if (tsError) throw tsError;
 
-          const { data: ticketData, error: ticketError } = await supabase
-            .from("ticket_configs")
-            .select(
-              "ticket_id, ticket_name, price, currency, description, is_active, quantity_limit, sold_quantity",
-            )
-            .in("ticket_id", ticketIds)
-            .eq("is_active", true);
+        const ticketSessions: Record<number, number[]> = {};
+        (tsData || []).forEach(
+          (row: { ticket_id: number; session_id: number }) => {
+            if (!ticketSessions[row.ticket_id])
+              ticketSessions[row.ticket_id] = [];
+            ticketSessions[row.ticket_id].push(row.session_id);
+          },
+        );
 
-          if (ticketError) throw ticketError;
-
-          return (
-            (ticketData || []) as Array<{
-              ticket_id: number;
-              ticket_name: string;
-              price: number | null;
-              currency: string | null;
-              description: string | null;
-              is_active: boolean | null;
-              quantity_limit: number | null;
-              sold_quantity: number | null;
-            }>
-          ).map((ticket) => ({
-            ...ticket,
-            sessions: (ticketSessions[ticket.ticket_id] || [])
-              .map((sessionId) => sessionMap[sessionId])
-              .filter(Boolean)
-              .sort(
-                (a, b) =>
-                  new Date(a.start_time || 0).getTime() -
-                  new Date(b.start_time || 0).getTime(),
-              ),
-          })) as ConferenceTicketOption[];
+        const ticketIds = Object.keys(ticketSessions).map(Number);
+        if (ticketIds.length === 0) {
+          return [] as ConferenceTicketOption[];
         }
+
+        const { data: ticketData, error: ticketError } = await supabase
+          .from("ticket_configs")
+          .select(
+            "ticket_id, ticket_name, price, currency, description, is_active, quantity_limit, sold_quantity",
+          )
+          .in("ticket_id", ticketIds)
+          .eq("is_active", true);
+
+        if (ticketError) throw ticketError;
+
+        return (
+          (ticketData || []) as Array<{
+            ticket_id: number;
+            ticket_name: string;
+            price: number | null;
+            currency: string | null;
+            description: string | null;
+            is_active: boolean | null;
+            quantity_limit: number | null;
+            sold_quantity: number | null;
+          }>
+        ).map((ticket) => ({
+          ...ticket,
+          sessions: (ticketSessions[ticket.ticket_id] || [])
+            .map((sessionId) => sessionMap[sessionId])
+            .filter(Boolean)
+            .sort(
+              (a, b) =>
+                new Date(a.start_time || 0).getTime() -
+                new Date(b.start_time || 0).getTime(),
+            ),
+        })) as ConferenceTicketOption[];
+      }
       : undefined,
     enabled: !!conferenceId && enabled,
   });
@@ -304,35 +328,73 @@ export const usePaginatedConferencesQuery = ({
   page,
   pageSize,
   totalCount = 0,
-}: PaginatedParams) => {
+  filters = {},
+}: PaginatedParams & { filters?: ConferencesFilterParams }) => {
+  const { searchTerm, statusFilter, selectedKeyword } = filters;
+
   return useQuery({
+    // FIX: Removed totalCount from queryKey to prevent unnecessary cache invalidation
     queryKey: [
       ConferencesKeys.PaginatedConferences,
       page,
       pageSize,
-      totalCount,
+      searchTerm,
+      statusFilter,
+      selectedKeyword,
     ],
     queryFn: async () => {
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
+      const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
-      const totalPages = Math.ceil(totalCount / pageSize);
-
-      // Get paginated data
-      const { data, error } = await supabase
+      let query = supabase
         .from("conferences")
         .select("*")
         .eq("is_active", true)
-        .order("start_date", { ascending: true })
-        .range(from, to);
+        .order("start_date", { ascending: true });
+
+      if (searchTerm) {
+        query = query.or(
+          `conf_name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`,
+        );
+      }
+
+      if (statusFilter && statusFilter !== "ALL") {
+        query = query.eq("status", statusFilter);
+      }
+
+      // FIX: Server-side array filtering instead of client-side
+      if (selectedKeyword) {
+        query = query.contains("keywords", [selectedKeyword]);
+      }
+
+      // ALWAYS use server-side pagination now
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      const { data, error } = await query.range(from, to);
 
       if (error) throw error;
+
+      // Fetch all keywords for the dropdown
+      const { data: allKwData } = await supabase
+        .from("conferences")
+        .select("keywords")
+        .eq("is_active", true);
+
+      const allKeywords = Array.from(
+        new Set(
+          (allKwData || []).flatMap((c: any) =>
+            Array.isArray(c.keywords)
+              ? c.keywords.filter((k: any) => typeof k === "string")
+              : [],
+          ),
+        ),
+      ).sort() as string[];
 
       return {
         data,
         totalCount,
         totalPages,
         currentPage: page,
+        allKeywords,
       };
     },
     placeholderData: (previousData) => previousData,

@@ -24,6 +24,7 @@ import {
 import {
   usePaginatedConferencesQuery,
   useConferencesCountQuery,
+  ConferencesFilterParams,
 } from "@/features/conferences/services/queries";
 import { usePagination } from "@/hooks/usePagination";
 import { useNavigate } from "@tanstack/react-router";
@@ -47,23 +48,6 @@ const ConferencesPage: React.FC = () => {
     canGoNext,
   } = usePagination();
 
-  const { data: totalCount = 0 } = useConferencesCountQuery();
-
-  const {
-    data: paginatedData,
-    isLoading: loading,
-    error: queryError,
-  } = usePaginatedConferencesQuery({
-    page: currentPage,
-    pageSize: ITEMS_PER_PAGE,
-    totalCount: totalCount,
-  });
-
-  const conferences = paginatedData?.data || [];
-  const error = queryError
-    ? "Failed to load conferences. Please try again later."
-    : "";
-
   // Filter States
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -80,7 +64,48 @@ const ConferencesPage: React.FC = () => {
   // Topic search state
   const [topicSearch, setTopicSearch] = useState("");
 
+  // Debounced search
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 400);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const filters: ConferencesFilterParams = useMemo(
+    () => ({
+      searchTerm: debouncedSearch || undefined,
+      statusFilter,
+      selectedKeyword: selectedKeyword || undefined,
+    }),
+    [debouncedSearch, statusFilter, selectedKeyword],
+  );
+
   const canCreate = checkRoles([Role.ADMIN, Role.SECRETARIAT]);
+
+  // After state declarations, wire up server-side queries with filters
+  const { data: totalCount = 0 } = useConferencesCountQuery(filters);
+
+  const {
+    data: paginatedData,
+    isLoading: loading,
+    error: queryError,
+  } = usePaginatedConferencesQuery({
+    page: currentPage,
+    pageSize: ITEMS_PER_PAGE,
+    totalCount,
+    filters,
+  });
+
+  const conferences = paginatedData?.data || [];
+  const allKeywords = paginatedData?.allKeywords || [];
+  const error = queryError
+    ? "Failed to load conferences. Please try again later."
+    : "";
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, selectedKeyword, setCurrentPage]);
 
   const getConferenceKeywords = (
     conf: (typeof conferences)[number],
@@ -98,14 +123,6 @@ const ConferencesPage: React.FC = () => {
 
   const getConferenceStatus = (conf: (typeof conferences)[number]) =>
     typeof conf.status === "string" ? conf.status : "";
-
-  const allKeywords = useMemo(() => {
-    const keywords = new Set<string>();
-    conferences.forEach((conf) => {
-      getConferenceKeywords(conf).forEach((k) => keywords.add(k));
-    });
-    return Array.from(keywords).sort();
-  }, [conferences]);
 
   const displayedKeywords = useMemo(() => {
     if (!topicSearch) return allKeywords;
@@ -163,86 +180,51 @@ const ConferencesPage: React.FC = () => {
     return getEventTimingScore(conf) === 3;
   };
 
+  // Client-side sort only (filtering is now server-side)
   const filteredConferences = useMemo(() => {
-    return conferences
-      .filter((conf) => {
-        const searchLower = searchTerm.toLowerCase();
-        const matchesSearch =
-          conf.conf_name.toLowerCase().includes(searchLower) ||
-          (conf.description &&
-            conf.description.toLowerCase().includes(searchLower));
-        const matchesStatus =
-          statusFilter === "ALL" || conf.status?.toUpperCase() === statusFilter;
-        const matchesKeyword =
-          !selectedKeyword ||
-          getConferenceKeywords(conf).includes(selectedKeyword);
-
-        let matchesTiming = true;
-        const score = getEventTimingScore(conf);
-        if (sortOrder === "ONGOING_FIRST") {
-          matchesTiming = score === 1;
-        } else if (sortOrder === "UPCOMING_FIRST") {
-          matchesTiming = score === 2;
-        } else if (sortOrder === "CLOSED_FIRST") {
-          matchesTiming = score === 3;
-        }
-
+    return [...conferences].sort((a, b) => {
+      if (sortOrder === "START_DATE_ASC") {
         return (
-          matchesSearch && matchesStatus && matchesKeyword && matchesTiming
+          new Date(a.start_date ?? 0).getTime() -
+          new Date(b.start_date ?? 0).getTime()
         );
-      })
-      .sort((a, b) => {
-        if (sortOrder === "START_DATE_ASC") {
-          return (
-            new Date(a.start_date ?? 0).getTime() -
-            new Date(b.start_date ?? 0).getTime()
-          );
-        } else if (sortOrder === "START_DATE_DESC") {
-          return (
-            new Date(b.start_date ?? 0).getTime() -
-            new Date(a.start_date ?? 0).getTime()
-          );
-        } else if (sortOrder === "ONGOING_FIRST") {
-          const scoreA = getEventTimingScore(a);
-          const scoreB = getEventTimingScore(b);
-          if (scoreA === 1 && scoreB !== 1) return -1;
-          if (scoreB === 1 && scoreA !== 1) return 1;
-          return (
-            new Date(a.start_date ?? 0).getTime() -
-            new Date(b.start_date ?? 0).getTime()
-          );
-        } else if (sortOrder === "UPCOMING_FIRST") {
-          const scoreA = getEventTimingScore(a);
-          const scoreB = getEventTimingScore(b);
-          if (scoreA === 2 && scoreB !== 2) return -1;
-          if (scoreB === 2 && scoreA !== 2) return 1;
-          return (
-            new Date(a.start_date ?? 0).getTime() -
-            new Date(b.start_date ?? 0).getTime()
-          );
-        } else if (sortOrder === "CLOSED_FIRST") {
-          const scoreA = getEventTimingScore(a);
-          const scoreB = getEventTimingScore(b);
-          if (scoreA === 3 && scoreB !== 3) return -1;
-          if (scoreB === 3 && scoreA !== 3) return 1;
-          return (
-            new Date(b.start_date ?? 0).getTime() -
-            new Date(a.start_date ?? 0).getTime()
-          );
-        } else {
-          return a.conf_name.localeCompare(b.conf_name);
-        }
-      });
-  }, [
-    conferences,
-    searchTerm,
-    statusFilter,
-    selectedKeyword,
-    sortOrder,
-    getEventTimingScore,
-  ]);
-
-  const paginatedFilteredConferences = filteredConferences;
+      } else if (sortOrder === "START_DATE_DESC") {
+        return (
+          new Date(b.start_date ?? 0).getTime() -
+          new Date(a.start_date ?? 0).getTime()
+        );
+      } else if (sortOrder === "ONGOING_FIRST") {
+        const scoreA = getEventTimingScore(a);
+        const scoreB = getEventTimingScore(b);
+        if (scoreA === 1 && scoreB !== 1) return -1;
+        if (scoreB === 1 && scoreA !== 1) return 1;
+        return (
+          new Date(a.start_date ?? 0).getTime() -
+          new Date(b.start_date ?? 0).getTime()
+        );
+      } else if (sortOrder === "UPCOMING_FIRST") {
+        const scoreA = getEventTimingScore(a);
+        const scoreB = getEventTimingScore(b);
+        if (scoreA === 2 && scoreB !== 2) return -1;
+        if (scoreB === 2 && scoreA !== 2) return 1;
+        return (
+          new Date(a.start_date ?? 0).getTime() -
+          new Date(b.start_date ?? 0).getTime()
+        );
+      } else if (sortOrder === "CLOSED_FIRST") {
+        const scoreA = getEventTimingScore(a);
+        const scoreB = getEventTimingScore(b);
+        if (scoreA === 3 && scoreB !== 3) return -1;
+        if (scoreB === 3 && scoreA !== 3) return 1;
+        return (
+          new Date(b.start_date ?? 0).getTime() -
+          new Date(a.start_date ?? 0).getTime()
+        );
+      } else {
+        return a.conf_name.localeCompare(b.conf_name);
+      }
+    });
+  }, [conferences, sortOrder]);
 
   const displayTotalCount = totalCount;
   const displayTotalPages = Math.max(
@@ -455,7 +437,7 @@ const ConferencesPage: React.FC = () => {
           )}
 
           {/* EMPTY STATE */}
-          {!loading && !error && paginatedFilteredConferences.length === 0 && (
+          {!loading && !error && filteredConferences.length === 0 && (
             <div className="text-center py-20 bg-card rounded-2xl shadow-sm border border-border">
               <p className="text-foreground font-semibold text-lg mb-2">
                 No conferences found
@@ -479,9 +461,9 @@ const ConferencesPage: React.FC = () => {
           )}
 
           {/* GRID */}
-          {!loading && paginatedFilteredConferences.length > 0 && (
+          {!loading && filteredConferences.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {paginatedFilteredConferences.map((conf) => (
+              {filteredConferences.map((conf) => (
                 <div
                   key={conf.conf_id}
                   onClick={() =>

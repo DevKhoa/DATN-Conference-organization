@@ -391,6 +391,16 @@ export const useDeleteSessionMutation = () => {
 
   return useMutation({
     mutationFn: async ({ sessionId }: { sessionId: number }) => {
+      // Delete related session_papers first to satisfy FK constraint
+      const { error: papersError } = await supabase
+        .from("session_papers")
+        .delete()
+        .eq("session_id", sessionId);
+
+      if (papersError) {
+        throw papersError;
+      }
+
       const { error } = await supabase
         .from("sessions")
         .delete()
