@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -100,6 +100,58 @@ const ConferenceDetailPage = () => {
   const [selectedSessionsForCheckin, setSelectedSessionsForCheckin] = useState<
     number[]
   >([]);
+
+  const location = useLocation();
+
+  useEffect(() => {
+    if (sessions.length === 0) return;
+
+    const hash = location.hash;
+    if (hash && hash.startsWith("session-")) {
+      const sessionIdStr = hash.replace("session-", "");
+      const sessionId = Number(sessionIdStr);
+
+      const sessionToExpand = sessions.find((s) => s.session_id === sessionId);
+      if (sessionToExpand) {
+        const dateStr = sessionToExpand.start_time
+          ? new Date(sessionToExpand.start_time).toDateString()
+          : "Unknown Date";
+
+        setExpandedDays((prev) => {
+          const next = new Set(prev);
+          next.add(dateStr);
+          return next;
+        });
+
+        setExpandedSessions((prev) => {
+          const next = new Set(prev);
+          next.add(sessionId);
+          return next;
+        });
+
+        setTimeout(() => {
+          const element = document.getElementById(`session-${sessionId}`);
+          if (element) {
+            element.scrollIntoView({ behavior: "smooth", block: "center" });
+            element.classList.add(
+              "ring-2",
+              "ring-primary",
+              "ring-offset-2",
+              "rounded-2xl"
+            );
+            setTimeout(() => {
+              element.classList.remove(
+                "ring-2",
+                "ring-primary",
+                "ring-offset-2",
+                "rounded-2xl"
+              );
+            }, 2000);
+          }
+        }, 100);
+      }
+    }
+  }, [sessions, location.hash]);
 
   const { data: hasRegistration } = useQuery({
     queryKey: ["conference-detail-registration", conferenceId],

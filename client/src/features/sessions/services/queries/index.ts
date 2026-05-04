@@ -263,45 +263,95 @@ export const useMyAgendaSessionsQuery = () => {
   const { roles, session } = useAuth();
 
   return useQuery({
-    queryKey: [SessionKeys.MyAgendaSessions],
+    queryKey: [SessionKeys.MyAgendaSessions, roles, session?.user?.id],
     queryFn: async () => {
       const isAdmin =
         roles.includes(Role.ADMIN) || roles.includes(Role.SECRETARIAT);
       const userId = session?.user?.user_metadata["user_id"] as
         | number
         | undefined;
-      let sessionIdsAllowed: number[] = [];
+      const sessionIdsAllowed = new Set<number>();
 
       if (!isAdmin) {
         if (!userId) {
           throw new Error("You are not logged in or your session has expired.");
         }
 
-        const { data: registrations, error: regError } = await supabase
-          .from("registrations")
-          .select("ticket_id")
-          .eq("user_id", userId);
+        // 1. ATTENDEE: Get sessions from completed transactions
+        if (roles.includes(Role.ATTENDEE)) {
+          const { data: registrations, error: regError } = await supabase
+            .from("registrations")
+            .select(`
+              ticket_id,
+              transactions!inner(status)
+            `)
+            .eq("user_id", userId)
+            .eq("transactions.status", "COMPLETED");
 
-        if (regError) throw regError;
+          if (!regError && registrations && registrations.length > 0) {
+            const ticketIds = registrations.map((r) => r.ticket_id);
+            const { data: ticketSessions } = await supabase
+              .from("ticket_session")
+              .select("session_id")
+              .in("ticket_id", ticketIds);
 
-        if (!registrations || registrations.length === 0) {
-          return [];
+            if (ticketSessions) {
+              ticketSessions.forEach((ts) =>
+                sessionIdsAllowed.add(ts.session_id)
+              );
+            }
+          }
         }
 
-        const ticketIds = registrations.map((r) => r.ticket_id);
+        // 2. CHAIR: Get sessions from session_chairs
+        if (roles.includes(Role.CHAIR)) {
+          const { data: chairSessions } = await supabase
+            .from("session_chairs")
+            .select("session_id")
+            .eq("user_id", userId);
 
-        const { data: ticketSessions, error: tsError } = await supabase
-          .from("ticket_session")
-          .select("session_id")
-          .in("ticket_id", ticketIds);
-
-        if (tsError) throw tsError;
-
-        if (!ticketSessions || ticketSessions.length === 0) {
-          return [];
+          if (chairSessions) {
+            chairSessions.forEach((cs) => sessionIdsAllowed.add(cs.session_id));
+          }
         }
 
-        sessionIdsAllowed = ticketSessions.map((ts) => ts.session_id);
+        // 3. AUTHOR: Get sessions from session_papers + papers + paper_coauthors
+        if (roles.includes(Role.AUTHOR)) {
+          const { data: primaryPapers } = await supabase
+            .from("papers")
+            .select("paper_id")
+            .eq("primary_author_id", userId);
+
+          const { data: coauthorPapers } = await supabase
+            .from("paper_coauthors")
+            .select("paper_id")
+            .eq("user_id", userId);
+
+          const paperIds = Array.from(
+            new Set([
+              ...(primaryPapers?.map((p) => p.paper_id) || []),
+              ...(coauthorPapers?.map((p) => p.paper_id) || []),
+            ])
+          );
+
+          if (paperIds.length > 0) {
+            const { data: sessionPapers } = await supabase
+              .from("session_papers")
+              .select("session_id")
+              .in("paper_id", paperIds);
+
+            if (sessionPapers) {
+              sessionPapers.forEach((sp) =>
+                sessionIdsAllowed.add(sp.session_id)
+              );
+            }
+          }
+        }
+
+        // If not admin and no allowed sessions, return early
+        if (sessionIdsAllowed.size === 0) {
+          return [];
+        }
       }
 
       let query = supabase
@@ -325,8 +375,8 @@ export const useMyAgendaSessionsQuery = () => {
         )
         .order("start_time", { ascending: true });
 
-      if (!isAdmin && sessionIdsAllowed.length > 0) {
-        query = query.in("session_id", sessionIdsAllowed);
+      if (!isAdmin && sessionIdsAllowed.size > 0) {
+        query = query.in("session_id", Array.from(sessionIdsAllowed));
       }
 
       const { data: rawSessions, error: sessionError } = await query;

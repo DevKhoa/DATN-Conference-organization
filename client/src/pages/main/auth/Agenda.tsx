@@ -183,6 +183,21 @@ export default function MyAgendaPage() {
       .sort((a, b) => a.displayStartJS.getTime() - b.displayStartJS.getTime());
   }, [sessions, useUserTimezone]);
 
+  const conferenceTimezones = useMemo(() => {
+    const tzs = new Set<string>();
+    sessions.forEach((s) => {
+      if (s.timezone) tzs.add(s.timezone);
+    });
+    return Array.from(tzs);
+  }, [sessions]);
+
+  const conferenceTzDisplay =
+    conferenceTimezones.length === 1
+      ? `Conference Time (${conferenceTimezones[0]})`
+      : conferenceTimezones.length > 1
+        ? "Conference Time (Multiple)"
+        : "Conference Time";
+
   const sessionCountByDate = useMemo(() => {
     const map: Record<string, number> = {};
     displaySessions.forEach((s) => {
@@ -386,7 +401,7 @@ export default function MyAgendaPage() {
                   <span>
                     {useUserTimezone
                       ? `My Timezone (${userTimezone})`
-                      : "Conference Time"}
+                      : conferenceTzDisplay}
                   </span>
                 </span>
               </button>
@@ -442,6 +457,7 @@ export default function MyAgendaPage() {
                             navigate({
                               to: "/conferences/$conferenceId",
                               params: { conferenceId: String(session.conf_id) },
+                              hash: `session-${session.session_id}`,
                             })
                           }
                         >
@@ -463,6 +479,11 @@ export default function MyAgendaPage() {
                                     <span>
                                       {format(session.displayStartJS, "HH:mm")}{" "}
                                       - {format(session.displayEndJS, "HH:mm")}
+                                      {!useUserTimezone && (
+                                        <span className="text-[11px] ml-1 font-bold opacity-80">
+                                          ({session.timezone || "UTC"})
+                                        </span>
+                                      )}
                                     </span>
                                     {!isSameDay(
                                       session.displayStartJS,
@@ -727,6 +748,7 @@ export default function MyAgendaPage() {
                           navigate({
                             to: "/conferences/$conferenceId",
                             params: { conferenceId: String(session.conf_id) },
+                            hash: `session-${session.session_id}`,
                           });
                         }}
                       >
@@ -747,8 +769,13 @@ export default function MyAgendaPage() {
                             <span>
                               {format(session.displayStartJS, "HH:mm")}–
                               {format(session.displayEndJS, "HH:mm")}{" "}
+                              {!useUserTimezone && (
+                                <span className="opacity-80 font-bold ml-0.5">
+                                  ({session.timezone || "UTC"})
+                                </span>
+                              )}
                               {isNextDay && (
-                                <span className="font-bold">
+                                <span className="font-bold ml-1">
                                   ({format(session.displayEndJS, "dd/MM")})
                                 </span>
                               )}
@@ -769,8 +796,13 @@ export default function MyAgendaPage() {
                                 <span>
                                   {format(session.displayStartJS, "HH:mm")}–
                                   {format(session.displayEndJS, "HH:mm")}{" "}
+                                  {!useUserTimezone && (
+                                    <span className="opacity-80 font-bold ml-0.5">
+                                      ({session.timezone || "UTC"})
+                                    </span>
+                                  )}
                                   {isNextDay && (
-                                    <span className="font-bold">
+                                    <span className="font-bold ml-1">
                                       ({format(session.displayEndJS, "dd/MM")})
                                     </span>
                                   )}

@@ -59,6 +59,7 @@ export const ConferenceSessionDisplay = ({
 
   return (
     <div
+      id={`session-${session.session_id}`}
       className={`group flex gap-4 md:gap-6 relative ${isExpanded ? "mb-0" : "mb-8"}`}
     >
       <div className="flex flex-col items-center shrink-0 w-16 z-10">
