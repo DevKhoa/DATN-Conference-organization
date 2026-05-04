@@ -14,6 +14,7 @@ type NotificationMeta = Pick<
   | "created_at"
   | "conf_id"
   | "attachments"
+  | "target_criteria"
 >;
 
 export type UserNotification = Tables<"user_notifications"> & {
@@ -54,7 +55,7 @@ export const useUserNotifications = () => {
         .from("user_notifications")
         .select(
           `id, notification_id, is_read, read_at, dynamic_title, dynamic_content,
-               notifications ( notification_id, title, content, type, created_at, conf_id, attachments )`,
+               notifications ( notification_id, title, content, type, created_at, conf_id, attachments, target_criteria )`,
         )
         .eq("user_id", userId)
         .order("id", { ascending: false })

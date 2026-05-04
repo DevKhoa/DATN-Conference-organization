@@ -33,5 +33,6 @@ dependencies = [
     "google-api-python-client>=2.194.0",
     "google-auth-httplib2>=0.3.1",
     "google-auth-oauthlib>=1.3.1",
-    "reportlab"
+    "reportlab",
+    "apscheduler>=3.11.2",
 ]

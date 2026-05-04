@@ -24,6 +24,7 @@ from packages.schema import (
 )
 from packages.utils import logger, supabase_client, genai_client, MODEL, EMBEDDING_MODEL_NAME, VECTOR_DIMENSION, CHAIR_ROLE_ID, PAPER_MATCH_REVIEWER
 from packages.auto_session import get_batch_embeddings, generate_session_title
+from packages.session_notifier import send_session_start_notifications, get_session_recipients
 
 
 router = APIRouter(tags=["sessions"])
@@ -736,3 +737,39 @@ async def cancel_chair_invitation(session_id: int = Path(..., description="ID of
     invitee_profile_res = _select_profile_by_email(normalize_email(updated_invitation.get("email") or ""))
     invitee_profile = invitee_profile_res.data if invitee_profile_res.data else None
     return _serialize_invitation(updated_invitation, session_data, conference_data, invitee_profile["user_id"] if invitee_profile else None)
+
+
+@router.post("/sessions/{session_id}/notify-start")
+async def notify_session_start(
+    background_tasks: BackgroundTasks,
+    session_id: int = Path(..., description="ID of the session to notify"),
+):
+    """
+    Manually trigger session-start notifications for a given session.
+    Useful for admins and for testing the notification flow.
+    The notification is sent even if it was previously sent (no dedup check here).
+    """
+    # Validate session exists
+    session_data, conference_data = _fetch_session_and_conference(session_id)
+
+    # Preview recipients before sending
+    recipients = get_session_recipients(session_id)
+    if not recipients:
+        raise HTTPException(
+            status_code=400,
+            detail="No chairs or authors found for this session. Notification not sent."
+        )
+
+    # Run in background so the API returns immediately
+    background_tasks.add_task(send_session_start_notifications, session_id)
+
+    return {
+        "status": "dispatched",
+        "session_id": session_id,
+        "session_name": session_data.get("session_name"),
+        "recipient_count": len(recipients),
+        "recipients": [
+            {"user_id": r["user_id"], "email": r["email"], "role": r["role"]}
+            for r in recipients
+        ],
+    }

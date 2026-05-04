@@ -8,6 +8,7 @@ import {
   Loader2,
   Megaphone,
   Clock,
+  CalendarClock,
 } from "lucide-react";
 import {
   useUserNotifications,
@@ -202,7 +203,11 @@ const NotificationBell = () => {
                         : "bg-slate-100 text-slate-400"
                     }`}
                   >
-                    <Megaphone className="w-4 h-4" />
+                    {(n.notifications?.target_criteria as any)?.notification_type === "session_start" ? (
+                      <CalendarClock className="w-4 h-4" />
+                    ) : (
+                      <Megaphone className="w-4 h-4" />
+                    )}
                   </div>
 
                   {/* Content */}
@@ -255,7 +260,11 @@ const NotificationBell = () => {
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center">
-                    <Megaphone className="w-4 h-4 text-brand-600" />
+                    {(selectedNotif.notifications?.target_criteria as any)?.notification_type === "session_start" ? (
+                      <CalendarClock className="w-4 h-4 text-brand-600" />
+                    ) : (
+                      <Megaphone className="w-4 h-4 text-brand-600" />
+                    )}
                   </div>
                   <div>
                     <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">
