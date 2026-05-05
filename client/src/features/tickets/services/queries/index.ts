@@ -40,6 +40,8 @@ export const useTicketsBySessionQuery = (sessionId: number | null) => {
 
       return (data || []).map((t: any) => ({
         ...t,
+        open_time: t.open_time ? (t.open_time.endsWith('Z') ? t.open_time : t.open_time + 'Z') : t.open_time,
+        close_time: t.close_time ? (t.close_time.endsWith('Z') ? t.close_time : t.close_time + 'Z') : t.close_time,
         currency: t.currency || "VND",
         is_active: t.is_active ?? true,
         sold_quantity: t.sold_quantity ?? 0,
@@ -125,8 +127,8 @@ export const useTicketsByConferenceQuery = (conferenceId: number | null) => {
             price: t.price,
             quantity_limit: t.quantity_limit,
             sold_quantity: t.sold_quantity ?? 0,
-            open_time: t.open_time,
-            close_time: t.close_time,
+            open_time: t.open_time ? (t.open_time.endsWith('Z') ? t.open_time : t.open_time + 'Z') : t.open_time,
+            close_time: t.close_time ? (t.close_time.endsWith('Z') ? t.close_time : t.close_time + 'Z') : t.close_time,
             description: t.description,
             currency: t.currency || "VND",
             is_active: t.is_active ?? true,
