@@ -98,7 +98,7 @@ export const ConferenceSessionDisplay = ({
         <div onClick={onToggle} className="cursor-pointer p-5 md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
             <div
-              className={`flex flex-1 items-start gap-3 text-lg font-bold transition-colors md:text-xl min-w-70 ${
+              className={`flex flex-1 items-start gap-3 text-lg font-bold transition-colors md:text-xl min-w-[280px] ${
                 isExpanded
                   ? "text-primary"
                   : "text-foreground group-hover:text-primary"
@@ -131,7 +131,7 @@ export const ConferenceSessionDisplay = ({
               </div>
             </div>
 
-            <div className="ml-auto flex shrink-0 items-center gap-3 transition-all">
+            <div className="ml-auto flex items-center gap-3 transition-all w-full sm:w-auto">
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {session.format_type !== "in-person" && canAccessVirtual && (
                   <>
