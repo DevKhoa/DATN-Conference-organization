@@ -217,8 +217,8 @@ const TicketManagementPage = () => {
           .map((s) => s.session_id) || [];
     }
 
-    const newOpen = new Date(form.open_time).getTime();
-    const newClose = new Date(form.close_time).getTime();
+    const newOpen = dayjs(form.open_time, "DD/MM/YYYY hh:mm A").valueOf();
+    const newClose = dayjs(form.close_time, "DD/MM/YYYY hh:mm A").valueOf();
     const newPrice = form.price !== "" ? parseFloat(form.price) : 0;
 
     if (newOpen >= newClose) {
@@ -226,10 +226,8 @@ const TicketManagementPage = () => {
       return;
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const openDate = new Date(form.open_time);
-    openDate.setHours(0, 0, 0, 0);
+    const today = dayjs().startOf('day').valueOf();
+    const openDate = dayjs(form.open_time, "DD/MM/YYYY hh:mm A").startOf('day').valueOf();
     if (openDate < today && editingId === null) {
       setFormError("Sale start time must be from today onwards.");
       return;
