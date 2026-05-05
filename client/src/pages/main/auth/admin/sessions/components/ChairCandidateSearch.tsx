@@ -1,4 +1,4 @@
-import { CheckCircle, Loader2, UserCheck, X } from "lucide-react";
+import { CheckCircle, ChevronDown, ChevronUp, Loader2, UserCheck, X } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
 import {
@@ -41,6 +41,9 @@ export const ChairCandidateSearch = ({
     searchKey: "full_name",
     searchValue: "",
   });
+  const [expandedHintUserId, setExpandedHintUserId] = useState<number | null>(
+    null,
+  );
 
   const handleDebouncedChange = useCallback(
     ({
@@ -114,13 +117,13 @@ export const ChairCandidateSearch = ({
           selectClassName="h-10"
           onFocus={() => setIsDropdownOpen(true)}
           onBlur={() => {
-            setTimeout(() => setIsDropdownOpen(false), 120);
+            setTimeout(() => setIsDropdownOpen(false), 200);
           }}
           onDebouncedChange={handleDebouncedChange}
         />
 
         {isDropdownOpen && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 max-h-56 overflow-y-auto">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 max-h-72 overflow-y-auto">
             {isLoading ? (
               <div className="p-3 text-sm text-slate-500 flex items-center justify-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -131,31 +134,81 @@ export const ChairCandidateSearch = ({
                 No chairs found
               </div>
             ) : (
-              uniqueCandidates.map((candidate) => (
-                <div
-                  key={candidate.user_id}
-                  id={`dropdown-chair-${sessionTempId}-${candidate.user_id}`}
-                  className="p-3 hover:bg-indigo-50 cursor-pointer flex justify-between items-center group transition-colors"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    onSelectChair(candidate);
-                    setSearchInputValue("");
-                    setIsDropdownOpen(false);
-                  }}
-                >
-                  <div>
-                    <div className="text-sm font-bold text-slate-700 group-hover:text-indigo-700">
-                      {candidate.full_name}
+              uniqueCandidates.map((candidate) => {
+                const hasDescription =
+                  !!candidate.description &&
+                  candidate.description.trim().length > 0;
+                const isHintExpanded =
+                  expandedHintUserId === candidate.user_id;
+
+                return (
+                  <div
+                    key={candidate.user_id}
+                    id={`dropdown-chair-${sessionTempId}-${candidate.user_id}`}
+                    className="border-b border-slate-100 last:border-b-0"
+                  >
+                    <div
+                      className="p-3 hover:bg-indigo-50 cursor-pointer flex justify-between items-center group transition-colors"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        onSelectChair(candidate);
+                        setSearchInputValue("");
+                        setIsDropdownOpen(false);
+                        setExpandedHintUserId(null);
+                      }}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-bold text-slate-700 group-hover:text-indigo-700">
+                          {candidate.full_name}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {candidate.organization || candidate.email}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {hasDescription && (
+                          <button
+                            className="px-2 py-1 text-xs font-medium text-slate-500 hover:text-indigo-600 hover:bg-indigo-100 rounded-md transition-colors flex items-center gap-1"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setExpandedHintUserId((current) =>
+                                current === candidate.user_id
+                                  ? null
+                                  : candidate.user_id,
+                              );
+                            }}
+                          >
+                            {isHintExpanded ? (
+                              <ChevronUp className="w-3 h-3" />
+                            ) : (
+                              <ChevronDown className="w-3 h-3" />
+                            )}
+                            Hint
+                          </button>
+                        )}
+                        {selectedChairId === candidate.user_id && (
+                          <CheckCircle className="w-4 h-4 text-indigo-600" />
+                        )}
+                      </div>
                     </div>
-                    <div className="text-xs text-slate-500">
-                      {candidate.organization || candidate.email}
-                    </div>
+
+                    {isHintExpanded && hasDescription && (
+                      <div className="px-3 pb-3">
+                        <div className="rounded-lg bg-slate-50 border border-slate-100 p-3">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                            Bio / Description
+                          </p>
+                          <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">
+                            {candidate.description}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  {selectedChairId === candidate.user_id && (
-                    <CheckCircle className="w-4 h-4 text-indigo-600" />
-                  )}
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}

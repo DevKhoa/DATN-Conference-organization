@@ -3,6 +3,7 @@ export interface ChairCandidate {
   full_name: string;
   email: string;
   organization: string;
+  description?: string | null;
   similarity_score?: number;
 }
 

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { TicketsKeys } from "../queries/keys";
+import { ConferencesKeys } from "@/features/conferences/services/queries/keys";
 import type {
   ICreateTicketPayload,
   IUpdateTicketPayload,
@@ -42,6 +43,9 @@ export const useCreateTicketMutation = () => {
       queryClient.invalidateQueries({
         queryKey: [TicketsKeys.TicketsByConference],
       });
+      queryClient.invalidateQueries({
+        queryKey: [ConferencesKeys.ConferenceTickets],
+      });
     },
   });
 };
@@ -80,6 +84,9 @@ export const useUpdateTicketMutation = () => {
       queryClient.invalidateQueries({
         queryKey: [TicketsKeys.TicketsByConference],
       });
+      queryClient.invalidateQueries({
+        queryKey: [ConferencesKeys.ConferenceTickets],
+      });
     },
   });
 };
@@ -105,6 +112,9 @@ export const useDeleteTicketMutation = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [TicketsKeys.TicketsByConference],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [ConferencesKeys.ConferenceTickets],
       });
     },
   });

@@ -23,7 +23,7 @@ async def create_registration_before_payment(
     try:
         # 1. Fetch ticket config — validates ticket exists and gets price
         ticket_res = supabase_client.table("ticket_configs") \
-            .select("ticket_id, ticket_name, currency, description, price, is_active, quantity_limit, sold_quantity") \
+            .select("ticket_id, ticket_name, currency, description, price, is_active, quantity_limit, sold_quantity, open_time, close_time") \
             .eq("ticket_id", request.ticket_id) \
             .single() \
             .execute()
@@ -35,6 +35,16 @@ async def create_registration_before_payment(
 
         if not ticket_info.get("is_active"):
             raise HTTPException(status_code=400, detail="This ticket is no longer available.")
+            
+        now = datetime.now(timezone.utc)
+        open_time_str = ticket_info.get("open_time")
+        close_time_str = ticket_info.get("close_time")
+        
+        if open_time_str and close_time_str:
+            open_time = datetime.fromisoformat(open_time_str.replace("Z", "+00:00"))
+            close_time = datetime.fromisoformat(close_time_str.replace("Z", "+00:00"))
+            if not (open_time <= now <= close_time):
+                raise HTTPException(status_code=400, detail="This ticket is not currently available for purchase (outside of sale window).")
 
         quantity_limit = ticket_info.get("quantity_limit")
         sold_quantity = ticket_info.get("sold_quantity", 0) or 0

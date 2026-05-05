@@ -57,12 +57,25 @@ export const useChairCandidatesQuery = ({
       if (error) throw error;
 
       const rows = Array.isArray(data) ? data : [];
+      const userIds = rows.map((u) => u.user_id);
+
+      let descriptionMap: Record<number, string | null> = {};
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("user_id, description")
+          .in("user_id", userIds);
+        (profilesData || []).forEach((p: any) => {
+          descriptionMap[p.user_id] = p.description ?? null;
+        });
+      }
 
       const formatted: ChairCandidate[] = rows.map((u) => ({
         user_id: u.user_id,
         full_name: u.full_name,
         email: u.email,
         organization: u.organization,
+        description: descriptionMap[u.user_id] ?? null,
       }));
 
       return formatted;
@@ -103,12 +116,25 @@ export const useSearchChairCandidatesBySessionQuery = ({
       if (error) throw error;
 
       const rows = Array.isArray(data) ? data : [];
+      const userIds = rows.map((u) => u.user_id);
+
+      let descriptionMap: Record<number, string | null> = {};
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("user_id, description")
+          .in("user_id", userIds);
+        (profilesData || []).forEach((p: any) => {
+          descriptionMap[p.user_id] = p.description ?? null;
+        });
+      }
 
       const formatted: ChairCandidate[] = rows.map((u) => ({
         user_id: u.user_id,
         full_name: u.full_name,
         email: u.email,
         organization: u.organization,
+        description: descriptionMap[u.user_id] ?? null,
       }));
 
       return formatted;
