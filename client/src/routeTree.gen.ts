@@ -40,6 +40,7 @@ import { Route as appChairInvitationsTokenRouteImport } from "./routes/(app)/cha
 import { Route as appAgendaMeRouteImport } from "./routes/(app)/agenda.me"
 import { Route as appPapersMeIndexRouteImport } from "./routes/(app)/papers/me/index"
 import { Route as appPapersMePaperIdRouteImport } from "./routes/(app)/papers/me/$paperId"
+import { Route as appConferencesConferenceIdImportPapersRouteImport } from "./routes/(app)/conferences.$conferenceId/import-papers"
 import { Route as appConferencesConferenceIdSessionsRouteRouteImport } from "./routes/(app)/conferences.$conferenceId.sessions/route"
 import { Route as appConferencesConferenceIdSessionsIndexRouteImport } from "./routes/(app)/conferences.$conferenceId.sessions/index"
 import { Route as ConferencesConferenceIdPapersPaperIdQaRouteImport } from "./routes/conferences_.$conferenceId.papers.$paperId.qa"
@@ -203,6 +204,12 @@ const appPapersMePaperIdRoute = appPapersMePaperIdRouteImport.update({
   path: "/papers/me/$paperId",
   getParentRoute: () => appRouteRoute,
 } as any)
+const appConferencesConferenceIdImportPapersRoute =
+  appConferencesConferenceIdImportPapersRouteImport.update({
+    id: "/conferences/$conferenceId/import-papers",
+    path: "/conferences/$conferenceId/import-papers",
+    getParentRoute: () => appRouteRoute,
+  } as any)
 const appConferencesConferenceIdSessionsRouteRoute =
   appConferencesConferenceIdSessionsRouteRouteImport.update({
     id: "/conferences/$conferenceId/sessions",
@@ -264,6 +271,7 @@ export interface FileRoutesByFullPath {
   "/chair-invitations/": typeof appChairInvitationsIndexRoute
   "/sessions/": typeof appSessionsIndexRoute
   "/conferences/$conferenceId/sessions": typeof appConferencesConferenceIdSessionsRouteRouteWithChildren
+  "/conferences/$conferenceId/import-papers": typeof appConferencesConferenceIdImportPapersRoute
   "/papers/me/$paperId": typeof appPapersMePaperIdRoute
   "/papers/me/": typeof appPapersMeIndexRoute
   "/conferences/$conferenceId/papers/$paperId/qa": typeof ConferencesConferenceIdPapersPaperIdQaRoute
@@ -299,6 +307,7 @@ export interface FileRoutesByTo {
   "/subscriptions/me": typeof appSubscriptionsMeRoute
   "/chair-invitations": typeof appChairInvitationsIndexRoute
   "/sessions": typeof appSessionsIndexRoute
+  "/conferences/$conferenceId/import-papers": typeof appConferencesConferenceIdImportPapersRoute
   "/papers/me/$paperId": typeof appPapersMePaperIdRoute
   "/papers/me": typeof appPapersMeIndexRoute
   "/conferences/$conferenceId/papers/$paperId/qa": typeof ConferencesConferenceIdPapersPaperIdQaRoute
@@ -338,6 +347,7 @@ export interface FileRoutesById {
   "/(app)/chair-invitations/": typeof appChairInvitationsIndexRoute
   "/(app)/sessions/": typeof appSessionsIndexRoute
   "/(app)/conferences/$conferenceId/sessions": typeof appConferencesConferenceIdSessionsRouteRouteWithChildren
+  "/(app)/conferences/$conferenceId/import-papers": typeof appConferencesConferenceIdImportPapersRoute
   "/(app)/papers/me/$paperId": typeof appPapersMePaperIdRoute
   "/(app)/papers/me/": typeof appPapersMeIndexRoute
   "/conferences_/$conferenceId/papers/$paperId/qa": typeof ConferencesConferenceIdPapersPaperIdQaRoute
@@ -377,6 +387,7 @@ export interface FileRouteTypes {
     | "/chair-invitations/"
     | "/sessions/"
     | "/conferences/$conferenceId/sessions"
+    | "/conferences/$conferenceId/import-papers"
     | "/papers/me/$paperId"
     | "/papers/me/"
     | "/conferences/$conferenceId/papers/$paperId/qa"
@@ -412,6 +423,7 @@ export interface FileRouteTypes {
     | "/subscriptions/me"
     | "/chair-invitations"
     | "/sessions"
+    | "/conferences/$conferenceId/import-papers"
     | "/papers/me/$paperId"
     | "/papers/me"
     | "/conferences/$conferenceId/papers/$paperId/qa"
@@ -450,6 +462,7 @@ export interface FileRouteTypes {
     | "/(app)/chair-invitations/"
     | "/(app)/sessions/"
     | "/(app)/conferences/$conferenceId/sessions"
+    | "/(app)/conferences/$conferenceId/import-papers"
     | "/(app)/papers/me/$paperId"
     | "/(app)/papers/me/"
     | "/conferences_/$conferenceId/papers/$paperId/qa"
@@ -694,6 +707,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof appPapersMePaperIdRouteImport
       parentRoute: typeof appRouteRoute
     }
+    "/(app)/conferences/$conferenceId/import-papers": {
+      id: "/(app)/conferences/$conferenceId/import-papers"
+      path: "/conferences/$conferenceId/import-papers"
+      fullPath: "/conferences/$conferenceId/import-papers"
+      preLoaderRoute: typeof appConferencesConferenceIdImportPapersRouteImport
+      parentRoute: typeof appRouteRoute
+    }
     "/(app)/conferences/$conferenceId/sessions": {
       id: "/(app)/conferences/$conferenceId/sessions"
       path: "/conferences/$conferenceId/sessions"
@@ -783,6 +803,7 @@ interface appRouteRouteChildren {
   appSubscriptionsMeRoute: typeof appSubscriptionsMeRoute
   appChairInvitationsIndexRoute: typeof appChairInvitationsIndexRoute
   appConferencesConferenceIdSessionsRouteRoute: typeof appConferencesConferenceIdSessionsRouteRouteWithChildren
+  appConferencesConferenceIdImportPapersRoute: typeof appConferencesConferenceIdImportPapersRoute
   appPapersMePaperIdRoute: typeof appPapersMePaperIdRoute
   appPapersMeIndexRoute: typeof appPapersMeIndexRoute
 }
@@ -803,6 +824,8 @@ const appRouteRouteChildren: appRouteRouteChildren = {
   appChairInvitationsIndexRoute: appChairInvitationsIndexRoute,
   appConferencesConferenceIdSessionsRouteRoute:
     appConferencesConferenceIdSessionsRouteRouteWithChildren,
+  appConferencesConferenceIdImportPapersRoute:
+    appConferencesConferenceIdImportPapersRoute,
   appPapersMePaperIdRoute: appPapersMePaperIdRoute,
   appPapersMeIndexRoute: appPapersMeIndexRoute,
 }

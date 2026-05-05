@@ -227,21 +227,22 @@ def send_session_start_notifications(session_id: int) -> None:
     logger.info(f"[Notifier] Inserted {len(user_notif_rows)} user_notification rows for session {session_id}")
 
     # --- Send emails (fire-and-forget) ---
-    for r in recipients:
-        role_label = "Chair" if r["role"] == "chair" else "Author"
-        subject = f"[{conf_name}] Session Starting Soon: {session_name}"
-        plain_body = (
-            f"Dear {role_label} {r['full_name']},\n\n"
-            f"Your session '{session_name}' is starting soon.\n\n"
-            f"Start : {start_time_str}\n"
-            f"End   : {end_time_str}\n"
-            + (f"Room  : {room_location}\n" if room_location else "")
-            + (f"Link  : {meet_link}\n" if meet_link else "")
-            + f"\nConference: {conf_name}\n"
-        )
-        try:
-            send_email(r["email"], subject, plain_body)
-        except Exception as email_err:
-            logger.warning(f"[Notifier] Email to {r['email']} failed: {email_err}")
+    # Tạm tắt gửi mail theo yêu cầu
+    # for r in recipients:
+    #     role_label = "Chair" if r["role"] == "chair" else "Author"
+    #     subject = f"[{conf_name}] Session Starting Soon: {session_name}"
+    #     plain_body = (
+    #         f"Dear {role_label} {r['full_name']},\n\n"
+    #         f"Your session '{session_name}' is starting soon.\n\n"
+    #         f"Start : {start_time_str}\n"
+    #         f"End   : {end_time_str}\n"
+    #         + (f"Room  : {room_location}\n" if room_location else "")
+    #         + (f"Link  : {meet_link}\n" if meet_link else "")
+    #         + f"\nConference: {conf_name}\n"
+    #     )
+    #     try:
+    #         send_email(r["email"], subject, plain_body)
+    #     except Exception as email_err:
+    #         logger.warning(f"[Notifier] Email to {r['email']} failed: {email_err}")
 
     logger.info(f"[Notifier] Done - session {session_id} notifications dispatched.")
