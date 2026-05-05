@@ -333,6 +333,117 @@ const ChairInvitationsPage = () => {
                   Send Invite
                 </Button>
               </div>
+
+              {selectedChair && selectedSessionId && (
+                <div className="rounded-xl border border-border bg-background p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-base font-semibold">
+                          {selectedChair.full_name}
+                        </h3>
+                        <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+                          Manual
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {selectedChair.email}
+                        {selectedChair.organization
+                          ? ` • ${selectedChair.organization}`
+                          : ""}
+                      </p>
+                      {selectedChair.description &&
+                        selectedChair.description.trim().length > 0 && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {selectedChair.description}
+                          </p>
+                        )}
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleShowReasoning({
+                          user_id: selectedChair.user_id,
+                          full_name: selectedChair.full_name,
+                          email: selectedChair.email,
+                          organization: selectedChair.organization || "",
+                          match_score: 0,
+                        });
+                      }}
+                      disabled={
+                        loadingReasoningUserId === selectedChair.user_id
+                      }
+                    >
+                      {loadingReasoningUserId === selectedChair.user_id ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : expandedReasoningUserId === selectedChair.user_id &&
+                        reasoningByUserId[selectedChair.user_id] ? (
+                        <ChevronUp className="mr-2 h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="mr-2 h-4 w-4" />
+                      )}
+                      Hint
+                    </Button>
+                  </div>
+
+                  {expandedReasoningUserId === selectedChair.user_id &&
+                    reasoningByUserId[selectedChair.user_id] && (
+                      <div className="mt-4 rounded-xl bg-muted/40 p-4">
+                        <p className="text-sm font-semibold">Match review</p>
+                        <div className="mt-3 space-y-3">
+                          {reasoningByUserId[
+                            selectedChair.user_id
+                          ]!.analysis.analyzed_papers.map((paper) => (
+                            <div
+                              key={paper.new_paper_title}
+                              className="rounded-lg border border-border bg-card p-3"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <h4 className="font-medium">
+                                  {paper.new_paper_title}
+                                </h4>
+                                <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+                                  {paper.relevance_score}
+                                </span>
+                              </div>
+                              <p className="mt-2 text-sm text-muted-foreground">
+                                {paper.reasoning}
+                              </p>
+
+                              {paper.related_profile_papers &&
+                                paper.related_profile_papers.length > 0 && (
+                                  <div className="mt-3 space-y-2">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                      Related profile papers
+                                    </p>
+                                    {paper.related_profile_papers.map(
+                                      (item) => (
+                                        <div
+                                          key={`${paper.new_paper_title}-${item.title}`}
+                                          className="rounded-md bg-background p-2"
+                                        >
+                                          <p className="text-sm font-medium">
+                                            {item.title}
+                                          </p>
+                                          <p className="text-sm text-muted-foreground">
+                                            {item.reasoning}
+                                          </p>
+                                        </div>
+                                      ),
+                                    )}
+                                  </div>
+                                )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                </div>
+              )}
             </div>
           </div>
 

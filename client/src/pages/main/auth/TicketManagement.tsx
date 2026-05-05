@@ -221,6 +221,11 @@ const TicketManagementPage = () => {
     const newClose = dayjs(form.close_time, "DD/MM/YYYY hh:mm A").valueOf();
     const newPrice = form.price !== "" ? parseFloat(form.price) : 0;
 
+    if (newPrice === 0 && (!form.quantity_limit || parseInt(form.quantity_limit) <= 0)) {
+      setFormError("Free tickets must have a specific quantity limit.");
+      return;
+    }
+
     if (newOpen >= newClose) {
       setFormError("Close time must be after open time.");
       return;

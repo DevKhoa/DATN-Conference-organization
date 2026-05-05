@@ -289,12 +289,14 @@ export const useConferenceTicketsQuery = (
         const { data: ticketData, error: ticketError } = await supabase
           .from("ticket_configs")
           .select(
-            "ticket_id, ticket_name, price, currency, description, is_active, quantity_limit, sold_quantity",
+            "ticket_id, ticket_name, price, currency, description, is_active, quantity_limit, sold_quantity, open_time, close_time",
           )
           .in("ticket_id", ticketIds)
           .eq("is_active", true);
 
         if (ticketError) throw ticketError;
+
+        const now = Date.now();
 
         return (
           (ticketData || []) as Array<{
@@ -306,8 +308,15 @@ export const useConferenceTicketsQuery = (
             is_active: boolean | null;
             quantity_limit: number | null;
             sold_quantity: number | null;
+            open_time: string | null;
+            close_time: string | null;
           }>
-        ).map((ticket) => ({
+        ).filter((ticket) => {
+          if (!ticket.open_time || !ticket.close_time) return false;
+          const open = new Date(ticket.open_time.endsWith('Z') ? ticket.open_time : ticket.open_time + 'Z').getTime();
+          const close = new Date(ticket.close_time.endsWith('Z') ? ticket.close_time : ticket.close_time + 'Z').getTime();
+          return now >= open && now <= close;
+        }).map((ticket) => ({
           ...ticket,
           sessions: (ticketSessions[ticket.ticket_id] || [])
             .map((sessionId) => sessionMap[sessionId])
