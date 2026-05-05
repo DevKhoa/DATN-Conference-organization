@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import papers, sessions, users, reviews, conferences, common, checkin, registrations, subscriptions, payments, assistance, web_socket
+from routers import papers, sessions, users, reviews, conferences, common, checkin, registrations, subscriptions, payments, assistance, web_socket, proceedings
 from packages.scheduler import start_scheduler, stop_scheduler
 
 # HOST = '0.0.0.0'
@@ -41,6 +41,7 @@ app.include_router(subscriptions.router)
 app.include_router(payments.router)
 app.include_router(assistance.router)
 app.include_router(web_socket.router)
+app.include_router(proceedings.router)
 
 if __name__ == "__main__":
     uvicorn.run("server:app", host=HOST, port=PORT, reload=True)
