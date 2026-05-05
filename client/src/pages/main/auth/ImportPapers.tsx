@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Upload, FileText, Calendar, User, Info, Loader2, History, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Upload, FileText, Calendar, User, Info, Loader2, History, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronUp, Plus, Trash2, Save, Table2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { DefaultLayout } from "@/layouts/DefaultLayout";
@@ -18,6 +18,18 @@ export const ImportPapers = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showLogs, setShowLogs] = useState(false);
+  const [showManualEntry, setShowManualEntry] = useState(false);
+
+  type ManualRow = {
+    title: string;
+    abstract: string;
+    primary_author_email: string;
+    co_author_emails: string;
+  };
+
+  const emptyRow: ManualRow = { title: "", abstract: "", primary_author_email: "", co_author_emails: "" };
+  const [manualRows, setManualRows] = useState<ManualRow[]>([{ ...emptyRow }]);
+  const [isSavingManual, setIsSavingManual] = useState(false);
 
   const { data: historyData, isLoading } = useQuery({
     queryKey: ["importHistory", conferenceId],
@@ -96,6 +108,49 @@ export const ImportPapers = () => {
     importMutation.mutate(file);
   };
 
+  const updateManualRow = (index: number, field: keyof ManualRow, value: string) => {
+    setManualRows(prev => prev.map((row, i) => i === index ? { ...row, [field]: value } : row));
+  };
+
+  const addManualRow = () => {
+    setManualRows(prev => [...prev, { ...emptyRow }]);
+  };
+
+  const removeManualRow = (index: number) => {
+    if (manualRows.length <= 1) return;
+    setManualRows(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSaveManual = () => {
+    // Validate at least one row has data
+    const filledRows = manualRows.filter(r => r.title.trim() || r.primary_author_email.trim());
+    if (filledRows.length === 0) {
+      toast.error("No data", { description: "Please fill in at least one row." });
+      return;
+    }
+
+    // Convert to CSV
+    const headers = "title,abstract,primary_author_email,co_author_emails";
+    const csvRows = filledRows.map(r =>
+      `"${r.title.replace(/"/g, '""')}","${r.abstract.replace(/"/g, '""')}","${r.primary_author_email}","${r.co_author_emails}"`
+    );
+    const csvContent = [headers, ...csvRows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const file = new File([blob], "manual_entry.csv", { type: "text/csv" });
+
+    setIsSavingManual(true);
+    setUploadError(null);
+    importMutation.mutate(file, {
+      onSettled: () => {
+        setIsSavingManual(false);
+      },
+      onSuccess: () => {
+        setManualRows([{ ...emptyRow }]);
+        setShowManualEntry(false);
+      }
+    });
+  };
+
   return (
     <DefaultLayout meta={{ title: "Import Papers" }}>
       <div className="min-h-screen bg-background pb-24 text-foreground p-6">
@@ -144,6 +199,14 @@ export const ImportPapers = () => {
                     "Select CSV File"
                   )}
                 </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowManualEntry(!showManualEntry)}
+                  className="w-full mt-3"
+                >
+                  <Table2 className="mr-2 h-4 w-4" />
+                  {showManualEntry ? "Hide" : "Manual Entry"}
+                </Button>
               </div>
 
               {uploadError && (
@@ -174,9 +237,6 @@ export const ImportPapers = () => {
                     <li>abstract</li>
                     <li>primary_author_email <span className="text-destructive">*</span></li>
                     <li>co_author_emails</li>
-                    <li>status <span className="text-muted-foreground">(default: ACCEPTED)</span></li>
-                    <li>final_decision_date</li>
-                    <li>created_at</li>
                   </ul>
                   <p className="pt-2 text-xs">
                     * Multiple co-author emails should be separated by a semicolon (;).
@@ -190,7 +250,113 @@ export const ImportPapers = () => {
 
             </div>
 
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 space-y-6">
+              {/* Manual Entry Spreadsheet */}
+              {showManualEntry && (
+                <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+                  <div className="p-6 border-b border-border bg-muted/30 flex items-center justify-between">
+                    <h2 className="text-xl font-bold flex items-center">
+                      <Table2 className="w-5 h-5 mr-2 text-primary" /> Manual Entry
+                    </h2>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={addManualRow}>
+                        <Plus className="w-4 h-4 mr-1" /> Add Row
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveManual}
+                        disabled={isSavingManual}
+                      >
+                        {isSavingManual ? (
+                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4 mr-1" />
+                        )}
+                        Save & Import
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="text-xs uppercase bg-muted text-muted-foreground">
+                        <tr>
+                          <th className="px-2 py-3 w-8 text-center">#</th>
+                          <th className="px-2 py-3 min-w-[180px]">Title <span className="text-destructive">*</span></th>
+                          <th className="px-2 py-3 min-w-[220px]">Abstract</th>
+                          <th className="px-2 py-3 min-w-[180px]">Author Email <span className="text-destructive">*</span></th>
+                          <th className="px-2 py-3 min-w-[180px]">Co-authors (;)</th>
+                          <th className="px-2 py-3 w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {manualRows.map((row, idx) => (
+                          <tr key={idx} className="border-b border-border hover:bg-muted/30 transition-colors">
+                            <td className="px-2 py-1 text-center text-xs text-muted-foreground font-mono">
+                              {idx + 1}
+                            </td>
+                            <td className="px-1 py-1">
+                              <input
+                                type="text"
+                                value={row.title}
+                                onChange={e => updateManualRow(idx, "title", e.target.value)}
+                                className="w-full px-2 py-1.5 text-xs rounded border border-input bg-background focus:ring-1 focus:ring-ring outline-none"
+                                placeholder="Paper title"
+                              />
+                            </td>
+                            <td className="px-1 py-1">
+                              <input
+                                type="text"
+                                value={row.abstract}
+                                onChange={e => updateManualRow(idx, "abstract", e.target.value)}
+                                className="w-full px-2 py-1.5 text-xs rounded border border-input bg-background focus:ring-1 focus:ring-ring outline-none"
+                                placeholder="Abstract"
+                              />
+                            </td>
+                            <td className="px-1 py-1">
+                              <input
+                                type="email"
+                                value={row.primary_author_email}
+                                onChange={e => updateManualRow(idx, "primary_author_email", e.target.value)}
+                                className="w-full px-2 py-1.5 text-xs rounded border border-input bg-background focus:ring-1 focus:ring-ring outline-none"
+                                placeholder="author@email.com"
+                              />
+                            </td>
+                            <td className="px-1 py-1">
+                              <input
+                                type="text"
+                                value={row.co_author_emails}
+                                onChange={e => updateManualRow(idx, "co_author_emails", e.target.value)}
+                                className="w-full px-2 py-1.5 text-xs rounded border border-input bg-background focus:ring-1 focus:ring-ring outline-none"
+                                placeholder="a@b.com;c@d.com"
+                              />
+                            </td>
+                            <td className="px-1 py-1 text-center">
+                              <button
+                                onClick={() => removeManualRow(idx)}
+                                disabled={manualRows.length <= 1}
+                                className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive disabled:opacity-30 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="p-3 bg-muted/20 border-t border-border flex justify-between items-center">
+                    <span className="text-xs text-muted-foreground">
+                      {manualRows.length} row(s) • Separate co-author emails with semicolons (;)
+                    </span>
+                    <Button variant="outline" size="sm" onClick={addManualRow}>
+                      <Plus className="w-3.5 h-3.5 mr-1" /> Add Row
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-border bg-muted/30">
                   <h2 className="text-xl font-bold flex items-center">
