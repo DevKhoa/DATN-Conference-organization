@@ -4,8 +4,12 @@ import tempfile
 import uuid
 
 from fastapi import APIRouter, HTTPException, File, UploadFile, Body, Form
+from fastapi.responses import StreamingResponse
 import csv
 import io
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.comments import Comment
 from packages.utils import Logger, supabase_client, storage_client, BUCKET_NAME
 from packages.file_storage import StorageClient
 
@@ -139,32 +143,169 @@ async def get_import_logs(conf_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/conferences/{conf_id}/import-template")
+async def download_import_template(conf_id: int):
+    """Generate and download a formatted Excel template for paper import."""
+    try:
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Papers Import"
+
+        # -- Styles --
+        header_font = Font(name="Calibri", bold=True, size=11, color="FFFFFF")
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        required_fill = PatternFill(start_color="2F5496", end_color="2F5496", fill_type="solid")
+        header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        thin_border = Border(
+            left=Side(style="thin", color="B4C6E7"),
+            right=Side(style="thin", color="B4C6E7"),
+            top=Side(style="thin", color="B4C6E7"),
+            bottom=Side(style="thin", color="B4C6E7")
+        )
+        example_font = Font(name="Calibri", size=10, italic=True, color="808080")
+
+        # -- Headers --
+        headers = [
+            ("title", True, "Paper Title (Required)\n\nEnter the full title of the paper.\nThis field is required."),
+            ("abstract", False, "Abstract (Optional)\n\nEnter a brief summary of the paper.\nCan be left empty."),
+            ("primary_author_email", True, "Primary Author Email (Required)\n\nEmail of the main author.\nMust be a registered user in the system."),
+            ("co_author_emails", False, "Co-author Emails (Optional)\n\nEmails of co-authors, separated by semicolons (;).\nExample: user1@mail.com;user2@mail.com\nAll emails must belong to registered users."),
+        ]
+
+        for col_idx, (header_name, is_required, comment_text) in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_idx, value=header_name)
+            cell.font = header_font
+            cell.fill = required_fill if is_required else header_fill
+            cell.alignment = header_align
+            cell.border = thin_border
+            cell.comment = Comment(comment_text, "System")
+            cell.comment.width = 300
+            cell.comment.height = 120
+
+        # -- Column widths --
+        ws.column_dimensions["A"].width = 35  # title
+        ws.column_dimensions["B"].width = 55  # abstract
+        ws.column_dimensions["C"].width = 30  # primary_author_email
+        ws.column_dimensions["D"].width = 40  # co_author_emails
+
+        # -- Example row --
+        examples = [
+            "Example: AI in Healthcare",
+            "Example: This paper discusses the role of AI...",
+            "example@email.com",
+            "coauthor1@email.com;coauthor2@email.com",
+        ]
+        for col_idx, val in enumerate(examples, 1):
+            cell = ws.cell(row=2, column=col_idx, value=val)
+            cell.font = example_font
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+        # -- Empty rows with borders for user to fill --
+        for row_idx in range(3, 22):
+            for col_idx in range(1, len(headers) + 1):
+                cell = ws.cell(row=row_idx, column=col_idx)
+                cell.border = thin_border
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+        # -- Freeze header row --
+        ws.freeze_panes = "A2"
+        ws.row_dimensions[1].height = 30
+
+        # -- Instructions sheet --
+        ws_info = wb.create_sheet(title="Instructions")
+        ws_info.column_dimensions["A"].width = 80
+        instructions = [
+            ("📋 Paper Import Template - Instructions", Font(name="Calibri", bold=True, size=14, color="2F5496")),
+            ("", None),
+            ("1. Fill in the 'Papers Import' sheet with your paper data.", Font(name="Calibri", size=11)),
+            ("2. Required fields: title, primary_author_email (columns highlighted in darker blue).", Font(name="Calibri", size=11)),
+            ("3. Optional fields: abstract, co_author_emails.", Font(name="Calibri", size=11)),
+            ("4. All email addresses must belong to registered users in the system.", Font(name="Calibri", size=11, color="CC0000")),
+            ("5. For multiple co-authors, separate emails with semicolons (;).", Font(name="Calibri", size=11)),
+            ("6. Row 2 contains examples — delete or overwrite it before uploading.", Font(name="Calibri", size=11)),
+            ("7. Status will automatically be set to 'ACCEPTED' for all imported papers.", Font(name="Calibri", size=11)),
+            ("", None),
+            ("⚠️ Important: Do NOT change the column headers in the first row.", Font(name="Calibri", bold=True, size=11, color="CC0000")),
+        ]
+        for row_idx, (text, font) in enumerate(instructions, 1):
+            cell = ws_info.cell(row=row_idx, column=1, value=text)
+            if font:
+                cell.font = font
+            cell.alignment = Alignment(wrap_text=True)
+
+        # -- Save to buffer --
+        buffer = io.BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+
+        return StreamingResponse(
+            buffer,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename=paper_import_template_conf_{conf_id}.xlsx"}
+        )
+    except Exception as e:
+        logger.error(f"Generate Template Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/conferences/{conf_id}/import-papers")
 async def import_papers_csv(
     conf_id: int,
     uploader_id: int = Form(...),
     file: UploadFile = File(...)
 ):
-    if not file.filename.lower().endswith('.csv'):
-        raise HTTPException(status_code=400, detail="Only accept .csv files")
+    filename_lower = file.filename.lower()
+    if not filename_lower.endswith(('.csv', '.xlsx')):
+        raise HTTPException(status_code=400, detail="Only accept .csv or .xlsx files")
     
     try:
         content = await file.read()
-        try:
-            text_content = content.decode('utf-8-sig')
-        except UnicodeDecodeError:
-            text_content = content.decode('latin-1')
         
-        csv_reader = csv.DictReader(io.StringIO(text_content))
-        
-        required_columns = ["title", "abstract", "primary_author_email", "co_author_emails"]
-        if not csv_reader.fieldnames or not all(col in csv_reader.fieldnames for col in required_columns):
-            raise HTTPException(
-                status_code=400, 
-                detail=f"CSV must contain the following headers: {', '.join(required_columns)}"
-            )
-
-        rows = list(csv_reader)
+        # Parse rows based on file type
+        if filename_lower.endswith('.xlsx'):
+            # Parse Excel file
+            wb = load_workbook(io.BytesIO(content), read_only=True)
+            ws = wb.active
+            all_rows_raw = list(ws.iter_rows(values_only=True))
+            wb.close()
+            
+            if len(all_rows_raw) < 2:
+                raise HTTPException(status_code=400, detail="Excel file is empty or has no data rows.")
+            
+            # First row = headers
+            raw_headers = [str(h).strip().lower() if h else "" for h in all_rows_raw[0]]
+            required_columns = ["title", "abstract", "primary_author_email", "co_author_emails"]
+            if not all(col in raw_headers for col in required_columns):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Excel must contain the following headers: {', '.join(required_columns)}"
+                )
+            
+            rows = []
+            for data_row in all_rows_raw[1:]:
+                row_dict = {}
+                for col_idx, header in enumerate(raw_headers):
+                    val = data_row[col_idx] if col_idx < len(data_row) else None
+                    row_dict[header] = str(val).strip() if val is not None else ""
+                # Skip completely empty rows
+                if any(row_dict.get(col) for col in required_columns[:1]):  # at least title
+                    rows.append(row_dict)
+        else:
+            # Parse CSV file
+            try:
+                text_content = content.decode('utf-8-sig')
+            except UnicodeDecodeError:
+                text_content = content.decode('latin-1')
+            
+            csv_reader = csv.DictReader(io.StringIO(text_content))
+            required_columns = ["title", "abstract", "primary_author_email", "co_author_emails"]
+            if not csv_reader.fieldnames or not all(col in csv_reader.fieldnames for col in required_columns):
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"CSV must contain the following headers: {', '.join(required_columns)}"
+                )
+            rows = list(csv_reader)
         
         # Phase 1: Validation
         # Collect all emails to fetch
@@ -209,6 +350,15 @@ async def import_papers_csv(
             co_authors_str = row.get("co_author_emails", "")
             if co_authors_str:
                 co_emails = [e.strip() for e in co_authors_str.split(";") if e.strip()]
+                
+                # Check overlap between primary author and co-authors
+                if primary_email in co_emails:
+                    errors.append(f"Row {row_num}: Primary author '{primary_email}' cannot be listed as a co-author.")
+                
+                # Check for duplicate co-authors in the same row
+                if len(co_emails) != len(set(co_emails)):
+                    errors.append(f"Row {row_num}: Duplicate co-author emails found in the co-authors list.")
+                
                 for ce in co_emails:
                     if ce not in existing_users:
                         errors.append(f"Row {row_num}: Co-author email '{ce}' does not exist in the system.")

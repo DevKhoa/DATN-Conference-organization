@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Upload, FileText, Calendar, User, Info, Loader2, History, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronUp, Plus, Trash2, Save, Table2 } from "lucide-react";
+import { ArrowLeft, Upload, FileText, Calendar, User, Info, Loader2, History, AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronUp, Plus, Trash2, Save, Table2, Download } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { DefaultLayout } from "@/layouts/DefaultLayout";
@@ -96,9 +96,10 @@ export const ImportPapers = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith(".csv")) {
+    const name = file.name.toLowerCase();
+    if (!name.endsWith(".csv") && !name.endsWith(".xlsx")) {
       toast.error("Invalid file", {
-        description: "Please upload a .csv file.",
+        description: "Please upload a .csv or .xlsx file.",
       });
       return;
     }
@@ -106,6 +107,19 @@ export const ImportPapers = () => {
     setIsUploading(true);
     setUploadError(null);
     importMutation.mutate(file);
+  };
+
+  const handleDownloadTemplate = () => {
+    const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+    const url = `${apiUrl}/conferences/${conferenceId}/import-template`;
+    
+    // Create a hidden link and click it to trigger download
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `template_${conferenceId}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const updateManualRow = (index: number, field: keyof ManualRow, value: string) => {
@@ -172,15 +186,24 @@ export const ImportPapers = () => {
                 <div className="mb-4 rounded-full bg-primary/10 p-4">
                   <Upload className="h-8 w-8 text-primary" />
                 </div>
-                <h3 className="text-lg font-bold mb-2">Upload CSV</h3>
+                <h3 className="text-lg font-bold mb-2">Import Papers</h3>
                 <p className="text-sm text-muted-foreground mb-6">
-                  Upload a .csv file containing the papers you want to import into this conference.
+                  Upload a .csv or .xlsx file, or enter data manually.
                 </p>
+
+                <Button
+                  variant="outline"
+                  onClick={handleDownloadTemplate}
+                  className="w-full mb-3"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download Template (.xlsx)
+                </Button>
 
                 <input
                   type="file"
                   id="csv-upload"
-                  accept=".csv"
+                  accept=".csv,.xlsx"
                   className="hidden"
                   onChange={handleFileChange}
                   disabled={isUploading}
@@ -196,7 +219,10 @@ export const ImportPapers = () => {
                       Uploading...
                     </>
                   ) : (
-                    "Select CSV File"
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Upload File (.csv / .xlsx)
+                    </>
                   )}
                 </Button>
                 <Button
