@@ -17,4 +17,4 @@ RUN uv sync
 EXPOSE $PORT
 
 # Run the Agent server
-CMD ["uv", "run", "server.py"]
+CMD ["uv", "run", "src/server.py"]
