@@ -352,12 +352,6 @@ const ChairInvitationsPage = () => {
                           ? ` • ${selectedChair.organization}`
                           : ""}
                       </p>
-                      {selectedChair.description &&
-                        selectedChair.description.trim().length > 0 && (
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            {selectedChair.description}
-                          </p>
-                        )}
                     </div>
 
                     <Button
