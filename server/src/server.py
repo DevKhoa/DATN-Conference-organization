@@ -15,7 +15,7 @@ PORT = 8080
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start background scheduler on startup; stop it on shutdown."""
-    # start_scheduler()
+    start_scheduler()
     yield
     stop_scheduler()
 
