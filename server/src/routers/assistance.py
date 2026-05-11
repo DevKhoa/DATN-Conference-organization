@@ -8,7 +8,7 @@ from packages.schema import SendMessagePayload
 
 from assistances.agent import agent
 from assistances.agent_tools import user_id_var, tab_id_var
-from packages.utils import supabase_client
+from packages.utils import supabase_client, calculate_token_count
 from packages.auto_conversation import generate_conversation_title, get_local_memory
 
 
@@ -114,7 +114,8 @@ async def send_message_endpoint(
         genai_response = await agent.send_message(payload.content, local_memory=local_memory)
         
         model_message = genai_response.text
-        tokens_count = genai_response.usage_metadata.total_token_count if genai_response.usage_metadata else 0
+        usage_data = genai_response.usage_metadata
+        tokens_count = calculate_token_count(usage_data) if usage_data else 0
 
         # 4. Upload AI message
         model_response_data = {
@@ -252,10 +253,7 @@ async def send_message_sse_stream_endpoint(
                     text_chunk = chunk.text if hasattr(chunk, 'text') else ""
                     if text_chunk:
                         full_response += text_chunk
-                        
-                    if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
-                        token_count = chunk.usage_metadata.total_token_count
-
+                    
                     sse_data = {
                         "status": {"status_code": 200, "is_finish": False},
                         "parts": {"type": "text", "content": text_chunk}
@@ -280,6 +278,12 @@ async def send_message_sse_stream_endpoint(
                         "parts": {"type": "tool_result", "content": result}
                     }
                     yield f"data: {json.dumps(sse_data)}\n\n"
+                    
+                elif event["type"] == "usage_metadata":
+                    usage_data = event["content"]
+                    new_count = calculate_token_count(usage_data)
+                    if new_count > 0:
+                        token_count = new_count
 
             # Upload AI message data
             model_msg_data = {

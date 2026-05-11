@@ -5,6 +5,7 @@ import json
 import re
 import pathlib
 
+from bs4 import BeautifulSoup, NavigableString, Tag
 
 from typing import TypedDict, Optional, Literal, Any, Dict, List, Union
 
@@ -76,6 +77,9 @@ class Logger:
 
     def critical(self, message: str):
         self.logger.critical(message, stacklevel=2)
+
+    def exception(self, message: str):
+        self.logger.exception(message, stacklevel=2)
 
 #======================================== CONSTANTS ========================================#
 
@@ -153,10 +157,7 @@ _FALLBACK_RATES_TO_VND: dict[str, float] = {
 }
 
 def get_exchange_rate_to_vnd(from_currency: str) -> float:
-    """
-    Lấy tỷ giá realtime từ open.er-api.com.
-    Nếu API lỗi hoặc timeout, fallback về tỷ giá cứng.
-    """
+
     currency = from_currency.upper()
     if currency == "VND":
         return 1.0
@@ -373,3 +374,151 @@ def format_cv_profile(data: dict) -> str:
             sections.append(f"- {title_md} — *{venue}*")
 
     return "\n\n".join(sections)
+
+from bs4 import BeautifulSoup, Tag, NavigableString
+
+def get_selector(el: Tag) -> str:
+    if el.get("id"):
+        return f"#{el.get('id')}"
+    elif el.get("class"):
+        # Ensure classes are joined correctly
+        classes = el.get("class")
+        if isinstance(classes, list):
+            return "." + ".".join(classes)
+        return f".{classes}"
+    elif el.get("name"):
+        return f"{el.name}[name='{el.get('name')}']"
+    else:
+        return el.name
+
+def traverse_node(node, ordered_list: list):
+    for child in node.children:
+        # 1. TEXT NODE
+        if isinstance(child, NavigableString):
+            text = child.strip()
+            if text:
+                ordered_list.append({
+                    "type": "text",
+                    "value": text
+                })
+                
+        # 2. ELEMENT NODE
+        elif isinstance(child, Tag):
+            tag_name = child.name
+
+            if child.get("hidden") is not None or (child.get("style") and "display: none" in child.get("style").lower()):
+                continue
+
+            # BUTTON
+            if tag_name == "button":
+                text = child.get_text(separator=" ", strip=True) 
+                is_disabled = child.has_attr("disabled")
+                
+                ordered_list.append({
+                    "type": "button",
+                    "text": text,
+                    "selector": get_selector(child),
+                    **({"disabled": True} if is_disabled else {})
+                })
+                continue 
+
+            # INPUT
+            elif tag_name == "input":
+                input_type = child.get("type", "").lower()
+                placeholder = child.get("placeholder", "")
+                value = child.get("value", "")
+                is_disabled = child.has_attr("disabled")
+                is_readonly = child.has_attr("readonly")
+
+                if input_type == "hidden":
+                    continue
+
+                if input_type in ["submit", "button"]:
+                    ordered_list.append({
+                        "type": "button",
+                        "text": value or placeholder, 
+                        "selector": get_selector(child),
+                        **({"disabled": True} if is_disabled else {})
+                    })
+                else:
+                    item = {
+                        "type": "input",
+                        "placeholder": placeholder,
+                        "value": value,
+                        "selector": get_selector(child)
+                    }
+                    if is_disabled: item["disabled"] = True
+                    if is_readonly: item["readonly"] = True
+                    if input_type in ["checkbox", "radio"] and child.has_attr("checked"):
+                        item["checked"] = True
+                    
+                    ordered_list.append(item)
+                continue
+
+            # TEXTAREA 
+            elif tag_name == "textarea":
+                placeholder = child.get("placeholder", "")
+                value = child.get_text(strip=True) 
+                is_disabled = child.has_attr("disabled")
+                is_readonly = child.has_attr("readonly")
+
+                item = {
+                    "type": "textarea",
+                    "placeholder": placeholder,
+                    "value": value,
+                    "selector": get_selector(child)
+                }
+                if is_disabled: item["disabled"] = True
+                if is_readonly: item["readonly"] = True
+
+                ordered_list.append(item)
+                continue
+
+            # LINK
+            elif tag_name == "a":
+                text = child.get_text(separator=" ", strip=True)
+                if text:
+                    ordered_list.append({
+                        "type": "link",
+                        "text": text,
+                        "selector": get_selector(child)
+                    })
+                continue
+
+            traverse_node(child, ordered_list)
+
+def extract_ordered_elements(html: str) -> list:
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(["script", "style", "noscript", "meta", "link", "svg"]):
+        tag.decompose()
+        
+    ordered = []
+    root_node = soup.body if soup.body else soup
+    traverse_node(root_node, ordered)
+
+    return ordered
+
+def calculate_token_count(usage_metadata):
+    if not usage_metadata:
+        return 0
+
+    try:
+        caches_token = 0
+        if getattr(usage_metadata, 'cache_tokens_details', None):
+            caches_token = getattr(usage_metadata.cache_tokens_details[0], 'token_count', 0)
+
+        candidates_token = getattr(usage_metadata, 'candidates_token_count', 0)
+        thoughts_token = getattr(usage_metadata, 'thoughts_token_count', 0)
+        prompt_token = getattr(usage_metadata, 'prompt_token_count', 0)
+
+        output_token = candidates_token + thoughts_token
+        input_token = prompt_token - caches_token
+
+        input_token = max(0, input_token)
+
+        total_token_count = int(caches_token / 60 + input_token / 6 + output_token) 
+
+        return total_token_count
+
+    except Exception as e:
+        return 0

@@ -52,3 +52,15 @@ export interface UploadPaperVersionResult {
   version_id: number;
   file_path: string | null;
 }
+
+export interface SavePaperAwardMarkingPayload {
+  paperId: number;
+  awardId: number;
+  userId: number;
+  comments?: string | null;
+  scores: Array<{
+    criteriaId: number;
+    score: number;
+  }>;
+  existingMarkId?: number | null;
+}

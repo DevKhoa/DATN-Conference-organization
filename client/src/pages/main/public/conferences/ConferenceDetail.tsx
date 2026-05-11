@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -15,8 +15,8 @@ import {
   Layers,
   QrCode,
   Ticket,
+  Trophy,
   Users,
-  Upload,
   X,
 } from "lucide-react";
 
@@ -31,7 +31,9 @@ import {
 } from "@/components/ui/dialog";
 import useAuth from "@/features/auth/hooks/useAuth";
 import { Role } from "@/features/auth/types";
+import { useAwardLeaderboardQuery } from "@/features/awards/services/queries";
 import { useConferenceDetailQuery } from "@/features/conferences/services/queries";
+import { useAcceptedPapersQuery } from "@/features/papers/services/queries";
 import { DefaultLayout } from "@/layouts/DefaultLayout";
 import { Route } from "@/routes/conferences/$conferenceId";
 import { supabase } from "@/lib/supabase";
@@ -41,6 +43,7 @@ import {
 } from "@/features/sessions/services/mutations";
 import { ConferenceSessionDisplay } from "./components/ConferenceSessionDisplay";
 import { ConferenceRegistrationPanel } from "./components/ConferenceRegistrationPanel";
+import { ConferenceAwardsLeaderboard } from "./components/ConferenceAwardsLeaderboard";
 
 const formatDateHeader = (isoString: string | null) => {
   if (!isoString) {
@@ -81,6 +84,10 @@ const ConferenceDetailPage = () => {
     isLoading,
     error,
   } = useConferenceDetailQuery(conferenceId);
+  const { data: acceptedPapers = [], isLoading: isLoadingAcceptedPapers } =
+    useAcceptedPapersQuery(conferenceId);
+  const { data: leaderboardRows = [], isLoading: isLoadingLeaderboard } =
+    useAwardLeaderboardQuery(conferenceId);
 
   const conference = conferenceDetail?.conference ?? null;
   const sessions = conferenceDetail?.sessions ?? [];
@@ -101,58 +108,6 @@ const ConferenceDetailPage = () => {
   const [selectedSessionsForCheckin, setSelectedSessionsForCheckin] = useState<
     number[]
   >([]);
-
-  const location = useLocation();
-
-  useEffect(() => {
-    if (sessions.length === 0) return;
-
-    const hash = location.hash;
-    if (hash && hash.startsWith("session-")) {
-      const sessionIdStr = hash.replace("session-", "");
-      const sessionId = Number(sessionIdStr);
-
-      const sessionToExpand = sessions.find((s) => s.session_id === sessionId);
-      if (sessionToExpand) {
-        const dateStr = sessionToExpand.start_time
-          ? new Date(sessionToExpand.start_time).toDateString()
-          : "Unknown Date";
-
-        setExpandedDays((prev) => {
-          const next = new Set(prev);
-          next.add(dateStr);
-          return next;
-        });
-
-        setExpandedSessions((prev) => {
-          const next = new Set(prev);
-          next.add(sessionId);
-          return next;
-        });
-
-        setTimeout(() => {
-          const element = document.getElementById(`session-${sessionId}`);
-          if (element) {
-            element.scrollIntoView({ behavior: "smooth", block: "center" });
-            element.classList.add(
-              "ring-2",
-              "ring-primary",
-              "ring-offset-2",
-              "rounded-2xl"
-            );
-            setTimeout(() => {
-              element.classList.remove(
-                "ring-2",
-                "ring-primary",
-                "ring-offset-2",
-                "rounded-2xl"
-              );
-            }, 2000);
-          }
-        }, 100);
-      }
-    }
-  }, [sessions, location.hash]);
 
   const { data: hasRegistration } = useQuery({
     queryKey: ["conference-detail-registration", conferenceId],
@@ -201,6 +156,21 @@ const ConferenceDetailPage = () => {
 
     return groups;
   }, [sessions]);
+  const leaderboardByAward = useMemo(() => {
+    const grouped = new Map<string, typeof leaderboardRows>();
+
+    leaderboardRows.forEach((row) => {
+      const awardName = row.award_name || "Unnamed Award";
+      const values = grouped.get(awardName) || [];
+      values.push(row);
+      grouped.set(awardName, values);
+    });
+
+    return Array.from(grouped.entries()).map(([awardName, rows]) => ({
+      awardName,
+      rows: rows.slice(0, 5),
+    }));
+  }, [leaderboardRows]);
 
   const toggleDay = (dateStr: string) => {
     const next = new Set(expandedDays);
@@ -431,22 +401,6 @@ const ConferenceDetailPage = () => {
                     Create Notification
                   </Button>
                 )}
-
-                {canEdit && (
-                  <Button
-                    onClick={() =>
-                      navigate({
-                        to: "/conferences/$conferenceId/import-papers",
-                        params: { conferenceId: String(conferenceId) },
-                      })
-                    }
-                    variant="outline"
-                    className="bg-background/10 backdrop-blur-md border-background/20 text-primary-foreground hover:bg-background/20"
-                  >
-                    <Upload className="w-4 h-4 mr-1" />
-                    Import Papers
-                  </Button>
-                )}
               </div>
             </div>
 
@@ -465,7 +419,6 @@ const ConferenceDetailPage = () => {
                       conference.start_date,
                       conference.end_date,
                     )}
-                    {conference.timezone && ` (${conference.timezone})`}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 rounded-lg border border-background/10 bg-foreground/30 px-3 py-1.5 backdrop-blur-sm">
@@ -656,6 +609,82 @@ const ConferenceDetailPage = () => {
                   )}
                 </div>
               </section>
+
+              <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
+                <div className="mb-6 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-primary/10 p-2">
+                      <CheckCircle2 className="h-6 w-6 text-primary" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-foreground">
+                      Accepted Papers
+                    </h2>
+                  </div>
+                  <div className="rounded-full border border-border bg-muted px-3 py-1 text-sm font-medium text-muted-foreground">
+                    {acceptedPapers.length} Papers
+                  </div>
+                </div>
+
+                {isLoadingAcceptedPapers ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading accepted papers...
+                  </div>
+                ) : acceptedPapers.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                    No accepted papers yet.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-border">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-muted/50 text-muted-foreground">
+                        <tr>
+                          <th className="px-4 py-3 text-left font-semibold">
+                            Title
+                          </th>
+                          <th className="px-4 py-3 text-left font-semibold">
+                            Author
+                          </th>
+                          <th className="px-4 py-3 text-right font-semibold">
+                            Action
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {acceptedPapers.map((paper) => (
+                          <tr
+                            key={paper.paper_id}
+                            className="border-t border-border hover:bg-accent/30"
+                          >
+                            <td className="px-4 py-3 font-medium text-foreground">
+                              {paper.title}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground">
+                              {paper.author_name || "Unknown Author"}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  navigate({
+                                    to: "/papers/$paperId",
+                                    params: {
+                                      paperId: String(paper.paper_id),
+                                    },
+                                  })
+                                }
+                              >
+                                View Detail
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
             </div>
 
             <aside className="lg:col-span-1">
@@ -664,6 +693,11 @@ const ConferenceDetailPage = () => {
                   conferenceId={conferenceId}
                   conferenceName={conference.conf_name}
                   conferenceStartDate={conference.start_date}
+                />
+
+                <ConferenceAwardsLeaderboard
+                  leaderboard={leaderboardByAward}
+                  isLoading={isLoadingLeaderboard}
                 />
 
                 <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">

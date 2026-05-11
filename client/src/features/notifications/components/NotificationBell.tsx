@@ -137,28 +137,28 @@ const NotificationBell = () => {
               {visibleNotifications.some(
                 (notification) => !notification.is_read,
               ) && (
-                <span className="bg-red-100 text-red-600 text-xs font-bold px-1.5 py-0.5 rounded-full">
-                  {
-                    visibleNotifications.filter(
-                      (notification) => !notification.is_read,
-                    ).length
-                  }{" "}
-                  new
-                </span>
-              )}
+                  <span className="bg-red-100 text-red-600 text-xs font-bold px-1.5 py-0.5 rounded-full">
+                    {
+                      visibleNotifications.filter(
+                        (notification) => !notification.is_read,
+                      ).length
+                    }{" "}
+                    new
+                  </span>
+                )}
             </div>
             <div className="flex items-center gap-1">
               {visibleNotifications.some(
                 (notification) => !notification.is_read,
               ) && (
-                <button
-                  onClick={markAllAsRead}
-                  title="Mark all as read"
-                  className="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
-                >
-                  <CheckCheck className="w-4 h-4" />
-                </button>
-              )}
+                  <button
+                    onClick={markAllAsRead}
+                    title="Mark all as read"
+                    className="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
+                  >
+                    <CheckCheck className="w-4 h-4" />
+                  </button>
+                )}
               <button
                 onClick={() => setIsOpen(false)}
                 className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
@@ -191,17 +191,15 @@ const NotificationBell = () => {
                 <button
                   key={n.id}
                   onClick={() => handleItemClick(n)}
-                  className={`w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-slate-50 transition-colors group ${
-                    !n.is_read ? "bg-brand-50/40" : ""
-                  }`}
+                  className={`w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-slate-50 transition-colors group ${!n.is_read ? "bg-brand-50/40" : ""
+                    }`}
                 >
                   {/* Type Icon */}
                   <div
-                    className={`flex-shrink-0 mt-0.5 w-8 h-8 rounded-full flex items-center justify-center ${
-                      !n.is_read
+                    className={`flex-shrink-0 mt-0.5 w-8 h-8 rounded-full flex items-center justify-center ${!n.is_read
                         ? "bg-brand-100 text-brand-600"
                         : "bg-slate-100 text-slate-400"
-                    }`}
+                      }`}
                   >
                     {(n.notifications?.target_criteria as any)?.notification_type === "session_start" ? (
                       <CalendarClock className="w-4 h-4" />
@@ -214,11 +212,10 @@ const NotificationBell = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <p
-                        className={`text-sm leading-snug line-clamp-2 ${
-                          !n.is_read
+                        className={`text-sm leading-snug line-clamp-2 ${!n.is_read
                             ? "font-semibold text-slate-900"
                             : "font-medium text-slate-600"
-                        }`}
+                          }`}
                       >
                         {getNotifTitle(n)}
                       </p>

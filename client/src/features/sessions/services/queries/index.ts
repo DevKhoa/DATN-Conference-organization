@@ -245,15 +245,15 @@ export const useSessionsByConferenceQuery = (conferenceId: number | null) => {
     queryKey: [SessionKeys.SessionsByConference, conferenceId],
     queryFn: conferenceId
       ? async () => {
-          const { data, error } = await supabase
-            .from("sessions")
-            .select("session_id, session_name, room_location")
-            .eq("conf_id", conferenceId);
+        const { data, error } = await supabase
+          .from("sessions")
+          .select("session_id, session_name, room_location")
+          .eq("conf_id", conferenceId);
 
-          if (error) throw error;
+        if (error) throw error;
 
-          return (data || []) as Session[];
-        }
+        return (data || []) as Session[];
+      }
       : skipToken,
     enabled: !!conferenceId,
   });

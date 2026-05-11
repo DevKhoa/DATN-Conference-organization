@@ -65,9 +65,8 @@ export const ConferenceSessionDisplay = ({
       <div className="flex flex-col items-center shrink-0 w-16 z-10">
         <div className="bg-muted py-2 flex flex-col items-center w-full">
           <span
-            className={`text-sm font-bold font-mono tracking-tight ${
-              isExpanded ? "text-primary" : "text-muted-foreground"
-            }`}
+            className={`text-sm font-bold font-mono tracking-tight ${isExpanded ? "text-primary" : "text-muted-foreground"
+              }`}
           >
             {formatTimeOnly(session.start_time)}
           </span>
@@ -75,11 +74,10 @@ export const ConferenceSessionDisplay = ({
             {formatTimeOnly(session.end_time)}
           </span>
           <div
-            className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-300 relative bg-white ${
-              isExpanded
+            className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-300 relative bg-white ${isExpanded
                 ? "border-primary shadow-[0_0_0_4px_rgba(59,130,246,0.1)] scale-110"
                 : "border-border group-hover:border-primary/40"
-            }`}
+              }`}
           >
             {isExpanded && (
               <div className="absolute inset-0.5 rounded-full bg-primary" />
@@ -89,20 +87,18 @@ export const ConferenceSessionDisplay = ({
       </div>
 
       <div
-        className={`grow relative z-10 rounded-2xl border bg-white transition-all duration-300 ${
-          isExpanded
+        className={`grow relative z-10 rounded-2xl border bg-white transition-all duration-300 ${isExpanded
             ? "border-primary/30 shadow-lg ring-1 ring-primary/20 translate-x-1"
             : "border-border shadow-sm hover:border-border/80 hover:shadow-md"
-        }`}
+          }`}
       >
         <div onClick={onToggle} className="cursor-pointer p-5 md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
             <div
-              className={`flex flex-1 items-start gap-3 text-lg font-bold transition-colors md:text-xl min-w-[280px] ${
-                isExpanded
+              className={`flex flex-1 items-start gap-3 text-lg font-bold transition-colors md:text-xl min-w-[280px] ${isExpanded
                   ? "text-primary"
                   : "text-foreground group-hover:text-primary"
-              }`}
+                }`}
             >
               <div className="shrink-0 mt-0.5 rounded-xl bg-muted p-2 text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
                 {session.format_type?.toLowerCase() === "virtual" && (
@@ -138,12 +134,11 @@ export const ConferenceSessionDisplay = ({
                     {session.meet_link !== undefined && (
                       <div className="flex items-center gap-1 animate-in slide-in-from-right-2 duration-300 group/meet">
                         <button
-                          className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold shadow-sm transition-all duration-300 ${
-                            session.meet_link &&
-                            (session.is_meet_active ?? true)
+                          className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold shadow-sm transition-all duration-300 ${session.meet_link &&
+                              (session.is_meet_active ?? true)
                               ? "border-transparent bg-linear-to-r from-indigo-600 to-violet-600 text-white hover:from-indigo-700 hover:to-violet-700 hover:shadow-indigo-200"
                               : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
-                          }`}
+                            }`}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (
@@ -172,11 +167,10 @@ export const ConferenceSessionDisplay = ({
                                 isActive: !(session.is_meet_active ?? true),
                               });
                             }}
-                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 ${
-                              (session.is_meet_active ?? true)
+                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 ${(session.is_meet_active ?? true)
                                 ? "border-emerald-100 bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
                                 : "border-slate-200 bg-slate-100 text-slate-400 hover:bg-slate-200"
-                            }`}
+                              }`}
                             title={
                               (session.is_meet_active ?? true)
                                 ? "Deactivate Meeting Room"
@@ -195,11 +189,10 @@ export const ConferenceSessionDisplay = ({
 
                     {session.record_video_url !== undefined && (
                       <button
-                        className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold shadow-sm transition-all duration-300 animate-in slide-in-from-right-2 ${
-                          session.record_video_url
+                        className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold shadow-sm transition-all duration-300 animate-in slide-in-from-right-2 ${session.record_video_url
                             ? "border-transparent bg-linear-to-r from-rose-600 to-pink-600 text-white hover:from-rose-700 hover:to-pink-700 hover:shadow-rose-200"
                             : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
-                        }`}
+                          }`}
                         onClick={(e) => {
                           e.stopPropagation();
                           if (session.record_video_url) {
@@ -259,11 +252,10 @@ export const ConferenceSessionDisplay = ({
               </div>
 
               <div
-                className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-300 ${
-                  isExpanded
+                className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-300 ${isExpanded
                     ? "rotate-180 bg-primary/10 text-primary"
                     : "bg-muted text-muted-foreground"
-                }`}
+                  }`}
               >
                 <ChevronDown className="h-5 w-5" />
               </div>

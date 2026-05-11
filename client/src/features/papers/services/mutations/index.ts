@@ -1,12 +1,14 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { request } from "@/lib/axios";
 import { supabase } from "@/lib/supabase";
+import { PapersKeys } from "@/features/papers/services/queries/keys";
 import type {
   AnalyzeReviewResult,
   CreatePaperPayload,
   CreatePaperResult,
   GrammarReviewResult,
   PlagiarismRequestPayload,
+  SavePaperAwardMarkingPayload,
   PlagiarismResult,
   UploadPaperVersionPayload,
   UploadPaperVersionResult,
@@ -192,6 +194,77 @@ export const useUploadPaperVersionMutation = () => {
         version_id: versionData.version_id,
         file_path: uploadData?.url || versionData.file_path,
       };
+    },
+  });
+};
+
+export const useSavePaperAwardMarkingMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      paperId,
+      awardId,
+      userId,
+      comments,
+      scores,
+      existingMarkId,
+    }: SavePaperAwardMarkingPayload) => {
+      let markId = existingMarkId || null;
+
+      if (markId) {
+        const { error: updateMarkError } = await supabase
+          .from("marking_records")
+          .update({
+            comments: comments?.trim() || null,
+            marked_at: new Date().toISOString(),
+          })
+          .eq("mark_id", markId);
+
+        if (updateMarkError) throw updateMarkError;
+      } else {
+        const { data: createdMark, error: createMarkError } = await supabase
+          .from("marking_records")
+          .insert({
+            award_id: awardId,
+            paper_id: paperId,
+            marked_by: userId,
+            comments: comments?.trim() || null,
+            marked_at: new Date().toISOString(),
+          })
+          .select("mark_id")
+          .single();
+
+        if (createMarkError) throw createMarkError;
+        markId = createdMark.mark_id;
+      }
+
+      const { error: deleteDetailsError } = await supabase
+        .from("marking_details")
+        .delete()
+        .eq("mark_id", markId);
+      if (deleteDetailsError) throw deleteDetailsError;
+
+      const { error: insertDetailsError } = await supabase
+        .from("marking_details")
+        .insert(
+          scores.map((item) => ({
+            mark_id: markId!,
+            criteria_id: item.criteriaId,
+            score: item.score,
+          })),
+        );
+      if (insertDetailsError) throw insertDetailsError;
+
+      return { paperId, userId };
+    },
+    onSuccess: ({ paperId, userId }) => {
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.PublicPaperDetailPage, paperId, userId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.PublicPaperDetailPage, paperId],
+      });
     },
   });
 };

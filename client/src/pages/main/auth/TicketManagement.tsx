@@ -697,8 +697,8 @@ const TicketManagementPage = () => {
                     value={
                       form.currency === "VND" && form.price !== ""
                         ? new Intl.NumberFormat("vi-VN").format(
-                            Number(form.price),
-                          )
+                          Number(form.price),
+                        )
                         : form.price
                     }
                     onChange={(e) => {

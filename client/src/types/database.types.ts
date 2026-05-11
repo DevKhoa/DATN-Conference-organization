@@ -169,6 +169,165 @@ export type Database = {
           },
         ]
       }
+      award_criteria: {
+        Row: {
+          award_id: number
+          criteria_id: number
+          criteria_name: string
+          weight_pct: number
+        }
+        Insert: {
+          award_id: number
+          criteria_id?: number
+          criteria_name: string
+          weight_pct: number
+        }
+        Update: {
+          award_id?: number
+          criteria_id?: number
+          criteria_name?: string
+          weight_pct?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "award_criteria_award_id_fkey"
+            columns: ["award_id"]
+            isOneToOne: false
+            referencedRelation: "awards"
+            referencedColumns: ["award_id"]
+          },
+        ]
+      }
+      award_sessions: {
+        Row: {
+          award_id: number
+          session_id: number
+        }
+        Insert: {
+          award_id: number
+          session_id: number
+        }
+        Update: {
+          award_id?: number
+          session_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "award_sessions_award_id_fkey"
+            columns: ["award_id"]
+            isOneToOne: false
+            referencedRelation: "awards"
+            referencedColumns: ["award_id"]
+          },
+          {
+            foreignKeyName: "award_sessions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["session_id"]
+          },
+        ]
+      }
+      award_template_criteria: {
+        Row: {
+          criteria_id: number
+          criteria_name: string
+          template_id: number
+          weight_pct: number
+        }
+        Insert: {
+          criteria_id?: number
+          criteria_name: string
+          template_id: number
+          weight_pct: number
+        }
+        Update: {
+          criteria_id?: number
+          criteria_name?: string
+          template_id?: number
+          weight_pct?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "award_template_criteria_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "award_templates"
+            referencedColumns: ["template_id"]
+          },
+        ]
+      }
+      award_templates: {
+        Row: {
+          attendee_pct: number | null
+          chair_pct: number | null
+          created_at: string | null
+          description: string | null
+          name: string
+          template_id: number
+        }
+        Insert: {
+          attendee_pct?: number | null
+          chair_pct?: number | null
+          created_at?: string | null
+          description?: string | null
+          name: string
+          template_id?: number
+        }
+        Update: {
+          attendee_pct?: number | null
+          chair_pct?: number | null
+          created_at?: string | null
+          description?: string | null
+          name?: string
+          template_id?: number
+        }
+        Relationships: []
+      }
+      awards: {
+        Row: {
+          attendee_pct: number | null
+          award_id: number
+          chair_pct: number | null
+          close_time: string | null
+          conf_id: number
+          created_at: string | null
+          description: string | null
+          name: string
+          open_time: string | null
+        }
+        Insert: {
+          attendee_pct?: number | null
+          award_id?: number
+          chair_pct?: number | null
+          close_time?: string | null
+          conf_id: number
+          created_at?: string | null
+          description?: string | null
+          name: string
+          open_time?: string | null
+        }
+        Update: {
+          attendee_pct?: number | null
+          award_id?: number
+          chair_pct?: number | null
+          close_time?: string | null
+          conf_id?: number
+          created_at?: string | null
+          description?: string | null
+          name?: string
+          open_time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "awards_conf_id_fkey"
+            columns: ["conf_id"]
+            isOneToOne: false
+            referencedRelation: "conferences"
+            referencedColumns: ["conf_id"]
+          },
+        ]
+      }
       chair_invitations: {
         Row: {
           conf_id: number | null
@@ -401,6 +560,94 @@ export type Database = {
           template_name?: string | null
         }
         Relationships: []
+      }
+      marking_details: {
+        Row: {
+          criteria_id: number
+          detail_id: number
+          mark_id: number
+          score: number
+        }
+        Insert: {
+          criteria_id: number
+          detail_id?: number
+          mark_id: number
+          score: number
+        }
+        Update: {
+          criteria_id?: number
+          detail_id?: number
+          mark_id?: number
+          score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marking_details_criteria_id_fkey"
+            columns: ["criteria_id"]
+            isOneToOne: false
+            referencedRelation: "award_criteria"
+            referencedColumns: ["criteria_id"]
+          },
+          {
+            foreignKeyName: "marking_details_mark_id_fkey"
+            columns: ["mark_id"]
+            isOneToOne: false
+            referencedRelation: "marking_records"
+            referencedColumns: ["mark_id"]
+          },
+        ]
+      }
+      marking_records: {
+        Row: {
+          award_id: number
+          comments: string | null
+          mark_id: number
+          marked_at: string | null
+          marked_by: number
+          paper_id: number
+          total_score: number | null
+        }
+        Insert: {
+          award_id: number
+          comments?: string | null
+          mark_id?: number
+          marked_at?: string | null
+          marked_by: number
+          paper_id: number
+          total_score?: number | null
+        }
+        Update: {
+          award_id?: number
+          comments?: string | null
+          mark_id?: number
+          marked_at?: string | null
+          marked_by?: number
+          paper_id?: number
+          total_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marking_records_award_id_fkey"
+            columns: ["award_id"]
+            isOneToOne: false
+            referencedRelation: "awards"
+            referencedColumns: ["award_id"]
+          },
+          {
+            foreignKeyName: "marking_records_marked_by_fkey"
+            columns: ["marked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "marking_records_paper_id_fkey"
+            columns: ["paper_id"]
+            isOneToOne: false
+            referencedRelation: "papers"
+            referencedColumns: ["paper_id"]
+          },
+        ]
       }
       messages: {
         Row: {
@@ -669,6 +916,96 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "papers"
             referencedColumns: ["paper_id"]
+          },
+        ]
+      }
+      paper_import_logs: {
+        Row: {
+          conf_id: number | null
+          created_at: string
+          error_details: string | null
+          file_name: string | null
+          log_id: number
+          num_papers: number | null
+          person_in_charge: number | null
+          status: string
+        }
+        Insert: {
+          conf_id?: number | null
+          created_at?: string
+          error_details?: string | null
+          file_name?: string | null
+          log_id?: number
+          num_papers?: number | null
+          person_in_charge?: number | null
+          status?: string
+        }
+        Update: {
+          conf_id?: number | null
+          created_at?: string
+          error_details?: string | null
+          file_name?: string | null
+          log_id?: number
+          num_papers?: number | null
+          person_in_charge?: number | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paper_import_logs_conf_id_fkey"
+            columns: ["conf_id"]
+            isOneToOne: false
+            referencedRelation: "conferences"
+            referencedColumns: ["conf_id"]
+          },
+          {
+            foreignKeyName: "paper_import_logs_person_in_charge_fkey"
+            columns: ["person_in_charge"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      paper_imports: {
+        Row: {
+          conf_id: number | null
+          file_name: string
+          import_date: string
+          import_id: number
+          num_papers: number
+          person_in_charge: number | null
+        }
+        Insert: {
+          conf_id?: number | null
+          file_name: string
+          import_date?: string
+          import_id?: number
+          num_papers: number
+          person_in_charge?: number | null
+        }
+        Update: {
+          conf_id?: number | null
+          file_name?: string
+          import_date?: string
+          import_id?: number
+          num_papers?: number
+          person_in_charge?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paper_imports_conf_id_fkey"
+            columns: ["conf_id"]
+            isOneToOne: false
+            referencedRelation: "conferences"
+            referencedColumns: ["conf_id"]
+          },
+          {
+            foreignKeyName: "paper_imports_person_in_charge_fkey"
+            columns: ["person_in_charge"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -1764,6 +2101,41 @@ export type Database = {
       }
     }
     Views: {
+      award_leaderboard_view: {
+        Row: {
+          author_name: string | null
+          average_score: number | null
+          award_id: number | null
+          award_name: string | null
+          conf_id: number | null
+          paper_id: number | null
+          paper_title: string | null
+          total_graders: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "awards_conf_id_fkey"
+            columns: ["conf_id"]
+            isOneToOne: false
+            referencedRelation: "conferences"
+            referencedColumns: ["conf_id"]
+          },
+          {
+            foreignKeyName: "marking_records_award_id_fkey"
+            columns: ["award_id"]
+            isOneToOne: false
+            referencedRelation: "awards"
+            referencedColumns: ["award_id"]
+          },
+          {
+            foreignKeyName: "marking_records_paper_id_fkey"
+            columns: ["paper_id"]
+            isOneToOne: false
+            referencedRelation: "papers"
+            referencedColumns: ["paper_id"]
+          },
+        ]
+      }
       user_subscription_history: {
         Row: {
           amount: number | null
@@ -1780,8 +2152,8 @@ export type Database = {
           status: Database["public"]["Enums"]["subscription_status"] | null
           subscription_id: number | null
           subscription_type:
-            | Database["public"]["Enums"]["subscription_type"]
-            | null
+          | Database["public"]["Enums"]["subscription_type"]
+          | null
           tokens_remaining: number | null
           transaction_id: number | null
         }
@@ -1829,6 +2201,10 @@ export type Database = {
           subscription_id: number
           transaction_id: number
         }[]
+      }
+      can_user_mark_paper: {
+        Args: { p_award_id: number; p_paper_id: number }
+        Returns: boolean
       }
       cancel_subscription: {
         Args: { p_subscription_id: number }
@@ -1922,6 +2298,7 @@ export type Database = {
       }
       get_user_roles: { Args: { p_user_id: string }; Returns: string[] }
       is_admin: { Args: never; Returns: boolean }
+      is_chair: { Args: never; Returns: boolean }
       match_all_chunks: {
         Args: {
           filter_paper_id?: number
@@ -2035,116 +2412,116 @@ type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
-    ? R
-    : never
+  ? R
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
-      }
-      ? R
-      : never
-    : never
+    DefaultSchema["Views"])
+  ? (DefaultSchema["Tables"] &
+    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+      Row: infer R
+    }
+  ? R
+  : never
+  : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Tables"]
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
-    }
-    ? I
-    : never
+    Insert: infer I
+  }
+  ? I
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
-      }
-      ? I
-      : never
-    : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+    Insert: infer I
+  }
+  ? I
+  : never
+  : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Tables"]
+  | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
-    }
-    ? U
-    : never
+    Update: infer U
+  }
+  ? U
+  : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
-      }
-      ? U
-      : never
-    : never
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+    Update: infer U
+  }
+  ? U
+  : never
+  : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["Enums"]
+  | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+  : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
+  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+  : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
+  | keyof DefaultSchema["CompositeTypes"]
+  | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+  : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
+  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+  : never
 
 export const Constants = {
   public: {

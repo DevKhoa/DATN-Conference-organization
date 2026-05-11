@@ -313,7 +313,7 @@ const ChairInvitationsPage = () => {
                     if (
                       selectedChair &&
                       e.target.value.trim().toLowerCase() !==
-                        selectedChair.email.trim().toLowerCase()
+                      selectedChair.email.trim().toLowerCase()
                     ) {
                       setSelectedChair(null);
                     }

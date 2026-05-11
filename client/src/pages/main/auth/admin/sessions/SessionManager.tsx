@@ -369,7 +369,11 @@ const SessionManagerPage = ({
         `Successfully grouped into ${newSessions.length} sessions. Please verify Time & Location.`,
       );
     } catch (err: any) {
-      setError("Auto-schedule failed: " + err.message);
+      const backendErrorMessage =
+        err.response?.data?.detail ||
+        err.message ||
+        "An unknown error occurred.";
+      setError("Auto-schedule failed: " + backendErrorMessage);
     }
   };
 
@@ -744,10 +748,10 @@ const SessionManagerPage = ({
                   {conferenceData?.conference?.format_type && (
                     <span
                       className={`px-2 py-0.5 mt-1 rounded-md text-[10px] font-bold uppercase tracking-wider border shadow-sm ${conferenceData.conference.format_type === "virtual"
-                          ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                          : conferenceData.conference.format_type === "hybrid"
-                            ? "bg-amber-50 text-amber-700 border-amber-200"
-                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                        : conferenceData.conference.format_type === "hybrid"
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
                         }`}
                     >
                       {conferenceData.conference.format_type === "virtual"
@@ -947,8 +951,8 @@ const SessionManagerPage = ({
                           onDragStart={(e) => handleDragStart(e, p.paper_id)}
                           onDragEnd={handleDragEnd}
                           className={`p-4 rounded-xl border transition-all ${isAssigned
-                              ? "bg-slate-50 border-transparent opacity-50"
-                              : "bg-white border-slate-200 shadow-sm cursor-grab hover:shadow-md hover:border-indigo-300 active:cursor-grabbing"
+                            ? "bg-slate-50 border-transparent opacity-50"
+                            : "bg-white border-slate-200 shadow-sm cursor-grab hover:shadow-md hover:border-indigo-300 active:cursor-grabbing"
                             } ${draggedPaperId === p.paper_id ? "opacity-50 scale-95" : ""}`}
                         >
                           <div className="flex items-start gap-2">
@@ -1009,8 +1013,8 @@ const SessionManagerPage = ({
                       key={session.temp_id}
                       id={`session-card-${session.temp_id}`}
                       className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all hover:shadow-md ${dragOverSessionId === session.temp_id
-                          ? "border-indigo-400 ring-4 ring-indigo-50 scale-[1.01]"
-                          : "border-slate-200"
+                        ? "border-indigo-400 ring-4 ring-indigo-50 scale-[1.01]"
+                        : "border-slate-200"
                         }`}
                       onDragOver={(e) => handleDragOver(e, session.temp_id)}
                       onDragLeave={(e) => handleDragLeave(e, session.temp_id)}
@@ -1040,8 +1044,8 @@ const SessionManagerPage = ({
                                       );
                                     }}
                                     className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${session.format_type === "in-person"
-                                        ? "bg-white text-emerald-700 shadow-sm"
-                                        : "text-slate-500 hover:text-slate-700"
+                                      ? "bg-white text-emerald-700 shadow-sm"
+                                      : "text-slate-500 hover:text-slate-700"
                                       }`}
                                   >
                                     In-person
@@ -1056,8 +1060,8 @@ const SessionManagerPage = ({
                                       );
                                     }}
                                     className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${session.format_type === "virtual"
-                                        ? "bg-white text-indigo-700 shadow-sm"
-                                        : "text-slate-500 hover:text-slate-700"
+                                      ? "bg-white text-indigo-700 shadow-sm"
+                                      : "text-slate-500 hover:text-slate-700"
                                       }`}
                                   >
                                     Virtual
@@ -1066,8 +1070,8 @@ const SessionManagerPage = ({
                               ) : (
                                 <span
                                   className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${session.format_type === "virtual"
-                                      ? "bg-indigo-50 text-indigo-600"
-                                      : "bg-emerald-50 text-emerald-600"
+                                    ? "bg-indigo-50 text-indigo-600"
+                                    : "bg-emerald-50 text-emerald-600"
                                     }`}
                                 >
                                   {session.format_type === "virtual"
@@ -1421,7 +1425,7 @@ const SessionManagerPage = ({
                                               </div>
                                               <div className="w-px h-6 bg-slate-200 mx-1 hidden lg:block" />
                                               <button
-                                                id={`btn-remove-paper-${session.temp_id}-${ap.paper_id}`}
+                                                id={`btn-remove-paper-${ap.paper_id}`}
                                                 onClick={() =>
                                                   removePaperFromSession(
                                                     session.temp_id,

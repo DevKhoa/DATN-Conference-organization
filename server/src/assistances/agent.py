@@ -4,7 +4,7 @@ import inspect
 
 from google.genai import types
 
-from assistances.agent_tools import make_query, navigate, click, fill, current_tab
+from assistances.agent_tools import make_query, navigate, click, fill, current_tab, fill_enter, fill_datetime
 from packages.utils import Logger, genai_client, ASSISTANCE_INSTRUCTION
 
 logger = Logger()
@@ -12,7 +12,7 @@ logger = Logger()
 MODEL = "gemini-3-flash-preview"
 MAX_OUTPUT_TOKEN = 10240
 MAX_DEPTH = 10
-TOOLS = [make_query, navigate, click, fill, current_tab]
+TOOLS = [make_query, navigate, click, fill, current_tab, fill_datetime, fill_enter]
 
 class RootAgent:
     def __init__(self, client=genai_client, model=MODEL, max_token=MAX_OUTPUT_TOKEN, tools=TOOLS, instruction=ASSISTANCE_INSTRUCTION):
@@ -147,6 +147,9 @@ class RootAgent:
                 if chunk.text:
                     current_text += chunk.text
                     yield {"type": "text_stream", "content": chunk}
+
+                if chunk.usage_metadata:
+                    yield {"type": "usage_metadata", "content": chunk.usage_metadata}  # separate type!
                 
                 if chunk.candidates and chunk.candidates[0].content.parts:
                     for part in chunk.candidates[0].content.parts:
@@ -193,5 +196,6 @@ class RootAgent:
 
             if turn_count >= MAX_DEPTH:
                 yield {"type": "FINISH", "content": "Maximum depth reached"}
+
 
 agent = RootAgent()

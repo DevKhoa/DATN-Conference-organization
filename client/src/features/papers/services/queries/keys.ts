@@ -5,6 +5,7 @@ export enum PapersKeys {
   MyPapers = "papers/myPapers",
   MyPaperDetail = "papers/myPaperDetail",
   PublicPaperDetail = "papers/publicPaperDetail",
+  PublicPaperDetailPage = "papers/publicPaperDetailPage",
   SubmitOpenConferences = "papers/submit/openConferences",
   SubmitAuthors = "papers/submit/authors",
   SubmitExistingPapers = "papers/submit/existingPapers",

@@ -32,13 +32,13 @@ const BASE_LINKS: {
   href: string;
   icon?: React.ComponentType<{ className?: string }>;
 }[] = [
-  { name: "Home", href: "/" },
-  { name: "Papers", href: "/papers" },
-  { name: "Conferences", href: "/conferences" },
-  { name: "Subscriptions", href: "/subscriptions" },
-  { name: "News", href: "/news" },
-  { name: "Proceedings", href: "/proceedings" },
-];
+    { name: "Home", href: "/" },
+    { name: "Papers", href: "/papers" },
+    { name: "Conferences", href: "/conferences" },
+    { name: "Subscriptions", href: "/subscriptions" },
+    { name: "News", href: "/news" },
+    { name: "Proceedings", href: "/proceedings" },
+  ];
 
 const Navbar: React.FC<NavbarProps> = ({ className }) => {
   const [isOpen, setIsOpen] = useState(false);

@@ -289,7 +289,7 @@ export const PersistentChatWidget: React.FC = () => {
   if (!session?.user || !currentSubscription) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
+    <div className="fixed bottom-4 right-4 z-50" data-agent-ignore="true">
       {/* Headless WebSocket Navigator, active only when chat view is open */}
       <WebSocketNavigator isActive={isOpen && view === "chat"} tabId={tabId} />
 
