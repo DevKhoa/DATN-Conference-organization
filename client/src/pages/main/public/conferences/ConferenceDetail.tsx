@@ -18,6 +18,8 @@ import {
   Trophy,
   Users,
   X,
+  Settings,
+  Upload,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -399,6 +401,22 @@ const ConferenceDetailPage = () => {
                   >
                     <Mail className="w-4 h-4 mr-1" />
                     Create Notification
+                  </Button>
+                )}
+
+                {canEdit && (
+                  <Button
+                    onClick={() =>
+                      navigate({
+                        to: "/conferences/$conferenceId/import-papers",
+                        params: { conferenceId: conferenceId.toString() },
+                      })
+                    }
+                    variant="outline"
+                    className="bg-background/10 backdrop-blur-md border-background/20 text-primary-foreground hover:bg-background/20"
+                  >
+                    <Upload className="w-4 h-4 mr-1" />
+                    Import Papers
                   </Button>
                 )}
               </div>

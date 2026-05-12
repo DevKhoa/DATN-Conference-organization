@@ -68,12 +68,22 @@ export const ImportPapers = () => {
       return res;
     },
     onSuccess: (data: any) => {
-      toast.success("Success", {
-        description: data?.message || "Papers imported successfully",
-      });
+      const responseData = data?.data || data;
+      
+      if (responseData.errors && responseData.errors.length > 0) {
+        toast.warning("Partial Success", {
+          description: responseData.message || "Some papers were imported, but errors occurred.",
+        });
+        setUploadError(responseData.errors.join(" | "));
+      } else {
+        toast.success("Success", {
+          description: responseData.message || "Papers imported successfully",
+        });
+        setUploadError(null);
+      }
+      
       queryClient.invalidateQueries({ queryKey: ["importHistory", conferenceId] });
       queryClient.invalidateQueries({ queryKey: ["importLogs", conferenceId] });
-      setUploadError(null);
     },
     onError: (error: any) => {
       const errorMsg = error.response?.data?.detail || error.message || "Failed to import papers";
@@ -263,9 +273,13 @@ export const ImportPapers = () => {
                     <li>abstract</li>
                     <li>primary_author_email <span className="text-destructive">*</span></li>
                     <li>co_author_emails</li>
+                    <li>external_pdf_url</li>
                   </ul>
                   <p className="pt-2 text-xs">
                     * Multiple co-author emails should be separated by a semicolon (;).
+                  </p>
+                  <p className="text-xs text-foreground mt-2">
+                    * <b>external_pdf_url:</b> ONLY Google Drive share links are supported for auto-downloading.
                   </p>
                   <p className="text-xs text-destructive mt-2">
                     Note: All emails must belong to existing users in the system, otherwise the import will be rejected.

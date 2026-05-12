@@ -28,6 +28,7 @@ import {
   EyeOff,
   Globe,
   Monitor,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "@tanstack/react-router";
@@ -608,6 +609,22 @@ const ConferenceDetailPage: React.FC = () => {
                   Create Notification
                 </Button>
               )}
+
+              {canEdit && (
+                <Button
+                  onClick={() =>
+                    navigate({
+                      to: "/conferences/$conferenceId/import-papers",
+                      params: { conferenceId: conferenceId.toString() },
+                    })
+                  }
+                  variant="outline"
+                  className="bg-background/10 backdrop-blur-md border-background/20 text-primary-foreground hover:bg-background/20"
+                >
+                  <Upload className="w-4 h-4 mr-1" />
+                  Import Papers
+                </Button>
+              )}
             </div>
           </div>
 
@@ -1184,6 +1201,30 @@ const ConferenceDetailPage: React.FC = () => {
 
             <div className="lg:col-span-1">
               <div className="sticky top-8 space-y-6">
+                {canEdit && (
+                  <div className="bg-card rounded-2xl shadow-sm border border-border p-6">
+                    <h3 className="text-sm font-bold text-foreground uppercase tracking-wide mb-4 flex items-center">
+                      <Settings className="w-4 h-4 mr-2 text-primary" />
+                      Admin Quick Actions
+                    </h3>
+                    <div className="space-y-3">
+                      <Button
+                        onClick={() =>
+                          navigate({
+                            to: "/conferences/$conferenceId/import-papers",
+                            params: { conferenceId: conferenceId.toString() },
+                          })
+                        }
+                        className="w-full justify-start bg-primary/10 text-primary hover:bg-primary/20 border-none shadow-none font-semibold transition-colors"
+                        variant="outline"
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        Bulk Import Papers
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-card rounded-2xl shadow-xl p-6 text-center border border-primary/30">
                   <h3 className="text-xl font-bold mb-2 relative z-10">
                     Registration Open

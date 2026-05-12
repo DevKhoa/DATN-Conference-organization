@@ -9,11 +9,6 @@
       "DOM",
       "DOM.Iterable"
     ],
-    "lib": [
-      "ES2022",
-      "DOM",
-      "DOM.Iterable"
-    ],
     "skipLibCheck": true,
     "types": [
       "node",
@@ -28,13 +23,8 @@
       "@/*": [
         "./src/*"
       ]
-      "@/*": [
-        "./src/*"
-      ]
     },
     "allowImportingTsExtensions": true,
-    "noEmit": true,
-    "strictNullChecks": true
     "noEmit": true,
     "strictNullChecks": true
   }

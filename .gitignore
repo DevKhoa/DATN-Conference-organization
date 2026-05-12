@@ -244,3 +244,5 @@ __marimo__/
 
 Credentials/
 *.ipynb
+
+/database-schema.md

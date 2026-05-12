@@ -28,8 +28,10 @@ import { Route as appProceedingsRouteImport } from "./routes/(app)/proceedings"
 import { Route as appCheckinRouteImport } from "./routes/(app)/checkin"
 import { Route as appAttendancesRouteImport } from "./routes/(app)/attendances"
 import { Route as appSessionsRouteRouteImport } from "./routes/(app)/sessions/route"
+import { Route as appAdminRouteRouteImport } from "./routes/(app)/admin/route"
 import { Route as appSessionsIndexRouteImport } from "./routes/(app)/sessions/index"
 import { Route as appChairInvitationsIndexRouteImport } from "./routes/(app)/chair-invitations.index"
+import { Route as appAdminIndexRouteImport } from "./routes/(app)/admin/index"
 import { Route as appSubscriptionsMeRouteImport } from "./routes/(app)/subscriptions.me"
 import { Route as appSessionsChairInvitationsRouteImport } from "./routes/(app)/sessions/chair-invitations"
 import { Route as appSessionsAssignRouteImport } from "./routes/(app)/sessions.assign"
@@ -38,9 +40,12 @@ import { Route as appNotificationsCreateRouteImport } from "./routes/(app)/notif
 import { Route as appConferencesCreateRouteImport } from "./routes/(app)/conferences.create"
 import { Route as appChairInvitationsTokenRouteImport } from "./routes/(app)/chair-invitations.$token"
 import { Route as appAgendaMeRouteImport } from "./routes/(app)/agenda.me"
+import { Route as appAdminDashboardRouteRouteImport } from "./routes/(app)/admin/dashboard/route"
 import { Route as appPapersMeIndexRouteImport } from "./routes/(app)/papers/me/index"
+import { Route as appAdminAwardsIndexRouteImport } from "./routes/(app)/admin/awards/index"
 import { Route as appPapersMePaperIdRouteImport } from "./routes/(app)/papers/me/$paperId"
 import { Route as appConferencesConferenceIdImportPapersRouteImport } from "./routes/(app)/conferences.$conferenceId/import-papers"
+import { Route as appAdminAwardsTemplatesRouteImport } from "./routes/(app)/admin/awards/templates"
 import { Route as appConferencesConferenceIdSessionsRouteRouteImport } from "./routes/(app)/conferences.$conferenceId.sessions/route"
 import { Route as appConferencesConferenceIdSessionsIndexRouteImport } from "./routes/(app)/conferences.$conferenceId.sessions/index"
 import { Route as ConferencesConferenceIdPapersPaperIdQaRouteImport } from "./routes/conferences_.$conferenceId.papers.$paperId.qa"
@@ -141,6 +146,11 @@ const appSessionsRouteRoute = appSessionsRouteRouteImport.update({
   path: "/sessions",
   getParentRoute: () => appRouteRoute,
 } as any)
+const appAdminRouteRoute = appAdminRouteRouteImport.update({
+  id: "/admin",
+  path: "/admin",
+  getParentRoute: () => appRouteRoute,
+} as any)
 const appSessionsIndexRoute = appSessionsIndexRouteImport.update({
   id: "/",
   path: "/",
@@ -152,6 +162,11 @@ const appChairInvitationsIndexRoute =
     path: "/chair-invitations/",
     getParentRoute: () => appRouteRoute,
   } as any)
+const appAdminIndexRoute = appAdminIndexRouteImport.update({
+  id: "/",
+  path: "/",
+  getParentRoute: () => appAdminRouteRoute,
+} as any)
 const appSubscriptionsMeRoute = appSubscriptionsMeRouteImport.update({
   id: "/subscriptions/me",
   path: "/subscriptions/me",
@@ -194,10 +209,20 @@ const appAgendaMeRoute = appAgendaMeRouteImport.update({
   path: "/agenda/me",
   getParentRoute: () => appRouteRoute,
 } as any)
+const appAdminDashboardRouteRoute = appAdminDashboardRouteRouteImport.update({
+  id: "/dashboard",
+  path: "/dashboard",
+  getParentRoute: () => appAdminRouteRoute,
+} as any)
 const appPapersMeIndexRoute = appPapersMeIndexRouteImport.update({
   id: "/papers/me/",
   path: "/papers/me/",
   getParentRoute: () => appRouteRoute,
+} as any)
+const appAdminAwardsIndexRoute = appAdminAwardsIndexRouteImport.update({
+  id: "/awards/",
+  path: "/awards/",
+  getParentRoute: () => appAdminRouteRoute,
 } as any)
 const appPapersMePaperIdRoute = appPapersMePaperIdRouteImport.update({
   id: "/papers/me/$paperId",
@@ -210,6 +235,11 @@ const appConferencesConferenceIdImportPapersRoute =
     path: "/conferences/$conferenceId/import-papers",
     getParentRoute: () => appRouteRoute,
   } as any)
+const appAdminAwardsTemplatesRoute = appAdminAwardsTemplatesRouteImport.update({
+  id: "/awards/templates",
+  path: "/awards/templates",
+  getParentRoute: () => appAdminRouteRoute,
+} as any)
 const appConferencesConferenceIdSessionsRouteRoute =
   appConferencesConferenceIdSessionsRouteRouteImport.update({
     id: "/conferences/$conferenceId/sessions",
@@ -250,6 +280,7 @@ export interface FileRoutesByFullPath {
   "/register-confirm": typeof RegisterConfirmRoute
   "/register-success": typeof RegisterSuccessRoute
   "/subscriptions": typeof SubscriptionsRoute
+  "/admin": typeof appAdminRouteRouteWithChildren
   "/sessions": typeof appSessionsRouteRouteWithChildren
   "/attendances": typeof appAttendancesRoute
   "/checkin": typeof appCheckinRoute
@@ -260,6 +291,7 @@ export interface FileRoutesByFullPath {
   "/papers/$paperId": typeof PapersPaperIdRoute
   "/conferences/": typeof ConferencesIndexRoute
   "/papers/": typeof PapersIndexRoute
+  "/admin/dashboard": typeof appAdminDashboardRouteRoute
   "/agenda/me": typeof appAgendaMeRoute
   "/chair-invitations/$token": typeof appChairInvitationsTokenRoute
   "/conferences/create": typeof appConferencesCreateRoute
@@ -268,11 +300,14 @@ export interface FileRoutesByFullPath {
   "/sessions/assign": typeof appSessionsAssignRoute
   "/sessions/chair-invitations": typeof appSessionsChairInvitationsRoute
   "/subscriptions/me": typeof appSubscriptionsMeRoute
+  "/admin/": typeof appAdminIndexRoute
   "/chair-invitations/": typeof appChairInvitationsIndexRoute
   "/sessions/": typeof appSessionsIndexRoute
   "/conferences/$conferenceId/sessions": typeof appConferencesConferenceIdSessionsRouteRouteWithChildren
+  "/admin/awards/templates": typeof appAdminAwardsTemplatesRoute
   "/conferences/$conferenceId/import-papers": typeof appConferencesConferenceIdImportPapersRoute
   "/papers/me/$paperId": typeof appPapersMePaperIdRoute
+  "/admin/awards/": typeof appAdminAwardsIndexRoute
   "/papers/me/": typeof appPapersMeIndexRoute
   "/conferences/$conferenceId/papers/$paperId/qa": typeof ConferencesConferenceIdPapersPaperIdQaRoute
   "/conferences/$conferenceId/sessions/": typeof appConferencesConferenceIdSessionsIndexRoute
@@ -297,6 +332,7 @@ export interface FileRoutesByTo {
   "/papers/$paperId": typeof PapersPaperIdRoute
   "/conferences": typeof ConferencesIndexRoute
   "/papers": typeof PapersIndexRoute
+  "/admin/dashboard": typeof appAdminDashboardRouteRoute
   "/agenda/me": typeof appAgendaMeRoute
   "/chair-invitations/$token": typeof appChairInvitationsTokenRoute
   "/conferences/create": typeof appConferencesCreateRoute
@@ -305,10 +341,13 @@ export interface FileRoutesByTo {
   "/sessions/assign": typeof appSessionsAssignRoute
   "/sessions/chair-invitations": typeof appSessionsChairInvitationsRoute
   "/subscriptions/me": typeof appSubscriptionsMeRoute
+  "/admin": typeof appAdminIndexRoute
   "/chair-invitations": typeof appChairInvitationsIndexRoute
   "/sessions": typeof appSessionsIndexRoute
+  "/admin/awards/templates": typeof appAdminAwardsTemplatesRoute
   "/conferences/$conferenceId/import-papers": typeof appConferencesConferenceIdImportPapersRoute
   "/papers/me/$paperId": typeof appPapersMePaperIdRoute
+  "/admin/awards": typeof appAdminAwardsIndexRoute
   "/papers/me": typeof appPapersMeIndexRoute
   "/conferences/$conferenceId/papers/$paperId/qa": typeof ConferencesConferenceIdPapersPaperIdQaRoute
   "/conferences/$conferenceId/sessions": typeof appConferencesConferenceIdSessionsIndexRoute
@@ -326,6 +365,7 @@ export interface FileRoutesById {
   "/register-confirm": typeof RegisterConfirmRoute
   "/register-success": typeof RegisterSuccessRoute
   "/subscriptions": typeof SubscriptionsRoute
+  "/(app)/admin": typeof appAdminRouteRouteWithChildren
   "/(app)/sessions": typeof appSessionsRouteRouteWithChildren
   "/(app)/attendances": typeof appAttendancesRoute
   "/(app)/checkin": typeof appCheckinRoute
@@ -336,6 +376,7 @@ export interface FileRoutesById {
   "/papers/$paperId": typeof PapersPaperIdRoute
   "/conferences/": typeof ConferencesIndexRoute
   "/papers/": typeof PapersIndexRoute
+  "/(app)/admin/dashboard": typeof appAdminDashboardRouteRoute
   "/(app)/agenda/me": typeof appAgendaMeRoute
   "/(app)/chair-invitations/$token": typeof appChairInvitationsTokenRoute
   "/(app)/conferences/create": typeof appConferencesCreateRoute
@@ -344,11 +385,14 @@ export interface FileRoutesById {
   "/(app)/sessions/assign": typeof appSessionsAssignRoute
   "/(app)/sessions/chair-invitations": typeof appSessionsChairInvitationsRoute
   "/(app)/subscriptions/me": typeof appSubscriptionsMeRoute
+  "/(app)/admin/": typeof appAdminIndexRoute
   "/(app)/chair-invitations/": typeof appChairInvitationsIndexRoute
   "/(app)/sessions/": typeof appSessionsIndexRoute
   "/(app)/conferences/$conferenceId/sessions": typeof appConferencesConferenceIdSessionsRouteRouteWithChildren
+  "/(app)/admin/awards/templates": typeof appAdminAwardsTemplatesRoute
   "/(app)/conferences/$conferenceId/import-papers": typeof appConferencesConferenceIdImportPapersRoute
   "/(app)/papers/me/$paperId": typeof appPapersMePaperIdRoute
+  "/(app)/admin/awards/": typeof appAdminAwardsIndexRoute
   "/(app)/papers/me/": typeof appPapersMeIndexRoute
   "/conferences_/$conferenceId/papers/$paperId/qa": typeof ConferencesConferenceIdPapersPaperIdQaRoute
   "/(app)/conferences/$conferenceId/sessions/": typeof appConferencesConferenceIdSessionsIndexRoute
@@ -358,117 +402,131 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-  | "/"
-  | "/403"
-  | "/ai-assistant"
-  | "/login"
-  | "/register"
-  | "/register-confirm"
-  | "/register-success"
-  | "/subscriptions"
-  | "/sessions"
-  | "/attendances"
-  | "/checkin"
-  | "/proceedings"
-  | "/profile"
-  | "/tickets"
-  | "/conferences/$conferenceId"
-  | "/papers/$paperId"
-  | "/conferences/"
-  | "/papers/"
-  | "/agenda/me"
-  | "/chair-invitations/$token"
-  | "/conferences/create"
-  | "/notifications/create"
-  | "/papers/submit"
-  | "/sessions/assign"
-  | "/sessions/chair-invitations"
-  | "/subscriptions/me"
-  | "/chair-invitations/"
-  | "/sessions/"
-  | "/conferences/$conferenceId/sessions"
-  | "/conferences/$conferenceId/import-papers"
-  | "/papers/me/$paperId"
-  | "/papers/me/"
-  | "/conferences/$conferenceId/papers/$paperId/qa"
-  | "/conferences/$conferenceId/sessions/"
-  | "/conferences/$conferenceId/sessions/$sessionId/chairs"
-  | "/conferences/$conferenceId/sessions/$sessionId/"
+    | "/"
+    | "/403"
+    | "/ai-assistant"
+    | "/login"
+    | "/register"
+    | "/register-confirm"
+    | "/register-success"
+    | "/subscriptions"
+    | "/admin"
+    | "/sessions"
+    | "/attendances"
+    | "/checkin"
+    | "/proceedings"
+    | "/profile"
+    | "/tickets"
+    | "/conferences/$conferenceId"
+    | "/papers/$paperId"
+    | "/conferences/"
+    | "/papers/"
+    | "/admin/dashboard"
+    | "/agenda/me"
+    | "/chair-invitations/$token"
+    | "/conferences/create"
+    | "/notifications/create"
+    | "/papers/submit"
+    | "/sessions/assign"
+    | "/sessions/chair-invitations"
+    | "/subscriptions/me"
+    | "/admin/"
+    | "/chair-invitations/"
+    | "/sessions/"
+    | "/conferences/$conferenceId/sessions"
+    | "/admin/awards/templates"
+    | "/conferences/$conferenceId/import-papers"
+    | "/papers/me/$paperId"
+    | "/admin/awards/"
+    | "/papers/me/"
+    | "/conferences/$conferenceId/papers/$paperId/qa"
+    | "/conferences/$conferenceId/sessions/"
+    | "/conferences/$conferenceId/sessions/$sessionId/chairs"
+    | "/conferences/$conferenceId/sessions/$sessionId/"
   fileRoutesByTo: FileRoutesByTo
   to:
-  | "/"
-  | "/403"
-  | "/ai-assistant"
-  | "/login"
-  | "/register"
-  | "/register-confirm"
-  | "/register-success"
-  | "/subscriptions"
-  | "/attendances"
-  | "/checkin"
-  | "/proceedings"
-  | "/profile"
-  | "/tickets"
-  | "/conferences/$conferenceId"
-  | "/papers/$paperId"
-  | "/conferences"
-  | "/papers"
-  | "/agenda/me"
-  | "/chair-invitations/$token"
-  | "/conferences/create"
-  | "/notifications/create"
-  | "/papers/submit"
-  | "/sessions/assign"
-  | "/sessions/chair-invitations"
-  | "/subscriptions/me"
-  | "/chair-invitations"
-  | "/sessions"
-  | "/conferences/$conferenceId/import-papers"
-  | "/papers/me/$paperId"
-  | "/papers/me"
-  | "/conferences/$conferenceId/papers/$paperId/qa"
-  | "/conferences/$conferenceId/sessions"
-  | "/conferences/$conferenceId/sessions/$sessionId/chairs"
-  | "/conferences/$conferenceId/sessions/$sessionId"
+    | "/"
+    | "/403"
+    | "/ai-assistant"
+    | "/login"
+    | "/register"
+    | "/register-confirm"
+    | "/register-success"
+    | "/subscriptions"
+    | "/attendances"
+    | "/checkin"
+    | "/proceedings"
+    | "/profile"
+    | "/tickets"
+    | "/conferences/$conferenceId"
+    | "/papers/$paperId"
+    | "/conferences"
+    | "/papers"
+    | "/admin/dashboard"
+    | "/agenda/me"
+    | "/chair-invitations/$token"
+    | "/conferences/create"
+    | "/notifications/create"
+    | "/papers/submit"
+    | "/sessions/assign"
+    | "/sessions/chair-invitations"
+    | "/subscriptions/me"
+    | "/admin"
+    | "/chair-invitations"
+    | "/sessions"
+    | "/admin/awards/templates"
+    | "/conferences/$conferenceId/import-papers"
+    | "/papers/me/$paperId"
+    | "/admin/awards"
+    | "/papers/me"
+    | "/conferences/$conferenceId/papers/$paperId/qa"
+    | "/conferences/$conferenceId/sessions"
+    | "/conferences/$conferenceId/sessions/$sessionId/chairs"
+    | "/conferences/$conferenceId/sessions/$sessionId"
   id:
-  | "__root__"
-  | "/"
-  | "/(app)"
-  | "/403"
-  | "/ai-assistant"
-  | "/login"
-  | "/register"
-  | "/register-confirm"
-  | "/register-success"
-  | "/subscriptions"
-  | "/(app)/sessions"
-  | "/(app)/attendances"
-  | "/(app)/checkin"
-  | "/(app)/proceedings"
-  | "/(app)/profile"
-  | "/(app)/tickets"
-  | "/conferences/$conferenceId"
-  | "/papers/$paperId"
-  | "/conferences/"
-  | "/papers/"
-  | "/(app)/agenda/me"
-  | "/(app)/chair-invitations/$token"
-  | "/(app)/conferences/create"
-  | "/(app)/notifications/create"
-  | "/(app)/papers/submit"
-  | "/(app)/sessions/assign"
-  | "/(app)/sessions/chair-invitations"
-  | "/(app)/subscriptions/me"
-  | "/(app)/chair-invitations/"
-  | "/(app)/sessions/"
-  | "/(app)/conferences/$conferenceId/sessions"
-  | "/(app)/conferences/$conferenceId/import-papers"
-  | "/(app)/papers/me/$paperId"
-  | "/(app)/papers/me/"
-  | "/conferences_/$conferenceId/papers/$paperId/qa"
-  | "/(app)/conferences/$conferenceId/sessions/"
-  | "/(app)/conferences/$conferenceId/sessions/$sessionId/chairs"
-  | "/(app)/conferences/$conferenceId/sessions/$sessionId/"
+    | "__root__"
+    | "/"
+    | "/(app)"
+    | "/403"
+    | "/ai-assistant"
+    | "/login"
+    | "/register"
+    | "/register-confirm"
+    | "/register-success"
+    | "/subscriptions"
+    | "/(app)/admin"
+    | "/(app)/sessions"
+    | "/(app)/attendances"
+    | "/(app)/checkin"
+    | "/(app)/proceedings"
+    | "/(app)/profile"
+    | "/(app)/tickets"
+    | "/conferences/$conferenceId"
+    | "/papers/$paperId"
+    | "/conferences/"
+    | "/papers/"
+    | "/(app)/admin/dashboard"
+    | "/(app)/agenda/me"
+    | "/(app)/chair-invitations/$token"
+    | "/(app)/conferences/create"
+    | "/(app)/notifications/create"
+    | "/(app)/papers/submit"
+    | "/(app)/sessions/assign"
+    | "/(app)/sessions/chair-invitations"
+    | "/(app)/subscriptions/me"
+    | "/(app)/admin/"
+    | "/(app)/chair-invitations/"
+    | "/(app)/sessions/"
+    | "/(app)/conferences/$conferenceId/sessions"
+    | "/(app)/admin/awards/templates"
+    | "/(app)/conferences/$conferenceId/import-papers"
+    | "/(app)/papers/me/$paperId"
+    | "/(app)/admin/awards/"
+    | "/(app)/papers/me/"
+    | "/conferences_/$conferenceId/papers/$paperId/qa"
+    | "/(app)/conferences/$conferenceId/sessions/"
+    | "/(app)/conferences/$conferenceId/sessions/$sessionId/chairs"
+    | "/(app)/conferences/$conferenceId/sessions/$sessionId/"
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -623,6 +681,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof appSessionsRouteRouteImport
       parentRoute: typeof appRouteRoute
     }
+    "/(app)/admin": {
+      id: "/(app)/admin"
+      path: "/admin"
+      fullPath: "/admin"
+      preLoaderRoute: typeof appAdminRouteRouteImport
+      parentRoute: typeof appRouteRoute
+    }
     "/(app)/sessions/": {
       id: "/(app)/sessions/"
       path: "/"
@@ -636,6 +701,13 @@ declare module "@tanstack/react-router" {
       fullPath: "/chair-invitations/"
       preLoaderRoute: typeof appChairInvitationsIndexRouteImport
       parentRoute: typeof appRouteRoute
+    }
+    "/(app)/admin/": {
+      id: "/(app)/admin/"
+      path: "/"
+      fullPath: "/admin/"
+      preLoaderRoute: typeof appAdminIndexRouteImport
+      parentRoute: typeof appAdminRouteRoute
     }
     "/(app)/subscriptions/me": {
       id: "/(app)/subscriptions/me"
@@ -693,12 +765,26 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof appAgendaMeRouteImport
       parentRoute: typeof appRouteRoute
     }
+    "/(app)/admin/dashboard": {
+      id: "/(app)/admin/dashboard"
+      path: "/dashboard"
+      fullPath: "/admin/dashboard"
+      preLoaderRoute: typeof appAdminDashboardRouteRouteImport
+      parentRoute: typeof appAdminRouteRoute
+    }
     "/(app)/papers/me/": {
       id: "/(app)/papers/me/"
       path: "/papers/me"
       fullPath: "/papers/me/"
       preLoaderRoute: typeof appPapersMeIndexRouteImport
       parentRoute: typeof appRouteRoute
+    }
+    "/(app)/admin/awards/": {
+      id: "/(app)/admin/awards/"
+      path: "/awards"
+      fullPath: "/admin/awards/"
+      preLoaderRoute: typeof appAdminAwardsIndexRouteImport
+      parentRoute: typeof appAdminRouteRoute
     }
     "/(app)/papers/me/$paperId": {
       id: "/(app)/papers/me/$paperId"
@@ -713,6 +799,13 @@ declare module "@tanstack/react-router" {
       fullPath: "/conferences/$conferenceId/import-papers"
       preLoaderRoute: typeof appConferencesConferenceIdImportPapersRouteImport
       parentRoute: typeof appRouteRoute
+    }
+    "/(app)/admin/awards/templates": {
+      id: "/(app)/admin/awards/templates"
+      path: "/awards/templates"
+      fullPath: "/admin/awards/templates"
+      preLoaderRoute: typeof appAdminAwardsTemplatesRouteImport
+      parentRoute: typeof appAdminRouteRoute
     }
     "/(app)/conferences/$conferenceId/sessions": {
       id: "/(app)/conferences/$conferenceId/sessions"
@@ -752,6 +845,24 @@ declare module "@tanstack/react-router" {
   }
 }
 
+interface appAdminRouteRouteChildren {
+  appAdminDashboardRouteRoute: typeof appAdminDashboardRouteRoute
+  appAdminIndexRoute: typeof appAdminIndexRoute
+  appAdminAwardsTemplatesRoute: typeof appAdminAwardsTemplatesRoute
+  appAdminAwardsIndexRoute: typeof appAdminAwardsIndexRoute
+}
+
+const appAdminRouteRouteChildren: appAdminRouteRouteChildren = {
+  appAdminDashboardRouteRoute: appAdminDashboardRouteRoute,
+  appAdminIndexRoute: appAdminIndexRoute,
+  appAdminAwardsTemplatesRoute: appAdminAwardsTemplatesRoute,
+  appAdminAwardsIndexRoute: appAdminAwardsIndexRoute,
+}
+
+const appAdminRouteRouteWithChildren = appAdminRouteRoute._addFileChildren(
+  appAdminRouteRouteChildren,
+)
+
 interface appSessionsRouteRouteChildren {
   appSessionsAssignRoute: typeof appSessionsAssignRoute
   appSessionsChairInvitationsRoute: typeof appSessionsChairInvitationsRoute
@@ -774,14 +885,14 @@ interface appConferencesConferenceIdSessionsRouteRouteChildren {
 }
 
 const appConferencesConferenceIdSessionsRouteRouteChildren: appConferencesConferenceIdSessionsRouteRouteChildren =
-{
-  appConferencesConferenceIdSessionsIndexRoute:
-    appConferencesConferenceIdSessionsIndexRoute,
-  appConferencesConferenceIdSessionsSessionIdChairsRoute:
-    appConferencesConferenceIdSessionsSessionIdChairsRoute,
-  appConferencesConferenceIdSessionsSessionIdIndexRoute:
-    appConferencesConferenceIdSessionsSessionIdIndexRoute,
-}
+  {
+    appConferencesConferenceIdSessionsIndexRoute:
+      appConferencesConferenceIdSessionsIndexRoute,
+    appConferencesConferenceIdSessionsSessionIdChairsRoute:
+      appConferencesConferenceIdSessionsSessionIdChairsRoute,
+    appConferencesConferenceIdSessionsSessionIdIndexRoute:
+      appConferencesConferenceIdSessionsSessionIdIndexRoute,
+  }
 
 const appConferencesConferenceIdSessionsRouteRouteWithChildren =
   appConferencesConferenceIdSessionsRouteRoute._addFileChildren(
@@ -789,6 +900,7 @@ const appConferencesConferenceIdSessionsRouteRouteWithChildren =
   )
 
 interface appRouteRouteChildren {
+  appAdminRouteRoute: typeof appAdminRouteRouteWithChildren
   appSessionsRouteRoute: typeof appSessionsRouteRouteWithChildren
   appAttendancesRoute: typeof appAttendancesRoute
   appCheckinRoute: typeof appCheckinRoute
@@ -809,6 +921,7 @@ interface appRouteRouteChildren {
 }
 
 const appRouteRouteChildren: appRouteRouteChildren = {
+  appAdminRouteRoute: appAdminRouteRouteWithChildren,
   appSessionsRouteRoute: appSessionsRouteRouteWithChildren,
   appAttendancesRoute: appAttendancesRoute,
   appCheckinRoute: appCheckinRoute,

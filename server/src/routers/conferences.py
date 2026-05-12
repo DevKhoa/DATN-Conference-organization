@@ -12,6 +12,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.comments import Comment
 from packages.utils import Logger, supabase_client, storage_client, BUCKET_NAME
 from packages.file_storage import StorageClient
+from packages.pdf_service import fetch_and_upload_pdf
 
 logger = Logger()
 router = APIRouter(tags=["conferences"])
@@ -170,6 +171,7 @@ async def download_import_template(conf_id: int):
             ("abstract", False, "Abstract (Optional)\n\nEnter a brief summary of the paper.\nCan be left empty."),
             ("primary_author_email", True, "Primary Author Email (Required)\n\nEmail of the main author.\nMust be a registered user in the system."),
             ("co_author_emails", False, "Co-author Emails (Optional)\n\nEmails of co-authors, separated by semicolons (;).\nExample: user1@mail.com;user2@mail.com\nAll emails must belong to registered users."),
+            ("external_pdf_url", False, "External PDF URL (Optional)\n\nPaste a direct, publicly accessible download link to the PDF file.\nOnly links from Google Drive are supported.\nSystem will auto-download and store it.\nLeave empty to skip PDF upload for this row."),
         ]
 
         for col_idx, (header_name, is_required, comment_text) in enumerate(headers, 1):
@@ -187,6 +189,7 @@ async def download_import_template(conf_id: int):
         ws.column_dimensions["B"].width = 55  # abstract
         ws.column_dimensions["C"].width = 30  # primary_author_email
         ws.column_dimensions["D"].width = 40  # co_author_emails
+        ws.column_dimensions["E"].width = 50  # external_pdf_url
 
         # -- Example row --
         examples = [
@@ -194,6 +197,7 @@ async def download_import_template(conf_id: int):
             "Example: This paper discusses the role of AI...",
             "example@email.com",
             "coauthor1@email.com;coauthor2@email.com",
+            "https://example.com/paper.pdf",
         ]
         for col_idx, val in enumerate(examples, 1):
             cell = ws.cell(row=2, column=col_idx, value=val)
@@ -225,6 +229,7 @@ async def download_import_template(conf_id: int):
             ("5. For multiple co-authors, separate emails with semicolons (;).", Font(name="Calibri", size=11)),
             ("6. Row 2 contains examples — delete or overwrite it before uploading.", Font(name="Calibri", size=11)),
             ("7. Status will automatically be set to 'ACCEPTED' for all imported papers.", Font(name="Calibri", size=11)),
+            ("8. For external_pdf_url, ONLY Google Drive share links are supported.", Font(name="Calibri", size=11, color="CC0000")),
             ("", None),
             ("⚠️ Important: Do NOT change the column headers in the first row.", Font(name="Calibri", bold=True, size=11, color="CC0000")),
         ]
@@ -329,23 +334,26 @@ async def import_papers_csv(
         existing_titles = {p["title"].strip().lower() for p in existing_papers_res.data} if existing_papers_res.data else set()
         
         # Check for missing users + duplicates
-        errors = []
+        all_errors = []
+        valid_rows = []
         for i, row in enumerate(rows):
             row_num = i + 2 # +1 for 0-index, +1 for header
+            row_has_error = False
             
             # Check duplicate title
             title = row.get("title", "").strip()
             if title and title.lower() in existing_titles:
-                errors.append(f"Row {row_num}: Paper '{title}' already exists in this conference.")
+                all_errors.append(f"Row {row_num}: Paper '{title}' already exists in this conference.")
+                row_has_error = True
             
             primary_email = row.get("primary_author_email", "").strip()
             
             if not primary_email:
-                errors.append(f"Row {row_num}: Missing primary_author_email")
-                continue
-                
-            if primary_email not in existing_users:
-                errors.append(f"Row {row_num}: Primary author email '{primary_email}' does not exist in the system.")
+                all_errors.append(f"Row {row_num}: Missing primary_author_email")
+                row_has_error = True
+            elif primary_email not in existing_users:
+                all_errors.append(f"Row {row_num}: Primary author email '{primary_email}' does not exist in the system.")
+                row_has_error = True
             
             co_authors_str = row.get("co_author_emails", "")
             if co_authors_str:
@@ -353,100 +361,152 @@ async def import_papers_csv(
                 
                 # Check overlap between primary author and co-authors
                 if primary_email in co_emails:
-                    errors.append(f"Row {row_num}: Primary author '{primary_email}' cannot be listed as a co-author.")
+                    all_errors.append(f"Row {row_num}: Primary author '{primary_email}' cannot be listed as a co-author.")
+                    row_has_error = True
                 
                 # Check for duplicate co-authors in the same row
                 if len(co_emails) != len(set(co_emails)):
-                    errors.append(f"Row {row_num}: Duplicate co-author emails found in the co-authors list.")
+                    all_errors.append(f"Row {row_num}: Duplicate co-author emails found in the co-authors list.")
+                    row_has_error = True
                 
                 for ce in co_emails:
                     if ce not in existing_users:
-                        errors.append(f"Row {row_num}: Co-author email '{ce}' does not exist in the system.")
-                        
-        if errors:
-            # Log failed import
-            error_text = " | ".join(errors)
-            supabase_client.table("paper_import_logs").insert({
-                "conf_id": conf_id,
-                "status": "ERROR",
-                "file_name": file.filename,
-                "num_papers": 0,
-                "error_details": error_text,
-                "person_in_charge": uploader_id
-            }).execute()
-            raise HTTPException(status_code=400, detail=error_text)
+                        all_errors.append(f"Row {row_num}: Co-author email '{ce}' does not exist in the system.")
+                        row_has_error = True
+            
+            if not row_has_error:
+                row["_original_row_num"] = row_num
+                valid_rows.append(row)
 
         # Phase 2: Insertion
         imported_count = 0
-        for row in rows:
+
+        for row in valid_rows:
+            row_num = row["_original_row_num"]
             title = row.get("title", "").strip()
             abstract = row.get("abstract", "").strip()
             primary_email = row.get("primary_author_email", "").strip()
             primary_id = existing_users[primary_email]
-            
+
             # Map optional table fields
             status = row.get("status", "").strip() or "ACCEPTED"
             final_decision_date = row.get("final_decision_date", "").strip() or None
-            created_at = row.get("created_at", "").strip() or None
-            
+            created_at_val = row.get("created_at", "").strip() or None
+
             insert_data = {
                 "title": title,
                 "abstract": abstract,
                 "primary_author_id": primary_id,
                 "submitted_conf": conf_id,
-                "status": status
+                "status": status,
             }
             if final_decision_date:
                 insert_data["final_decision_date"] = final_decision_date
-            if created_at:
-                insert_data["created_at"] = created_at
-                
+            if created_at_val:
+                insert_data["created_at"] = created_at_val
+
             # Insert paper
             paper_res = supabase_client.table("papers").insert(insert_data).execute()
-            
+
             if not paper_res.data:
                 continue
-                
+
             paper_id = paper_res.data[0]["paper_id"]
-            
+
             # Insert co-authors
             co_authors_str = row.get("co_author_emails", "")
             if co_authors_str:
                 co_emails = [e.strip() for e in co_authors_str.split(";") if e.strip()]
-                coauthor_records = []
-                for idx, ce in enumerate(co_emails):
-                    coauthor_records.append({
-                        "paper_id": paper_id,
-                        "user_id": existing_users[ce],
-                        "author_order": idx + 1
-                    })
-                
+                coauthor_records = [
+                    {"paper_id": paper_id, "user_id": existing_users[ce], "author_order": idx + 1}
+                    for idx, ce in enumerate(co_emails)
+                ]
                 if coauthor_records:
                     supabase_client.table("paper_coauthors").insert(coauthor_records).execute()
+
+            # --- PDF auto-download from external link ---
+            external_pdf_url = row.get("external_pdf_url", "").strip()
+            if external_pdf_url:
+                try:
+                    if "1drv.ms" in external_pdf_url or "onedrive" in external_pdf_url.lower():
+                        raise ValueError("OneDrive links are not supported. Please use Google Drive.")
+                        
+                    # Create a placeholder version record first to get version_id
+                    version_res = supabase_client.table("paper_versions").insert({
+                        "paper_id": paper_id,
+                        "version_number": 1,
+                        "upload_by": uploader_id,
+                        "is_final": False,
+                        "format_ok": False,
+                        "display": True,
+                        "file_path": "pending_upload",
+                    }).execute()
+
+                    version_id = version_res.data[0]["version_id"]
+
+                    gcs_url = await fetch_and_upload_pdf(
+                        url=external_pdf_url,
+                        paper_id=str(paper_id),
+                        version_id=str(version_id),
+                    )
+
+                    supabase_client.table("paper_versions").update({
+                        "file_path": gcs_url
+                    }).eq("version_id", version_id).execute()
+
+                    logger.info(f"PDF linked for paper_id={paper_id}, version_id={version_id}: {gcs_url}")
+
+                except Exception as pdf_err:
+                    err_msg = f"Row {row_num} (Paper '{title}'): PDF download failed from '{external_pdf_url}' — {pdf_err}"
+                    logger.error(err_msg)
+                    all_errors.append(err_msg)
                     
+                    # ROLLBACK: delete the inserted paper
+                    supabase_client.table("papers").delete().eq("paper_id", paper_id).execute()
+                    
+                    continue
+
             imported_count += 1
             
-        # Log successful import
-        supabase_client.table("paper_imports").insert({
-            "conf_id": conf_id,
-            "num_papers": imported_count,
-            "file_name": file.filename,
-            "person_in_charge": uploader_id
-        }).execute()
-        
-        supabase_client.table("paper_import_logs").insert({
-            "conf_id": conf_id,
-            "status": "SUCCESS",
-            "file_name": file.filename,
-            "num_papers": imported_count,
-            "error_details": None,
-            "person_in_charge": uploader_id
-        }).execute()
+        # Log successful imports if any
+        if imported_count > 0:
+            supabase_client.table("paper_imports").insert({
+                "conf_id": conf_id,
+                "num_papers": imported_count,
+                "file_name": file.filename,
+                "person_in_charge": uploader_id
+            }).execute()
+
+        # If there are any errors, we log them
+        if all_errors:
+            error_text = " | ".join(all_errors)
+            supabase_client.table("paper_import_logs").insert({
+                "conf_id": conf_id,
+                "status": "WARNING" if imported_count > 0 else "ERROR",
+                "file_name": file.filename,
+                "num_papers": imported_count,
+                "error_details": error_text,
+                "person_in_charge": uploader_id
+            }).execute()
+            
+            if imported_count == 0:
+                raise HTTPException(status_code=400, detail=error_text)
+        else:
+            # Full success logging
+            supabase_client.table("paper_import_logs").insert({
+                "conf_id": conf_id,
+                "status": "SUCCESS",
+                "file_name": file.filename,
+                "num_papers": imported_count,
+                "error_details": None,
+                "person_in_charge": uploader_id
+            }).execute()
 
         return {
             "status": "success",
             "message": f"Successfully imported {imported_count} papers",
-            "count": imported_count
+            "count": imported_count,
+            "errors": all_errors
         }
 
     except HTTPException as he:
