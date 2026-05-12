@@ -167,7 +167,8 @@ export const useMyProfileQuery = () => {
           organization,
           description,
           created_at,
-          avatar_url
+          avatar_url,
+          google_refresh_token
         `,
         )
         .eq("user_id", userId)
@@ -191,6 +192,7 @@ export const useMyProfileQuery = () => {
         role_name: roleName,
         role_id: roleId,
         avatar_url: data.avatar_url,
+        google_refresh_token: data.google_refresh_token,
       } as ProfileData;
     },
     enabled: !!session,

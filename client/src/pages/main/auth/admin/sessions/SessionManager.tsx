@@ -657,8 +657,8 @@ const SessionManagerPage = ({
             temp_id: s.temp_id,
             db_id: s.db_id,
             session_name: s.session_name,
-            start_time: s.start_time,
-            end_time: s.end_time,
+            start_time: formatToLocal(s.start_time),
+            end_time: formatToLocal(s.end_time),
             room_location: s.room_location,
             is_ai_generated: s.is_ai_generated,
             assigned_papers: s.assigned_papers,
@@ -678,7 +678,9 @@ const SessionManagerPage = ({
       });
 
       setSessions(updatedSessions);
-      setSuccessMsg("Sessions structured successfully!");
+      setSuccessMsg(
+        "Sessions saved successfully! Please remember to notify participants about any changes to their presentation schedule.",
+      );
     } catch (err: any) {
       setError("Failed to save to database: " + err.message);
     }

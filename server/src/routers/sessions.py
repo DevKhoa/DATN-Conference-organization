@@ -7,7 +7,7 @@ import numpy as np
 from k_means_constrained import KMeansConstrained
 
 from fastapi import APIRouter, HTTPException, Query, Path, BackgroundTasks
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from google.genai import types
 
 from packages.my_email import normalize_email, send_email
@@ -21,10 +21,15 @@ from packages.schema import (
     MatchReviewResponse,
     SessionChairResponse,
     ChairRecommendation,
+    SessionAuthResponse,
+    GoogleMeetCallbackRequest,
+    MeetCreationRequest,
+    MeetCreationResponse,
 )
 from packages.utils import logger, supabase_client, genai_client, MODEL, EMBEDDING_MODEL_NAME, VECTOR_DIMENSION, CHAIR_ROLE_ID, PAPER_MATCH_REVIEWER
 from packages.auto_session import get_batch_embeddings, generate_session_title
 from packages.session_notifier import send_session_start_notifications, get_session_recipients
+from packages.google_oauth import google_meet_service
 
 
 router = APIRouter(tags=["sessions"])
@@ -773,3 +778,138 @@ async def notify_session_start(
             for r in recipients
         ],
     }
+
+
+@router.get("/sessions/google-auth-url", response_model=SessionAuthResponse)
+async def get_google_auth_url(email: str = Query(...)):
+    try:
+        auth_url, state = google_meet_service.get_authorization_url(email)
+        return {"auth_url": auth_url, "state": state}
+    except Exception as e:
+        logger.error(f"Failed to get Google Auth URL: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sessions/google-oauth-callback")
+async def google_oauth_callback(state: str, code: str):
+    try:
+        # Trao đổi mã code lấy token
+        token_data = google_meet_service.get_refresh_token(code)
+        refresh_token = token_data.get("refresh_token")
+        
+        # Lưu refresh_token vào profile người dùng
+        email = state.split("::")[0] if "::" in state else None
+        if email and refresh_token:
+            supabase_client.table("profiles").update({"google_refresh_token": refresh_token}).eq("email", email).execute()
+            
+        # Trả về HTML để đóng popup
+        
+        return HTMLResponse(content="""
+            <html>
+                <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f0f2f5;">
+                    <div style="background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center;">
+                        <h2 style="color: #1a73e8;">Xác thực thành công!</h2>
+                        <p>Bạn có thể đóng cửa sổ này và quay lại trang quản lý.</p>
+                        <script>
+                            if (window.opener) {
+                                window.opener.postMessage({ type: "google-auth-success" }, "*");
+                            }
+                            setTimeout(() => window.close(), 3000);
+                        </script>
+                    </div>
+                </body>
+            </html>
+        """)
+    except Exception as e:
+        logger.error(f"Google OAuth Callback Error: {e}")
+        return HTMLResponse(content=f"<html><body><p>Lỗi xác thực: {str(e)}</p></body></html>", status_code=500)
+
+
+@router.post("/sessions/{session_id}/create-meet", response_model=MeetCreationResponse)
+async def create_session_meet(
+    session_id: int,
+    request: MeetCreationRequest
+):
+    try:
+        session_res = supabase_client.table("sessions") \
+            .select("session_name, start_time, end_time, conferences(timezone)") \
+            .eq("session_id", session_id) \
+            .single().execute()
+            
+        if not session_res.data:
+            raise HTTPException(status_code=404, detail="Session not found")
+            
+        s = session_res.data
+        conf_timezone = s.get('conferences', {}).get('timezone', 'UTC')
+        
+        if not s['start_time'] or not s['end_time']:
+            raise HTTPException(status_code=400, detail="Session must have start and end times to create a Meet link.")
+
+        result = google_meet_service.create_meeting(
+            email=request.email,
+            summary=f"Session: {s['session_name']}",
+            start_time=s['start_time'],
+            end_time=s['end_time'],
+            timezone=conf_timezone
+        )
+        
+        # Cập nhật session với meet link và event_id
+        supabase_client.table("sessions").update({
+            "meet_link": result['meet_link'],
+            "google_event_id": result['event_id']
+        }).eq("session_id", session_id).execute()
+        
+        return result
+    except Exception as e:
+        logger.error(f"Failed to create Meet link: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/sessions/{session_id}/meet")
+async def delete_session_meet(
+    session_id: int,
+    email: str = Query(...)
+):
+    try:
+        session_res = supabase_client.table("sessions").select("google_event_id").eq("session_id", session_id).single().execute()
+        if not session_res.data or not session_res.data.get('google_event_id'):
+            supabase_client.table("sessions").update({"meet_link": None}).eq("session_id", session_id).execute()
+            return {"status": "cleared local link"}
+            
+        event_id = session_res.data['google_event_id']
+        google_meet_service.delete_meeting(email, event_id)
+        
+        supabase_client.table("sessions").update({
+            "meet_link": None,
+            "google_event_id": None
+        }).eq("session_id", session_id).execute()
+        
+        return {"status": "deleted"}
+    except Exception as e:
+        logger.error(f"Failed to delete Meet link: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/sessions/{session_id}/toggle-meet")
+async def toggle_session_meet(
+    session_id: int,
+    is_active: bool = Query(...)
+):
+    try:
+        supabase_client.table("sessions").update({
+            "is_meet_active": is_active
+        }).eq("session_id", session_id).execute()
+        return {"status": "success", "is_meet_active": is_active}
+    except Exception as e:
+        logger.error(f"Failed to toggle session meet: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/sessions/google-disconnect")
+async def disconnect_google(email: str = Query(...)):
+    try:
+        supabase_client.table("profiles").update({"google_refresh_token": None}).eq("email", email).execute()
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Failed to disconnect Google: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

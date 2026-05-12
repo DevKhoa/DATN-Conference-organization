@@ -21,6 +21,14 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useNavigate } from "@tanstack/react-router";
 import useAuth from "@/features/auth/hooks/useAuth";
 import { Role } from "@/features/auth/types";
@@ -45,6 +53,7 @@ interface UserProfile {
   role_name?: string;
   role_id?: number; // Added
   avatar_url: string | null;
+  google_refresh_token: string | null;
 }
 
 const ProfilePage: React.FC = () => {
@@ -62,6 +71,8 @@ const ProfilePage: React.FC = () => {
 
   // Google Connect State
   const [connectingGoogle, setConnectingGoogle] = useState(false);
+  const [disconnectingGoogle, setDisconnectingGoogle] = useState(false);
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
 
   // Bio/Description State
   const [bioMode, setBioMode] = useState<"VIEW" | "MANUAL" | "CV" | "SCHOLAR">(
@@ -112,6 +123,18 @@ const ProfilePage: React.FC = () => {
     });
     setManualBio(profileData.description || "");
   }, [profileData]);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "google-auth-success") {
+        refetch();
+        setSuccessMsg("Google account connected successfully!");
+        setTimeout(() => setSuccessMsg(""), 3000);
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [refetch]);
 
   // --- BASIC INFO HANDLERS ---
 
@@ -277,7 +300,12 @@ const ProfilePage: React.FC = () => {
         );
       }
       if (data.auth_url) {
-        window.location.href = data.auth_url;
+        // Open in popup to allow postMessage communication
+        const width = 600;
+        const height = 700;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+        window.open(data.auth_url, "GoogleAuthPopup", `width=${width},height=${height},left=${left},top=${top}`);
       }
     } catch (e: any) {
       setError(
@@ -286,6 +314,33 @@ const ProfilePage: React.FC = () => {
       );
     } finally {
       setConnectingGoogle(false);
+    }
+  };
+
+  const handleDisconnectGoogle = () => {
+    setShowDisconnectConfirm(true);
+  };
+
+  const confirmDisconnectGoogle = async () => {
+    if (!profile?.email) return;
+    setError("");
+    setDisconnectingGoogle(true);
+    try {
+      const response = await fetch(
+        `http://localhost:8080/sessions/google-disconnect?email=${encodeURIComponent(profile.email)}`,
+        { method: "DELETE" }
+      );
+      if (!response.ok) {
+        throw new Error("Failed to disconnect Google account.");
+      }
+      refetch();
+      setSuccessMsg("Google account disconnected.");
+      setTimeout(() => setSuccessMsg(""), 3000);
+      setShowDisconnectConfirm(false);
+    } catch (e: any) {
+      setError(e.message || "Failed to disconnect Google account.");
+    } finally {
+      setDisconnectingGoogle(false);
     }
   };
 
@@ -874,19 +929,30 @@ const ProfilePage: React.FC = () => {
                         </p>
                       </div>
                     </div>
-                    <Button
-                      onClick={handleConnectGoogle}
-                      disabled={connectingGoogle}
-                      variant="outline"
-                      className="border-primary/50 text-primary hover:bg-primary/10 w-full sm:w-auto"
-                    >
-                      {connectingGoogle ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <LinkIcon className="w-4 h-4 mr-2" />
-                      )}
-                      Connect Google
-                    </Button>
+                    {profile?.google_refresh_token ? (
+                      <Button
+                        onClick={handleDisconnectGoogle}
+                        variant="outline"
+                        className="border-destructive/50 text-destructive hover:bg-destructive/10 w-full sm:w-auto min-w-[150px]"
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Connected
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={handleConnectGoogle}
+                        disabled={connectingGoogle}
+                        variant="outline"
+                        className="border-primary/50 text-primary hover:bg-primary/10 w-full sm:w-auto min-w-[150px]"
+                      >
+                        {connectingGoogle ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <LinkIcon className="w-4 h-4 mr-2" />
+                        )}
+                        Connect Google
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -894,6 +960,40 @@ const ProfilePage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <Dialog open={showDisconnectConfirm} onOpenChange={setShowDisconnectConfirm}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="w-5 h-5" />
+              Disconnect Google Account
+            </DialogTitle>
+            <DialogDescription className="py-4">
+              Are you sure you want to disconnect your Google account? 
+              You will no longer be able to automatically generate Google Meet links for your sessions.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowDisconnectConfirm(false)}
+              disabled={disconnectingGoogle}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDisconnectGoogle}
+              disabled={disconnectingGoogle}
+            >
+              {disconnectingGoogle ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : null}
+              Disconnect
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DefaultLayout>
   );
 };

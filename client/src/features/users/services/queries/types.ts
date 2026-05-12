@@ -17,4 +17,5 @@ export interface ProfileData {
   role_name: string;
   role_id: number;
   avatar_url: string | null;
+  google_refresh_token: string | null;
 }
