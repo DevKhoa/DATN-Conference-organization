@@ -92,6 +92,18 @@ export const ConferenceSessionDisplay = ({
             : "border-border shadow-sm hover:border-border/80 hover:shadow-md"
           }`}
       >
+        {canEdit && onDelete && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-full bg-destructive/10 text-destructive hover:bg-destructive hover:text-white transition-all duration-200 z-20 shadow-sm border border-destructive/20"
+            title="Delete Session"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
         <div onClick={onToggle} className="cursor-pointer p-5 md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
             <div
@@ -131,7 +143,7 @@ export const ConferenceSessionDisplay = ({
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {session.format_type !== "in-person" && canAccessVirtual && (
                   <>
-                    {session.meet_link !== undefined && (
+                    {session.meet_link !== undefined && (canEdit || (session.is_meet_active ?? true)) && (
                       <div className="flex items-center gap-1 animate-in slide-in-from-right-2 duration-300 group/meet">
                         <button
                           className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold shadow-sm transition-all duration-300 ${session.meet_link &&
@@ -237,18 +249,7 @@ export const ConferenceSessionDisplay = ({
                   </button>
                 )}
 
-                {canEdit && onDelete && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete();
-                    }}
-                    className="shrink-0 rounded-lg border border-border bg-destructive/10 px-3 py-1.5 text-xs font-bold text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground flex items-center gap-1.5 ml-2"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete
-                  </button>
-                )}
+                {/* Delete button removed from here and moved to top-right of card */}
               </div>
 
               <div

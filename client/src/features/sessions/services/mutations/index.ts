@@ -169,7 +169,7 @@ export const useDeleteMeetMutation = () => {
     }) => {
       const data = await request.delete<{ status: string; message: string }>(
         `/sessions/${sessionId}/meet`,
-        { params: { email } },
+        { email },
       );
       return data;
     },

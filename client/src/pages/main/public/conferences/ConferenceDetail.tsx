@@ -79,7 +79,7 @@ const ConferenceDetailPage = () => {
   const navigate = useNavigate();
   const { conferenceId: conferenceIdParam } = Route.useParams();
   const conferenceId = Number(conferenceIdParam);
-  const { checkRoles } = useAuth();
+  const { checkRoles, session } = useAuth();
 
   const {
     data: conferenceDetail,
@@ -112,19 +112,21 @@ const ConferenceDetailPage = () => {
   >([]);
 
   const { data: hasRegistration } = useQuery({
-    queryKey: ["conference-detail-registration", conferenceId],
+    queryKey: ["conference-detail-registration", conferenceId, session?.user.id],
     queryFn: async () => {
+      if (!session?.user.id) return false;
       const { data, error } = await supabase
         .from("registrations")
         .select(
           `registration_id, ticket_configs!inner ( ticket_session!inner ( sessions!inner ( conf_id ) ) )`,
         )
-        .eq("ticket_configs.ticket_session.sessions.conf_id", conferenceId);
+        .eq("ticket_configs.ticket_session.sessions.conf_id", conferenceId)
+        .eq("user_id", session.user.id);
 
       if (error) throw error;
       return (data?.length ?? 0) > 0;
     },
-    enabled: !!conferenceId,
+    enabled: !!conferenceId && !!session?.user.id,
   });
 
   const canAccessVirtual = canEdit || !!hasRegistration;

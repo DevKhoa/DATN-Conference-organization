@@ -264,13 +264,19 @@ const PaperDetailPage: React.FC = () => {
     <DefaultLayout meta={{ title: paper.title }}>
       <div className="min-h-screen bg-slate-50 font-sans pb-20">
         {/* 1. HEADER SECTION */}
-        <div className="bg-white border-b border-slate-200 sticky top-16 z-30 shadow-sm">
+        <div className="bg-white border-b border-slate-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <button
-              onClick={() => navigate({ to: "/papers" })}
+              onClick={() => {
+                if (window.history.length > 2) {
+                  window.history.back();
+                } else {
+                  navigate({ to: "/papers" });
+                }
+              }}
               className="flex items-center text-sm font-medium text-slate-500 hover:text-brand-600 mb-4 transition-colors"
             >
-              <ArrowLeft className="w-4 h-4 mr-1" /> Back to Archive
+              <ArrowLeft className="w-4 h-4 mr-1" /> Back
             </button>
 
             <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
@@ -631,9 +637,10 @@ const PaperDetailPage: React.FC = () => {
             </div>
 
             {/* RIGHT COLUMN: Sidebar Info */}
-            <div className="lg:col-span-1 space-y-6">
-              {/* 2. AUTHOR INFO */}
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 sticky top-24">
+            <div className="lg:col-span-1">
+              <div className="sticky top-24 space-y-6">
+                {/* 2. AUTHOR INFO */}
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-4">
                   Primary Author
                 </h3>
@@ -693,6 +700,7 @@ const PaperDetailPage: React.FC = () => {
                     <span>{paper.conference?.location || "Virtual"}</span>
                   </div>
                 </div>
+              </div>
               </div>
             </div>
           </div>
