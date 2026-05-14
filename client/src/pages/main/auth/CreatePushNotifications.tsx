@@ -453,7 +453,7 @@ const CreatePushNotificationsPage: React.FC<CreatePushNotificationsProps> = ({
   const navigate = useNavigate();
   const { session } = useAuth();
   const resolvedUserEmail = userEmail ?? session?.user?.email ?? "";
-  const handleClose = onClose ?? (() => navigate({ to: "/profile" }));
+  const handleClose = onClose ?? (() => window.history.back());
   const isConferenceScoped = !!conferenceId;
 
   // Tabs

@@ -393,16 +393,29 @@ const CreateConferencePage: React.FC = () => {
                         type="number"
                         min={1}
                         required
-                        value={formData.max_chairs_per_session}
-                        onChange={(e) =>
+                        value={formData.max_chairs_per_session || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
                           setFormData({
                             ...formData,
                             max_chairs_per_session:
-                              parseInt(e.target.value) || 1,
-                          })
-                        }
+                              val === "" ? 0 : parseInt(val),
+                          });
+                        }}
+                        onBlur={() => {
+                          if (
+                            !formData.max_chairs_per_session ||
+                            formData.max_chairs_per_session < 1
+                          ) {
+                            setFormData({
+                              ...formData,
+                              max_chairs_per_session: 1,
+                            });
+                          }
+                        }}
                         className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none"
                         placeholder="e.g. 1"
+                        inputMode="numeric"
                       />
                     </div>
                     <p className="text-xs text-slate-500 mt-1">
