@@ -12,6 +12,11 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import { ChairSection } from "./ChairSection";
 import type { ConferenceDetailSession } from "@/features/conferences/services/queries";
@@ -87,7 +92,7 @@ export const ConferenceSessionDisplay = ({
       </div>
 
       <div
-        className={`grow relative z-10 rounded-2xl border bg-white transition-all duration-300 ${isExpanded
+        className={`grow min-w-0 relative z-10 rounded-2xl border bg-white transition-all duration-300 ${isExpanded
             ? "border-primary/30 shadow-lg ring-1 ring-primary/20 translate-x-1"
             : "border-border shadow-sm hover:border-border/80 hover:shadow-md"
           }`}
@@ -105,9 +110,11 @@ export const ConferenceSessionDisplay = ({
           </button>
         )}
         <div onClick={onToggle} className="cursor-pointer p-5 md:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
+          <div
+            className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-4 ${canEdit && onDelete ? "pr-10" : ""}`}
+          >
             <div
-              className={`flex flex-1 items-start gap-3 text-lg font-bold transition-colors md:text-xl min-w-[280px] ${isExpanded
+              className={`flex flex-1 items-start gap-3 text-lg font-bold transition-colors md:text-xl min-w-0 ${isExpanded
                   ? "text-primary"
                   : "text-foreground group-hover:text-primary"
                 }`}
@@ -128,8 +135,19 @@ export const ConferenceSessionDisplay = ({
                     <MapPin className="h-4 w-4" />
                   )}
               </div>
-              <div className="flex min-w-0 flex-col">
-                <span>{session.session_name}</span>
+              <div className="flex min-w-0 flex-1 flex-col">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className={`break-words ${isExpanded ? "" : "line-clamp-1"}`}
+                    >
+                      {session.session_name}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[300px]">
+                    <p className="text-xs font-medium">{session.session_name}</p>
+                  </TooltipContent>
+                </Tooltip>
                 <span className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                   {session.room_location ||
                     (session.format_type === "virtual"
@@ -139,8 +157,8 @@ export const ConferenceSessionDisplay = ({
               </div>
             </div>
 
-            <div className="ml-auto flex items-center gap-3 transition-all w-full sm:w-auto">
-              <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="ml-auto flex shrink-0 items-center gap-3 transition-all">
+              <div className="flex items-center justify-end gap-2">
                 {session.format_type !== "in-person" && canAccessVirtual && (
                   <>
                     {session.meet_link !== undefined && (canEdit || (session.is_meet_active ?? true)) && (
@@ -249,7 +267,6 @@ export const ConferenceSessionDisplay = ({
                   </button>
                 )}
 
-                {/* Delete button removed from here and moved to top-right of card */}
               </div>
 
               <div
