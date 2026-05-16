@@ -149,7 +149,7 @@ export const usePublicPaperDetailPageQuery = ({
           .single(),
         supabase
           .from("paper_versions")
-          .select("file_path")
+          .select("version_id, file_path")
           .eq("paper_id", paperId)
           .eq("display", true)
           .order("version_id", { ascending: false })
@@ -168,8 +168,13 @@ export const usePublicPaperDetailPageQuery = ({
       ]);
 
       if (paperError) throw paperError;
-      if (versionError) throw versionError;
-      if (reviewsError) throw reviewsError;
+      if (versionError && versionError.code !== "PGRST116") throw versionError;
+      
+      let finalReviewsData = reviewsData;
+      if (reviewsError) {
+        console.warn("Failed to fetch reviews (table might not exist yet):", reviewsError);
+        finalReviewsData = [];
+      }
 
       const normalizedPaper = {
         ...paperData,
@@ -181,7 +186,7 @@ export const usePublicPaperDetailPageQuery = ({
           : (paperData.conference ?? null),
       } as PublicPaperDetailPageData["paper"];
 
-      const normalizedReviews = (reviewsData || []).map((review) => ({
+      const normalizedReviews = (finalReviewsData || []).map((review) => ({
         review_id: review.review_id,
         score: review.score,
         recommendation: review.recommendation,
@@ -195,10 +200,11 @@ export const usePublicPaperDetailPageQuery = ({
       if (!canGrade || !userId) {
         return {
           paper: normalizedPaper,
+          versionId: versionData?.version_id || null,
           pdfUrl: versionData?.file_path || null,
           reviews: normalizedReviews,
           applicableAwards: [],
-        } as PublicPaperDetailPageData;
+        } as PublicPaperDetailPageData & { versionId: number | null };
       }
 
       const { data: sessionLinks, error: sessionLinksError } = await supabase
@@ -213,10 +219,11 @@ export const usePublicPaperDetailPageQuery = ({
       if (sessionIds.length === 0) {
         return {
           paper: normalizedPaper,
+          versionId: versionData?.version_id || null,
           pdfUrl: versionData?.file_path || null,
           reviews: normalizedReviews,
           applicableAwards: [],
-        } as PublicPaperDetailPageData;
+        } as PublicPaperDetailPageData & { versionId: number | null };
       }
 
       const { data: awardSessionRows, error: awardSessionsError } =
@@ -244,10 +251,11 @@ export const usePublicPaperDetailPageQuery = ({
       if (awardIds.length === 0) {
         return {
           paper: normalizedPaper,
+          versionId: versionData?.version_id || null,
           pdfUrl: versionData?.file_path || null,
           reviews: normalizedReviews,
           applicableAwards: [],
-        } as PublicPaperDetailPageData;
+        } as PublicPaperDetailPageData & { versionId: number | null };
       }
 
       const canMarkEntries = await Promise.all(
@@ -340,10 +348,11 @@ export const usePublicPaperDetailPageQuery = ({
 
       return {
         paper: normalizedPaper,
+        versionId: versionData?.version_id || null,
         pdfUrl: versionData?.file_path || null,
         reviews: normalizedReviews,
         applicableAwards,
-      } as PublicPaperDetailPageData;
+      } as PublicPaperDetailPageData & { versionId: number | null };
     },
     enabled: !!paperId,
   });
@@ -453,7 +462,7 @@ export const useMyPaperDetailQuery = (paperId: number | null) => {
       const [
         { data: paperData, error: paperError },
         { data: versionData },
-        { data: reviewsData },
+        { data: reviewsData, error: reviewsError },
       ] = await Promise.all([
         supabase
           .from("papers")
@@ -481,6 +490,12 @@ export const useMyPaperDetailQuery = (paperId: number | null) => {
 
       if (paperError) throw paperError;
 
+      let finalReviewsData = reviewsData;
+      if (reviewsError) {
+        console.warn("Failed to fetch reviews:", reviewsError);
+        finalReviewsData = [];
+      }
+
       const normalizedPaper = {
         ...paperData,
         conference: Array.isArray(paperData.conference)
@@ -492,7 +507,7 @@ export const useMyPaperDetailQuery = (paperId: number | null) => {
           } | null),
       } as MyPaperDetail;
 
-      const normalizedReviews = (reviewsData || []).map((review) => ({
+      const normalizedReviews = (finalReviewsData || []).map((review) => ({
         review_id: review.review_id,
         review_date: review.review_date,
         recommendation: review.recommendation,
@@ -590,7 +605,8 @@ export const usePaginatedPapersQuery = ({
   pageSize,
   totalCount = 0,
   filters = {},
-}: PaginatedParams & { filters?: PapersFilterParams }) => {
+  sortOrder = "DATE_DESC",
+}: PaginatedParams & { filters?: PapersFilterParams; sortOrder?: string }) => {
   const { searchTerm, statusFilter, conferenceFilter, authorFilter } = filters;
 
   return useQuery({
@@ -603,9 +619,10 @@ export const usePaginatedPapersQuery = ({
       statusFilter,
       conferenceFilter,
       authorFilter,
+      sortOrder,
     ],
     queryFn: async () => {
-      const totalPages = Math.ceil(totalCount / pageSize);
+      const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
       // Build the main query with filters applied server-side
       let query = supabase
@@ -616,8 +633,13 @@ export const usePaginatedPapersQuery = ({
           author:profiles!primary_author_id (full_name),
           conference:conferences!submitted_conf (conf_name)
         `,
-        )
-        .order("created_at", { ascending: false });
+        );
+
+      if (sortOrder === "DATE_ASC") {
+        query = query.order("created_at", { ascending: true });
+      } else if (sortOrder === "DATE_DESC") {
+        query = query.order("created_at", { ascending: false });
+      }
 
       if (searchTerm) {
         query = query.or(
@@ -631,7 +653,8 @@ export const usePaginatedPapersQuery = ({
       // For conference/author filters on joined tables, we fetch all matching rows then paginate client-side
       const needsJoinFilter =
         (conferenceFilter && conferenceFilter !== "ALL") ||
-        (authorFilter && authorFilter !== "ALL");
+        (authorFilter && authorFilter !== "ALL") ||
+        sortOrder === "TITLE_AZ";
 
       let papers: any[];
 
@@ -664,6 +687,14 @@ export const usePaginatedPapersQuery = ({
             return false;
           return true;
         });
+
+        if (sortOrder === "TITLE_AZ") {
+          filtered.sort((a, b) => {
+            const cleanA = (a.title || "").replace(/[^a-zA-Z0-9\s]/g, "");
+            const cleanB = (b.title || "").replace(/[^a-zA-Z0-9\s]/g, "");
+            return cleanA.localeCompare(cleanB);
+          });
+        }
 
         const from = (page - 1) * pageSize;
         papers = filtered.slice(from, from + pageSize);

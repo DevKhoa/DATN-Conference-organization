@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { usePublicPaperDetailPageQuery } from "@/features/papers/services/queries";
 import { useSavePaperAwardMarkingMutation } from "@/features/papers/services/mutations";
 import type { PaperApplicableAward } from "@/features/papers/types";
+import { EditPaperModal } from "./components/EditPaperModal";
 
 interface AwardFormState {
   comments: string;
@@ -40,9 +41,11 @@ const PaperDetailPage: React.FC = () => {
   const { data: currentSubscription } = useMyCurrentSubscriptionQuery();
   const { session, checkRoles } = useAuth();
   const saveAwardMarkingMutation = useSavePaperAwardMarkingMutation();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const hasValidSubscription = !!!currentSubscription;
   const canGrade = checkRoles([Role.CHAIR, Role.ATTENDEE, Role.ADMIN]);
+  const canEditPaper = checkRoles([Role.ADMIN, Role.SECRETARIAT]);
   const userId = session?.user?.user_metadata["user_id"] as number | undefined;
   const {
     data: detailData,
@@ -61,6 +64,7 @@ const PaperDetailPage: React.FC = () => {
     ? ((saveAwardMarkingMutation.variables as { awardId?: number } | undefined)
       ?.awardId ?? null)
     : null;
+  const versionId = detailData?.versionId ?? null;
 
   useEffect(() => {
     const nextFormById = applicableAwards.reduce<
@@ -252,10 +256,23 @@ const PaperDetailPage: React.FC = () => {
           <p className="text-slate-500 mb-6">
             {error instanceof Error ? error.message : "Paper not found."}
           </p>
-          <Button onClick={() => navigate({ to: "/papers" })}>
-            Return to Archive
-          </Button>
+          {canEditPaper && (
+            <Button onClick={() => setIsEditModalOpen(true)}>
+              Edit & Upload Content
+            </Button>
+          )}
         </div>
+
+        {canEditPaper && (
+          <EditPaperModal
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            paperId={paperId}
+            versionId={null}
+            initialTitle=""
+            initialAbstract=""
+          />
+        )}
       </div>
     );
   }
@@ -298,6 +315,11 @@ const PaperDetailPage: React.FC = () => {
               </div>
 
               <div className="flex-shrink-0 flex gap-2">
+                {canEditPaper && (
+                  <Button variant="outline" size="sm" onClick={() => setIsEditModalOpen(true)}>
+                    Edit Paper
+                  </Button>
+                )}
                 <Button variant="outline" size="sm">
                   <Share2 className="w-5 h-5 mr-2" />
                   Share
@@ -568,9 +590,14 @@ const PaperDetailPage: React.FC = () => {
                       <h4 className="text-slate-900 font-medium mb-1">
                         Preview Unavailable
                       </h4>
-                      <p className="text-slate-500 text-sm">
+                      <p className="text-slate-500 text-sm mb-4">
                         This paper does not have a displayable version yet.
                       </p>
+                      {canEditPaper && (
+                        <Button variant="outline" onClick={() => setIsEditModalOpen(true)}>
+                          Upload Content
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -705,6 +732,17 @@ const PaperDetailPage: React.FC = () => {
             </div>
           </div>
         </div>
+        
+        {canEditPaper && paper && (
+          <EditPaperModal
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            paperId={paper.paper_id}
+            versionId={versionId}
+            initialTitle={paper.title}
+            initialAbstract={paper.abstract || ""}
+          />
+        )}
       </div>
     </DefaultLayout>
   );

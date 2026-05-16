@@ -268,3 +268,110 @@ export const useSavePaperAwardMarkingMutation = () => {
     },
   });
 };
+
+export const useUpdatePaperInfoMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      paperId,
+      title,
+      abstract,
+    }: {
+      paperId: number;
+      title: string;
+      abstract: string;
+    }) => {
+      const { error } = await supabase
+        .from("papers")
+        .update({ title, abstract })
+        .eq("paper_id", paperId);
+
+      if (error) throw error;
+      return paperId;
+    },
+    onSuccess: (paperId) => {
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.PublicPaperDetailPage, paperId],
+      });
+    },
+  });
+};
+
+export const useUpdatePaperContentMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      paperId,
+      versionId,
+      uploaderId,
+      file,
+      driveLink,
+    }: {
+      paperId: number;
+      versionId: number | null;
+      uploaderId: number;
+      file?: File | null;
+      driveLink?: string;
+    }) => {
+      let activeVersionId = versionId;
+
+      // Create a version if none exists
+      if (!activeVersionId) {
+        const { data: newVersion, error: createError } = await supabase
+          .from("paper_versions")
+          .insert([
+            {
+              paper_id: paperId,
+              version_number: 1,
+              upload_by: uploaderId,
+              upload_date: new Date().toISOString(),
+              display: true,
+              is_final: false,
+              format_ok: false,
+              file_path: "pending_upload",
+            },
+          ])
+          .select("version_id")
+          .single();
+
+        if (createError) throw createError;
+        activeVersionId = newVersion.version_id;
+      }
+
+      let finalFilePath = "";
+
+      if (file) {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const uploadData = await request.post<{ url?: string }>(
+          `/papers/${paperId}/${activeVersionId}/upload`,
+          formData,
+        );
+        if (uploadData?.url) {
+          finalFilePath = uploadData.url;
+        } else {
+          throw new Error("File upload failed, no URL returned.");
+        }
+      } else if (driveLink) {
+        finalFilePath = driveLink;
+      }
+
+      if (finalFilePath) {
+        const { error: updateError } = await supabase
+          .from("paper_versions")
+          .update({ file_path: finalFilePath, display: true })
+          .eq("version_id", activeVersionId);
+
+        if (updateError) throw updateError;
+      }
+
+      return paperId;
+    },
+    onSuccess: (paperId) => {
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.PublicPaperDetailPage, paperId],
+      });
+    },
+  });
+};

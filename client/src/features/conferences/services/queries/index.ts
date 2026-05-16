@@ -93,13 +93,22 @@ export interface ConferencesFilterParams {
   searchTerm?: string;
   statusFilter?: string;
   selectedKeyword?: string;
+  formatType?: string;
+  canViewDrafts?: boolean;
 }
 
 export const useConferencesCountQuery = (filters: ConferencesFilterParams = {}) => {
   const { searchTerm, statusFilter, selectedKeyword } = filters;
 
   return useQuery({
-    queryKey: [ConferencesKeys.ConferencesCount, searchTerm, statusFilter, selectedKeyword],
+    queryKey: [
+      ConferencesKeys.ConferencesCount,
+      searchTerm,
+      statusFilter,
+      selectedKeyword,
+      filters.formatType,
+      filters.canViewDrafts,
+    ],
     queryFn: async () => {
       // FIX: Used head: true for better performance (only returns the count, no row data)
       let query = supabase
@@ -115,6 +124,12 @@ export const useConferencesCountQuery = (filters: ConferencesFilterParams = {}) 
 
       if (statusFilter && statusFilter !== "ALL") {
         query = query.eq("status", statusFilter);
+      } else if (!filters.canViewDrafts) {
+        query = query.neq("status", "DRAFT");
+      }
+
+      if (filters.formatType && filters.formatType !== "ALL") {
+        query = query.eq("format_type", filters.formatType);
       }
 
       // FIX: Server-side array filtering
@@ -338,8 +353,9 @@ export const usePaginatedConferencesQuery = ({
   pageSize,
   totalCount = 0,
   filters = {},
-}: PaginatedParams & { filters?: ConferencesFilterParams }) => {
-  const { searchTerm, statusFilter, selectedKeyword } = filters;
+  sortOrder = "START_DATE_ASC",
+}: PaginatedParams & { filters?: ConferencesFilterParams; sortOrder?: string }) => {
+  const { searchTerm, statusFilter, selectedKeyword, formatType, canViewDrafts } = filters;
 
   return useQuery({
     // FIX: Removed totalCount from queryKey to prevent unnecessary cache invalidation
@@ -350,6 +366,9 @@ export const usePaginatedConferencesQuery = ({
       searchTerm,
       statusFilter,
       selectedKeyword,
+      formatType,
+      canViewDrafts,
+      sortOrder,
     ],
     queryFn: async () => {
       const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -357,8 +376,17 @@ export const usePaginatedConferencesQuery = ({
       let query = supabase
         .from("conferences")
         .select("*")
-        .eq("is_active", true)
-        .order("start_date", { ascending: true });
+        .eq("is_active", true);
+        
+      if (sortOrder === "START_DATE_ASC") {
+        query = query.order("start_date", { ascending: true });
+      } else if (sortOrder === "START_DATE_DESC") {
+        query = query.order("start_date", { ascending: false });
+      } else if (sortOrder === "AZ") {
+        query = query.order("conf_name", { ascending: true });
+      } else {
+        query = query.order("start_date", { ascending: true });
+      }
 
       if (searchTerm) {
         query = query.or(
@@ -368,6 +396,12 @@ export const usePaginatedConferencesQuery = ({
 
       if (statusFilter && statusFilter !== "ALL") {
         query = query.eq("status", statusFilter);
+      } else if (!canViewDrafts) {
+        query = query.neq("status", "DRAFT");
+      }
+
+      if (formatType && formatType !== "ALL") {
+        query = query.eq("format_type", formatType);
       }
 
       // FIX: Server-side array filtering instead of client-side
