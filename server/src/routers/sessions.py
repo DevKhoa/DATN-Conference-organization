@@ -701,6 +701,22 @@ async def accept_chair_invitation(token: str, request: ChairInvitationDecisionRe
     except Exception as role_error:
         logger.warning(f"Unable to ensure chair role for user {invitee_user_id}: {role_error}")
 
+    try:
+        existing_att = supabase_client.table("attendences").select("at_id") \
+            .eq("session_id", invitation["session_id"]) \
+            .eq("user_id", invitee_user_id) \
+            .execute()
+        
+        if not existing_att.data:
+            supabase_client.table("attendences").insert({
+                "session_id": invitation["session_id"],
+                "user_id": invitee_user_id,
+                "is_checkin": False
+            }).execute()
+    except Exception as att_error:
+        logger.warning(f"Unable to add attendences for chair {invitee_user_id}: {att_error}")
+
+
     invitee_profile_res = _select_profile_by_email(invitee_email)
     invitee_profile = invitee_profile_res.data if invitee_profile_res.data else None
 

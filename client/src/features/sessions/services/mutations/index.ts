@@ -104,6 +104,48 @@ export const useSaveSessionsMutation = () => {
             .from("session_papers")
             .insert(paperInserts);
           if (pError) throw pError;
+
+          // Assign authors & coauthors to checkin (attendences table)
+          const paperIds = s.assigned_papers.map((p) => p.paper_id);
+          
+          const { data: papersData } = await supabase
+            .from("papers")
+            .select("primary_author_id")
+            .in("paper_id", paperIds);
+            
+          const { data: coauthorsData } = await supabase
+            .from("paper_coauthors")
+            .select("user_id")
+            .in("paper_id", paperIds);
+
+          const authorIds = new Set<number>();
+          papersData?.forEach((p) => {
+            if (p.primary_author_id) authorIds.add(p.primary_author_id);
+          });
+          coauthorsData?.forEach((c) => {
+            if (c.user_id) authorIds.add(c.user_id);
+          });
+
+          if (authorIds.size > 0) {
+            const { data: existingAtt } = await supabase
+              .from("attendences")
+              .select("user_id")
+              .eq("session_id", currentDbId)
+              .in("user_id", Array.from(authorIds));
+              
+            const existingIds = new Set(existingAtt?.map((e) => e.user_id) || []);
+            const newAtts = Array.from(authorIds)
+              .filter((id) => !existingIds.has(id))
+              .map((id) => ({
+                session_id: currentDbId,
+                user_id: id,
+                is_checkin: false,
+              }));
+              
+            if (newAtts.length > 0) {
+              await supabase.from("attendences").insert(newAtts);
+            }
+          }
         }
 
         return { temp_id: s.temp_id, db_id: currentDbId! };

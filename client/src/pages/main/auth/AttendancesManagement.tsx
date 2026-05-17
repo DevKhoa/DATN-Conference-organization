@@ -119,6 +119,7 @@ const AttendancesManagementPage: React.FC = () => {
   const handleToggleCheckIn = async (
     registrationId: number,
     currentStatus: boolean,
+    atId: number | null
   ) => {
     if (!selectedSessionId) return;
 
@@ -126,6 +127,7 @@ const AttendancesManagementPage: React.FC = () => {
     const newTime = newStatus ? new Date().toISOString() : null;
 
     toggleAttendanceMutation.mutate({
+      at_id: atId || undefined,
       registration_id: registrationId,
       session_id: selectedSessionId,
       is_checkin: newStatus,
@@ -529,7 +531,7 @@ const AttendancesManagementPage: React.FC = () => {
                           size="sm"
                           className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 font-black text-[10px] px-3 py-1.5 h-auto rounded-lg"
                           onClick={() =>
-                            handleToggleCheckIn(a.registration_id, true)
+                            handleToggleCheckIn(a.registration_id, true, a.at_id)
                           }
                         >
                           <XCircle className="w-3.5 h-3.5 mr-1.5" />
@@ -541,7 +543,7 @@ const AttendancesManagementPage: React.FC = () => {
                           size="sm"
                           className="bg-brand-700 hover:bg-brand-800 font-black text-[10px] px-4 py-1.5 h-auto rounded-lg shadow-md"
                           onClick={() =>
-                            handleToggleCheckIn(a.registration_id, false)
+                            handleToggleCheckIn(a.registration_id, false, a.at_id)
                           }
                         >
                           <UserCheck className="w-3.5 h-3.5 mr-1.5" />
