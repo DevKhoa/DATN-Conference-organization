@@ -53,10 +53,11 @@ const ConferencesPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [formatTypeFilter, setFormatTypeFilter] = useState("ALL");
   const [sortOrder, setSortOrder] = useState<
+    | "RELEVANCE"
     | "START_DATE_ASC"
     | "START_DATE_DESC"
     | "AZ"
-  >("START_DATE_ASC");
+  >("RELEVANCE");
   const [selectedKeyword, setSelectedKeyword] = useState<string>("");
 
   // Topic search state
@@ -309,6 +310,7 @@ const ConferencesPage: React.FC = () => {
                     value={sortOrder}
                     onChange={(e) => setSortOrder(e.target.value as any)}
                   >
+                    <option value="RELEVANCE">Most Relevant</option>
                     <option value="START_DATE_ASC">
                       Start Date (Earliest first)
                     </option>

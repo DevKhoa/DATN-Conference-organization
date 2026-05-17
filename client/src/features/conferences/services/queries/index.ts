@@ -353,7 +353,7 @@ export const usePaginatedConferencesQuery = ({
   pageSize,
   totalCount = 0,
   filters = {},
-  sortOrder = "START_DATE_ASC",
+  sortOrder = "RELEVANCE",
 }: PaginatedParams & { filters?: ConferencesFilterParams; sortOrder?: string }) => {
   const { searchTerm, statusFilter, selectedKeyword, formatType, canViewDrafts } = filters;
 
@@ -378,6 +378,7 @@ export const usePaginatedConferencesQuery = ({
         .select("*")
         .eq("is_active", true);
         
+      // Apply base ordering on DB for non-RELEVANCE modes (RELEVANCE is client-side)
       if (sortOrder === "START_DATE_ASC") {
         query = query.order("start_date", { ascending: true });
       } else if (sortOrder === "START_DATE_DESC") {
@@ -385,6 +386,7 @@ export const usePaginatedConferencesQuery = ({
       } else if (sortOrder === "AZ") {
         query = query.order("conf_name", { ascending: true });
       } else {
+        // RELEVANCE: fetch all matching rows for this page window, sort client-side
         query = query.order("start_date", { ascending: true });
       }
 
@@ -409,12 +411,47 @@ export const usePaginatedConferencesQuery = ({
         query = query.contains("keywords", [selectedKeyword]);
       }
 
-      // ALWAYS use server-side pagination now
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
-      const { data, error } = await query.range(from, to);
+      let rows: any[];
 
-      if (error) throw error;
+      if (sortOrder === "RELEVANCE") {
+        // Fetch ALL matching rows, sort client-side, then paginate
+        const { data: allRows, error: allError } = await query;
+        if (allError) throw allError;
+
+        const now = Date.now();
+        const scored = (allRows || []).map((c: any) => {
+          const start = c.start_date ? new Date(c.start_date).getTime() : 0;
+          const endRaw = c.end_date || c.start_date;
+          const end = endRaw ? new Date(endRaw).getTime() + 86399999 : 0;
+          const isOngoing = now >= start && now <= end;
+          const isUpcoming = now < start;
+          // group: 0 = ongoing, 1 = upcoming, 2 = past
+          const group = isOngoing ? 0 : isUpcoming ? 1 : 2;
+          // within upcoming: closer start_date = smaller diff = appears first
+          // within ongoing:  closer end_date to now = smaller diff = appears first
+          // within past:     most recently ended = largest end = appears first
+          const tiebreak = isOngoing
+            ? end   // sort ascending (soonest to end first)
+            : isUpcoming
+            ? start // sort ascending (nearest upcoming first)
+            : -end; // sort ascending (most recently past first)
+          return { c, group, tiebreak };
+        });
+
+        scored.sort((a, b) =>
+          a.group !== b.group ? a.group - b.group : a.tiebreak - b.tiebreak,
+        );
+
+        const from = (page - 1) * pageSize;
+        rows = scored.slice(from, from + pageSize).map((s) => s.c);
+      } else {
+        // Server-side pagination for deterministic sorts
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
+        const { data, error } = await query.range(from, to);
+        if (error) throw error;
+        rows = data || [];
+      }
 
       // Fetch all keywords for the dropdown
       const { data: allKwData } = await supabase
@@ -433,7 +470,7 @@ export const usePaginatedConferencesQuery = ({
       ).sort() as string[];
 
       return {
-        data,
+        data: rows,
         totalCount,
         totalPages,
         currentPage: page,

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -13,6 +13,7 @@ import {
   Mail,
   MapPin,
   Layers,
+  Pencil,
   QrCode,
   Ticket,
   Trophy,
@@ -43,9 +44,11 @@ import {
   useToggleMeetMutation,
   useDeleteSessionMutation,
 } from "@/features/sessions/services/mutations";
+import { useUpdateConferenceMutation } from "@/features/conferences/services/mutations";
 import { ConferenceSessionDisplay } from "./components/ConferenceSessionDisplay";
 import { ConferenceRegistrationPanel } from "./components/ConferenceRegistrationPanel";
 import { ConferenceAwardsLeaderboard } from "./components/ConferenceAwardsLeaderboard";
+import { EditConferenceModal } from "./components/EditConferenceModal";
 
 const formatDateHeader = (isoString: string | null) => {
   if (!isoString) {
@@ -96,8 +99,33 @@ const ConferenceDetailPage = () => {
   const canEdit = checkRoles([Role.ADMIN, Role.SECRETARIAT]);
   const toggleMeetMutation = useToggleMeetMutation();
   const deleteSessionMutation = useDeleteSessionMutation();
+  const updateConferenceMutation = useUpdateConferenceMutation();
+
+  // Auto-close: set status = CLOSED when end_date has passed
+  useEffect(() => {
+    if (
+      conference &&
+      conference.end_date &&
+      conference.status !== "CLOSED" &&
+      canEdit
+    ) {
+      const endTime = new Date(conference.end_date);
+      // treat end_date as end of day
+      endTime.setHours(23, 59, 59, 999);
+      if (new Date() > endTime) {
+        updateConferenceMutation.mutate({
+          conferenceId: conference.conf_id,
+          end_date: conference.end_date,
+          status: "CLOSED",
+        });
+      }
+    }
+    // only run when conference loads / changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conference?.conf_id, conference?.status, conference?.end_date]);
 
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+  const [isEditConfOpen, setIsEditConfOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<{
     id: number;
@@ -403,6 +431,17 @@ const ConferenceDetailPage = () => {
                   >
                     <Mail className="w-4 h-4 mr-1" />
                     Create Notification
+                  </Button>
+                )}
+
+                {canEdit && (
+                  <Button
+                    onClick={() => setIsEditConfOpen(true)}
+                    variant="outline"
+                    className="bg-background/10 backdrop-blur-md border-background/20 text-primary-foreground hover:bg-background/20"
+                  >
+                    <Pencil className="w-4 h-4 mr-1" />
+                    Edit Conference
                   </Button>
                 )}
 
@@ -901,6 +940,14 @@ const ConferenceDetailPage = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {canEdit && conference && (
+          <EditConferenceModal
+            isOpen={isEditConfOpen}
+            onClose={() => setIsEditConfOpen(false)}
+            conference={conference}
+          />
         )}
       </div>
     </DefaultLayout>
