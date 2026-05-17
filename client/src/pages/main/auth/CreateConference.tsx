@@ -111,8 +111,18 @@ const CreateConferencePage: React.FC = () => {
       return;
     }
 
-    if (new Date(formData.start_date) > new Date(formData.end_date)) {
-      setError("Start date cannot be after end date.");
+    const startDate = new Date(formData.start_date);
+    const endDate = new Date(formData.end_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (startDate < today) {
+      setError("Start date cannot be in the past.");
+      return;
+    }
+
+    if (startDate >= endDate) {
+      setError("Start date must be strictly before end date.");
       return;
     }
 

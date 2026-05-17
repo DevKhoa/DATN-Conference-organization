@@ -589,7 +589,23 @@ const SessionManagerPage = ({
         return;
       }
 
-      // Check conference boundaries
+      // NEW CONSTRAINT: Time selected for start_time must not be in the past
+      if (sessionStart.isBefore(dayjs())) {
+        setError(
+          `Invalid time for session "${s.session_name}": Start time cannot be in the past.`,
+        );
+        return;
+      }
+
+      // NEW CONSTRAINT: Session must be on the same day
+      if (!sessionStart.isSame(sessionEnd, "day")) {
+        setError(
+          `Session "${s.session_name}" must start and end on the same day.`,
+        );
+        return;
+      }
+
+      // Check conference boundaries (strictly within)
       if (
         conferenceData?.conference?.start_date &&
         conferenceData?.conference?.end_date
@@ -599,19 +615,38 @@ const SessionManagerPage = ({
         );
         const confEnd = dayjs(conferenceData.conference.end_date).endOf("day");
 
-        if (sessionStart.isBefore(confStart) || sessionEnd.isAfter(confEnd)) {
+        if (!sessionStart.isAfter(confStart) || !sessionEnd.isBefore(confEnd)) {
           setError(
-            `Warning: Session "${s.session_name}" start time and end time should be within its conference start and end date (${confStart.format("MMM D, YYYY")} - ${confEnd.format("MMM D, YYYY")}).`,
+            `Session "${s.session_name}" must be strictly within the conference dates (${confStart.format("MMM D, YYYY")} - ${confEnd.format("MMM D, YYYY")}).`,
           );
           return;
         }
       }
 
-      // CONSTRAINT 3: Paper time in the same session should not overlap
+      // NEW CONSTRAINT: Overlap with other sessions (same room, same day)
+      for (const other of sessions) {
+        if (s.temp_id === other.temp_id) continue;
+        if (!other.start_time || !other.end_time) continue;
+        
+        if (s.room_location === other.room_location) {
+          const otherStart = dayjs(formatToLocal(other.start_time));
+          const otherEnd = dayjs(formatToLocal(other.end_time));
+          
+          if (sessionStart.isSame(otherStart, "day")) {
+            // Overlap condition: S1.start < S2.end && S2.start < S1.end
+            if (sessionStart.isBefore(otherEnd) && otherStart.isBefore(sessionEnd)) {
+              setError(`Session "${s.session_name}" overlaps with session "${other.session_name}" in the same room on the same day.`);
+              return;
+            }
+          }
+        }
+      }
+
+      // CONSTRAINT 3: Paper time in the same session
       const parseTime = (t: string) =>
         t.includes("T")
           ? dayjs(t)
-          : dayjs(`2000-01-01T${t.length === 5 ? t + ":00" : t}`);
+          : dayjs(`${sessionStart.format("YYYY-MM-DD")}T${t.length === 5 ? t + ":00" : t}`);
 
       for (let i = 0; i < s.assigned_papers.length; i++) {
         const p1 = s.assigned_papers[i];
@@ -620,7 +655,7 @@ const SessionManagerPage = ({
         const p1Start = parseTime(p1.start_time);
         const p1End = parseTime(p1.end_time);
 
-        // Ensure Paper Start > End
+        // Ensure Paper Start < End
         if (!p1Start.isBefore(p1End)) {
           setError(
             `In session "${s.session_name}", Paper #${i + 1} has an invalid time: Start time must be before end time.`,
@@ -628,19 +663,25 @@ const SessionManagerPage = ({
           return;
         }
 
-        // Compare against subsequent papers to find overlaps
-        for (let j = i + 1; j < s.assigned_papers.length; j++) {
-          const p2 = s.assigned_papers[j];
-          if (!p2.start_time || !p2.end_time) continue;
+        // Ensure Paper time is within Session time
+        if (p1Start.isBefore(sessionStart) || p1End.isAfter(sessionEnd)) {
+          setError(
+            `In session "${s.session_name}", Paper #${i + 1} presentation time must be within the session time limits.`,
+          );
+          return;
+        }
 
-          const p2Start = parseTime(p2.start_time);
-          const p2End = parseTime(p2.end_time);
-
-          if (p1Start.isBefore(p2End) && p1End.isAfter(p2Start)) {
-            setError(
-              `In session "${s.session_name}", Paper #${i + 1} and Paper #${j + 1} have overlapping presentation times.`,
-            );
-            return;
+        // Ensure sequential ordering based on presentation order
+        if (i > 0) {
+          const prevPaper = s.assigned_papers[i - 1];
+          if (prevPaper.end_time) {
+             const prevEnd = parseTime(prevPaper.end_time);
+             if (p1Start.isBefore(prevEnd)) {
+                setError(
+                  `In session "${s.session_name}", Paper #${i + 1} must start after or exactly when Paper #${i} ends.`,
+                );
+                return;
+             }
           }
         }
       }

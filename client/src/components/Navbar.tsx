@@ -139,6 +139,18 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
   ) => {
     e.preventDefault();
     setIsOpen(false);
+
+    if (href === "/proceedings" && !session) {
+      toast.info("Vui lòng tạo tài khoản hoặc đăng nhập để xem Proceedings!", {
+        duration: 5000,
+      });
+      navigate({
+        to: "/login",
+        search: { redirect: "/proceedings" },
+      });
+      return;
+    }
+
     navigate({ to: href });
   };
 
