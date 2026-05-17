@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { NotificationsKeys } from "../queries/keys";
 import { supabase } from "@/lib/supabase";
+import { request } from "@/lib/axios";
 
 export const useMarkNotificationAsReadMutation = () => {
   const queryClient = useQueryClient();
@@ -336,6 +337,7 @@ export const useSendNotificationMutation = () => {
       finalContent,
       targetUserIds,
       activeTab,
+      sendEmail = false,
     }: {
       senderEmail: string;
       conferenceId?: number;
@@ -347,6 +349,8 @@ export const useSendNotificationMutation = () => {
       finalContent: string;
       targetUserIds: number[];
       activeTab: "template" | "manual";
+      /** Also dispatch an email to each recipient */
+      sendEmail?: boolean;
     }) => {
       const { data: sender } = await supabase
         .from("profiles")
@@ -405,6 +409,20 @@ export const useSendNotificationMutation = () => {
             throw new Error(`Fan-out insert failed: ${fanOutErr.message}`);
           }
         }
+      }
+
+      // ── Email dispatch (optional) ────────────────────────────────
+      if (sendEmail && targetUserIds.length > 0) {
+        // Fire-and-forget — don't throw on email failure
+        request
+          .post("/notifications/send-email", {
+            user_ids: targetUserIds,
+            subject: finalTitle,
+            html_content: finalContent,
+          })
+          .catch((err) =>
+            console.warn("[NotifEmail] Email dispatch error:", err),
+          );
       }
     },
   });

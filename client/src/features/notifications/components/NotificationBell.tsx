@@ -287,12 +287,30 @@ const NotificationBell = () => {
                 <h2 className="text-xl font-bold text-slate-900 mb-4 leading-snug">
                   {getNotifTitle(selectedNotif)}
                 </h2>
-                <div
-                  className="prose prose-slate max-w-none text-slate-600 text-sm leading-relaxed"
-                  dangerouslySetInnerHTML={{
-                    __html: renderNotificationHtml(selectedNotif),
-                  }}
-                />
+                <div className="prose prose-slate max-w-none text-slate-600 text-sm leading-relaxed notif-content">
+                  <style>{`
+                    .notif-content ul {
+                      list-style-type: disc !important;
+                      padding-left: 1.5rem !important;
+                      margin-top: 0.5rem !important;
+                      margin-bottom: 0.5rem !important;
+                    }
+                    .notif-content ol {
+                      list-style-type: decimal !important;
+                      padding-left: 1.5rem !important;
+                      margin-top: 0.5rem !important;
+                      margin-bottom: 0.5rem !important;
+                    }
+                    .notif-content li {
+                      margin-bottom: 0.25rem !important;
+                    }
+                  `}</style>
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: renderNotificationHtml(selectedNotif),
+                    }}
+                  />
+                </div>
 
                 {/* Attachments */}
                 {selectedNotif.notifications?.attachments &&
