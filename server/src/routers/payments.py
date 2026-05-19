@@ -11,6 +11,82 @@ logger = Logger()
 router = APIRouter(tags=["payments"])
 
 
+@router.post("/payments/payos/complete-registration")
+async def complete_registration_after_payment(
+	order_code: str,
+	background_tasks: BackgroundTasks,
+):
+	"""
+	Fallback endpoint called by the frontend after a successful PayOS redirect.
+	Completes the registration, creates attendance records, and sends the QR email.
+	Used when the PayOS webhook cannot reach the server (e.g., localhost dev).
+	"""
+	try:
+		trans_res = supabase_client.table("transactions") \
+			.select("trans_id, status, order_type, registration_id, metadata") \
+			.eq("order_code", str(order_code)) \
+			.single() \
+			.execute()
+
+		if not trans_res.data:
+			raise HTTPException(status_code=404, detail="Transaction not found.")
+
+		trans = trans_res.data
+
+		if trans["status"] == "COMPLETED":
+			# Already processed (webhook arrived first)
+			return {"message": "Already completed."}
+
+		if trans["status"] != "PENDING":
+			raise HTTPException(status_code=400, detail=f"Transaction is in status '{trans['status']}', cannot complete.")
+
+		# Verify payment with PayOS
+		payment_info = await payos_client.payment_requests.getPaymentLinkInformation(int(order_code))
+		if not payment_info or payment_info.status != "PAID":
+			raise HTTPException(status_code=400, detail="Payment has not been confirmed by PayOS yet.")
+
+		now = datetime.now(timezone.utc).isoformat()
+		supabase_client.table("transactions").update({
+			"status": "COMPLETED",
+			"updated_at": now,
+		}).eq("trans_id", trans["trans_id"]).execute()
+
+		registration_id = trans.get("registration_id")
+		metadata = trans.get("metadata") or {}
+		ticket_data = metadata.get("ticket_data") or metadata
+		sessions = ticket_data.get("sessions") or []
+
+		if registration_id:
+			user_res = supabase_client.table("registrations") \
+				.select("user:profiles(email, full_name)") \
+				.eq("registration_id", registration_id) \
+				.single() \
+				.execute()
+
+			user = (user_res.data or {}).get("user") or {}
+			user_email = user.get("email")
+			if user_email:
+				background_tasks.add_task(
+					_send_registration_qr_email,
+					registration_id=registration_id,
+					user_email=user_email,
+					user_name=user.get("full_name") or "Attendee",
+					ticket_data=ticket_data,
+				)
+				logger.info(f"Fallback: QR email queued for registration {registration_id} → {user_email}")
+			else:
+				logger.warning(f"Fallback: no email found for registration {registration_id}.")
+
+		return {"message": "Registration completed successfully."}
+
+	except HTTPException as he:
+		raise he
+	except Exception as e:
+		logger.error(f"complete_registration_after_payment failed: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+
+
 def _calculate_expires_at(subscription_type: str, started_at: datetime) -> datetime:
 	if subscription_type == "1_MONTH":
 		return started_at + timedelta(days=30)
@@ -108,20 +184,6 @@ async def confirm_payment_webhook(request: Request, background_tasks: Background
 			registration_id = trans.get("registration_id")
 			ticket_data = metadata.get("ticket_data") or metadata
 			sessions = ticket_data.get("sessions") or []
-
-			if registration_id and sessions:
-				attendance_records = [
-					{
-						"registration_id": registration_id,
-						"session_id": s["session_id"],
-						"is_checkin": False,
-					}
-					for s in sessions if s.get("session_id")
-				]
-				if attendance_records:
-					supabase_client.table("attendences") \
-						.upsert(attendance_records, ignore_duplicates=True) \
-						.execute()
 
 			if registration_id:
 				user_res = supabase_client.table("registrations") \

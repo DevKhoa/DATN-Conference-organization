@@ -85,8 +85,6 @@ const AttendancesManagementPage: React.FC = () => {
       if (!selectedSessionId || !isCurrentValid) {
         setSelectedSessionId(sessions[0].session_id);
       }
-    } else {
-      setSelectedSessionId(null);
     }
   }, [sessions, selectedSessionId]);
 

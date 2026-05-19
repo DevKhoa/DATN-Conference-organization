@@ -22,6 +22,7 @@ import {
 import useAuth from "@/features/auth/hooks/useAuth";
 import { useConferenceTicketsQuery } from "@/features/conferences/services/queries";
 import { useCreateRegistrationMutation } from "@/features/registrations/services/mutations";
+import { request } from "@/lib/axios";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
@@ -116,18 +117,27 @@ export const ConferenceRegistrationPanel = ({
     const orderCode = params.get("orderCode");
     const cancel = params.get("cancel");
 
-    if (status === "PAID" && cancel === "false" && orderCode) {
+    const handleSuccess = async () => {
       toast.success("Payment successful", {
         description: "Your registration is confirmed. Please check your email.",
       });
       localStorage.removeItem(ticketStorageKey);
 
+      // Fallback: trigger QR email in case webhook didn't reach server
+      try {
+        await request.post(`/payments/payos/complete-registration?order_code=${orderCode}`);
+      } catch (err) {
+        // Silently ignore — webhook may have already handled it
+      }
+
       const url = new URL(window.location.href);
       url.search = "";
       window.history.replaceState({}, "", url.toString());
-    }
+    };
 
-    if (cancel === "true") {
+    if (status === "PAID" && cancel !== "true" && orderCode) {
+      handleSuccess();
+    } else if (cancel === "true") {
       toast.error("Payment canceled", {
         description: "Your registration was not completed.",
       });
@@ -158,47 +168,66 @@ export const ConferenceRegistrationPanel = ({
         returnUrl: window.location.href,
       });
 
+      // Free ticket — no PayOS redirect needed
+      if (result.provider === "FREE") {
+        localStorage.removeItem(ticketStorageKey);
+        setIsRegisterModalOpen(false);
+        toast.success("Registration confirmed!", {
+          description:
+            "You are now registered. Your QR check-in code has been sent to your email.",
+        });
+        return;
+      }
+
+      // Paid ticket — redirect to PayOS checkout
       window.location.href = result.checkout_url;
     } catch (err) {
       localStorage.removeItem(ticketStorageKey);
-      setRegisterError((err as Error).message || "An error occurred.");
+      // Extract FastAPI `detail` message if available, otherwise fall back to generic message
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const detail = (err as any)?.response?.data?.detail;
+      setRegisterError(
+        typeof detail === "string"
+          ? detail
+          : (err as Error).message || "An error occurred.",
+      );
     }
   };
 
   return (
     <>
       <div className="rounded-2xl border border-border bg-card p-6 text-center shadow-xl">
-        <h3 className="mb-2 text-xl font-bold">
-          {hasRegistration ? "Registration Confirmed" : "Registration Open"}
-        </h3>
+        <h3 className="mb-2 text-xl font-bold">Registration Open</h3>
+
+        {hasRegistration && (
+          <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">
+            <CheckCircle className="h-3.5 w-3.5" />
+            You already have a ticket
+          </div>
+        )}
+
         <p className="mb-6 text-sm text-muted-foreground">
           {hasRegistration
-            ? "You are already registered for this conference."
+            ? "You can still register for additional tickets below."
             : `Secure your spot before ${conferenceStartDate ? new Date(conferenceStartDate).toLocaleDateString() : "the event starts"}.`}
         </p>
 
-        {hasRegistration ? (
-          <Button
-            onClick={() =>
-              navigate({
-                to: "/tickets",
-                search: { conferenceId },
-              })
-            }
-            className="w-full justify-center"
-            variant="outline"
+        <Button
+          onClick={handleOpenRegisterModal}
+          className="w-full justify-center"
+        >
+          Register Now
+          <ChevronRight className="ml-1 h-4 w-4" />
+        </Button>
+
+        {hasRegistration && (
+          <button
+            onClick={() => navigate({ to: "/agenda/me" })}
+            className="mt-3 w-full text-sm text-muted-foreground hover:text-primary transition-colors flex items-center justify-center gap-1.5"
           >
-            <Ticket className="mr-2 h-4 w-4" />
-            View Tickets
-          </Button>
-        ) : (
-          <Button
-            onClick={handleOpenRegisterModal}
-            className="w-full justify-center"
-          >
-            Register Now
-            <ChevronRight className="ml-1 h-4 w-4" />
-          </Button>
+            <Calendar className="h-3.5 w-3.5" />
+            View My Agenda
+          </button>
         )}
       </div>
 
@@ -265,22 +294,20 @@ export const ConferenceRegistrationPanel = ({
                           onClick={() =>
                             !soldOut && setSelectedTicketId(ticket.ticket_id)
                           }
-                          className={`rounded-xl border-2 p-4 transition-all ${
-                            soldOut
+                          className={`rounded-xl border-2 p-4 transition-all ${soldOut
                               ? "cursor-not-allowed border-border bg-muted/40 opacity-60"
                               : isSelected
                                 ? "cursor-pointer border-primary bg-primary/10 shadow-md"
                                 : "cursor-pointer border-border hover:border-primary/30 hover:bg-accent"
-                          }`}
+                            }`}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex min-w-0 grow items-start gap-3">
                               <div
-                                className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all ${
-                                  isSelected
+                                className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all ${isSelected
                                     ? "border-primary bg-primary"
                                     : "border-border"
-                                }`}
+                                  }`}
                               >
                                 {isSelected && (
                                   <CheckCircle className="h-3 w-3 text-primary-foreground" />
@@ -406,19 +433,36 @@ export const ConferenceRegistrationPanel = ({
                       )}
                     </div>
 
-                    <div className="flex items-center gap-4 rounded-xl border border-primary/20 bg-primary/10 p-4">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary">
-                        <CreditCard className="h-5 w-5 text-primary-foreground" />
+                    {selectedTicket && (selectedTicket.price ?? 0) <= 0 ? (
+                      <div className="flex items-center gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500">
+                          <CheckCircle className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-foreground">
+                            Free Registration
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            No payment required. Your QR code will be sent by email.
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-foreground">
-                          Pay via PayOS
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          You will be redirected to PayOS secure checkout.
-                        </p>
+                    ) : (
+
+                      <div className="flex items-center gap-4 rounded-xl border border-primary/20 bg-primary/10 p-4">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary">
+                          <CreditCard className="h-5 w-5 text-primary-foreground" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-foreground">
+                            Pay via PayOS
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            You will be redirected to PayOS secure checkout.
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     <p className="text-center text-xs text-muted-foreground">
                       A confirmation email with your QR code will be sent to{" "}
@@ -474,10 +518,14 @@ export const ConferenceRegistrationPanel = ({
                 >
                   {createRegistrationMutation.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : selectedTicket && (selectedTicket.price ?? 0) <= 0 ? (
+                    <CheckCircle className="mr-2 h-4 w-4" />
                   ) : (
                     <CreditCard className="mr-2 h-4 w-4" />
                   )}
-                  Pay with PayOS
+                  {selectedTicket && (selectedTicket.price ?? 0) <= 0
+                    ? "Confirm Registration"
+                    : "Pay with PayOS"}
                 </Button>
               </>
             ) : (
