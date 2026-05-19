@@ -105,10 +105,20 @@ const formatTicketPrice = (price: number | null, currency = "VND") => {
   }).format(price);
 };
 
+const stripMarkdown = (text: string): string => {
+  return text
+    .replace(/#{1,6}\s*/g, "") // Remove headings ##, ###
+    .replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1") // Remove **bold** and *italic*
+    .replace(/_{1,2}([^_]+)_{1,2}/g, "$1") // Remove __bold__ and _italic_
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // Remove [link](url)
+    .replace(/`[^`]+`/g, "") // Remove `code`
+    .replace(/\n{2,}/g, " ") // Multiple newlines to space
+    .replace(/\n/g, " ") // Single newlines to space
+    .trim();
+};
+
 const ChairSection: React.FC<{ chair: ChairDisplayPerson }> = ({ chair }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const isLongDescription =
-    !!chair.description && chair.description.length > 150;
 
   return (
     <div className="mb-8 bg-muted/40 rounded-2xl p-5 border border-border flex flex-col sm:flex-row gap-5 transition-all hover:border-primary/30 hover:shadow-sm">
@@ -146,12 +156,15 @@ const ChairSection: React.FC<{ chair: ChairDisplayPerson }> = ({ chair }) => {
           </div>
         )}
 
-        {chair.description && (
+        {chair.description && (() => {
+          const cleanBio = stripMarkdown(chair.description);
+          const isLongDescription = cleanBio.length > 150;
+          return (
           <div className="mt-3 text-sm text-foreground leading-relaxed relative">
             <p
               className={!isExpanded && isLongDescription ? "line-clamp-2" : ""}
             >
-              {chair.description}
+              {cleanBio}
             </p>
             {isLongDescription && (
               <button
@@ -170,7 +183,8 @@ const ChairSection: React.FC<{ chair: ChairDisplayPerson }> = ({ chair }) => {
               </button>
             )}
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

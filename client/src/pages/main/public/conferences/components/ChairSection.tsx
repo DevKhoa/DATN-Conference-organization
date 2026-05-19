@@ -3,14 +3,24 @@ import { useState } from "react";
 
 import type { ConferenceDetailChair } from "@/features/conferences/services/queries";
 
+const stripMarkdown = (text: string): string => {
+  return text
+    .replace(/#{1,6}\s*/g, "") // Remove headings ##, ###
+    .replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1") // Remove **bold** and *italic*
+    .replace(/_{1,2}([^_]+)_{1,2}/g, "$1") // Remove __bold__ and _italic_
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // Remove [link](url)
+    .replace(/`[^`]+`/g, "") // Remove `code`
+    .replace(/\n{2,}/g, " ") // Multiple newlines to space
+    .replace(/\n/g, " ") // Single newlines to space
+    .trim();
+};
+
 type ChairSectionProps = {
   chair: ConferenceDetailChair;
 };
 
 export const ChairSection = ({ chair }: ChairSectionProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const isLongDescription =
-    !!chair.description && chair.description.length > 150;
 
   return (
     <div className="mb-8 flex flex-col gap-5 rounded-2xl border border-border bg-muted/40 p-5 transition-all hover:border-primary/30 hover:shadow-sm sm:flex-row">
@@ -48,12 +58,15 @@ export const ChairSection = ({ chair }: ChairSectionProps) => {
           </div>
         )}
 
-        {chair.description && (
+        {chair.description && (() => {
+          const cleanBio = stripMarkdown(chair.description);
+          const isLongDescription = cleanBio.length > 150;
+          return (
           <div className="relative mt-3 text-sm leading-relaxed text-foreground">
             <p
               className={!isExpanded && isLongDescription ? "line-clamp-2" : ""}
             >
-              {chair.description}
+              {cleanBio}
             </p>
             {isLongDescription && (
               <button
@@ -72,7 +85,8 @@ export const ChairSection = ({ chair }: ChairSectionProps) => {
               </button>
             )}
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

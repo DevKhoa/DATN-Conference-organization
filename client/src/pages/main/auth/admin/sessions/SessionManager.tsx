@@ -1055,7 +1055,7 @@ const SessionManagerPage = ({
                     <div
                       key={session.temp_id}
                       id={`session-card-${session.temp_id}`}
-                      className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all hover:shadow-md ${dragOverSessionId === session.temp_id
+                      className={`bg-white rounded-2xl shadow-sm border transition-all hover:shadow-md ${dragOverSessionId === session.temp_id
                         ? "border-indigo-400 ring-4 ring-indigo-50 scale-[1.01]"
                         : "border-slate-200"
                         }`}
@@ -1431,13 +1431,13 @@ const SessionManagerPage = ({
                                                 )}
                                               </div>
                                             </div>
-                                            <div className="flex items-center gap-3 w-full lg:w-auto shrink-0 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                                            <div className="flex items-center gap-2 w-full lg:w-auto shrink-0 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
                                               <div className="flex items-center gap-1.5">
-                                                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                                 <SimpleTimePicker
                                                   id={`time-start-session-${idx + 1}-paper-${ap.paper_id}`}
                                                   placeholder="Start"
-                                                  className="w-16 h-8 text-[11px]!"
+                                                  className="w-24 h-8 text-[11px]!"
                                                   value={ap.start_time || ""}
                                                   onChange={(val) =>
                                                     updateSessionPaper(
@@ -1454,7 +1454,7 @@ const SessionManagerPage = ({
                                                 <SimpleTimePicker
                                                   id={`time-end-session-${idx + 1}-paper-${ap.paper_id}`}
                                                   placeholder="End"
-                                                  className="w-16 h-8 text-[11px]!"
+                                                  className="w-24 h-8 text-[11px]!"
                                                   value={ap.end_time || ""}
                                                   onChange={(val) =>
                                                     updateSessionPaper(
