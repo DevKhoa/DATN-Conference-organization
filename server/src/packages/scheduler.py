@@ -78,10 +78,10 @@ def _check_and_notify_sessions() -> None:
     now_local = datetime.now(UTC7).replace(tzinfo=None)          # e.g. 2026-05-04 20:35:00
     window_end_local = now_local + timedelta(minutes=NOTIFY_MINUTES_BEFORE)
 
-    logger.info(
-        f"[Scheduler] Checking sessions in window "
-        f"{now_local.strftime('%H:%M:%S')} - {window_end_local.strftime('%H:%M:%S')} (GMT+7)"
-    )
+    # logger.info(
+    #     f"[Scheduler] Checking sessions in window "
+    #     f"{now_local.strftime('%H:%M:%S')} - {window_end_local.strftime('%H:%M:%S')} (GMT+7)"
+    # )
 
     try:
         sessions_res = supabase_client.table("sessions") \
@@ -93,20 +93,20 @@ def _check_and_notify_sessions() -> None:
         candidate_sessions = sessions_res.data or []
 
         if not candidate_sessions:
-            logger.info("[Scheduler] No upcoming sessions in window.")
+            # logger.info("[Scheduler] No upcoming sessions in window.")
             return
 
-        logger.info(f"[Scheduler] Candidates: {[s['session_id'] for s in candidate_sessions]}")
+        # logger.info(f"[Scheduler] Candidates: {[s['session_id'] for s in candidate_sessions]}")
 
         for session in candidate_sessions:
             session_id = session["session_id"]
             session_name = session.get("session_name") or f"Session #{session_id}"
 
             if _already_notified(session_id):
-                logger.info(f"[Scheduler] Session {session_id} ({session_name}) already notified, skipping.")
+                # logger.info(f"[Scheduler] Session {session_id} ({session_name}) already notified, skipping.")
                 continue
 
-            logger.info(f"[Scheduler] Notifying session {session_id}: {session_name}")
+            # logger.info(f"[Scheduler] Notifying session {session_id}: {session_name}")
             try:
                 send_session_start_notifications(session_id)
             except Exception as session_err:
@@ -137,15 +137,15 @@ def start_scheduler() -> None:
         misfire_grace_time=30,     # allow up-to-30s late execution
     )
     _scheduler.start()
-    logger.info(
-        f"[Scheduler] Started - interval={INTERVAL_SECONDS}s, "
-        f"notify_window={NOTIFY_MINUTES_BEFORE}min"
-    )
+    # logger.info(
+    #     f"[Scheduler] Started - interval={INTERVAL_SECONDS}s, "
+    #     f"notify_window={NOTIFY_MINUTES_BEFORE}min"
+    # )
 
 
 def stop_scheduler() -> None:
     global _scheduler
     if _scheduler and _scheduler.running:
         _scheduler.shutdown(wait=False)
-        logger.info("[Scheduler] Stopped.")
+        # logger.info("[Scheduler] Stopped.")
     _scheduler = None

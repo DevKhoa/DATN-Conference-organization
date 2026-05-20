@@ -143,6 +143,7 @@ def _send_registration_qr_email(
 		logger.error(f"Failed to send QR email for registration {registration_id}: {e}")
 
 
+
 @router.post("/payments/payos/confirm-webhook")
 async def confirm_payment_webhook(request: Request, background_tasks: BackgroundTasks):
 	try:
@@ -184,6 +185,24 @@ async def confirm_payment_webhook(request: Request, background_tasks: Background
 			registration_id = trans.get("registration_id")
 			ticket_data = metadata.get("ticket_data") or metadata
 			sessions = ticket_data.get("sessions") or []
+
+			if registration_id and sessions:
+				attendance_records = [
+					{
+						"registration_id": registration_id,
+						"session_id": s["session_id"],
+						"is_checkin": False,
+					}
+					for s in sessions if s.get("session_id")
+				]
+				if attendance_records:
+					supabase_client.table("attendences") \
+						.upsert(
+							attendance_records,
+							on_conflict="registration_id,session_id",
+							ignore_duplicates=True,
+						) \
+						.execute()
 
 			if registration_id:
 				user_res = supabase_client.table("registrations") \
