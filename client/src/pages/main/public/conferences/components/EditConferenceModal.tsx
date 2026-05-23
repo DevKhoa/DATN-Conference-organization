@@ -177,7 +177,11 @@ export const EditConferenceModal: React.FC<EditConferenceModalProps> = ({
           .in("ticket_id", ticketIds);
 
         if (regErr) throw regErr;
-        soldTicketIds = new Set((regRows || []).map((r) => r.ticket_id));
+        soldTicketIds = new Set(
+          (regRows || [])
+            .map((r) => r.ticket_id)
+            .filter((id): id is number => id !== null)
+        );
       }
 
       // 4. Map back: which session_ids have sold tickets?

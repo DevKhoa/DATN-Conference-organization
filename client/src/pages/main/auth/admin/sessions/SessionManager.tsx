@@ -411,6 +411,7 @@ const SessionManagerPage = ({
 
       // Success
       updateSession(session.temp_id, "meet_link", data.meet_link);
+      updateSession(session.temp_id, "google_event_id", data.event_id);
       setSuccessMsg("Google Meet link created successfully!");
     } catch (err: any) {
       // Check for specific 400 error about linked account
@@ -432,6 +433,7 @@ const SessionManagerPage = ({
     if (!session.db_id) {
       // If it's not saved yet, just clear it locally
       updateSession(session.temp_id, "meet_link", "");
+      updateSession(session.temp_id, "google_event_id", null);
       return;
     }
 
@@ -446,6 +448,7 @@ const SessionManagerPage = ({
         email: currentUserEmail,
       });
       updateSession(session.temp_id, "meet_link", "");
+      updateSession(session.temp_id, "google_event_id", null);
       setSuccessMsg("Google Meet link removed successfully!");
     } catch (err: any) {
       const cleanMessage = err.message?.replace(/^\d+:\s*/, "");
@@ -455,7 +458,7 @@ const SessionManagerPage = ({
     }
   };
 
-  const handleRemoveYoutubeLink = async (session: LocalSession) => {
+  const handleRemoveArchiveLink = async (session: LocalSession) => {
     if (!session.db_id) {
       updateSession(session.temp_id, "record_video_url", "");
       return;
@@ -470,9 +473,9 @@ const SessionManagerPage = ({
       if (error) throw error;
 
       updateSession(session.temp_id, "record_video_url", "");
-      setSuccessMsg("YouTube link removed successfully!");
+      setSuccessMsg("Archive video link removed successfully!");
     } catch (err: any) {
-      setError("Error removing YouTube link: " + err.message);
+      setError("Error removing archive video link: " + err.message);
     }
   };
 
@@ -690,10 +693,51 @@ const SessionManagerPage = ({
     // Pass all validations
     setError("");
 
+    const recreateMeetSessionIds: number[] = [];
+    const manualMeetWarningSessionNames: string[] = [];
+    let hasTimeChangedAny = false;
+    for (const s of sessions) {
+      if (s.db_id) {
+        const originalSession = existingSessions.find((es) => es.db_id === s.db_id);
+        if (originalSession) {
+          const originalStart = formatToLocal(originalSession.start_time);
+          const originalEnd = formatToLocal(originalSession.end_time);
+          const localStart = formatToLocal(s.start_time);
+          const localEnd = formatToLocal(s.end_time);
+          const hasTimeChanged =
+            !dayjs(localStart).isSame(dayjs(originalStart)) ||
+            !dayjs(localEnd).isSame(dayjs(originalEnd));
+
+          if (hasTimeChanged) {
+            hasTimeChangedAny = true;
+            if (s.format_type === "virtual" && s.meet_link && originalSession.meet_link) {
+              if (originalSession.google_event_id) {
+                recreateMeetSessionIds.push(s.db_id);
+              } else {
+                manualMeetWarningSessionNames.push(s.session_name);
+              }
+            }
+          }
+        }
+      }
+    }
+
     try {
+      // 1. Delete old meet links for those sessions
+      for (const sessionId of recreateMeetSessionIds) {
+        if (currentUserEmail) {
+          await deleteMeetMutation.mutateAsync({
+            sessionId,
+            email: currentUserEmail,
+          });
+        }
+      }
+
+      // 2. Save the sessions (passing empty meet_link for those being recreated)
       const result = await saveSessionsMutation.mutateAsync({
         conferenceId: conferenceIdNum,
         sessions: sessions.map((s) => {
+          const isRecreated = s.db_id ? recreateMeetSessionIds.includes(s.db_id) : false;
           return {
             temp_id: s.temp_id,
             db_id: s.db_id,
@@ -703,27 +747,57 @@ const SessionManagerPage = ({
             room_location: s.room_location,
             is_ai_generated: s.is_ai_generated,
             assigned_papers: s.assigned_papers,
-            meet_link: s.meet_link,
+            meet_link: isRecreated ? "" : s.meet_link,
+            google_event_id: isRecreated ? null : s.google_event_id,
             record_video_url: s.record_video_url,
             format_type: s.format_type,
           };
         }),
       });
 
-      // Update sessions with the saved db_ids
+      // 3. Create new meet links for those sessions
+      const newlyCreatedMeetLinks: Record<number, string> = {};
+      const newlyCreatedEventIds: Record<number, string> = {};
+      for (const sessionId of recreateMeetSessionIds) {
+        if (currentUserEmail) {
+          const data = await createMeetMutation.mutateAsync({
+            sessionId,
+            email: currentUserEmail,
+          });
+          newlyCreatedMeetLinks[sessionId] = data.meet_link;
+          newlyCreatedEventIds[sessionId] = data.event_id;
+        }
+      }
+
+      // 4. Update sessions with the saved db_ids and recreated meet links
       const updatedSessions = sessions.map((s) => {
         const saved = result.savedSessions.find(
           (ss) => ss.temp_id === s.temp_id,
         );
-        return saved ? { ...s, db_id: saved.db_id } : s;
+        const newDbId = saved ? saved.db_id : s.db_id;
+        let meetLink = s.meet_link;
+        let googleEventId = s.google_event_id;
+        if (newDbId && recreateMeetSessionIds.includes(newDbId)) {
+          meetLink = newlyCreatedMeetLinks[newDbId] || "";
+          googleEventId = newlyCreatedEventIds[newDbId] || null;
+        }
+        return saved ? { ...s, db_id: saved.db_id, meet_link: meetLink, google_event_id: googleEventId } : { ...s, meet_link: meetLink, google_event_id: googleEventId };
       });
 
       setSessions(updatedSessions);
-      setSuccessMsg(
-        "Sessions saved successfully! Please remember to notify participants about any changes to their presentation schedule.",
-      );
+      let successMessage = "Sessions saved!";
+      if (recreateMeetSessionIds.length > 0) {
+        successMessage = "Sessions saved and Meet links updated!";
+      }
+      if (manualMeetWarningSessionNames.length > 0) {
+        successMessage += ` Note: Manually update Meet link(s) for "${manualMeetWarningSessionNames.join('", "')}" due to time changes.`;
+      }
+      if (hasTimeChangedAny) {
+        successMessage += " Remember to notify participants of schedule changes.";
+      }
+      setSuccessMsg(successMessage);
     } catch (err: any) {
-      setError("Failed to save to database: " + err.message);
+      setError("Failed to save or update meetings: " + err.message);
     }
   };
 
@@ -1206,13 +1280,18 @@ const SessionManagerPage = ({
                                       placeholder="https://meet.google.com/..."
                                       className="w-full pl-9 pr-16 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
                                       value={session.meet_link || ""}
-                                      onChange={(e) =>
+                                      onChange={(e) => {
                                         updateSession(
                                           session.temp_id,
                                           "meet_link",
                                           e.target.value,
-                                        )
-                                      }
+                                        );
+                                        updateSession(
+                                          session.temp_id,
+                                          "google_event_id",
+                                          null,
+                                        );
+                                      }}
                                     />
                                     {session.meet_link && (
                                       <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-white pl-1 rounded-r-lg">
@@ -1273,13 +1352,18 @@ const SessionManagerPage = ({
                               </div>
                               <div className="flex flex-col gap-1.5">
                                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest pl-1">
-                                  Archive Room (Youtube)
+                                  Archive Video (YouTube / Drive)
                                 </label>
                                 <div className="relative group">
-                                  <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-red-500 transition-colors pointer-events-none" />
+                                  {session.record_video_url?.includes("youtube.com") ||
+                                  session.record_video_url?.includes("youtu.be") ? (
+                                    <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-red-500 transition-colors pointer-events-none" />
+                                  ) : (
+                                    <Video className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-red-500 transition-colors pointer-events-none" />
+                                  )}
                                   <input
                                     type="text"
-                                    placeholder="https://youtube.com/watch?v=..."
+                                    placeholder="YouTube or Google Drive URL"
                                     className="w-full pl-9 pr-16 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-100 focus:border-red-500 outline-none transition-all"
                                     value={session.record_video_url || ""}
                                     onChange={(e) => {
@@ -1310,7 +1394,7 @@ const SessionManagerPage = ({
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          handleRemoveYoutubeLink(session);
+                                          handleRemoveArchiveLink(session);
                                         }}
                                         className="p-1 text-slate-400 hover:text-red-500 transition-colors rounded-md hover:bg-red-50"
                                         title="Remove link"
@@ -1319,15 +1403,15 @@ const SessionManagerPage = ({
                                       </button>
                                     </div>
                                   )}
-                                  {session.record_video_url &&
-                                    !session.record_video_url.match(
-                                      /^(https?\:\/\/)?(www\.youtube\.com|youtu\.be)\/.+$/,
-                                    ) && (
-                                      <span className="text-xs text-red-500 absolute -bottom-5 left-1">
-                                        Invalid Youtube URL
-                                      </span>
-                                    )}
                                 </div>
+                                {session.record_video_url &&
+                                  !session.record_video_url.match(
+                                    /^(https?\:\/\/)?(www\.youtube\.com|youtu\.be|drive\.google\.com)\/.+$/,
+                                  ) && (
+                                    <span className="text-xs text-red-500 mt-1 block pl-1">
+                                      Invalid YouTube or Google Drive URL
+                                    </span>
+                                  )}
                               </div>
                             </div>
                           )}

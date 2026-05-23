@@ -40,6 +40,15 @@ import {
   useConferenceDetailQuery,
   useConferenceTicketsQuery,
 } from "@/features/conferences/services/queries";
+import { useMyAgendaSessionsQuery } from "@/features/sessions/services/queries";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useCreateRegistrationMutation } from "@/features/registrations/services/mutations";
 import { useToggleMeetMutation } from "@/features/sessions/services/mutations";
 import { toast } from "sonner";
@@ -214,6 +223,134 @@ const ConferenceDetailPage: React.FC = () => {
   const [expandedSessions, setExpandedSessions] = useState<Set<number>>(
     new Set(),
   );
+
+  const { data: myAgendaSessions = [] } = useMyAgendaSessionsQuery();
+  const allowedSessionIds = useMemo(() => new Set(myAgendaSessions.map((s) => s.session_id)), [myAgendaSessions]);
+
+  const [meetToggleConfirmOpen, setMeetToggleConfirmOpen] = useState(false);
+  const [pendingMeetToggle, setPendingMeetToggle] = useState<{
+    sessionId: number;
+    isActive: boolean;
+    message: string;
+    sessionName: string;
+  } | null>(null);
+
+  const checkMeetToggleConfirmation = (sessionObj: any, nextActive: boolean) => {
+    if (!sessionObj.start_time || !sessionObj.end_time) return { needsConfirm: false, message: "" };
+
+    const now = Date.now();
+    const sessionStart = new Date(sessionObj.start_time).getTime();
+    const sessionEnd = new Date(sessionObj.end_time).getTime();
+
+    if (nextActive) {
+      const isEarly = now < (sessionStart - 15 * 60 * 1000);
+      const isLate = now > sessionEnd;
+      if (isEarly || isLate) {
+        return {
+          needsConfirm: true,
+          message: `The session "${sessionObj.session_name}" has not started yet (earlier than 15 minutes before start) or has already ended. Are you sure you want to activate the virtual room?`
+        };
+      }
+    } else {
+      const isAutoOpenWindow = now >= (sessionStart - 15 * 60 * 1000) && now <= sessionEnd;
+      if (isAutoOpenWindow) {
+        return {
+          needsConfirm: true,
+          message: `The session "${sessionObj.session_name}" is about to start or is currently ongoing. Deactivating the virtual room will prevent participants from joining. Are you sure you want to proceed?`
+        };
+      }
+    }
+
+    return { needsConfirm: false, message: "" };
+  };
+
+  const renderMeetButton = (session: any) => {
+    if (session.meet_link === undefined) return null;
+
+
+    const nowVal = Date.now();
+    const sessionStart = session.start_time ? new Date(session.start_time).getTime() : 0;
+    const sessionEnd = session.end_time ? new Date(session.end_time).getTime() : 0;
+    const isTimeForAutoJoin = nowVal >= sessionStart - 15 * 60 * 1000 && nowVal <= sessionEnd;
+
+    // Determine if button is active
+    let isMeetBtnActive = false;
+    if (!session.meet_link) {
+      isMeetBtnActive = false;
+    } else if (session.is_meet_active === true) {
+      // Ensure the room is only active within the session time window
+      isMeetBtnActive = nowVal >= sessionStart && nowVal <= sessionEnd;
+    } else if (session.is_meet_active === false) {
+      isMeetBtnActive = false;
+    } else {
+      isMeetBtnActive = isTimeForAutoJoin;
+    }
+
+    return (
+      <div className="flex items-center gap-1 group/meet animate-in slide-in-from-right-2 duration-300">
+        <button
+          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 flex items-center gap-1.5 shadow-sm border ${
+            isMeetBtnActive
+              ? "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white hover:shadow-indigo-200 border-transparent"
+              : "bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200"
+          } shrink-0`}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (isMeetBtnActive) {
+              window.open(session.meet_link, "_blank");
+            } else {
+              toast.info("Room is not available now", {
+                description: "The organizer has not opened this virtual room yet.",
+              });
+            }
+          }}
+        >
+          <Video className="w-3.5 h-3.5" />
+          Join Virtual Meeting
+        </button>
+
+        {canEdit && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const nextActive = !(session.is_meet_active ?? true);
+              const { needsConfirm, message } = checkMeetToggleConfirmation(session, nextActive);
+              if (needsConfirm) {
+                setPendingMeetToggle({
+                  sessionId: session.session_id,
+                  isActive: nextActive,
+                  message,
+                  sessionName: session.session_name || "Session"
+                });
+                setMeetToggleConfirmOpen(true);
+              } else {
+                toggleMeetMutation.mutate({
+                  sessionId: session.session_id,
+                  isActive: nextActive,
+                });
+              }
+            }}
+            className={`flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200 shrink-0 ${
+              (session.is_meet_active ?? true)
+                ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100"
+                : "bg-slate-100 text-slate-400 hover:bg-slate-200 border border-slate-200"
+            }`}
+            title={
+              (session.is_meet_active ?? true)
+                ? "Deactivate Meeting Room"
+                : "Activate Meeting Room"
+            }
+          >
+            {(session.is_meet_active ?? true) ? (
+              <Eye className="w-4 h-4" />
+            ) : (
+              <EyeOff className="w-4 h-4" />
+            )}
+          </button>
+        )}
+      </div>
+    );
+  };
 
   const [isCheckinModalOpen, setIsCheckinModalOpen] = useState(false);
   const [selectedSessionsForCheckin, setSelectedSessionsForCheckin] = useState<
@@ -936,89 +1073,9 @@ const ConferenceDetailPage: React.FC = () => {
                                               <div className="flex items-center gap-2 flex-wrap justify-end">
                                                 {session.format_type !==
                                                   "in-person" &&
-                                                  canAccessVirtual && (
+                                                  (canAccessVirtual || allowedSessionIds.has(session.session_id)) && (
                                                     <>
-                                                      {session.meet_link !==
-                                                        undefined && (
-                                                        <div className="flex items-center gap-1 group/meet animate-in slide-in-from-right-2 duration-300">
-                                                          <button
-                                                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-300 flex items-center gap-1.5 shadow-sm border ${
-                                                              session.meet_link &&
-                                                              (session.is_meet_active ??
-                                                                true)
-                                                                ? "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white hover:shadow-indigo-200 border-transparent"
-                                                                : "bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200"
-                                                            } shrink-0`}
-                                                            onClick={(e) => {
-                                                              e.stopPropagation();
-                                                              if (
-                                                                session.meet_link &&
-                                                                (session.is_meet_active ??
-                                                                  true)
-                                                              ) {
-                                                                window.open(
-                                                                  session.meet_link,
-                                                                  "_blank",
-                                                                );
-                                                              } else {
-                                                                toast.info(
-                                                                  "Room is not available now",
-                                                                  {
-                                                                    description:
-                                                                      "The organizer has not opened this virtual room yet.",
-                                                                  },
-                                                                );
-                                                              }
-                                                            }}
-                                                          >
-                                                            <Video className="w-3.5 h-3.5" />
-                                                            Join Virtual Meeting
-                                                          </button>
-
-                                                          {canEdit &&
-                                                            session.meet_link !==
-                                                              undefined && (
-                                                              <button
-                                                                onClick={(
-                                                                  e,
-                                                                ) => {
-                                                                  e.stopPropagation();
-                                                                  toggleMeetMutation.mutate(
-                                                                    {
-                                                                      sessionId:
-                                                                        session.session_id,
-                                                                      isActive:
-                                                                        !(
-                                                                          session.is_meet_active ??
-                                                                          true
-                                                                        ),
-                                                                    },
-                                                                  );
-                                                                }}
-                                                                className={`flex items-center justify-center w-7 h-7 rounded-lg transition-all duration-200 shrink-0 ${
-                                                                  (session.is_meet_active ??
-                                                                  true)
-                                                                    ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100"
-                                                                    : "bg-slate-100 text-slate-400 hover:bg-slate-200 border border-slate-200"
-                                                                }`}
-                                                                title={
-                                                                  (session.is_meet_active ??
-                                                                  true)
-                                                                    ? "Deactivate Meeting Room"
-                                                                    : "Activate Meeting Room"
-                                                                }
-                                                              >
-                                                                {(session.is_meet_active ??
-                                                                true) ? (
-                                                                  <Eye className="w-4 h-4" />
-                                                                ) : (
-                                                                  <EyeOff className="w-4 h-4" />
-                                                                )}
-                                                              </button>
-                                                            )}
-                                                        </div>
-                                                      )}
-
+                                                      {renderMeetButton(session)}
                                                       {session.record_video_url !==
                                                         undefined && (
                                                         <button
@@ -1047,7 +1104,12 @@ const ConferenceDetailPage: React.FC = () => {
                                                             }
                                                           }}
                                                         >
-                                                          <Youtube className="w-3.5 h-3.5" />
+                                                          {session.record_video_url?.includes("youtube.com") ||
+                                                          session.record_video_url?.includes("youtu.be") ? (
+                                                            <Youtube className="w-3.5 h-3.5" />
+                                                          ) : (
+                                                            <Video className="w-3.5 h-3.5" />
+                                                          )}
                                                           Watch Recording
                                                         </button>
                                                       )}
@@ -1793,6 +1855,38 @@ const ConferenceDetailPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        <Dialog open={meetToggleConfirmOpen} onOpenChange={setMeetToggleConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirm Action</DialogTitle>
+              <DialogDescription>
+                {pendingMeetToggle?.message}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setMeetToggleConfirmOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (pendingMeetToggle) {
+                    toggleMeetMutation.mutate({
+                      sessionId: pendingMeetToggle.sessionId,
+                      isActive: pendingMeetToggle.isActive,
+                    });
+                    setMeetToggleConfirmOpen(false);
+                  }
+                }}
+              >
+                Confirm
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DefaultLayout>
   );

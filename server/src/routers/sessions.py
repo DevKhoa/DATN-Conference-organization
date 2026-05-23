@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, Path, BackgroundTasks
 from fastapi.responses import RedirectResponse, HTMLResponse
 from google.genai import types
 
-from packages.my_email import normalize_email, send_email
+from packages.my_email import normalize_email, send_email, send_html_email
 from packages.schema import (
     AutoSessionRequest,
     AuthorProfileAnalysis,
@@ -548,14 +548,41 @@ async def create_chair_invitation(
 
     invitation = create_res.data[0]
     invite_link = _build_invite_link(token)
-    email_subject = f"Chair invitation for {session_data.get('session_name') or 'session'}"
-    email_body = (
-        f"You have been invited to chair the session '{session_data.get('session_name') or session_id}'\n\n"
-        f"Conference: {conference_data.get('conf_name') or conference_data.get('conf_id')}\n"
-        f"Invitation link: {invite_link}\n"
+    session_name = session_data.get("session_name") or "Session"
+    conference_name = conference_data.get("conf_name") or "Conference"
+
+    email_subject = f"Invitation to Chair: {session_name}"
+
+    email_plain_body = (
+        f"Dear Colleague,\n\n"
+        f"You are cordially invited to serve as the Session Chair for the session '{session_name}' "
+        f"at the upcoming conference '{conference_name}'.\n\n"
+        f"Please view details and respond using this link:\n"
+        f"{invite_link}\n\n"
+        f"Thank you for your time and support.\n\n"
+        f"Best regards,\n"
+        f"Conference Organizing Committee"
     )
 
-    background_tasks.add_task(send_email, normalized_email, email_subject, email_body)
+    email_html_body = (
+        f"<p>Dear Colleague,</p>"
+        f"<p>You are cordially invited to serve as the Session Chair for the session '{session_name}' at the upcoming conference '{conference_name}'.</p>"
+        f"<p>Please review details and respond using the following link:</p>"
+        f"<p><a href='{invite_link}' style='color: #4f46e5; font-weight: bold; text-decoration: underline;'>"
+        f"Enter this invitation link</a></p>"
+        f"<p>Thank you for your time and support.</p>"
+        f"<p>Best regards,</p>"
+        f"<p>Conference Organizing Committee</p>"
+    )
+
+    notif_content = (
+        f"You are cordially invited to serve as the Session Chair for the session "
+        f"<strong>{session_name}</strong> at the conference <strong>{conference_name}</strong>.<br/><br/>"
+        f"Please <a href='{invite_link}' target='_blank' style='color: #4f46e5; font-weight: 600; text-decoration: underline;'>"
+        f"click here to view and respond to the invitation</a>."
+    )
+
+    background_tasks.add_task(send_html_email, normalized_email, email_subject, email_html_body, email_plain_body)
 
     if invitee_profile:
         try:
@@ -563,7 +590,7 @@ async def create_chair_invitation(
                 "conf_id": conference_data["conf_id"],
                 "sender_id": request.invited_by,
                 "title": email_subject,
-                "content": email_body,
+                "content": notif_content,
                 "attachments": [],
                 "type": "manual",
                 "target_type": "user",
@@ -576,7 +603,7 @@ async def create_chair_invitation(
                     "notification_id": notification_id,
                     "user_id": invitee_profile["user_id"],
                     "dynamic_title": email_subject,
-                    "dynamic_content": email_body,
+                    "dynamic_content": notif_content,
                 }).execute()
         except Exception as notification_error:
             logger.warning(f"Failed to create invitation notification: {notification_error}")
@@ -693,11 +720,21 @@ async def accept_chair_invitation(token: str, request: ChairInvitationDecisionRe
 
     updated_invitation = update_res.data[0]
 
+    invitee_profile_res = _select_profile_by_email(invitee_email)
+    invitee_profile = invitee_profile_res.data if invitee_profile_res.data else None
+
     try:
-        supabase_client.table("user_roles").insert({
-            "user_id": invitee_user_id,
-            "role_id": CHAIR_ROLE_ID,
-        }).execute()
+        user_uuid = invitee_profile.get("id") if invitee_profile else None
+        if user_uuid:
+            supabase_client.table("user_roles").insert({
+                "user_id": user_uuid,
+                "role_id": CHAIR_ROLE_ID,
+            }).execute()
+        else:
+            supabase_client.table("user_roles").insert({
+                "user_id": invitee_user_id,
+                "role_id": CHAIR_ROLE_ID,
+            }).execute()
     except Exception as role_error:
         logger.warning(f"Unable to ensure chair role for user {invitee_user_id}: {role_error}")
 
@@ -715,10 +752,6 @@ async def accept_chair_invitation(token: str, request: ChairInvitationDecisionRe
             }).execute()
     except Exception as att_error:
         logger.warning(f"Unable to add attendences for chair {invitee_user_id}: {att_error}")
-
-
-    invitee_profile_res = _select_profile_by_email(invitee_email)
-    invitee_profile = invitee_profile_res.data if invitee_profile_res.data else None
 
     return _serialize_invitation(updated_invitation, session_data, conference_data, invitee_profile["user_id"] if invitee_profile else invitee_user_id)
 

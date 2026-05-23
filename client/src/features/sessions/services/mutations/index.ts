@@ -54,6 +54,7 @@ export const useSaveSessionsMutation = () => {
               format_type: s.format_type,
               conf_id: conferenceId,
               meet_link: s.meet_link,
+              google_event_id: s.google_event_id,
               record_video_url: s.record_video_url,
             })
             .eq("session_id", currentDbId);
@@ -78,6 +79,7 @@ export const useSaveSessionsMutation = () => {
                 format_type: s.format_type,
                 is_ai_generated: s.is_ai_generated,
                 meet_link: s.meet_link,
+                google_event_id: s.google_event_id,
                 record_video_url: s.record_video_url,
               },
             ])
@@ -127,23 +129,39 @@ export const useSaveSessionsMutation = () => {
           });
 
           if (authorIds.size > 0) {
-            const { data: existingAtt } = await supabase
-              .from("attendences")
-              .select("user_id")
-              .eq("session_id", currentDbId)
+            const { data: regs } = await supabase
+              .from("registrations")
+              .select("registration_id, user_id")
               .in("user_id", Array.from(authorIds));
-              
-            const existingIds = new Set(existingAtt?.map((e) => e.user_id) || []);
-            const newAtts = Array.from(authorIds)
-              .filter((id) => !existingIds.has(id))
-              .map((id) => ({
-                session_id: currentDbId,
-                user_id: id,
-                is_checkin: false,
-              }));
-              
-            if (newAtts.length > 0) {
-              await supabase.from("attendences").insert(newAtts);
+
+            if (regs && regs.length > 0) {
+              const regIds = regs.map((r) => r.registration_id);
+              const userIdToRegId = new Map<number, number>();
+              regs.forEach((r) => {
+                if (r.user_id && r.registration_id) {
+                  userIdToRegId.set(r.user_id, r.registration_id);
+                }
+              });
+
+              const { data: existingAtt } = await supabase
+                .from("attendences")
+                .select("registration_id")
+                .eq("session_id", currentDbId)
+                .in("registration_id", regIds);
+
+              const existingRegIds = new Set(existingAtt?.map((e) => e.registration_id) || []);
+              const newAtts = Array.from(authorIds)
+                .map((userId) => userIdToRegId.get(userId))
+                .filter((regId): regId is number => !!regId && !existingRegIds.has(regId))
+                .map((regId) => ({
+                  session_id: currentDbId,
+                  registration_id: regId,
+                  is_checkin: false,
+                }));
+
+              if (newAtts.length > 0) {
+                await supabase.from("attendences").insert(newAtts);
+              }
             }
           }
         }

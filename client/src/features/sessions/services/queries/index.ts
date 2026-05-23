@@ -219,6 +219,7 @@ export const fetchExistingSessions = async (
       is_ai_generated: s.is_ai_generated,
       assigned_papers: ap,
       meet_link: s.meet_link,
+      google_event_id: s.google_event_id,
       record_video_url: s.record_video_url,
       format_type: s.format_type || "in-person",
     };

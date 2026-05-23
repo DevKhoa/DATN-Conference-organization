@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   ChevronDown,
   Eye,
@@ -61,6 +62,21 @@ export const ConferenceSessionDisplay = ({
     : session.chair
       ? [session.chair]
       : [];
+
+  const isTimeForAutoJoin = useMemo(() => {
+    if (!session.start_time || !session.end_time) return false;
+    const now = Date.now();
+    const sessionStart = new Date(session.start_time).getTime();
+    const sessionEnd = new Date(session.end_time).getTime();
+    return now >= sessionStart - 15 * 60 * 1000 && now <= sessionEnd;
+  }, [session.start_time, session.end_time]);
+
+  const isMeetBtnActive = useMemo(() => {
+    if (!session.meet_link) return false;
+    if (session.is_meet_active === false) return false;
+    if (session.is_meet_active === true) return true;
+    return isTimeForAutoJoin;
+  }, [session.meet_link, session.is_meet_active, isTimeForAutoJoin]);
 
   return (
     <div
@@ -161,20 +177,17 @@ export const ConferenceSessionDisplay = ({
               <div className="flex items-center justify-end gap-2">
                 {session.format_type !== "in-person" && canAccessVirtual && (
                   <>
-                    {session.meet_link !== undefined && (canEdit || (session.is_meet_active ?? true)) && (
+                    {session.meet_link !== undefined && (
                       <div className="flex items-center gap-1 animate-in slide-in-from-right-2 duration-300 group/meet">
                         <button
-                          className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold shadow-sm transition-all duration-300 ${session.meet_link &&
-                              (session.is_meet_active ?? true)
+                          className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold shadow-sm transition-all duration-300 ${
+                            isMeetBtnActive
                               ? "border-transparent bg-linear-to-r from-indigo-600 to-violet-600 text-white hover:from-indigo-700 hover:to-violet-700 hover:shadow-indigo-200"
                               : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
-                            }`}
+                          }`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (
-                              session.meet_link &&
-                              (session.is_meet_active ?? true)
-                            ) {
+                            if (isMeetBtnActive) {
                               window.open(session.meet_link, "_blank");
                             } else {
                               toast.info("Room is not available now", {
@@ -235,7 +248,12 @@ export const ConferenceSessionDisplay = ({
                           }
                         }}
                       >
-                        <Youtube className="h-3.5 w-3.5" />
+                        {session.record_video_url?.includes("youtube.com") ||
+                        session.record_video_url?.includes("youtu.be") ? (
+                          <Youtube className="h-3.5 w-3.5" />
+                        ) : (
+                          <Video className="h-3.5 w-3.5" />
+                        )}
                         Watch Recording
                       </button>
                     )}

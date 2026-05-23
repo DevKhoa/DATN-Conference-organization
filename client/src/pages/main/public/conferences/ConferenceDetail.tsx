@@ -36,6 +36,7 @@ import useAuth from "@/features/auth/hooks/useAuth";
 import { Role } from "@/features/auth/types";
 import { useAwardLeaderboardQuery } from "@/features/awards/services/queries";
 import { useConferenceDetailQuery } from "@/features/conferences/services/queries";
+import { useMyAgendaSessionsQuery } from "@/features/sessions/services/queries";
 import { useAcceptedPapersQuery } from "@/features/papers/services/queries";
 import { DefaultLayout } from "@/layouts/DefaultLayout";
 import { Route } from "@/routes/conferences/$conferenceId";
@@ -93,6 +94,8 @@ const ConferenceDetailPage = () => {
     useAcceptedPapersQuery(conferenceId);
   const { data: leaderboardRows = [], isLoading: isLoadingLeaderboard } =
     useAwardLeaderboardQuery(conferenceId);
+  const { data: myAgendaSessions = [] } = useMyAgendaSessionsQuery();
+  const allowedSessionIds = useMemo(() => new Set(myAgendaSessions.map((s) => s.session_id)), [myAgendaSessions]);
 
   const conference = conferenceDetail?.conference ?? null;
   const sessions = conferenceDetail?.sessions ?? [];
@@ -139,25 +142,76 @@ const ConferenceDetailPage = () => {
     number[]
   >([]);
 
-  const { data: hasRegistration } = useQuery({
-    queryKey: ["conference-detail-registration", conferenceId, session?.user.id],
+  const currentUserId = session?.user?.user_metadata?.["user_id"] as number | undefined;
+
+  const [meetToggleConfirmOpen, setMeetToggleConfirmOpen] = useState(false);
+  const [pendingMeetToggle, setPendingMeetToggle] = useState<{
+    sessionId: number;
+    isActive: boolean;
+    message: string;
+    sessionName: string;
+  } | null>(null);
+
+  const checkMeetToggleConfirmation = (sessionObj: any, nextActive: boolean) => {
+    if (!sessionObj.start_time || !sessionObj.end_time) return { needsConfirm: false, message: "" };
+
+    const now = Date.now();
+    const sessionStart = new Date(sessionObj.start_time).getTime();
+    const sessionEnd = new Date(sessionObj.end_time).getTime();
+
+    if (nextActive) {
+      const isEarly = now < (sessionStart - 15 * 60 * 1000);
+      const isLate = now > sessionEnd;
+      if (isEarly || isLate) {
+        return {
+          needsConfirm: true,
+          message: `The session "${sessionObj.session_name}" has not started yet (earlier than 15 minutes before start) or has already ended. Are you sure you want to activate the virtual room?`
+        };
+      }
+    } else {
+      const isAutoOpenWindow = now >= (sessionStart - 15 * 60 * 1000) && now <= sessionEnd;
+      if (isAutoOpenWindow) {
+        return {
+          needsConfirm: true,
+          message: `The session "${sessionObj.session_name}" is about to start or is currently ongoing. Deactivating the virtual room will prevent participants from joining. Are you sure you want to proceed?`
+        };
+      }
+    }
+
+    return { needsConfirm: false, message: "" };
+  };
+
+  const { data: registeredSessionIds } = useQuery({
+    queryKey: ["conference-registered-sessions", conferenceId, currentUserId],
     queryFn: async () => {
-      if (!session?.user.id) return false;
+      if (!currentUserId) return new Set<number>();
       const { data, error } = await supabase
         .from("registrations")
         .select(
-          `registration_id, ticket_configs!inner ( ticket_session!inner ( sessions!inner ( conf_id ) ) )`,
+          `registration_id, ticket_configs!inner ( ticket_session!inner ( session_id, sessions!inner ( conf_id ) ) )`,
         )
         .eq("ticket_configs.ticket_session.sessions.conf_id", conferenceId)
-        .eq("user_id", session.user.id);
+        .eq("user_id", currentUserId);
 
       if (error) throw error;
-      return (data?.length ?? 0) > 0;
+
+      const sessionIds = new Set<number>();
+      data?.forEach((reg: any) => {
+        const ticketSession = reg.ticket_configs?.ticket_session;
+        if (Array.isArray(ticketSession)) {
+          ticketSession.forEach((ts: any) => {
+            if (ts.session_id) {
+              sessionIds.add(ts.session_id);
+            }
+          });
+        }
+      });
+      return sessionIds;
     },
-    enabled: !!conferenceId && !!session?.user.id,
+    enabled: !!conferenceId && !!currentUserId,
   });
 
-  const canAccessVirtual = canEdit || !!hasRegistration;
+  const canAccessVirtual = canEdit || (!!registeredSessionIds && registeredSessionIds.size > 0);
   const canManageAttendance = checkRoles([Role.ADMIN]);
 
   const bannerUrls = useMemo(() => {
@@ -611,13 +665,26 @@ const ConferenceDetailPage = () => {
                                   const isExpanded = expandedSessions.has(
                                     session.session_id,
                                   );
+
+                                  const isChair = (session.chairs || []).some((c) => c.user_id === currentUserId) ||
+                                                  (session.chair?.user_id === currentUserId);
+
+                                  const isAuthor = (session.session_papers || []).some(
+                                    (sp) => sp.paper?.primary_author_id === currentUserId
+                                  );
+
+                                  const hasTicket = registeredSessionIds?.has(session.session_id);
+                                  const isCoauthorOrAgenda = allowedSessionIds.has(session.session_id);
+
+                                  const canAccessSessionVirtual = canEdit || isChair || isAuthor || hasTicket || isCoauthorOrAgenda;
+
                                   return (
                                     <ConferenceSessionDisplay
                                       key={session.session_id}
                                       conferenceFormatType={
                                         conference.format_type
                                       }
-                                      canAccessVirtual={canAccessVirtual}
+                                      canAccessVirtual={!!canAccessSessionVirtual}
                                       canEdit={canEdit}
                                       session={session}
                                       isExpanded={isExpanded}
@@ -646,9 +713,25 @@ const ConferenceDetailPage = () => {
                                           },
                                         })
                                       }
-                                      onToggleMeet={(payload) =>
-                                        toggleMeetMutation.mutate(payload)
-                                      }
+                                      onToggleMeet={(payload) => {
+                                        const sessionObj = sessions.find((s) => s.session_id === payload.sessionId);
+                                        if (sessionObj) {
+                                          const { needsConfirm, message } = checkMeetToggleConfirmation(sessionObj, payload.isActive);
+                                          if (needsConfirm) {
+                                            setPendingMeetToggle({
+                                              sessionId: payload.sessionId,
+                                              isActive: payload.isActive,
+                                              message,
+                                              sessionName: sessionObj.session_name || "Session"
+                                            });
+                                            setMeetToggleConfirmOpen(true);
+                                          } else {
+                                            toggleMeetMutation.mutate(payload);
+                                          }
+                                        } else {
+                                          toggleMeetMutation.mutate(payload);
+                                        }
+                                      }}
                                       onDelete={() => {
                                         setSessionToDelete({
                                           id: session.session_id,
@@ -787,6 +870,38 @@ const ConferenceDetailPage = () => {
             </aside>
           </div>
         </div>
+
+        <Dialog open={meetToggleConfirmOpen} onOpenChange={setMeetToggleConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirm Action</DialogTitle>
+              <DialogDescription>
+                {pendingMeetToggle?.message}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setMeetToggleConfirmOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (pendingMeetToggle) {
+                    toggleMeetMutation.mutate({
+                      sessionId: pendingMeetToggle.sessionId,
+                      isActive: pendingMeetToggle.isActive,
+                    });
+                    setMeetToggleConfirmOpen(false);
+                  }
+                }}
+              >
+                Confirm
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
           <DialogContent>
