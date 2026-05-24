@@ -266,6 +266,31 @@ export const useCreateMeetMutation = () => {
   });
 };
 
+export const useUpdateMeetMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      email,
+    }: {
+      sessionId: number;
+      email: string;
+    }) => {
+      const data = await request.patch<IMeetCreationResponse>(
+        `/sessions/${sessionId}/update-meet`,
+        { session_id: sessionId, email },
+      );
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ExistingSessions],
+      });
+    },
+  });
+};
+
 export const useToggleMeetMutation = () => {
   const queryClient = useQueryClient();
 

@@ -46,6 +46,7 @@ import {
   useSaveSessionsMutation,
   useDeleteMeetMutation,
   useCreateMeetMutation,
+  useUpdateMeetMutation,
   useDeleteSessionMutation,
 } from "@/features/sessions/services/mutations";
 import { useExistingSessionsQuery } from "@/features/sessions/services/queries";
@@ -87,6 +88,7 @@ const SessionManagerPage = ({
   const deleteSessionMutation = useDeleteSessionMutation();
   const deleteMeetMutation = useDeleteMeetMutation();
   const createMeetMutation = useCreateMeetMutation();
+  const updateMeetMutation = useUpdateMeetMutation();
 
   const { session: authSession } = useAuth();
   const currentUserEmail = authSession?.user?.email;
@@ -380,22 +382,22 @@ const SessionManagerPage = ({
   const handleCreateMeetLink = async (session: LocalSession) => {
     if (!session.db_id) {
       setError(
-        "Vui lòng Save (Lưu) session vào database trước khi tạo link Meet.",
+        "Please save the session to the database before creating a Meet link.",
       );
       return;
     }
     if (!session.start_time || !session.end_time) {
-      setError("Vui lòng thiết lập thời gian trước khi tạo Meet Link.");
+      setError("Please set the start and end times before creating a Meet link.");
       return;
     }
     const localStart = new Date(formatToLocal(session.start_time));
     const localEnd = new Date(formatToLocal(session.end_time));
     if (localStart >= localEnd) {
-      setError("Thời gian bắt đầu phải trước thời gian kết thúc.");
+      setError("Start time must be before end time.");
       return;
     }
     if (!currentUserEmail) {
-      setError("Không tìm thấy email người dùng hiện tại.");
+      setError("Current user email not found.");
       return;
     }
 
@@ -404,6 +406,19 @@ const SessionManagerPage = ({
     setSuccessMsg("");
 
     try {
+      // Kiểm tra trạng thái liên kết tài khoản Google từ profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("google_refresh_token")
+        .eq("email", currentUserEmail)
+        .single();
+      
+      if (!profile || !profile.google_refresh_token) {
+        setShowAuthModal(true);
+        setGeneratingMeetId(null);
+        return;
+      }
+
       const data = await createMeetMutation.mutateAsync({
         sessionId: session.db_id,
         email: currentUserEmail,
@@ -414,10 +429,11 @@ const SessionManagerPage = ({
       updateSession(session.temp_id, "google_event_id", data.event_id);
       setSuccessMsg("Google Meet link created successfully!");
     } catch (err: any) {
-      // Check for specific 400 error about linked account
+      // Check for specific error about linked account
+      const detail = err.response?.data?.detail || "";
       if (
-        err.response?.status === 400 &&
-        err.response?.data?.detail?.includes("liên kết với Google")
+        (err.response?.status === 400 || err.response?.status === 500) &&
+        (detail.includes("linked") || detail.includes("refresh token") || detail.includes("liên kết"))
       ) {
         setShowAuthModal(true);
       } else {
@@ -693,7 +709,7 @@ const SessionManagerPage = ({
     // Pass all validations
     setError("");
 
-    const recreateMeetSessionIds: number[] = [];
+    const updateMeetSessionIds: number[] = [];
     const manualMeetWarningSessionNames: string[] = [];
     let hasTimeChangedAny = false;
     for (const s of sessions) {
@@ -712,7 +728,7 @@ const SessionManagerPage = ({
             hasTimeChangedAny = true;
             if (s.format_type === "virtual" && s.meet_link && originalSession.meet_link) {
               if (originalSession.google_event_id) {
-                recreateMeetSessionIds.push(s.db_id);
+                updateMeetSessionIds.push(s.db_id);
               } else {
                 manualMeetWarningSessionNames.push(s.session_name);
               }
@@ -723,21 +739,10 @@ const SessionManagerPage = ({
     }
 
     try {
-      // 1. Delete old meet links for those sessions
-      for (const sessionId of recreateMeetSessionIds) {
-        if (currentUserEmail) {
-          await deleteMeetMutation.mutateAsync({
-            sessionId,
-            email: currentUserEmail,
-          });
-        }
-      }
-
-      // 2. Save the sessions (passing empty meet_link for those being recreated)
+      // 1. Save the sessions
       const result = await saveSessionsMutation.mutateAsync({
         conferenceId: conferenceIdNum,
         sessions: sessions.map((s) => {
-          const isRecreated = s.db_id ? recreateMeetSessionIds.includes(s.db_id) : false;
           return {
             temp_id: s.temp_id,
             db_id: s.db_id,
@@ -747,29 +752,29 @@ const SessionManagerPage = ({
             room_location: s.room_location,
             is_ai_generated: s.is_ai_generated,
             assigned_papers: s.assigned_papers,
-            meet_link: isRecreated ? "" : s.meet_link,
-            google_event_id: isRecreated ? null : s.google_event_id,
+            meet_link: s.meet_link,
+            google_event_id: s.google_event_id,
             record_video_url: s.record_video_url,
             format_type: s.format_type,
           };
         }),
       });
 
-      // 3. Create new meet links for those sessions
-      const newlyCreatedMeetLinks: Record<number, string> = {};
-      const newlyCreatedEventIds: Record<number, string> = {};
-      for (const sessionId of recreateMeetSessionIds) {
+      // 2. Update existing meet links/calendar events for those sessions
+      const newlyUpdatedMeetLinks: Record<number, string> = {};
+      const newlyUpdatedEventIds: Record<number, string> = {};
+      for (const sessionId of updateMeetSessionIds) {
         if (currentUserEmail) {
-          const data = await createMeetMutation.mutateAsync({
+          const data = await updateMeetMutation.mutateAsync({
             sessionId,
             email: currentUserEmail,
           });
-          newlyCreatedMeetLinks[sessionId] = data.meet_link;
-          newlyCreatedEventIds[sessionId] = data.event_id;
+          newlyUpdatedMeetLinks[sessionId] = data.meet_link;
+          newlyUpdatedEventIds[sessionId] = data.event_id;
         }
       }
 
-      // 4. Update sessions with the saved db_ids and recreated meet links
+      // 3. Update sessions with the saved db_ids and updated meet links/event IDs
       const updatedSessions = sessions.map((s) => {
         const saved = result.savedSessions.find(
           (ss) => ss.temp_id === s.temp_id,
@@ -777,17 +782,17 @@ const SessionManagerPage = ({
         const newDbId = saved ? saved.db_id : s.db_id;
         let meetLink = s.meet_link;
         let googleEventId = s.google_event_id;
-        if (newDbId && recreateMeetSessionIds.includes(newDbId)) {
-          meetLink = newlyCreatedMeetLinks[newDbId] || "";
-          googleEventId = newlyCreatedEventIds[newDbId] || null;
+        if (newDbId && updateMeetSessionIds.includes(newDbId)) {
+          meetLink = newlyUpdatedMeetLinks[newDbId] || s.meet_link;
+          googleEventId = newlyUpdatedEventIds[newDbId] || s.google_event_id;
         }
         return saved ? { ...s, db_id: saved.db_id, meet_link: meetLink, google_event_id: googleEventId } : { ...s, meet_link: meetLink, google_event_id: googleEventId };
       });
 
       setSessions(updatedSessions);
       let successMessage = "Sessions saved!";
-      if (recreateMeetSessionIds.length > 0) {
-        successMessage = "Sessions saved and Meet links updated!";
+      if (updateMeetSessionIds.length > 0) {
+        successMessage = "Sessions saved and calendar event times updated!";
       }
       if (manualMeetWarningSessionNames.length > 0) {
         successMessage += ` Note: Manually update Meet link(s) for "${manualMeetWarningSessionNames.join('", "')}" due to time changes.`;
@@ -1621,12 +1626,11 @@ const SessionManagerPage = ({
               <Video className="w-6 h-6 text-indigo-600" />
             </div>
             <h3 className="text-lg font-bold text-slate-900 mb-2">
-              Kết nối Google Calendar
+              Connect to Google Calendar
             </h3>
             <p className="text-slate-600 text-sm mb-6">
-              Bạn cần cấp quyền cho hệ thống truy cập Google Calendar để tự động
-              tạo phòng họp Meet cá nhân. Một cửa sổ Popup sẽ mở ra để bạn thực
-              hiện uỷ quyền.
+              You need to authorize the system to access your Google Calendar to automatically
+              create Meet events. A popup window will open for you to complete the authorization.
             </p>
             <div className="flex justify-end gap-3">
               <Button
@@ -1634,7 +1638,7 @@ const SessionManagerPage = ({
                 onClick={() => setShowAuthModal(false)}
                 disabled={isAuthorizing}
               >
-                Hủy
+                Cancel
               </Button>
               <Button
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
@@ -1646,7 +1650,7 @@ const SessionManagerPage = ({
                 ) : (
                   <Video className="w-4 h-4 mr-2" />
                 )}
-                Kết nối ngay
+                Connect Now
               </Button>
             </div>
           </div>

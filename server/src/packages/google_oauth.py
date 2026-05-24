@@ -126,4 +126,34 @@ class GoogleMeetService:
         service = build('calendar', 'v3', credentials=creds)
         service.events().delete(calendarId='primary', eventId=event_id).execute()
 
+    def update_meeting(self, email: str, event_id: str, summary: str, start_time: str, end_time: str, timezone: str = 'UTC'):
+        creds = self._get_credentials_for_user(email)
+        if not creds:
+            raise Exception("User has not linked their Google account or refresh token is missing.")
+
+        service = build('calendar', 'v3', credentials=creds)
+        
+        event = {
+            'summary': summary,
+            'start': {'dateTime': start_time},
+            'end': {'dateTime': end_time},
+        }
+
+        # If no timezone offset is present in the string, Google API requires timeZone field.
+        if '+' not in start_time and 'Z' not in start_time:
+            event['start']['timeZone'] = timezone
+            event['end']['timeZone'] = timezone
+
+        updated_event = service.events().patch(
+            calendarId='primary',
+            eventId=event_id,
+            body=event
+        ).execute()
+
+        return {
+            'event_id': updated_event.get('id'),
+            'meet_link': updated_event.get('hangoutLink'),
+            'html_link': updated_event.get('htmlLink')
+        }
+
 google_meet_service = GoogleMeetService()

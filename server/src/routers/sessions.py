@@ -857,8 +857,8 @@ async def google_oauth_callback(state: str, code: str):
             <html>
                 <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f0f2f5;">
                     <div style="background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center;">
-                        <h2 style="color: #1a73e8;">Xác thực thành công!</h2>
-                        <p>Bạn có thể đóng cửa sổ này và quay lại trang quản lý.</p>
+                        <h2 style="color: #1a73e8;">Authentication Successful!</h2>
+                        <p>You can close this window now and return to the management page.</p>
                         <script>
                             if (window.opener) {
                                 window.opener.postMessage({ type: "google-auth-success" }, "*");
@@ -871,7 +871,7 @@ async def google_oauth_callback(state: str, code: str):
         """)
     except Exception as e:
         logger.error(f"Google OAuth Callback Error: {e}")
-        return HTMLResponse(content=f"<html><body><p>Lỗi xác thực: {str(e)}</p></body></html>", status_code=500)
+        return HTMLResponse(content=f"<html><body><p>Authentication Error: {str(e)}</p></body></html>", status_code=500)
 
 
 @router.post("/sessions/{session_id}/create-meet", response_model=MeetCreationResponse)
@@ -911,6 +911,50 @@ async def create_session_meet(
         return result
     except Exception as e:
         logger.error(f"Failed to create Meet link: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/sessions/{session_id}/update-meet", response_model=MeetCreationResponse)
+async def update_session_meet(
+    session_id: int,
+    request: MeetCreationRequest
+):
+    try:
+        session_res = supabase_client.table("sessions") \
+            .select("session_name, start_time, end_time, google_event_id, conferences(timezone)") \
+            .eq("session_id", session_id) \
+            .single().execute()
+            
+        if not session_res.data:
+            raise HTTPException(status_code=404, detail="Session not found")
+            
+        s = session_res.data
+        conf_timezone = s.get('conferences', {}).get('timezone', 'UTC')
+        event_id = s.get('google_event_id')
+        
+        if not event_id:
+            raise HTTPException(status_code=400, detail="Session does not have an associated Google Calendar event.")
+            
+        if not s['start_time'] or not s['end_time']:
+            raise HTTPException(status_code=400, detail="Session must have start and end times to update the Meet event.")
+
+        result = google_meet_service.update_meeting(
+            email=request.email,
+            event_id=event_id,
+            summary=f"Session: {s['session_name']}",
+            start_time=s['start_time'],
+            end_time=s['end_time'],
+            timezone=conf_timezone
+        )
+        
+        # Cập nhật session với meet link
+        supabase_client.table("sessions").update({
+            "meet_link": result['meet_link']
+        }).eq("session_id", session_id).execute()
+        
+        return result
+    except Exception as e:
+        logger.error(f"Failed to update Meet event: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
