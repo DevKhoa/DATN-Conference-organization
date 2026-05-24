@@ -55,7 +55,11 @@ import { useAcceptedPapersQuery } from "@/features/papers/services/queries";
 import { useConferenceDetailQuery } from "@/features/conferences/services/queries";
 import { formatToLocal } from "@/utils/time";
 
-dayjs.extend(customParseFormat);
+const isOnlineMeetingLink = (url: string): boolean => {
+  if (!url) return true;
+  const pattern = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)*(meet\.google\.com|zoom\.us|zoom\.com|zoom\.com\.cn|teams\.microsoft\.com|teams\.live\.com|webex\.com|skype\.com|meet\.jit\.si|discord\.gg|discord\.com)\b/i;
+  return pattern.test(url.trim());
+};
 
 const SessionManagerPage = ({
   conferenceId,
@@ -585,6 +589,13 @@ const SessionManagerPage = ({
       ) {
         setError(
           `Please fill in all details for session: ${s.session_name}${!isOnlineConference ? " (including location)" : ""}`,
+        );
+        return;
+      }
+
+      if (s.meet_link && !isOnlineMeetingLink(s.meet_link)) {
+        setError(
+          `Invalid meeting link for session "${s.session_name}". Only Google Meet, Zoom, MS Teams, Webex, Skype, Jitsi, or Discord links are allowed.`,
         );
         return;
       }
@@ -1283,7 +1294,11 @@ const SessionManagerPage = ({
                                     <input
                                       type="text"
                                       placeholder="https://meet.google.com/..."
-                                      className="w-full pl-9 pr-16 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
+                                      className={`w-full pl-9 pr-16 py-2 text-sm bg-white border rounded-xl focus:ring-2 focus:ring-indigo-100 outline-none transition-all ${
+                                        session.meet_link && !isOnlineMeetingLink(session.meet_link)
+                                          ? "border-red-500 focus:border-red-500 focus:ring-red-100"
+                                          : "border-slate-200 focus:border-indigo-500"
+                                      }`}
                                       value={session.meet_link || ""}
                                       onChange={(e) => {
                                         updateSession(
@@ -1354,6 +1369,11 @@ const SessionManagerPage = ({
                                     </Button>
                                   )}
                                 </div>
+                                {session.meet_link && !isOnlineMeetingLink(session.meet_link) && (
+                                  <p className="text-red-500 text-xs pl-1">
+                                    Only Google Meet, Zoom, MS Teams, Webex, Skype, Jitsi, or Discord links are allowed.
+                                  </p>
+                                )}
                               </div>
                               <div className="flex flex-col gap-1.5">
                                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest pl-1">
