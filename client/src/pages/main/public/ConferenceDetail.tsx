@@ -412,10 +412,11 @@ const ConferenceDetailPage: React.FC = () => {
       const { data, error } = await supabase
         .from("registrations")
         .select(
-          `registration_id, ticket_configs!inner ( ticket_session!inner ( sessions!inner ( conf_id ) ) )`,
+          `registration_id, ticket_configs!inner ( ticket_session!inner ( sessions!inner ( conf_id ) ) ), transactions!inner ( status )`,
         )
         .eq("user_id", currentUserId!)
-        .eq("ticket_configs.ticket_session.sessions.conf_id", conferenceId!);
+        .eq("ticket_configs.ticket_session.sessions.conf_id", conferenceId!)
+        .eq("transactions.status", "COMPLETED");
 
       if (error) throw error;
       return (data?.length ?? 0) > 0;
