@@ -7,6 +7,36 @@ import { Role } from "@/features/auth/types";
 import useAuth from "@/features/auth/hooks/useAuth";
 import { request } from "@/lib/axios";
 
+export interface ChairConflictSession {
+  session_id: number;
+  session_name: string;
+  start_time: string;
+  end_time: string;
+  conf_name: string;
+}
+
+export interface ChairConflictCheckResult {
+  has_conflict: boolean;
+  user_found: boolean;
+  conflicting_sessions: ChairConflictSession[];
+}
+
+/**
+ * Call backend to check if a chair candidate (by email) has a schedule
+ * conflict with the given session. Returns conflict details.
+ */
+export const checkChairScheduleConflict = async (
+  sessionId: number,
+  email: string,
+): Promise<ChairConflictCheckResult> => {
+  return request.get<ChairConflictCheckResult>(
+    `/sessions/${sessionId}/chair-conflict-check`,
+    { email },
+  );
+};
+
+
+
 export interface AgendaSession {
   session_id: number;
   session_name: string;

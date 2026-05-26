@@ -1006,3 +1006,104 @@ async def disconnect_google(email: str = Query(...)):
     except Exception as e:
         logger.error(f"Failed to disconnect Google: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sessions/{session_id}/chair-conflict-check")
+async def check_chair_schedule_conflict(
+    session_id: int = Path(..., description="ID of the session to invite the chair to"),
+    email: str = Query(..., description="Email of the chair candidate to check"),
+):
+    """
+    Check whether a chair candidate (by email) has a schedule conflict with the given session.
+    - If the email is not registered in the system, returns has_conflict=False (cannot check).
+    - If the user IS registered, fetches all sessions they are already chairing and checks
+      for time overlap with the target session.
+
+    Overlap condition: A.start < B.end AND B.start < A.end
+    """
+    try:
+        # 1. Fetch the target session's time window
+        session_res = supabase_client.table("sessions") \
+            .select("session_id, session_name, start_time, end_time, conf_id") \
+            .eq("session_id", session_id) \
+            .single() \
+            .execute()
+
+        if not session_res.data:
+            raise HTTPException(status_code=404, detail="Session not found.")
+
+        target = session_res.data
+        target_start = target.get("start_time")
+        target_end = target.get("end_time")
+
+        if not target_start or not target_end:
+            # No time set yet → cannot detect conflict
+            return {"has_conflict": False, "user_found": False, "conflicting_sessions": []}
+
+        target_start_dt = datetime.fromisoformat(target_start)
+        target_end_dt = datetime.fromisoformat(target_end)
+
+        # 2. Look up the profile by email
+        normalized_email = normalize_email(email)
+        profile_res = _select_profile_by_email(normalized_email)
+        profile = profile_res.data if profile_res.data else None
+
+        if not profile:
+            # User not found → no conflict possible (external invite)
+            return {"has_conflict": False, "user_found": False, "conflicting_sessions": []}
+
+        user_id = profile["user_id"]
+
+        # 3. Fetch all sessions where this user is already a chair (excluding the target session)
+        sc_res = supabase_client.table("session_chairs") \
+            .select("session_id") \
+            .eq("user_id", user_id) \
+            .neq("session_id", session_id) \
+            .execute()
+
+        existing_session_ids = [row["session_id"] for row in (sc_res.data or [])]
+
+        if not existing_session_ids:
+            return {"has_conflict": False, "user_found": True, "conflicting_sessions": []}
+
+        # 4. Fetch time info for all those sessions (join conference name for display)
+        sessions_res = supabase_client.table("sessions") \
+            .select("session_id, session_name, start_time, end_time, conferences!inner(conf_name)") \
+            .in_("session_id", existing_session_ids) \
+            .execute()
+
+        # 5. Detect overlaps
+        conflicting: list[dict] = []
+        for s in (sessions_res.data or []):
+            s_start = s.get("start_time")
+            s_end = s.get("end_time")
+            if not s_start or not s_end:
+                continue
+
+            s_start_dt = datetime.fromisoformat(s_start)
+            s_end_dt = datetime.fromisoformat(s_end)
+
+            # Classic overlap check: A.start < B.end AND B.start < A.end
+            if target_start_dt < s_end_dt and s_start_dt < target_end_dt:
+                conf_info = s.get("conferences") or {}
+                if isinstance(conf_info, list):
+                    conf_info = conf_info[0] if conf_info else {}
+                conflicting.append({
+                    "session_id": s["session_id"],
+                    "session_name": s.get("session_name") or "Unnamed Session",
+                    "start_time": s_start,
+                    "end_time": s_end,
+                    "conf_name": conf_info.get("conf_name") or "",
+                })
+
+        return {
+            "has_conflict": len(conflicting) > 0,
+            "user_found": True,
+            "conflicting_sessions": conflicting,
+        }
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Chair conflict check error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

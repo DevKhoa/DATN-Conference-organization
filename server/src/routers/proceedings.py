@@ -541,33 +541,40 @@ async def list_proceedings_papers(
 @router.get("/proceedings/{conf_id}/reviewers")
 async def list_proceedings_reviewers(conf_id: int):
     try:
-        res = (
-            supabase_client.table("reviewer_assignments")
-            .select(
-                "reviewer:profiles!reviewer_id(full_name, organization), "
-                "paper:papers!inner(submitted_conf)"
-            )
-            .eq("paper.submitted_conf", conf_id)
+        # Get all session chairs for sessions belonging to this conference
+        # (session_chairs is the table that replaced reviewer_assignments)
+        sessions_res = (
+            supabase_client.table("sessions")
+            .select("session_id")
+            .eq("conf_id", conf_id)
             .execute()
         )
+        session_ids = [s["session_id"] for s in (sessions_res.data or []) if s.get("session_id")]
 
         reviewers: List[Dict[str, Any]] = []
         seen = set()
-        for item in res.data or []:
-            rv = _first_obj(item.get("reviewer"))
-            if not rv:
-                continue
-            name = rv.get("full_name")
-            if not name or name in seen:
-                continue
-            seen.add(name)
-            reviewers.append(
-                {
-                    "id": str(uuid.uuid4()),
-                    "full_name": name,
-                    "organization": rv.get("organization") or "",
-                }
+        if session_ids:
+            chairs_res = (
+                supabase_client.table("session_chairs")
+                .select("user_id, profile:profiles!session_chairs_user_id_fkey(full_name, organization)")
+                .in_("session_id", session_ids)
+                .execute()
             )
+            for item in chairs_res.data or []:
+                rv = _first_obj(item.get("profile"))
+                if not rv:
+                    continue
+                name = rv.get("full_name")
+                if not name or name in seen:
+                    continue
+                seen.add(name)
+                reviewers.append(
+                    {
+                        "id": str(uuid.uuid4()),
+                        "full_name": name,
+                        "organization": rv.get("organization") or "",
+                    }
+                )
 
         return {"reviewers": reviewers, "count": len(reviewers)}
 
@@ -595,21 +602,29 @@ async def bootstrap_proceedings(conf_id: int, limit: int = Query(50, ge=1, le=50
         )
         sessions = sessions_res.data or []
 
-        # Manually join chair profiles to avoid ambiguous FK hint error
-        chair_ids = list({s["chair_person_id"] for s in sessions if s.get("chair_person_id")})
-        chair_map: Dict[int, Dict[str, Any]] = {}
-        if chair_ids:
-            chairs_res = (
-                supabase_client.table("profiles")
-                .select("user_id, full_name, organization")
-                .in_("user_id", chair_ids)
+        # Fetch session chairs via session_chairs table (chair_person_id no longer exists on sessions)
+        session_ids_list = [s["session_id"] for s in sessions if s.get("session_id")]
+        session_chairs_map: Dict[int, List[Dict[str, Any]]] = {}
+        if session_ids_list:
+            sc_res = (
+                supabase_client.table("session_chairs")
+                .select("session_id, user_id, profile:profiles!session_chairs_user_id_fkey(user_id, full_name, organization)")
+                .in_("session_id", session_ids_list)
                 .execute()
             )
-            for c in chairs_res.data or []:
-                chair_map[c["user_id"]] = c
+            for sc in sc_res.data or []:
+                sid = sc.get("session_id")
+                if sid is None:
+                    continue
+                profile = _first_obj(sc.get("profile"))
+                if profile:
+                    session_chairs_map.setdefault(sid, []).append(profile)
         for s in sessions:
-            cid = s.get("chair_person_id")
-            s["chair"] = chair_map.get(cid) if cid else None
+            sid = s.get("session_id")
+            chairs_list = session_chairs_map.get(sid, [])
+            # Keep first chair as "chair" for backwards compatibility with frontend
+            s["chair"] = chairs_list[0] if chairs_list else None
+            s["chairs"] = chairs_list
 
         columns = (
             "paper_id, title, abstract, primary_author_id, "
@@ -644,32 +659,22 @@ async def bootstrap_proceedings(conf_id: int, limit: int = Query(50, ge=1, le=50
             pid = p.get("paper_id")
             p["session"] = session_map.get(pid)
 
-        reviewers_res = (
-            supabase_client.table("reviewer_assignments")
-            .select(
-                "reviewer:profiles!reviewer_id(full_name, organization), "
-                "paper:papers!inner(submitted_conf)"
-            )
-            .eq("paper.submitted_conf", conf_id)
-            .execute()
-        )
+        # Build reviewers/committee list from all session chairs in this conference
         reviewers: List[Dict[str, Any]] = []
-        seen = set()
-        for item in reviewers_res.data or []:
-            rv = _first_obj(item.get("reviewer"))
-            if not rv:
-                continue
-            name = rv.get("full_name")
-            if not name or name in seen:
-                continue
-            seen.add(name)
-            reviewers.append(
-                {
-                    "id": str(uuid.uuid4()),
-                    "full_name": name,
-                    "organization": rv.get("organization") or "",
-                }
-            )
+        seen: set = set()
+        for chairs_list in session_chairs_map.values():
+            for profile in chairs_list:
+                name = profile.get("full_name")
+                if not name or name in seen:
+                    continue
+                seen.add(name)
+                reviewers.append(
+                    {
+                        "id": str(uuid.uuid4()),
+                        "full_name": name,
+                        "organization": profile.get("organization") or "",
+                    }
+                )
 
         return {
             "config": config_res.data if config_res else None,

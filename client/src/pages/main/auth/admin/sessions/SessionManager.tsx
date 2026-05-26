@@ -99,6 +99,7 @@ const SessionManagerPage = ({
 
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [authorConflictWarnings, setAuthorConflictWarnings] = useState<string[]>([]);
 
   // Create Meet Logic
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -571,6 +572,11 @@ const SessionManagerPage = ({
   };
 
   const handleSaveSessions = async () => {
+    // Reset previous status messages
+    setError("");
+    setSuccessMsg("");
+    setAuthorConflictWarnings([]);
+
     for (const s of sessions) {
       console.log("raw start:", s.start_time);
       console.log("raw end:", s.end_time);
@@ -581,6 +587,7 @@ const SessionManagerPage = ({
     }
     // 1. STRICT VALIDATION: Missing fields, Time Format, Start > End, Conference Boundary, Paper Time Overlaps
     for (const s of sessions) {
+
       if (
         !s.session_name ||
         !s.start_time ||
@@ -717,8 +724,89 @@ const SessionManagerPage = ({
       }
     }
 
+    // ── Author schedule conflict check (warning only — does not block save) ──
+    // Build a map of paper_id → paper title from acceptedPapers for display
+    const paperTitleMap = new Map<number, string>(
+      acceptedPapers.map((p) => [p.paper_id, p.title]),
+    );
+
+    // Collect all papers that have a presentation time set in the current sessions
+    type PaperTimeEntry = {
+      paper_id: number;
+      sessionName: string;
+      sessionTempId: string;
+      start: dayjs.Dayjs;
+      end: dayjs.Dayjs;
+    };
+    const paperTimeEntries: PaperTimeEntry[] = [];
+    for (const s of sessions) {
+      if (!s.start_time || !s.end_time) continue;
+      const sessionStart = dayjs(formatToLocal(s.start_time));
+      const parseTime = (t: string) =>
+        t.includes("T")
+          ? dayjs(t)
+          : dayjs(
+              `${sessionStart.format("YYYY-MM-DD")}T${t.length === 5 ? t + ":00" : t}`,
+            );
+      for (const p of s.assigned_papers) {
+        if (!p.start_time || !p.end_time) continue;
+        paperTimeEntries.push({
+          paper_id: p.paper_id,
+          sessionName: s.session_name,
+          sessionTempId: s.temp_id,
+          start: parseTime(p.start_time),
+          end: parseTime(p.end_time),
+        });
+      }
+    }
+
+    const newAuthorWarnings: string[] = [];
+
+    if (paperTimeEntries.length > 0) {
+      // Get primary_author_id for all involved papers
+      const involvedPaperIds = [...new Set(paperTimeEntries.map((e) => e.paper_id))];
+      const { data: papersData } = await supabase
+        .from("papers")
+        .select("paper_id, primary_author_id")
+        .in("paper_id", involvedPaperIds);
+
+      // Build map: author → list of paper_ids they authored (among involved papers)
+      const authorPaperMap = new Map<number, number[]>();
+      for (const row of papersData || []) {
+        if (!row.primary_author_id) continue;
+        const list = authorPaperMap.get(row.primary_author_id) ?? [];
+        list.push(row.paper_id);
+        authorPaperMap.set(row.primary_author_id, list);
+      }
+
+      // For each author that has more than one paper with a time, check cross-session overlap
+      for (const [, paperIds] of authorPaperMap.entries()) {
+        if (paperIds.length < 2) continue;
+        const authorEntries = paperTimeEntries.filter((e) =>
+          paperIds.includes(e.paper_id),
+        );
+        // Check every pair
+        for (let i = 0; i < authorEntries.length; i++) {
+          for (let j = i + 1; j < authorEntries.length; j++) {
+            const a = authorEntries[i];
+            const b = authorEntries[j];
+            if (a.sessionTempId === b.sessionTempId) continue; // same session, already handled above
+            // Overlap: a.start < b.end AND b.start < a.end
+            if (a.start.isBefore(b.end) && b.start.isBefore(a.end)) {
+              const titleA = paperTitleMap.get(a.paper_id) ?? `Paper #${a.paper_id}`;
+              const titleB = paperTitleMap.get(b.paper_id) ?? `Paper #${b.paper_id}`;
+              newAuthorWarnings.push(
+                `Author conflict: "${titleA}" (${a.sessionName}, ${a.start.format("HH:mm")}–${a.end.format("HH:mm")}) overlaps with "${titleB}" (${b.sessionName}, ${b.start.format("HH:mm")}–${b.end.format("HH:mm")}).`,
+              );
+            }
+          }
+        }
+      }
+    }
+
     // Pass all validations
     setError("");
+    setAuthorConflictWarnings(newAuthorWarnings);
 
     const updateMeetSessionIds: number[] = [];
     const manualMeetWarningSessionNames: string[] = [];
@@ -935,6 +1023,33 @@ const SessionManagerPage = ({
               <p className="text-sm font-medium">{successMsg}</p>
             </div>
           )}
+
+          {authorConflictWarnings.length > 0 && (
+            <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 animate-in fade-in slide-in-from-top-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                <div className="min-w-0">
+                  <p className="font-semibold text-amber-800">
+                    Author schedule conflict{authorConflictWarnings.length > 1 ? "s" : ""} detected
+                  </p>
+                  <p className="mt-1 text-sm text-amber-700">
+                    Sessions were saved, but the following presentations may create scheduling conflicts for the same author. Consider adjusting the presentation times.
+                  </p>
+                  <ul className="mt-2 space-y-1">
+                    {authorConflictWarnings.map((warning, idx) => (
+                      <li
+                        key={idx}
+                        className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-amber-800"
+                      >
+                        {warning}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* LEFT COLUMN: Tools & Papers */}
