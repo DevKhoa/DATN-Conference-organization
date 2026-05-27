@@ -38,8 +38,12 @@ _IMAGE_CACHE_MAX = 200  # prevent unbounded memory growth
 
 # In-process cache for GCS blob existence + public URLs
 # Avoids repeated blob.exists() round-trips (~150-300ms each) for same cache keys
-_GCS_URL_CACHE: Dict[str, str] = {}  # blob_path -> public_url
+_GCS_URL_CACHE: Dict[str, str] = {}  # cache_key_str -> public_url
 _GCS_CACHE_MAX = 500
+
+# Increment this whenever the PDF rendering logic (fonts, layout, etc.) changes
+# so that old cached PDFs on GCS are not returned to clients.
+_RENDER_VERSION = "v2"  # v1 = Helvetica, v2 = Inter (Vietnamese fix)
 
 
 def _register_fonts():
@@ -47,10 +51,19 @@ def _register_fonts():
     if _FONTS_READY:
         return
     try:
-        # Resolve path to client/public/fonts
-        # server/routers/proceedings.py -> parents[2] is the project root
-        root = Path(__file__).resolve().parents[2]
-        font_dir = root / "client" / "public" / "fonts"
+        # __file__ is: <project_root>/server/src/routers/proceedings.py
+        # parents[0] = routers/, parents[1] = src/, parents[2] = server/, parents[3] = project root
+        here = Path(__file__).resolve()
+        # Try parents[3] first (project root), then fall back to parents[2] in case of flat layout
+        for level in (3, 2, 4):
+            candidate = here.parents[level] / "client" / "public" / "fonts"
+            if candidate.exists():
+                font_dir = candidate
+                break
+        else:
+            logger.warning("Font directory not found — Vietnamese text may render as boxes")
+            _FONTS_READY = True
+            return
         fonts = {
             "Inter-Regular": font_dir / "Inter-Regular.ttf",
             "Inter-Bold": font_dir / "Inter-Bold.ttf",
@@ -70,12 +83,7 @@ def _register_fonts():
 
 def _pick_font(font_family: Optional[str], bold: bool, italic: bool) -> str:
     fam = (font_family or "").lower()
-    if "inter" in fam and _REGISTERED_FONTS:
-        if bold and "Inter-Bold" in _REGISTERED_FONTS:
-            return "Inter-Bold"
-        if italic and "Inter-Italic" in _REGISTERED_FONTS:
-            return "Inter-Italic"
-        return "Inter-Regular" if "Inter-Regular" in _REGISTERED_FONTS else "Helvetica"
+    # Times New Roman
     if "times" in fam:
         if bold and italic:
             return "Times-BoldItalic"
@@ -84,6 +92,7 @@ def _pick_font(font_family: Optional[str], bold: bool, italic: bool) -> str:
         if italic:
             return "Times-Italic"
         return "Times-Roman"
+    # Courier / monospace
     if "courier" in fam:
         if bold and italic:
             return "Courier-BoldOblique"
@@ -92,6 +101,17 @@ def _pick_font(font_family: Optional[str], bold: bool, italic: bool) -> str:
         if italic:
             return "Courier-Oblique"
         return "Courier"
+    # Inter (explicit) OR any other font (including default / Helvetica mentions) —
+    # always prefer Inter when registered because Inter covers the full Unicode / Vietnamese
+    # character set, while ReportLab's built-in Helvetica is limited to Latin-1.
+    if _REGISTERED_FONTS:
+        if bold and "Inter-Bold" in _REGISTERED_FONTS:
+            return "Inter-Bold"
+        if italic and "Inter-Italic" in _REGISTERED_FONTS:
+            return "Inter-Italic"
+        if "Inter-Regular" in _REGISTERED_FONTS:
+            return "Inter-Regular"
+    # Hard fallback — only reached when Inter is not registered at all
     if bold and italic:
         return "Helvetica-BoldOblique"
     if bold:
@@ -445,9 +465,13 @@ def _render_pages(pages: List[Dict[str, Any]], hf: Dict[str, Any], conference_na
             show_page_num = bool(hf.get("showPageNum"))
             start_from = int(hf.get("startFrom") or 1)
 
+            # Pick Unicode-capable fonts (Inter when registered, Helvetica as last resort)
+            font_regular = "Inter-Regular" if "Inter-Regular" in _REGISTERED_FONTS else "Helvetica"
+            font_bold = "Inter-Bold" if "Inter-Bold" in _REGISTERED_FONTS else "Helvetica-Bold"
+
             if header_text:
                 c.setFillColorRGB(*_parse_color("#1a3a6b"))
-                c.setFont("Helvetica-Bold", 8)
+                c.setFont(font_bold, 8)
                 c.drawCentredString(A4_WIDTH / 2, A4_HEIGHT - 14, header_text)
 
             left = 42
@@ -456,18 +480,18 @@ def _render_pages(pages: List[Dict[str, Any]], hf: Dict[str, Any], conference_na
             if conference_name:
                 name_len = len(conference_name)
                 name_size = 6.5 if name_len > 80 else 7 if name_len > 55 else 8
-                c.setFont("Helvetica", name_size)
+                c.setFont(font_regular, name_size)
                 c.setFillColorRGB(*_parse_color("#1a3a6b"))
                 c.drawString(left, footer_base + 16, conference_name)
             c.setLineWidth(0.75)
             c.setStrokeColorRGB(*_parse_color("#1a3a6b"))
             c.line(left, footer_base + 12, right, footer_base + 12)
 
-            c.setFont("Helvetica", 8)
+            c.setFont(font_regular, 8)
             c.setFillColorRGB(*_parse_color("#1a3a6b"))
             c.drawString(left, footer_base, footer_text or " ")
             if show_page_num:
-                c.setFont("Helvetica-Bold", 10)
+                c.setFont(font_bold, 10)
                 c.drawRightString(right, footer_base, str(start_from + (pi - 2)))
 
         c.showPage()
@@ -763,17 +787,20 @@ async def render_proceedings_pdf(conf_id: int, payload: Dict[str, Any] = Body(..
         if cache_key and use_cache:
             if not re.fullmatch(r"[a-f0-9]{32,64}", cache_key):
                 raise HTTPException(status_code=400, detail="Invalid cache key")
-            blob_path = f"proceedings/{conf_id}/cache/{cache_key}.pdf"
+            # Include _RENDER_VERSION in the path so old PDFs rendered with
+            # previous font/layout code are never reused after a server upgrade.
+            blob_path = f"proceedings/{conf_id}/cache/{_RENDER_VERSION}/{cache_key}.pdf"
+            mem_key = blob_path  # path already contains version
 
             # Check in-process cache first (avoids GCS round-trip ~150-300ms)
-            if blob_path in _GCS_URL_CACHE:
-                return {"url": _GCS_URL_CACHE[blob_path], "key": cache_key, "cached": True}
+            if mem_key in _GCS_URL_CACHE:
+                return {"url": _GCS_URL_CACHE[mem_key], "key": cache_key, "cached": True}
 
             bucket = storage_client.bucket(BUCKET_NAME)
             blob = bucket.blob(blob_path)
             if blob.exists():
                 url = blob.public_url
-                _GCS_URL_CACHE[blob_path] = url
+                _GCS_URL_CACHE[mem_key] = url
                 return {"url": url, "key": cache_key, "cached": True}
 
         # Run CPU-bound PDF rendering in thread pool so we don't block the event loop
@@ -788,7 +815,8 @@ async def render_proceedings_pdf(conf_id: int, payload: Dict[str, Any] = Body(..
                     file_path = os.path.join(temp_dir, f"{cache_key}.pdf")
                     with open(file_path, "wb") as f:
                         f.write(pdf_bytes)
-                    gcs_path = f"proceedings/{conf_id}/cache/{cache_key}.pdf"
+                    # blob_path already includes _RENDER_VERSION (set above)
+                    gcs_path = blob_path
                     public_url = storage_service.upload_generic_file(
                         local_file_path=file_path,
                         gcs_destination_path=gcs_path,
@@ -797,7 +825,7 @@ async def render_proceedings_pdf(conf_id: int, payload: Dict[str, Any] = Body(..
                         # Store in process cache
                         if len(_GCS_URL_CACHE) >= _GCS_CACHE_MAX:
                             _GCS_URL_CACHE.pop(next(iter(_GCS_URL_CACHE)))
-                        _GCS_URL_CACHE[gcs_path] = public_url
+                        _GCS_URL_CACHE[mem_key] = public_url
                         return {"url": public_url, "key": cache_key, "cached": False}
                     else:
                         logger.warning(f"GCS upload returned None for key={cache_key}; falling back to streaming")
