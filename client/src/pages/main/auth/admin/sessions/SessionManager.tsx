@@ -761,11 +761,44 @@ const SessionManagerPage = ({
       }
     }
 
+    // Fetch all existing sessions from DB to check for conflicts against sessions NOT currently being edited
+    const { data: allDbSessions } = await supabase
+      .from("sessions")
+      .select("session_id, session_name, start_time, end_time, session_papers(paper_id, start_time, end_time)")
+      .eq("conf_id", conferenceIdNum);
+
+    const dbPaperTimeEntries: PaperTimeEntry[] = [];
+    if (allDbSessions) {
+      const editingDbIds = sessions.map(s => s.db_id).filter(Boolean);
+      for (const dbS of allDbSessions) {
+        if (editingDbIds.includes(dbS.session_id)) continue;
+        if (!dbS.start_time || !dbS.end_time) continue;
+        
+        const sessionStart = dayjs(dbS.start_time);
+        const parseTime = (t: string) =>
+          t.includes("T")
+            ? dayjs(t)
+            : dayjs(`${sessionStart.format("YYYY-MM-DD")}T${t.length === 5 ? t + ":00" : t}`);
+            
+        for (const p of dbS.session_papers || []) {
+          if (!p.start_time || !p.end_time) continue;
+          dbPaperTimeEntries.push({
+            paper_id: p.paper_id,
+            sessionName: dbS.session_name,
+            sessionTempId: `db_${dbS.session_id}`,
+            start: parseTime(p.start_time),
+            end: parseTime(p.end_time),
+          });
+        }
+      }
+    }
+
+    const allPaperTimeEntries = [...paperTimeEntries, ...dbPaperTimeEntries];
     const newAuthorWarnings: string[] = [];
 
-    if (paperTimeEntries.length > 0) {
+    if (allPaperTimeEntries.length > 0) {
       // Get primary_author_id for all involved papers
-      const involvedPaperIds = [...new Set(paperTimeEntries.map((e) => e.paper_id))];
+      const involvedPaperIds = [...new Set(allPaperTimeEntries.map((e) => e.paper_id))];
       const { data: papersData } = await supabase
         .from("papers")
         .select("paper_id, primary_author_id")
@@ -791,12 +824,12 @@ const SessionManagerPage = ({
         authorPaperMap.set(row.user_id, list);
       }
 
-      // For each author that has more than one paper with a time, check cross-session overlap
+      // For each author that has more than one presentation with a time, check cross-session overlap
       for (const [, paperIds] of authorPaperMap.entries()) {
-        if (paperIds.length < 2) continue;
-        const authorEntries = paperTimeEntries.filter((e) =>
+        const authorEntries = allPaperTimeEntries.filter((e) =>
           paperIds.includes(e.paper_id),
         );
+        if (authorEntries.length < 2) continue;
         // Check every pair
         for (let i = 0; i < authorEntries.length; i++) {
           for (let j = i + 1; j < authorEntries.length; j++) {
