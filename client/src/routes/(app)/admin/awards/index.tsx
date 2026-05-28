@@ -3,7 +3,4 @@ import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/(app)/admin/awards/")({
   component: AdminManageAwardsPage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    conferenceId: Number(search.conferenceId ?? 0),
-  }),
 });
