@@ -15,7 +15,6 @@ import { Route as RegisterConfirmRouteImport } from "./routes/register-confirm"
 import { Route as RegisterRouteImport } from "./routes/register"
 import { Route as LoginRouteImport } from "./routes/login"
 import { Route as FaqRouteImport } from "./routes/faq"
-import { Route as AiAssistantRouteImport } from "./routes/ai-assistant"
 import { Route as R403RouteImport } from "./routes/403"
 import { Route as appRouteRouteImport } from "./routes/(app)/route"
 import { Route as IndexRouteImport } from "./routes/index"
@@ -35,7 +34,6 @@ import { Route as appChairInvitationsIndexRouteImport } from "./routes/(app)/cha
 import { Route as appAdminIndexRouteImport } from "./routes/(app)/admin/index"
 import { Route as appSubscriptionsMeRouteImport } from "./routes/(app)/subscriptions.me"
 import { Route as appSessionsChairInvitationsRouteImport } from "./routes/(app)/sessions/chair-invitations"
-import { Route as appSessionsAssignRouteImport } from "./routes/(app)/sessions.assign"
 import { Route as appPapersSubmitRouteImport } from "./routes/(app)/papers.submit"
 import { Route as appNotificationsCreateRouteImport } from "./routes/(app)/notifications.create"
 import { Route as appConferencesCreateRouteImport } from "./routes/(app)/conferences.create"
@@ -49,7 +47,6 @@ import { Route as appConferencesConferenceIdImportPapersRouteImport } from "./ro
 import { Route as appAdminAwardsTemplatesRouteImport } from "./routes/(app)/admin/awards/templates"
 import { Route as appConferencesConferenceIdSessionsRouteRouteImport } from "./routes/(app)/conferences.$conferenceId.sessions/route"
 import { Route as appConferencesConferenceIdSessionsIndexRouteImport } from "./routes/(app)/conferences.$conferenceId.sessions/index"
-import { Route as ConferencesConferenceIdPapersPaperIdQaRouteImport } from "./routes/conferences_.$conferenceId.papers.$paperId.qa"
 import { Route as appConferencesConferenceIdSessionsSessionIdIndexRouteImport } from "./routes/(app)/conferences.$conferenceId.sessions/$sessionId/index"
 import { Route as appConferencesConferenceIdSessionsSessionIdChairsRouteImport } from "./routes/(app)/conferences.$conferenceId.sessions/$sessionId/chairs"
 
@@ -81,11 +78,6 @@ const LoginRoute = LoginRouteImport.update({
 const FaqRoute = FaqRouteImport.update({
   id: "/faq",
   path: "/faq",
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AiAssistantRoute = AiAssistantRouteImport.update({
-  id: "/ai-assistant",
-  path: "/ai-assistant",
   getParentRoute: () => rootRouteImport,
 } as any)
 const R403Route = R403RouteImport.update({
@@ -184,11 +176,6 @@ const appSessionsChairInvitationsRoute =
     path: "/chair-invitations",
     getParentRoute: () => appSessionsRouteRoute,
   } as any)
-const appSessionsAssignRoute = appSessionsAssignRouteImport.update({
-  id: "/assign",
-  path: "/assign",
-  getParentRoute: () => appSessionsRouteRoute,
-} as any)
 const appPapersSubmitRoute = appPapersSubmitRouteImport.update({
   id: "/papers/submit",
   path: "/papers/submit",
@@ -258,12 +245,6 @@ const appConferencesConferenceIdSessionsIndexRoute =
     path: "/",
     getParentRoute: () => appConferencesConferenceIdSessionsRouteRoute,
   } as any)
-const ConferencesConferenceIdPapersPaperIdQaRoute =
-  ConferencesConferenceIdPapersPaperIdQaRouteImport.update({
-    id: "/conferences_/$conferenceId/papers/$paperId/qa",
-    path: "/conferences/$conferenceId/papers/$paperId/qa",
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const appConferencesConferenceIdSessionsSessionIdIndexRoute =
   appConferencesConferenceIdSessionsSessionIdIndexRouteImport.update({
     id: "/$sessionId/",
@@ -280,7 +261,6 @@ const appConferencesConferenceIdSessionsSessionIdChairsRoute =
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute
   "/403": typeof R403Route
-  "/ai-assistant": typeof AiAssistantRoute
   "/faq": typeof FaqRoute
   "/login": typeof LoginRoute
   "/register": typeof RegisterRoute
@@ -304,7 +284,6 @@ export interface FileRoutesByFullPath {
   "/conferences/create": typeof appConferencesCreateRoute
   "/notifications/create": typeof appNotificationsCreateRoute
   "/papers/submit": typeof appPapersSubmitRoute
-  "/sessions/assign": typeof appSessionsAssignRoute
   "/sessions/chair-invitations": typeof appSessionsChairInvitationsRoute
   "/subscriptions/me": typeof appSubscriptionsMeRoute
   "/admin/": typeof appAdminIndexRoute
@@ -316,7 +295,6 @@ export interface FileRoutesByFullPath {
   "/papers/me/$paperId": typeof appPapersMePaperIdRoute
   "/admin/awards/": typeof appAdminAwardsIndexRoute
   "/papers/me/": typeof appPapersMeIndexRoute
-  "/conferences/$conferenceId/papers/$paperId/qa": typeof ConferencesConferenceIdPapersPaperIdQaRoute
   "/conferences/$conferenceId/sessions/": typeof appConferencesConferenceIdSessionsIndexRoute
   "/conferences/$conferenceId/sessions/$sessionId/chairs": typeof appConferencesConferenceIdSessionsSessionIdChairsRoute
   "/conferences/$conferenceId/sessions/$sessionId/": typeof appConferencesConferenceIdSessionsSessionIdIndexRoute
@@ -324,7 +302,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   "/": typeof IndexRoute
   "/403": typeof R403Route
-  "/ai-assistant": typeof AiAssistantRoute
   "/faq": typeof FaqRoute
   "/login": typeof LoginRoute
   "/register": typeof RegisterRoute
@@ -346,7 +323,6 @@ export interface FileRoutesByTo {
   "/conferences/create": typeof appConferencesCreateRoute
   "/notifications/create": typeof appNotificationsCreateRoute
   "/papers/submit": typeof appPapersSubmitRoute
-  "/sessions/assign": typeof appSessionsAssignRoute
   "/sessions/chair-invitations": typeof appSessionsChairInvitationsRoute
   "/subscriptions/me": typeof appSubscriptionsMeRoute
   "/admin": typeof appAdminIndexRoute
@@ -357,7 +333,6 @@ export interface FileRoutesByTo {
   "/papers/me/$paperId": typeof appPapersMePaperIdRoute
   "/admin/awards": typeof appAdminAwardsIndexRoute
   "/papers/me": typeof appPapersMeIndexRoute
-  "/conferences/$conferenceId/papers/$paperId/qa": typeof ConferencesConferenceIdPapersPaperIdQaRoute
   "/conferences/$conferenceId/sessions": typeof appConferencesConferenceIdSessionsIndexRoute
   "/conferences/$conferenceId/sessions/$sessionId/chairs": typeof appConferencesConferenceIdSessionsSessionIdChairsRoute
   "/conferences/$conferenceId/sessions/$sessionId": typeof appConferencesConferenceIdSessionsSessionIdIndexRoute
@@ -367,7 +342,6 @@ export interface FileRoutesById {
   "/": typeof IndexRoute
   "/(app)": typeof appRouteRouteWithChildren
   "/403": typeof R403Route
-  "/ai-assistant": typeof AiAssistantRoute
   "/faq": typeof FaqRoute
   "/login": typeof LoginRoute
   "/register": typeof RegisterRoute
@@ -391,7 +365,6 @@ export interface FileRoutesById {
   "/(app)/conferences/create": typeof appConferencesCreateRoute
   "/(app)/notifications/create": typeof appNotificationsCreateRoute
   "/(app)/papers/submit": typeof appPapersSubmitRoute
-  "/(app)/sessions/assign": typeof appSessionsAssignRoute
   "/(app)/sessions/chair-invitations": typeof appSessionsChairInvitationsRoute
   "/(app)/subscriptions/me": typeof appSubscriptionsMeRoute
   "/(app)/admin/": typeof appAdminIndexRoute
@@ -403,7 +376,6 @@ export interface FileRoutesById {
   "/(app)/papers/me/$paperId": typeof appPapersMePaperIdRoute
   "/(app)/admin/awards/": typeof appAdminAwardsIndexRoute
   "/(app)/papers/me/": typeof appPapersMeIndexRoute
-  "/conferences_/$conferenceId/papers/$paperId/qa": typeof ConferencesConferenceIdPapersPaperIdQaRoute
   "/(app)/conferences/$conferenceId/sessions/": typeof appConferencesConferenceIdSessionsIndexRoute
   "/(app)/conferences/$conferenceId/sessions/$sessionId/chairs": typeof appConferencesConferenceIdSessionsSessionIdChairsRoute
   "/(app)/conferences/$conferenceId/sessions/$sessionId/": typeof appConferencesConferenceIdSessionsSessionIdIndexRoute
@@ -413,7 +385,6 @@ export interface FileRouteTypes {
   fullPaths:
     | "/"
     | "/403"
-    | "/ai-assistant"
     | "/faq"
     | "/login"
     | "/register"
@@ -437,7 +408,6 @@ export interface FileRouteTypes {
     | "/conferences/create"
     | "/notifications/create"
     | "/papers/submit"
-    | "/sessions/assign"
     | "/sessions/chair-invitations"
     | "/subscriptions/me"
     | "/admin/"
@@ -449,7 +419,6 @@ export interface FileRouteTypes {
     | "/papers/me/$paperId"
     | "/admin/awards/"
     | "/papers/me/"
-    | "/conferences/$conferenceId/papers/$paperId/qa"
     | "/conferences/$conferenceId/sessions/"
     | "/conferences/$conferenceId/sessions/$sessionId/chairs"
     | "/conferences/$conferenceId/sessions/$sessionId/"
@@ -457,7 +426,6 @@ export interface FileRouteTypes {
   to:
     | "/"
     | "/403"
-    | "/ai-assistant"
     | "/faq"
     | "/login"
     | "/register"
@@ -479,7 +447,6 @@ export interface FileRouteTypes {
     | "/conferences/create"
     | "/notifications/create"
     | "/papers/submit"
-    | "/sessions/assign"
     | "/sessions/chair-invitations"
     | "/subscriptions/me"
     | "/admin"
@@ -490,7 +457,6 @@ export interface FileRouteTypes {
     | "/papers/me/$paperId"
     | "/admin/awards"
     | "/papers/me"
-    | "/conferences/$conferenceId/papers/$paperId/qa"
     | "/conferences/$conferenceId/sessions"
     | "/conferences/$conferenceId/sessions/$sessionId/chairs"
     | "/conferences/$conferenceId/sessions/$sessionId"
@@ -499,7 +465,6 @@ export interface FileRouteTypes {
     | "/"
     | "/(app)"
     | "/403"
-    | "/ai-assistant"
     | "/faq"
     | "/login"
     | "/register"
@@ -523,7 +488,6 @@ export interface FileRouteTypes {
     | "/(app)/conferences/create"
     | "/(app)/notifications/create"
     | "/(app)/papers/submit"
-    | "/(app)/sessions/assign"
     | "/(app)/sessions/chair-invitations"
     | "/(app)/subscriptions/me"
     | "/(app)/admin/"
@@ -535,7 +499,6 @@ export interface FileRouteTypes {
     | "/(app)/papers/me/$paperId"
     | "/(app)/admin/awards/"
     | "/(app)/papers/me/"
-    | "/conferences_/$conferenceId/papers/$paperId/qa"
     | "/(app)/conferences/$conferenceId/sessions/"
     | "/(app)/conferences/$conferenceId/sessions/$sessionId/chairs"
     | "/(app)/conferences/$conferenceId/sessions/$sessionId/"
@@ -545,7 +508,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   appRouteRoute: typeof appRouteRouteWithChildren
   R403Route: typeof R403Route
-  AiAssistantRoute: typeof AiAssistantRoute
   FaqRoute: typeof FaqRoute
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
@@ -556,7 +518,6 @@ export interface RootRouteChildren {
   PapersPaperIdRoute: typeof PapersPaperIdRoute
   ConferencesIndexRoute: typeof ConferencesIndexRoute
   PapersIndexRoute: typeof PapersIndexRoute
-  ConferencesConferenceIdPapersPaperIdQaRoute: typeof ConferencesConferenceIdPapersPaperIdQaRoute
 }
 
 declare module "@tanstack/react-router" {
@@ -601,13 +562,6 @@ declare module "@tanstack/react-router" {
       path: "/faq"
       fullPath: "/faq"
       preLoaderRoute: typeof FaqRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    "/ai-assistant": {
-      id: "/ai-assistant"
-      path: "/ai-assistant"
-      fullPath: "/ai-assistant"
-      preLoaderRoute: typeof AiAssistantRouteImport
       parentRoute: typeof rootRouteImport
     }
     "/403": {
@@ -743,13 +697,6 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof appSessionsChairInvitationsRouteImport
       parentRoute: typeof appSessionsRouteRoute
     }
-    "/(app)/sessions/assign": {
-      id: "/(app)/sessions/assign"
-      path: "/assign"
-      fullPath: "/sessions/assign"
-      preLoaderRoute: typeof appSessionsAssignRouteImport
-      parentRoute: typeof appSessionsRouteRoute
-    }
     "/(app)/papers/submit": {
       id: "/(app)/papers/submit"
       path: "/papers/submit"
@@ -841,13 +788,6 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof appConferencesConferenceIdSessionsIndexRouteImport
       parentRoute: typeof appConferencesConferenceIdSessionsRouteRoute
     }
-    "/conferences_/$conferenceId/papers/$paperId/qa": {
-      id: "/conferences_/$conferenceId/papers/$paperId/qa"
-      path: "/conferences/$conferenceId/papers/$paperId/qa"
-      fullPath: "/conferences/$conferenceId/papers/$paperId/qa"
-      preLoaderRoute: typeof ConferencesConferenceIdPapersPaperIdQaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     "/(app)/conferences/$conferenceId/sessions/$sessionId/": {
       id: "/(app)/conferences/$conferenceId/sessions/$sessionId/"
       path: "/$sessionId"
@@ -884,13 +824,11 @@ const appAdminRouteRouteWithChildren = appAdminRouteRoute._addFileChildren(
 )
 
 interface appSessionsRouteRouteChildren {
-  appSessionsAssignRoute: typeof appSessionsAssignRoute
   appSessionsChairInvitationsRoute: typeof appSessionsChairInvitationsRoute
   appSessionsIndexRoute: typeof appSessionsIndexRoute
 }
 
 const appSessionsRouteRouteChildren: appSessionsRouteRouteChildren = {
-  appSessionsAssignRoute: appSessionsAssignRoute,
   appSessionsChairInvitationsRoute: appSessionsChairInvitationsRoute,
   appSessionsIndexRoute: appSessionsIndexRoute,
 }
@@ -971,7 +909,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   appRouteRoute: appRouteRouteWithChildren,
   R403Route: R403Route,
-  AiAssistantRoute: AiAssistantRoute,
   FaqRoute: FaqRoute,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
@@ -982,8 +919,6 @@ const rootRouteChildren: RootRouteChildren = {
   PapersPaperIdRoute: PapersPaperIdRoute,
   ConferencesIndexRoute: ConferencesIndexRoute,
   PapersIndexRoute: PapersIndexRoute,
-  ConferencesConferenceIdPapersPaperIdQaRoute:
-    ConferencesConferenceIdPapersPaperIdQaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
