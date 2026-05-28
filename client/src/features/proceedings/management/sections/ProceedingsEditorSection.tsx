@@ -457,20 +457,6 @@ export const ProceedingsEditorSection = ({
                                             />
                                             Show
                                           </label>
-                                          <select
-                                            value={hf.pageNumPos}
-                                            onChange={(e) =>
-                                              setHF((h) => ({
-                                                ...h,
-                                                pageNumPos: e.target.value as any,
-                                              }))
-                                            }
-                                            className="text-xs border border-indigo-200 rounded px-1.5 py-1 bg-white outline-none"
-                                          >
-                                            <option value="left">Left</option>
-                                            <option value="center">Center</option>
-                                            <option value="right">Right</option>
-                                          </select>
                                           <span className="text-xs text-slate-500">
                                             Start:
                                           </span>
