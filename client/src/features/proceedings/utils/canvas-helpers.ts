@@ -58,8 +58,9 @@ export const urlToBase64 = async (url: string): Promise<string> => {
   if (url.startsWith("data:")) return url;
 
   try {
+    const apiBase = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8080").replace(/\/$/, "");
     const resp = await fetch(
-      `http://localhost:8080/proxy-image?url=${encodeURIComponent(url)}`,
+      `${apiBase}/proxy-image?url=${encodeURIComponent(url)}`,
     );
     if (resp.ok) {
       const json = await resp.json();

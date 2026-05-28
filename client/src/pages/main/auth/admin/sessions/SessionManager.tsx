@@ -523,8 +523,9 @@ const SessionManagerPage = ({
     }
 
     try {
+      const apiBase = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8080").replace(/\/$/, "");
       const authUrlRes = await fetch(
-        `http://localhost:8080/sessions/google-auth-url?email=${encodeURIComponent(currentUserEmail)}`,
+        `${apiBase}/sessions/google-auth-url?email=${encodeURIComponent(currentUserEmail)}`,
       );
       const authUrlData = await authUrlRes.json();
 

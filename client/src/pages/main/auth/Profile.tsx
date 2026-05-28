@@ -290,8 +290,9 @@ const ProfilePage: React.FC = () => {
     setConnectingGoogle(true);
     setError("");
     try {
+      const apiBase = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8080").replace(/\/$/, "");
       const response = await fetch(
-        `http://localhost:8080/sessions/google-auth-url?email=${encodeURIComponent(profile.email)}`,
+        `${apiBase}/sessions/google-auth-url?email=${encodeURIComponent(profile.email)}`,
       );
       const data = await response.json();
       if (!response.ok) {
@@ -326,8 +327,9 @@ const ProfilePage: React.FC = () => {
     setError("");
     setDisconnectingGoogle(true);
     try {
+      const apiBase = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8080").replace(/\/$/, "");
       const response = await fetch(
-        `http://localhost:8080/sessions/google-disconnect?email=${encodeURIComponent(profile.email)}`,
+        `${apiBase}/sessions/google-disconnect?email=${encodeURIComponent(profile.email)}`,
         { method: "DELETE" }
       );
       if (!response.ok) {
