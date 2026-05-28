@@ -5,6 +5,7 @@ import contextvars
 
 from packages.utils import Logger, supabase_client
 from assistances.tool_response import ToolResponse
+import os
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -15,7 +16,7 @@ logger = Logger()
 user_id_var = contextvars.ContextVar("user_id", default=None)
 tab_id_var = contextvars.ContextVar("tab_id", default=None)
 
-BASE_URL = "http://localhost:8080/trigger-action"
+BASE_URL = f"{os.environ.get("SUPABASE_URL")}/trigger-action"
 
 
 def make_query(sql_query: str) -> str:
