@@ -15,7 +15,6 @@ import { Route as RegisterConfirmRouteImport } from "./routes/register-confirm"
 import { Route as RegisterRouteImport } from "./routes/register"
 import { Route as LoginRouteImport } from "./routes/login"
 import { Route as FaqRouteImport } from "./routes/faq"
-import { Route as AiAssistantRouteImport } from "./routes/ai-assistant"
 import { Route as R403RouteImport } from "./routes/403"
 import { Route as appRouteRouteImport } from "./routes/(app)/route"
 import { Route as IndexRouteImport } from "./routes/index"
@@ -79,11 +78,6 @@ const LoginRoute = LoginRouteImport.update({
 const FaqRoute = FaqRouteImport.update({
   id: "/faq",
   path: "/faq",
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AiAssistantRoute = AiAssistantRouteImport.update({
-  id: "/ai-assistant",
-  path: "/ai-assistant",
   getParentRoute: () => rootRouteImport,
 } as any)
 const R403Route = R403RouteImport.update({
@@ -267,7 +261,6 @@ const appConferencesConferenceIdSessionsSessionIdChairsRoute =
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute
   "/403": typeof R403Route
-  "/ai-assistant": typeof AiAssistantRoute
   "/faq": typeof FaqRoute
   "/login": typeof LoginRoute
   "/register": typeof RegisterRoute
@@ -309,7 +302,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   "/": typeof IndexRoute
   "/403": typeof R403Route
-  "/ai-assistant": typeof AiAssistantRoute
   "/faq": typeof FaqRoute
   "/login": typeof LoginRoute
   "/register": typeof RegisterRoute
@@ -350,7 +342,6 @@ export interface FileRoutesById {
   "/": typeof IndexRoute
   "/(app)": typeof appRouteRouteWithChildren
   "/403": typeof R403Route
-  "/ai-assistant": typeof AiAssistantRoute
   "/faq": typeof FaqRoute
   "/login": typeof LoginRoute
   "/register": typeof RegisterRoute
@@ -394,7 +385,6 @@ export interface FileRouteTypes {
   fullPaths:
     | "/"
     | "/403"
-    | "/ai-assistant"
     | "/faq"
     | "/login"
     | "/register"
@@ -436,7 +426,6 @@ export interface FileRouteTypes {
   to:
     | "/"
     | "/403"
-    | "/ai-assistant"
     | "/faq"
     | "/login"
     | "/register"
@@ -476,7 +465,6 @@ export interface FileRouteTypes {
     | "/"
     | "/(app)"
     | "/403"
-    | "/ai-assistant"
     | "/faq"
     | "/login"
     | "/register"
@@ -520,7 +508,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   appRouteRoute: typeof appRouteRouteWithChildren
   R403Route: typeof R403Route
-  AiAssistantRoute: typeof AiAssistantRoute
   FaqRoute: typeof FaqRoute
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
@@ -575,13 +562,6 @@ declare module "@tanstack/react-router" {
       path: "/faq"
       fullPath: "/faq"
       preLoaderRoute: typeof FaqRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    "/ai-assistant": {
-      id: "/ai-assistant"
-      path: "/ai-assistant"
-      fullPath: "/ai-assistant"
-      preLoaderRoute: typeof AiAssistantRouteImport
       parentRoute: typeof rootRouteImport
     }
     "/403": {
@@ -929,7 +909,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   appRouteRoute: appRouteRouteWithChildren,
   R403Route: R403Route,
-  AiAssistantRoute: AiAssistantRoute,
   FaqRoute: FaqRoute,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
