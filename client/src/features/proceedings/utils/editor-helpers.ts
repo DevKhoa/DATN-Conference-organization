@@ -2,6 +2,7 @@ import type { EditorEl, EditorPage } from "../types";
 import { CANVAS_W, CANVAS_H, THUMB_W, THUMB_H } from "../types";
 import { solidColorImg } from "./canvas-helpers";
 import { renderTableToCanvas } from "@/components/ui/table-editor";
+import { generateUUID } from "@/features/proceedings/utils/uuid";
 
 // ─── Format abstract text — normalize line-breaks and ligatures ───────────────
 export const formatAbstract = (text?: string): string => {
@@ -124,11 +125,22 @@ export const stripPagesForCache = (pages: EditorPage[]) =>
 
 // ─── Hash payload for cache key ───────────────────────────────────────────────
 export const hashPayload = async (payload: any): Promise<string> => {
-  const data = new TextEncoder().encode(JSON.stringify(payload));
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  const str = JSON.stringify(payload);
+  if (typeof crypto !== "undefined" && crypto.subtle && crypto.subtle.digest) {
+    const data = new TextEncoder().encode(str);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  }
+  
+  // Fallback fast string hash (djb2) for insecure contexts where crypto.subtle is not available
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 33) ^ str.charCodeAt(i);
+  }
+  // Backend requires [a-f0-9]{32,64}, so pad the 8-char hex string to 32 chars
+  return (hash >>> 0).toString(16).padStart(32, "0");
 };
 
 // ─── Build editor pages directly from procData (overflow-aware) ───────────────
@@ -149,7 +161,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
   const nzTxt = () => ++txtZ;
 
   const flushPage = (bgColor?: string) => {
-    allPages.push({ id: crypto.randomUUID(), bg: "", bgColor, els: [...els] });
+    allPages.push({ id: generateUUID(), bg: "", bgColor, els: [...els] });
     els = [];
     curY = MT;
     imgZ = 10;
@@ -216,7 +228,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
       const chunkH = Math.ceil(chunk.length * lineH) + Math.round(2 * scY);
 
       const el: EditorEl = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         type: "text",
         x,
         y: curY,
@@ -246,7 +258,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
     opts: Partial<EditorEl> = {},
   ): EditorEl => {
     const el: EditorEl = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: "text",
       x,
       y: curY,
@@ -271,7 +283,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
   const addRect = (color: string, x: number, w: number, h: number): number => {
     const savedY = curY;
     els.push({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: "image",
       x,
       y: savedY,
@@ -292,7 +304,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
     h: number,
   ) => {
     els.push({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: "image",
       x,
       y,
@@ -305,7 +317,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
 
   const addImg = (src: string, x: number, w: number, h: number) => {
     els.push({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: "image",
       x,
       y: curY,
@@ -326,7 +338,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
     opts: Partial<EditorEl> = {},
   ): EditorEl => {
     const el: EditorEl = {
-      id: opts.id ?? crypto.randomUUID(),
+      id: opts.id ?? generateUUID(),
       type: "text",
       x,
       y,
@@ -372,7 +384,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
     const addC = (el: EditorEl) => coverEls.push(el);
 
     addC({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: "text",
       x: ML,
       y,
@@ -388,7 +400,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
     });
     y += Math.round(20 * scY);
     addC({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: "image",
       x: Math.round((CANVAS_W - 60 * scX) / 2),
       y,
@@ -408,7 +420,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
     );
     const titleH = Math.round(38 * scY);
     addC({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: "text",
       x: ML,
       y,
@@ -432,7 +444,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
         1.4,
       );
       addC({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         type: "text",
         x: ML,
         y,
@@ -460,7 +472,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
         ),
       );
       addC({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         type: "text",
         x: ML,
         y,
@@ -481,7 +493,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
     );
     if (selectedLogos.length > 0) {
       addC({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         type: "text",
         x: ML,
         y,
@@ -509,7 +521,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
 
         row.forEach((logo: any) => {
           addC({
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             type: "image",
             x: lx,
             y,
@@ -524,7 +536,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
       }
     }
     allPages.push({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       bg: solidColorImg("#1a3a6b", THUMB_W, THUMB_H),
       bgColor: "#1a3a6b",
       els: coverEls,
@@ -533,7 +545,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
 
   // ── TOC placeholder (filled by regenerateToc) ─────────────────────────────
   allPages.push({
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     bg: "",
     bgColor: "#ffffff",
     els: [],
@@ -725,7 +737,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
         ),
       );
       hr.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         text: dayLabel,
         align: "left",
         colSpan: 1,
@@ -742,7 +754,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
         fontFamily: "Inter",
       });
       hr.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         text: dateLabel,
         align: "right",
         colSpan: 2,
@@ -759,7 +771,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
         fontFamily: "Inter",
       });
       hr.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         text: "",
         align: "right",
         colSpan: 1,
@@ -776,7 +788,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
 
           if (si === 0) {
             r.push({
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               text: group.time,
               align: "left",
               colSpan: 1,
@@ -793,7 +805,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
             });
           } else {
             r.push({
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               text: "",
               align: "left",
               colSpan: 1,
@@ -803,7 +815,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
           }
 
           r.push({
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             text: s.topic || "",
             align: "left",
             colSpan: 1,
@@ -818,7 +830,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
             fontFamily: "Inter",
           });
           r.push({
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             text: s.location || "",
             align: "right",
             colSpan: 1,
@@ -855,7 +867,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
 
       const tH = rHeights.reduce((s, h) => s + h, 0);
       els.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         type: "table",
         x: ML,
         y: curY,
@@ -880,7 +892,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
       const photoH = Math.round(150 * scY);
 
       els.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         type: "text",
         x: ML,
         y: curY,
@@ -897,7 +909,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
         const barH = Math.round(25 * scY);
         addRectFlat("#2a4365", ML, curY, CW, barH);
         els.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           type: "text",
           x: ML + pad,
           y: curY + Math.round(6 * scY),
@@ -945,7 +957,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
 
       if (k.photo) {
         els.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           type: "image",
           x: ML,
           y: blockStartY,
@@ -964,7 +976,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
       if (k.timeSlot || k.location) {
         const timeLoc = [k.timeSlot, k.location].filter(Boolean).join(" | ");
         els.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           type: "text",
           x: infoX,
           y: infoY,
@@ -982,7 +994,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
 
       if (k.keynoteLabel) {
         els.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           type: "text",
           x: infoX,
           y: infoY,
@@ -1000,7 +1012,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
 
       const titleHk = titleH_measured;
       els.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         type: "text",
         x: infoX,
         y: infoY,
@@ -1017,7 +1029,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
 
       const sName = k.name || "Unknown Speaker";
       els.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         type: "text",
         x: infoX,
         y: infoY,
@@ -1034,7 +1046,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
 
       if (k.affiliation) {
         els.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           type: "text",
           x: infoX,
           y: infoY,
@@ -1205,7 +1217,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
         });
         curY += tH + Math.round(6 * scY);
 
-        const abElId = crypto.randomUUID();
+        const abElId = generateUUID();
         if (abText) {
           addTAt(abText, pML + timeW, curY, pCW - timeW, abH, {
             id: abElId,
@@ -1217,7 +1229,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
         }
 
         els.push({
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           type: "bar",
           x: ML,
           y: barStartY,
@@ -1269,7 +1281,7 @@ export const regenerateToc = (pages: EditorPage[]): EditorPage[] => {
   const vertX = cx - Math.round(vertW / 2);
   const vertY = cy - Math.round(vertH / 2);
   tocEls.push({
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     type: "text",
     x: vertX,
     y: vertY,
@@ -1288,7 +1300,7 @@ export const regenerateToc = (pages: EditorPage[]): EditorPage[] => {
 
   const titleH = Math.round(32 * scY);
   tocEls.push({
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     type: "text",
     x: ML,
     y: MT,
@@ -1310,7 +1322,7 @@ export const regenerateToc = (pages: EditorPage[]): EditorPage[] => {
   entries.forEach((entry) => {
     const rowH = Math.round(35 * scY);
     tocEls.push({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: "text",
       x: entryML,
       y,
@@ -1335,7 +1347,7 @@ export const regenerateToc = (pages: EditorPage[]): EditorPage[] => {
       ),
     );
     tocEls.push({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: "text",
       x: entryML + numW + Math.round(10 * scX),
       y: y + Math.round(6 * scY),

@@ -31,7 +31,7 @@ export const checkChairScheduleConflict = async (
 ): Promise<ChairConflictCheckResult> => {
   return request.get<ChairConflictCheckResult>(
     `/sessions/${sessionId}/chair-conflict-check`,
-    { email },
+    { params: { email } },
   );
 };
 

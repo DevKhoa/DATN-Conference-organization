@@ -49,7 +49,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     const expireAt = Date.now() + 5 * 60 * 1000; // 5 minutes from now
     setExpiryTime(expireAt);
 
-    const BASE_URL = "http://localhost:8080";
+    const BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8080").replace(/\/$/, "");
     const url = `${BASE_URL}/send-email`;
 
     const payload = {

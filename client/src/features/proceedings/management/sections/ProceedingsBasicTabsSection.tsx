@@ -1,3 +1,4 @@
+import { generateUUID } from "@/features/proceedings/utils/uuid";
 import React from "react";
 import {
   AlertCircle,
@@ -260,14 +261,16 @@ export const ProceedingsBasicTabsSection = ({
                 className="border border-slate-200 rounded-xl overflow-hidden"
               >
                 {/* Role header */}
-                <button
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() =>
                     setCommitteeCollapsed((prev) => ({
                       ...prev,
                       [role]: !prev[role],
                     }))
                   }
-                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
                     <UserCheck className="w-4 h-4 text-indigo-500 shrink-0" />
@@ -285,7 +288,7 @@ export const ProceedingsBasicTabsSection = ({
                         updateCommittee([
                           ...procData.committee,
                           {
-                            id: crypto.randomUUID(),
+                            id: generateUUID(),
                             role,
                             name: "",
                             affiliation: "",
@@ -307,7 +310,7 @@ export const ProceedingsBasicTabsSection = ({
                       <ChevronUp className="w-4 h-4 text-slate-400" />
                     )}
                   </div>
-                </button>
+                </div>
 
                 {/* Members list */}
                 {!isCollapsed && (
@@ -401,7 +404,7 @@ export const ProceedingsBasicTabsSection = ({
                     : committeeActiveRole;
                 updateCommittee([
                   ...procData.committee,
-                  { id: crypto.randomUUID(), role, name: "", affiliation: "" },
+                  { id: generateUUID(), role, name: "", affiliation: "" },
                 ]);
                 setCommitteeCollapsed((prev) => ({ ...prev, [role]: false }));
                 if (committeeActiveRole === "All") setCommitteeActiveRole(role);

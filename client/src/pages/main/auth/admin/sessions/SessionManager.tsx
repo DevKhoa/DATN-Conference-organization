@@ -523,8 +523,9 @@ const SessionManagerPage = ({
     }
 
     try {
+      const apiBase = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8080").replace(/\/$/, "");
       const authUrlRes = await fetch(
-        `http://localhost:8080/sessions/google-auth-url?email=${encodeURIComponent(currentUserEmail)}`,
+        `${apiBase}/sessions/google-auth-url?email=${encodeURIComponent(currentUserEmail)}`,
       );
       const authUrlData = await authUrlRes.json();
 
@@ -760,14 +761,52 @@ const SessionManagerPage = ({
       }
     }
 
+    // Fetch all existing sessions from DB to check for conflicts against sessions NOT currently being edited
+    const { data: allDbSessions } = await supabase
+      .from("sessions")
+      .select("session_id, session_name, start_time, end_time, session_papers(paper_id, start_time, end_time)")
+      .eq("conf_id", conferenceIdNum);
+
+    const dbPaperTimeEntries: PaperTimeEntry[] = [];
+    if (allDbSessions) {
+      const editingDbIds = sessions.map(s => s.db_id).filter(Boolean);
+      for (const dbS of allDbSessions) {
+        if (editingDbIds.includes(dbS.session_id)) continue;
+        if (!dbS.start_time || !dbS.end_time) continue;
+        
+        const sessionStart = dayjs(dbS.start_time);
+        const parseTime = (t: string) =>
+          t.includes("T")
+            ? dayjs(t)
+            : dayjs(`${sessionStart.format("YYYY-MM-DD")}T${t.length === 5 ? t + ":00" : t}`);
+            
+        for (const p of dbS.session_papers || []) {
+          if (!p.start_time || !p.end_time) continue;
+          dbPaperTimeEntries.push({
+            paper_id: p.paper_id,
+            sessionName: dbS.session_name,
+            sessionTempId: `db_${dbS.session_id}`,
+            start: parseTime(p.start_time),
+            end: parseTime(p.end_time),
+          });
+        }
+      }
+    }
+
+    const allPaperTimeEntries = [...paperTimeEntries, ...dbPaperTimeEntries];
     const newAuthorWarnings: string[] = [];
 
-    if (paperTimeEntries.length > 0) {
+    if (allPaperTimeEntries.length > 0) {
       // Get primary_author_id for all involved papers
-      const involvedPaperIds = [...new Set(paperTimeEntries.map((e) => e.paper_id))];
+      const involvedPaperIds = [...new Set(allPaperTimeEntries.map((e) => e.paper_id))];
       const { data: papersData } = await supabase
         .from("papers")
         .select("paper_id, primary_author_id")
+        .in("paper_id", involvedPaperIds);
+
+      const { data: coauthorsData } = await supabase
+        .from("paper_coauthors")
+        .select("paper_id, user_id")
         .in("paper_id", involvedPaperIds);
 
       // Build map: author → list of paper_ids they authored (among involved papers)
@@ -775,16 +814,22 @@ const SessionManagerPage = ({
       for (const row of papersData || []) {
         if (!row.primary_author_id) continue;
         const list = authorPaperMap.get(row.primary_author_id) ?? [];
-        list.push(row.paper_id);
+        if (!list.includes(row.paper_id)) list.push(row.paper_id);
         authorPaperMap.set(row.primary_author_id, list);
       }
+      for (const row of coauthorsData || []) {
+        if (!row.user_id) continue;
+        const list = authorPaperMap.get(row.user_id) ?? [];
+        if (!list.includes(row.paper_id)) list.push(row.paper_id);
+        authorPaperMap.set(row.user_id, list);
+      }
 
-      // For each author that has more than one paper with a time, check cross-session overlap
+      // For each author that has more than one presentation with a time, check cross-session overlap
       for (const [, paperIds] of authorPaperMap.entries()) {
-        if (paperIds.length < 2) continue;
-        const authorEntries = paperTimeEntries.filter((e) =>
+        const authorEntries = allPaperTimeEntries.filter((e) =>
           paperIds.includes(e.paper_id),
         );
+        if (authorEntries.length < 2) continue;
         // Check every pair
         for (let i = 0; i < authorEntries.length; i++) {
           for (let j = i + 1; j < authorEntries.length; j++) {
@@ -804,9 +849,65 @@ const SessionManagerPage = ({
       }
     }
 
+    // ── Chair schedule conflict check ──
+    const dbSessionIds = sessions.map((s) => s.db_id).filter(Boolean) as number[];
+    if (dbSessionIds.length > 0) {
+      const { data: chairsData } = await supabase
+        .from("session_chairs")
+        .select("user_id, session_id, profile:profiles(full_name)")
+        .in("session_id", dbSessionIds);
+
+      if (chairsData && chairsData.length > 0) {
+        const chairTimeEntries: { userId: number; userName: string; sessionId: number; sessionName: string; tempId: string; start: dayjs.Dayjs; end: dayjs.Dayjs }[] = [];
+        for (const row of chairsData) {
+          const s = sessions.find((sess) => sess.db_id === row.session_id);
+          if (!s || !s.start_time || !s.end_time) continue;
+          const start = dayjs(formatToLocal(s.start_time));
+          const end = dayjs(formatToLocal(s.end_time));
+          const userName = Array.isArray(row.profile) ? row.profile[0]?.full_name : (row.profile as any)?.full_name || "Unknown Chair";
+
+          chairTimeEntries.push({
+            userId: row.user_id,
+            userName,
+            sessionId: row.session_id,
+            sessionName: s.session_name,
+            tempId: s.temp_id,
+            start,
+            end,
+          });
+        }
+
+        const chairGroups = new Map<number, typeof chairTimeEntries>();
+        chairTimeEntries.forEach((e) => {
+          const list = chairGroups.get(e.userId) || [];
+          list.push(e);
+          chairGroups.set(e.userId, list);
+        });
+
+        for (const [, entries] of chairGroups.entries()) {
+          if (entries.length < 2) continue;
+          for (let i = 0; i < entries.length; i++) {
+            for (let j = i + 1; j < entries.length; j++) {
+              const a = entries[i];
+              const b = entries[j];
+              if (a.tempId === b.tempId) continue;
+              if (a.start.isBefore(b.end) && b.start.isBefore(a.end)) {
+                newAuthorWarnings.push(`Chair conflict: ${a.userName} is assigned to "${a.sessionName}" (${a.start.format("HH:mm")}–${a.end.format("HH:mm")}) and "${b.sessionName}" (${b.start.format("HH:mm")}–${b.end.format("HH:mm")}) which overlap.`);
+              }
+            }
+          }
+        }
+      }
+    }
+
     // Pass all validations
+    if (newAuthorWarnings.length > 0) {
+      // Block save if there are any author conflicts
+      setError(newAuthorWarnings.join("\n"));
+      return;
+    }
     setError("");
-    setAuthorConflictWarnings(newAuthorWarnings);
+    setAuthorConflictWarnings([]);
 
     const updateMeetSessionIds: number[] = [];
     const manualMeetWarningSessionNames: string[] = [];

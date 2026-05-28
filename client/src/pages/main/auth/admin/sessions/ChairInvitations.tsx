@@ -183,10 +183,18 @@ const ChairInvitationsPage = () => {
       setSelectedChair(null);
       toast.success("Invitation sent successfully.");
     } catch (error: any) {
-      const message =
-        error?.response?.data?.detail ||
-        error?.message ||
-        "Failed to send invitation.";
+      let message = "Failed to send invitation.";
+      if (error?.response?.data?.detail) {
+        if (typeof error.response.data.detail === "string") {
+          message = error.response.data.detail;
+        } else if (Array.isArray(error.response.data.detail)) {
+          message = error.response.data.detail.map((d: any) => d.msg || "Validation Error").join(", ");
+        } else {
+          message = JSON.stringify(error.response.data.detail);
+        }
+      } else if (error?.message) {
+        message = error.message;
+      }
       toast.error(message);
     }
   };
