@@ -118,6 +118,10 @@ class ChairInvitationCreateRequest(BaseModel):
         None,
         description="Optional profile user_id of the person creating the invitation",
     )
+    client_url: Optional[str] = Field(
+        None,
+        description="The base URL of the client to generate the invite link. If not provided, CLIENT_URL env var is used.",
+    )
 
 
 class ChairInvitationDecisionRequest(BaseModel):
