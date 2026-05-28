@@ -771,13 +771,24 @@ const SessionManagerPage = ({
         .select("paper_id, primary_author_id")
         .in("paper_id", involvedPaperIds);
 
+      const { data: coauthorsData } = await supabase
+        .from("paper_coauthors")
+        .select("paper_id, user_id")
+        .in("paper_id", involvedPaperIds);
+
       // Build map: author → list of paper_ids they authored (among involved papers)
       const authorPaperMap = new Map<number, number[]>();
       for (const row of papersData || []) {
         if (!row.primary_author_id) continue;
         const list = authorPaperMap.get(row.primary_author_id) ?? [];
-        list.push(row.paper_id);
+        if (!list.includes(row.paper_id)) list.push(row.paper_id);
         authorPaperMap.set(row.primary_author_id, list);
+      }
+      for (const row of coauthorsData || []) {
+        if (!row.user_id) continue;
+        const list = authorPaperMap.get(row.user_id) ?? [];
+        if (!list.includes(row.paper_id)) list.push(row.paper_id);
+        authorPaperMap.set(row.user_id, list);
       }
 
       // For each author that has more than one paper with a time, check cross-session overlap
@@ -805,9 +816,65 @@ const SessionManagerPage = ({
       }
     }
 
+    // ── Chair schedule conflict check ──
+    const dbSessionIds = sessions.map((s) => s.db_id).filter(Boolean) as number[];
+    if (dbSessionIds.length > 0) {
+      const { data: chairsData } = await supabase
+        .from("session_chairs")
+        .select("user_id, session_id, profile:profiles(full_name)")
+        .in("session_id", dbSessionIds);
+
+      if (chairsData && chairsData.length > 0) {
+        const chairTimeEntries: { userId: number; userName: string; sessionId: number; sessionName: string; tempId: string; start: dayjs.Dayjs; end: dayjs.Dayjs }[] = [];
+        for (const row of chairsData) {
+          const s = sessions.find((sess) => sess.db_id === row.session_id);
+          if (!s || !s.start_time || !s.end_time) continue;
+          const start = dayjs(formatToLocal(s.start_time));
+          const end = dayjs(formatToLocal(s.end_time));
+          const userName = Array.isArray(row.profile) ? row.profile[0]?.full_name : (row.profile as any)?.full_name || "Unknown Chair";
+
+          chairTimeEntries.push({
+            userId: row.user_id,
+            userName,
+            sessionId: row.session_id,
+            sessionName: s.session_name,
+            tempId: s.temp_id,
+            start,
+            end,
+          });
+        }
+
+        const chairGroups = new Map<number, typeof chairTimeEntries>();
+        chairTimeEntries.forEach((e) => {
+          const list = chairGroups.get(e.userId) || [];
+          list.push(e);
+          chairGroups.set(e.userId, list);
+        });
+
+        for (const [, entries] of chairGroups.entries()) {
+          if (entries.length < 2) continue;
+          for (let i = 0; i < entries.length; i++) {
+            for (let j = i + 1; j < entries.length; j++) {
+              const a = entries[i];
+              const b = entries[j];
+              if (a.tempId === b.tempId) continue;
+              if (a.start.isBefore(b.end) && b.start.isBefore(a.end)) {
+                newAuthorWarnings.push(`Chair conflict: ${a.userName} is assigned to "${a.sessionName}" (${a.start.format("HH:mm")}–${a.end.format("HH:mm")}) and "${b.sessionName}" (${b.start.format("HH:mm")}–${b.end.format("HH:mm")}) which overlap.`);
+              }
+            }
+          }
+        }
+      }
+    }
+
     // Pass all validations
+    if (newAuthorWarnings.length > 0) {
+      // Block save if there are any author conflicts
+      setError(newAuthorWarnings.join("\n"));
+      return;
+    }
     setError("");
-    setAuthorConflictWarnings(newAuthorWarnings);
+    setAuthorConflictWarnings([]);
 
     const updateMeetSessionIds: number[] = [];
     const manualMeetWarningSessionNames: string[] = [];
