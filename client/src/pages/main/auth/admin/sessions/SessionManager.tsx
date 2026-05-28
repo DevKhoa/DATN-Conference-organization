@@ -57,7 +57,8 @@ import { formatToLocal } from "@/utils/time";
 
 const isOnlineMeetingLink = (url: string): boolean => {
   if (!url) return true;
-  const pattern = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)*(meet\.google\.com|zoom\.us|zoom\.com|zoom\.com\.cn|teams\.microsoft\.com|teams\.live\.com|webex\.com|skype\.com|meet\.jit\.si|discord\.gg|discord\.com)\b/i;
+  const pattern =
+    /^(https?:\/\/)?([a-zA-Z0-9-]+\.)*(meet\.google\.com|zoom\.us|zoom\.com|zoom\.com\.cn|teams\.microsoft\.com|teams\.live\.com|webex\.com|skype\.com|meet\.jit\.si|discord\.gg|discord\.com)\b/i;
   return pattern.test(url.trim());
 };
 
@@ -99,7 +100,9 @@ const SessionManagerPage = ({
 
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
-  const [authorConflictWarnings, setAuthorConflictWarnings] = useState<string[]>([]);
+  const [authorConflictWarnings, setAuthorConflictWarnings] = useState<
+    string[]
+  >([]);
 
   // Create Meet Logic
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -134,6 +137,8 @@ const SessionManagerPage = ({
   const [sessionToDelete, setSessionToDelete] = useState<LocalSession | null>(
     null,
   );
+
+  const BASE_API_URL = import.meta.env.VITE_API_BASE_URL as string;
 
   // Fetch existing sessions if editing
   React.useEffect(() => {
@@ -392,7 +397,9 @@ const SessionManagerPage = ({
       return;
     }
     if (!session.start_time || !session.end_time) {
-      setError("Please set the start and end times before creating a Meet link.");
+      setError(
+        "Please set the start and end times before creating a Meet link.",
+      );
       return;
     }
     const localStart = new Date(formatToLocal(session.start_time));
@@ -417,7 +424,7 @@ const SessionManagerPage = ({
         .select("google_refresh_token")
         .eq("email", currentUserEmail)
         .single();
-      
+
       if (!profile || !profile.google_refresh_token) {
         setShowAuthModal(true);
         setGeneratingMeetId(null);
@@ -438,7 +445,9 @@ const SessionManagerPage = ({
       const detail = err.response?.data?.detail || "";
       if (
         (err.response?.status === 400 || err.response?.status === 500) &&
-        (detail.includes("linked") || detail.includes("refresh token") || detail.includes("liên kết"))
+        (detail.includes("linked") ||
+          detail.includes("refresh token") ||
+          detail.includes("liên kết"))
       ) {
         setShowAuthModal(true);
       } else {
@@ -524,7 +533,7 @@ const SessionManagerPage = ({
 
     try {
       const authUrlRes = await fetch(
-        `http://localhost:8080/sessions/google-auth-url?email=${encodeURIComponent(currentUserEmail)}`,
+        `${BASE_API_URL}/sessions/google-auth-url?email=${encodeURIComponent(currentUserEmail)}`,
       );
       const authUrlData = await authUrlRes.json();
 
@@ -587,7 +596,6 @@ const SessionManagerPage = ({
     }
     // 1. STRICT VALIDATION: Missing fields, Time Format, Start > End, Conference Boundary, Paper Time Overlaps
     for (const s of sessions) {
-
       if (
         !s.session_name ||
         !s.start_time ||
@@ -664,15 +672,20 @@ const SessionManagerPage = ({
       for (const other of sessions) {
         if (s.temp_id === other.temp_id) continue;
         if (!other.start_time || !other.end_time) continue;
-        
+
         if (s.room_location === other.room_location) {
           const otherStart = dayjs(formatToLocal(other.start_time));
           const otherEnd = dayjs(formatToLocal(other.end_time));
-          
+
           if (sessionStart.isSame(otherStart, "day")) {
             // Overlap condition: S1.start < S2.end && S2.start < S1.end
-            if (sessionStart.isBefore(otherEnd) && otherStart.isBefore(sessionEnd)) {
-              setError(`Session "${s.session_name}" overlaps with session "${other.session_name}" in the same room on the same day.`);
+            if (
+              sessionStart.isBefore(otherEnd) &&
+              otherStart.isBefore(sessionEnd)
+            ) {
+              setError(
+                `Session "${s.session_name}" overlaps with session "${other.session_name}" in the same room on the same day.`,
+              );
               return;
             }
           }
@@ -683,7 +696,9 @@ const SessionManagerPage = ({
       const parseTime = (t: string) =>
         t.includes("T")
           ? dayjs(t)
-          : dayjs(`${sessionStart.format("YYYY-MM-DD")}T${t.length === 5 ? t + ":00" : t}`);
+          : dayjs(
+              `${sessionStart.format("YYYY-MM-DD")}T${t.length === 5 ? t + ":00" : t}`,
+            );
 
       for (let i = 0; i < s.assigned_papers.length; i++) {
         const p1 = s.assigned_papers[i];
@@ -712,13 +727,13 @@ const SessionManagerPage = ({
         if (i > 0) {
           const prevPaper = s.assigned_papers[i - 1];
           if (prevPaper.end_time) {
-             const prevEnd = parseTime(prevPaper.end_time);
-             if (p1Start.isBefore(prevEnd)) {
-                setError(
-                  `In session "${s.session_name}", Paper #${i + 1} must start after or exactly when Paper #${i} ends.`,
-                );
-                return;
-             }
+            const prevEnd = parseTime(prevPaper.end_time);
+            if (p1Start.isBefore(prevEnd)) {
+              setError(
+                `In session "${s.session_name}", Paper #${i + 1} must start after or exactly when Paper #${i} ends.`,
+              );
+              return;
+            }
           }
         }
       }
@@ -764,7 +779,9 @@ const SessionManagerPage = ({
 
     if (paperTimeEntries.length > 0) {
       // Get primary_author_id for all involved papers
-      const involvedPaperIds = [...new Set(paperTimeEntries.map((e) => e.paper_id))];
+      const involvedPaperIds = [
+        ...new Set(paperTimeEntries.map((e) => e.paper_id)),
+      ];
       const { data: papersData } = await supabase
         .from("papers")
         .select("paper_id, primary_author_id")
@@ -793,8 +810,10 @@ const SessionManagerPage = ({
             if (a.sessionTempId === b.sessionTempId) continue; // same session, already handled above
             // Overlap: a.start < b.end AND b.start < a.end
             if (a.start.isBefore(b.end) && b.start.isBefore(a.end)) {
-              const titleA = paperTitleMap.get(a.paper_id) ?? `Paper #${a.paper_id}`;
-              const titleB = paperTitleMap.get(b.paper_id) ?? `Paper #${b.paper_id}`;
+              const titleA =
+                paperTitleMap.get(a.paper_id) ?? `Paper #${a.paper_id}`;
+              const titleB =
+                paperTitleMap.get(b.paper_id) ?? `Paper #${b.paper_id}`;
               newAuthorWarnings.push(
                 `Author conflict: "${titleA}" (${a.sessionName}, ${a.start.format("HH:mm")}–${a.end.format("HH:mm")}) overlaps with "${titleB}" (${b.sessionName}, ${b.start.format("HH:mm")}–${b.end.format("HH:mm")}).`,
               );
@@ -813,7 +832,9 @@ const SessionManagerPage = ({
     let hasTimeChangedAny = false;
     for (const s of sessions) {
       if (s.db_id) {
-        const originalSession = existingSessions.find((es) => es.db_id === s.db_id);
+        const originalSession = existingSessions.find(
+          (es) => es.db_id === s.db_id,
+        );
         if (originalSession) {
           const originalStart = formatToLocal(originalSession.start_time);
           const originalEnd = formatToLocal(originalSession.end_time);
@@ -825,7 +846,11 @@ const SessionManagerPage = ({
 
           if (hasTimeChanged) {
             hasTimeChangedAny = true;
-            if (s.format_type === "virtual" && s.meet_link && originalSession.meet_link) {
+            if (
+              s.format_type === "virtual" &&
+              s.meet_link &&
+              originalSession.meet_link
+            ) {
               if (originalSession.google_event_id) {
                 updateMeetSessionIds.push(s.db_id);
               } else {
@@ -885,7 +910,14 @@ const SessionManagerPage = ({
           meetLink = newlyUpdatedMeetLinks[newDbId] || s.meet_link;
           googleEventId = newlyUpdatedEventIds[newDbId] || s.google_event_id;
         }
-        return saved ? { ...s, db_id: saved.db_id, meet_link: meetLink, google_event_id: googleEventId } : { ...s, meet_link: meetLink, google_event_id: googleEventId };
+        return saved
+          ? {
+              ...s,
+              db_id: saved.db_id,
+              meet_link: meetLink,
+              google_event_id: googleEventId,
+            }
+          : { ...s, meet_link: meetLink, google_event_id: googleEventId };
       });
 
       setSessions(updatedSessions);
@@ -897,7 +929,8 @@ const SessionManagerPage = ({
         successMessage += ` Note: Manually update Meet link(s) for "${manualMeetWarningSessionNames.join('", "')}" due to time changes.`;
       }
       if (hasTimeChangedAny) {
-        successMessage += " Remember to notify participants of schedule changes.";
+        successMessage +=
+          " Remember to notify participants of schedule changes.";
       }
       setSuccessMsg(successMessage);
     } catch (err: any) {
@@ -968,12 +1001,13 @@ const SessionManagerPage = ({
                   </h1>
                   {conferenceData?.conference?.format_type && (
                     <span
-                      className={`px-2 py-0.5 mt-1 rounded-md text-[10px] font-bold uppercase tracking-wider border shadow-sm ${conferenceData.conference.format_type === "virtual"
-                        ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                        : conferenceData.conference.format_type === "hybrid"
-                          ? "bg-amber-50 text-amber-700 border-amber-200"
-                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        }`}
+                      className={`px-2 py-0.5 mt-1 rounded-md text-[10px] font-bold uppercase tracking-wider border shadow-sm ${
+                        conferenceData.conference.format_type === "virtual"
+                          ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                          : conferenceData.conference.format_type === "hybrid"
+                            ? "bg-amber-50 text-amber-700 border-amber-200"
+                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      }`}
                     >
                       {conferenceData.conference.format_type === "virtual"
                         ? "Virtual"
@@ -1030,10 +1064,13 @@ const SessionManagerPage = ({
                 <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
                 <div className="min-w-0">
                   <p className="font-semibold text-amber-800">
-                    Author schedule conflict{authorConflictWarnings.length > 1 ? "s" : ""} detected
+                    Author schedule conflict
+                    {authorConflictWarnings.length > 1 ? "s" : ""} detected
                   </p>
                   <p className="mt-1 text-sm text-amber-700">
-                    Sessions were saved, but the following presentations may create scheduling conflicts for the same author. Consider adjusting the presentation times.
+                    Sessions were saved, but the following presentations may
+                    create scheduling conflicts for the same author. Consider
+                    adjusting the presentation times.
                   </p>
                   <ul className="mt-2 space-y-1">
                     {authorConflictWarnings.map((warning, idx) => (
@@ -1049,7 +1086,6 @@ const SessionManagerPage = ({
               </div>
             </div>
           )}
-
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* LEFT COLUMN: Tools & Papers */}
@@ -1198,10 +1234,11 @@ const SessionManagerPage = ({
                           draggable={!isAssigned}
                           onDragStart={(e) => handleDragStart(e, p.paper_id)}
                           onDragEnd={handleDragEnd}
-                          className={`p-4 rounded-xl border transition-all ${isAssigned
-                            ? "bg-slate-50 border-transparent opacity-50"
-                            : "bg-white border-slate-200 shadow-sm cursor-grab hover:shadow-md hover:border-indigo-300 active:cursor-grabbing"
-                            } ${draggedPaperId === p.paper_id ? "opacity-50 scale-95" : ""}`}
+                          className={`p-4 rounded-xl border transition-all ${
+                            isAssigned
+                              ? "bg-slate-50 border-transparent opacity-50"
+                              : "bg-white border-slate-200 shadow-sm cursor-grab hover:shadow-md hover:border-indigo-300 active:cursor-grabbing"
+                          } ${draggedPaperId === p.paper_id ? "opacity-50 scale-95" : ""}`}
                         >
                           <div className="flex items-start gap-2">
                             {!isAssigned && (
@@ -1260,10 +1297,11 @@ const SessionManagerPage = ({
                     <div
                       key={session.temp_id}
                       id={`session-card-${session.temp_id}`}
-                      className={`bg-white rounded-2xl shadow-sm border transition-all hover:shadow-md ${dragOverSessionId === session.temp_id
-                        ? "border-indigo-400 ring-4 ring-indigo-50 scale-[1.01]"
-                        : "border-slate-200"
-                        }`}
+                      className={`bg-white rounded-2xl shadow-sm border transition-all hover:shadow-md ${
+                        dragOverSessionId === session.temp_id
+                          ? "border-indigo-400 ring-4 ring-indigo-50 scale-[1.01]"
+                          : "border-slate-200"
+                      }`}
                       onDragOver={(e) => handleDragOver(e, session.temp_id)}
                       onDragLeave={(e) => handleDragLeave(e, session.temp_id)}
                       onDrop={(e) => handleDrop(e, session.temp_id)}
@@ -1280,7 +1318,7 @@ const SessionManagerPage = ({
 
                               {/* Format Selection / Info */}
                               {conferenceData?.conference?.format_type ===
-                                "hybrid" ? (
+                              "hybrid" ? (
                                 <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
                                   <button
                                     onClick={(e) => {
@@ -1291,10 +1329,11 @@ const SessionManagerPage = ({
                                         "in-person",
                                       );
                                     }}
-                                    className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${session.format_type === "in-person"
-                                      ? "bg-white text-emerald-700 shadow-sm"
-                                      : "text-slate-500 hover:text-slate-700"
-                                      }`}
+                                    className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
+                                      session.format_type === "in-person"
+                                        ? "bg-white text-emerald-700 shadow-sm"
+                                        : "text-slate-500 hover:text-slate-700"
+                                    }`}
                                   >
                                     In-person
                                   </button>
@@ -1307,20 +1346,22 @@ const SessionManagerPage = ({
                                         "virtual",
                                       );
                                     }}
-                                    className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${session.format_type === "virtual"
-                                      ? "bg-white text-indigo-700 shadow-sm"
-                                      : "text-slate-500 hover:text-slate-700"
-                                      }`}
+                                    className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${
+                                      session.format_type === "virtual"
+                                        ? "bg-white text-indigo-700 shadow-sm"
+                                        : "text-slate-500 hover:text-slate-700"
+                                    }`}
                                   >
                                     Virtual
                                   </button>
                                 </div>
                               ) : (
                                 <span
-                                  className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${session.format_type === "virtual"
-                                    ? "bg-indigo-50 text-indigo-600"
-                                    : "bg-emerald-50 text-emerald-600"
-                                    }`}
+                                  className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                                    session.format_type === "virtual"
+                                      ? "bg-indigo-50 text-indigo-600"
+                                      : "bg-emerald-50 text-emerald-600"
+                                  }`}
                                 >
                                   {session.format_type === "virtual"
                                     ? "Virtual"
@@ -1410,7 +1451,8 @@ const SessionManagerPage = ({
                                       type="text"
                                       placeholder="https://meet.google.com/..."
                                       className={`w-full pl-9 pr-16 py-2 text-sm bg-white border rounded-xl focus:ring-2 focus:ring-indigo-100 outline-none transition-all ${
-                                        session.meet_link && !isOnlineMeetingLink(session.meet_link)
+                                        session.meet_link &&
+                                        !isOnlineMeetingLink(session.meet_link)
                                           ? "border-red-500 focus:border-red-500 focus:ring-red-100"
                                           : "border-slate-200 focus:border-indigo-500"
                                       }`}
@@ -1455,7 +1497,7 @@ const SessionManagerPage = ({
                                           title="Remove link"
                                         >
                                           {deletingMeetId ===
-                                            session.temp_id ? (
+                                          session.temp_id ? (
                                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                           ) : (
                                             <Trash2 className="w-3.5 h-3.5" />
@@ -1484,19 +1526,26 @@ const SessionManagerPage = ({
                                     </Button>
                                   )}
                                 </div>
-                                {session.meet_link && !isOnlineMeetingLink(session.meet_link) && (
-                                  <p className="text-red-500 text-xs pl-1">
-                                    Only Google Meet, Zoom, MS Teams, Webex, Skype, Jitsi, or Discord links are allowed.
-                                  </p>
-                                )}
+                                {session.meet_link &&
+                                  !isOnlineMeetingLink(session.meet_link) && (
+                                    <p className="text-red-500 text-xs pl-1">
+                                      Only Google Meet, Zoom, MS Teams, Webex,
+                                      Skype, Jitsi, or Discord links are
+                                      allowed.
+                                    </p>
+                                  )}
                               </div>
                               <div className="flex flex-col gap-1.5">
                                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest pl-1">
                                   Archive Video (YouTube / Drive)
                                 </label>
                                 <div className="relative group">
-                                  {session.record_video_url?.includes("youtube.com") ||
-                                  session.record_video_url?.includes("youtu.be") ? (
+                                  {session.record_video_url?.includes(
+                                    "youtube.com",
+                                  ) ||
+                                  session.record_video_url?.includes(
+                                    "youtu.be",
+                                  ) ? (
                                     <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-red-500 transition-colors pointer-events-none" />
                                   ) : (
                                     <Video className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-red-500 transition-colors pointer-events-none" />
@@ -1764,8 +1813,9 @@ const SessionManagerPage = ({
               Connect to Google Calendar
             </h3>
             <p className="text-slate-600 text-sm mb-6">
-              You need to authorize the system to access your Google Calendar to automatically
-              create Meet events. A popup window will open for you to complete the authorization.
+              You need to authorize the system to access your Google Calendar to
+              automatically create Meet events. A popup window will open for you
+              to complete the authorization.
             </p>
             <div className="flex justify-end gap-3">
               <Button

@@ -27,3 +27,4 @@ htmlcov/
 # Local scratch
 temp_storage/
 *.log
+env.yaml

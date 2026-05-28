@@ -4,6 +4,9 @@ import useAuth from "@/features/auth/hooks/useAuth";
 import { RadioTower, Wifi, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 
+const BASE_API_URL = import.meta.env.VITE_API_BASE_URL as string;
+const wsProtocolUrl = BASE_API_URL.replace(/^http/, "ws");
+
 interface WebSocketNavigatorProps {
   isActive: boolean;
   tabId: string;
@@ -26,7 +29,7 @@ export const WebSocketNavigator = ({
       `[WebSocketNavigator] Connecting... UserID: ${userId}, TabID: ${tabId}`,
     );
 
-    const ws = new WebSocket(`ws://localhost:8080/ws/${userId}/${tabId}`);
+    const ws = new WebSocket(`${wsProtocolUrl}/ws/${userId}/${tabId}`);
 
     ws.onopen = () => {
       console.log(`[WebSocketNavigator] Connected! TabID is: ${tabId}`);
@@ -38,19 +41,23 @@ export const WebSocketNavigator = ({
         console.log("[WebSocketNavigator] Received action:", data);
 
         const getPageContextIds = () => {
-          const elements = document.querySelectorAll('button[id], a[id], input[id], form[id], textarea[id], select[id]');
-          return Array.from(elements).map(el => el.id);
+          const elements = document.querySelectorAll(
+            "button[id], a[id], input[id], form[id], textarea[id], select[id]",
+          );
+          return Array.from(elements).map((el) => el.id);
         };
 
         const getCleanedHtml = () => {
           const clone = document.body.cloneNode(true) as HTMLElement;
-          const elementsToRemove = clone.querySelectorAll('script, style, svg, noscript, iframe');
-          elementsToRemove.forEach(el => el.remove());
+          const elementsToRemove = clone.querySelectorAll(
+            "script, style, svg, noscript, iframe",
+          );
+          elementsToRemove.forEach((el) => el.remove());
 
-          const allElements = clone.querySelectorAll('*');
-          allElements.forEach(el => {
-            el.removeAttribute('class');
-            el.removeAttribute('style');
+          const allElements = clone.querySelectorAll("*");
+          allElements.forEach((el) => {
+            el.removeAttribute("class");
+            el.removeAttribute("style");
           });
 
           return clone.outerHTML;
@@ -60,7 +67,7 @@ export const WebSocketNavigator = ({
           status: "success" | "error",
           message: string,
           url: string,
-          html?: string
+          html?: string,
         ) => {
           if (data.action_id && ws.readyState === WebSocket.OPEN) {
             ws.send(
@@ -70,7 +77,7 @@ export const WebSocketNavigator = ({
                 message,
                 url,
                 available_ids: getPageContextIds(),
-                html: html
+                html: html,
               }),
             );
           }
@@ -117,143 +124,274 @@ export const WebSocketNavigator = ({
 
           case "click":
             if (data.target) {
-              console.log("[WebSocketNavigator] Clicking element:", data.target);
-              const elementToClick = document.querySelector(data.target) as HTMLElement;
+              console.log(
+                "[WebSocketNavigator] Clicking element:",
+                data.target,
+              );
+              const elementToClick = document.querySelector(
+                data.target,
+              ) as HTMLElement;
               if (elementToClick) {
                 elementToClick.click();
                 setTimeout(() => {
-                  sendResponse("success", `Clicked on ${data.target}`, window.location.href);
+                  sendResponse(
+                    "success",
+                    `Clicked on ${data.target}`,
+                    window.location.href,
+                  );
                 }, 100);
               } else {
-                sendResponse("error", `Element not found: ${data.target}`, window.location.href);
+                sendResponse(
+                  "error",
+                  `Element not found: ${data.target}`,
+                  window.location.href,
+                );
               }
             } else {
-              sendResponse("error", "No target provided for click", window.location.href);
+              sendResponse(
+                "error",
+                "No target provided for click",
+                window.location.href,
+              );
             }
             break;
 
           case "fill":
             if (data.target && data.value !== undefined) {
-              console.log(`[WebSocketNavigator] Filling element ${data.target} with value:`, data.value);
-              const inputElement = document.querySelector(data.target) as HTMLInputElement | HTMLTextAreaElement;
+              console.log(
+                `[WebSocketNavigator] Filling element ${data.target} with value:`,
+                data.value,
+              );
+              const inputElement = document.querySelector(data.target) as
+                | HTMLInputElement
+                | HTMLTextAreaElement;
               if (inputElement) {
                 try {
-                  const proto = inputElement instanceof HTMLTextAreaElement
-                    ? window.HTMLTextAreaElement.prototype
-                    : window.HTMLInputElement.prototype;
+                  const proto =
+                    inputElement instanceof HTMLTextAreaElement
+                      ? window.HTMLTextAreaElement.prototype
+                      : window.HTMLInputElement.prototype;
 
-                  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+                  const nativeInputValueSetter =
+                    Object.getOwnPropertyDescriptor(proto, "value")?.set;
 
                   if (nativeInputValueSetter) {
                     nativeInputValueSetter.call(inputElement, data.value);
-                    inputElement.dispatchEvent(new Event("input", { bubbles: true }));
+                    inputElement.dispatchEvent(
+                      new Event("input", { bubbles: true }),
+                    );
                     // Dispatch change event to trigger React state updates
-                    inputElement.dispatchEvent(new Event("change", { bubbles: true }));
+                    inputElement.dispatchEvent(
+                      new Event("change", { bubbles: true }),
+                    );
 
                     setTimeout(() => {
-                      sendResponse("success", `Filled ${data.target}`, window.location.href);
+                      sendResponse(
+                        "success",
+                        `Filled ${data.target}`,
+                        window.location.href,
+                      );
                     }, 50);
                   } else {
                     inputElement.value = data.value;
-                    inputElement.dispatchEvent(new Event("input", { bubbles: true }));
-                    sendResponse("success", `Filled ${data.target} via fallback`, window.location.href);
+                    inputElement.dispatchEvent(
+                      new Event("input", { bubbles: true }),
+                    );
+                    sendResponse(
+                      "success",
+                      `Filled ${data.target} via fallback`,
+                      window.location.href,
+                    );
                   }
                 } catch (e: any) {
-                  sendResponse("error", `Error filling element: ${e.message}`, window.location.href);
+                  sendResponse(
+                    "error",
+                    `Error filling element: ${e.message}`,
+                    window.location.href,
+                  );
                 }
               } else {
-                sendResponse("error", `Element not found: ${data.target}`, window.location.href);
+                sendResponse(
+                  "error",
+                  `Element not found: ${data.target}`,
+                  window.location.href,
+                );
               }
             } else {
-              sendResponse("error", "Target or value missing for fill action", window.location.href);
+              sendResponse(
+                "error",
+                "Target or value missing for fill action",
+                window.location.href,
+              );
             }
             break;
 
           case "fill_enter":
             if (data.target && data.value !== undefined) {
-              console.log(`[WebSocketNavigator] Filling element and pressing Enter ${data.target} with value:`, data.value);
-              const inputElement = document.querySelector(data.target) as HTMLInputElement | HTMLTextAreaElement;
+              console.log(
+                `[WebSocketNavigator] Filling element and pressing Enter ${data.target} with value:`,
+                data.value,
+              );
+              const inputElement = document.querySelector(data.target) as
+                | HTMLInputElement
+                | HTMLTextAreaElement;
               if (inputElement) {
                 try {
-                  const proto = inputElement instanceof HTMLTextAreaElement
-                    ? window.HTMLTextAreaElement.prototype
-                    : window.HTMLInputElement.prototype;
+                  const proto =
+                    inputElement instanceof HTMLTextAreaElement
+                      ? window.HTMLTextAreaElement.prototype
+                      : window.HTMLInputElement.prototype;
 
-                  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+                  const nativeInputValueSetter =
+                    Object.getOwnPropertyDescriptor(proto, "value")?.set;
 
                   if (nativeInputValueSetter) {
                     nativeInputValueSetter.call(inputElement, data.value);
-                    inputElement.dispatchEvent(new Event("input", { bubbles: true }));
-                    inputElement.dispatchEvent(new Event("change", { bubbles: true }));
+                    inputElement.dispatchEvent(
+                      new Event("input", { bubbles: true }),
+                    );
+                    inputElement.dispatchEvent(
+                      new Event("change", { bubbles: true }),
+                    );
 
                     // Trigger Enter keydown
-                    inputElement.dispatchEvent(new KeyboardEvent('keydown', {
-                      key: 'Enter',
-                      code: 'Enter',
-                      keyCode: 13,
-                      which: 13,
-                      bubbles: true,
-                      cancelable: true
-                    }));
+                    inputElement.dispatchEvent(
+                      new KeyboardEvent("keydown", {
+                        key: "Enter",
+                        code: "Enter",
+                        keyCode: 13,
+                        which: 13,
+                        bubbles: true,
+                        cancelable: true,
+                      }),
+                    );
 
                     setTimeout(() => {
-                      sendResponse("success", `Filled ${data.target} and pressed Enter`, window.location.href);
+                      sendResponse(
+                        "success",
+                        `Filled ${data.target} and pressed Enter`,
+                        window.location.href,
+                      );
                     }, 50);
                   } else {
                     inputElement.value = data.value;
-                    inputElement.dispatchEvent(new Event("input", { bubbles: true }));
-                    inputElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-                    sendResponse("success", `Filled ${data.target} via fallback and pressed Enter`, window.location.href);
+                    inputElement.dispatchEvent(
+                      new Event("input", { bubbles: true }),
+                    );
+                    inputElement.dispatchEvent(
+                      new KeyboardEvent("keydown", {
+                        key: "Enter",
+                        bubbles: true,
+                      }),
+                    );
+                    sendResponse(
+                      "success",
+                      `Filled ${data.target} via fallback and pressed Enter`,
+                      window.location.href,
+                    );
                   }
                 } catch (e: any) {
-                  sendResponse("error", `Error filling element: ${e.message}`, window.location.href);
+                  sendResponse(
+                    "error",
+                    `Error filling element: ${e.message}`,
+                    window.location.href,
+                  );
                 }
               } else {
-                sendResponse("error", `Element not found: ${data.target}`, window.location.href);
+                sendResponse(
+                  "error",
+                  `Element not found: ${data.target}`,
+                  window.location.href,
+                );
               }
             } else {
-              sendResponse("error", "Target or value missing for fill_enter action", window.location.href);
+              sendResponse(
+                "error",
+                "Target or value missing for fill_enter action",
+                window.location.href,
+              );
             }
             break;
 
           case "fill_datetime":
             if (data.target && data.value !== undefined) {
-              console.log(`[WebSocketNavigator] Filling datetime element ${data.target} with value:`, data.value);
-              const inputElement = document.querySelector(data.target) as HTMLInputElement;
+              console.log(
+                `[WebSocketNavigator] Filling datetime element ${data.target} with value:`,
+                data.value,
+              );
+              const inputElement = document.querySelector(
+                data.target,
+              ) as HTMLInputElement;
               if (inputElement) {
                 try {
                   const proto = window.HTMLInputElement.prototype;
-                  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+                  const nativeInputValueSetter =
+                    Object.getOwnPropertyDescriptor(proto, "value")?.set;
 
                   if (nativeInputValueSetter) {
                     nativeInputValueSetter.call(inputElement, data.value);
-                    inputElement.dispatchEvent(new Event("input", { bubbles: true }));
-                    inputElement.dispatchEvent(new Event("change", { bubbles: true }));
-                    inputElement.dispatchEvent(new Event("blur", { bubbles: true }));
+                    inputElement.dispatchEvent(
+                      new Event("input", { bubbles: true }),
+                    );
+                    inputElement.dispatchEvent(
+                      new Event("change", { bubbles: true }),
+                    );
+                    inputElement.dispatchEvent(
+                      new Event("blur", { bubbles: true }),
+                    );
 
                     setTimeout(() => {
-                      sendResponse("success", `Filled datetime ${data.target}`, window.location.href);
+                      sendResponse(
+                        "success",
+                        `Filled datetime ${data.target}`,
+                        window.location.href,
+                      );
                     }, 50);
                   } else {
                     inputElement.value = data.value;
-                    inputElement.dispatchEvent(new Event("input", { bubbles: true }));
-                    inputElement.dispatchEvent(new Event("change", { bubbles: true }));
-                    sendResponse("success", `Filled datetime ${data.target} via fallback`, window.location.href);
+                    inputElement.dispatchEvent(
+                      new Event("input", { bubbles: true }),
+                    );
+                    inputElement.dispatchEvent(
+                      new Event("change", { bubbles: true }),
+                    );
+                    sendResponse(
+                      "success",
+                      `Filled datetime ${data.target} via fallback`,
+                      window.location.href,
+                    );
                   }
                 } catch (e: any) {
-                  sendResponse("error", `Error filling datetime element: ${e.message}`, window.location.href);
+                  sendResponse(
+                    "error",
+                    `Error filling datetime element: ${e.message}`,
+                    window.location.href,
+                  );
                 }
               } else {
-                sendResponse("error", `Datetime element not found: ${data.target}`, window.location.href);
+                sendResponse(
+                  "error",
+                  `Datetime element not found: ${data.target}`,
+                  window.location.href,
+                );
               }
             } else {
-              sendResponse("error", "Target or value missing for fill_datetime action", window.location.href);
+              sendResponse(
+                "error",
+                "Target or value missing for fill_datetime action",
+                window.location.href,
+              );
             }
             break;
 
           case "get_context":
             console.log("[WebSocketNavigator] Getting page context");
-            sendResponse("success", "Successfully retrieved page context", window.location.href, getCleanedHtml());
+            sendResponse(
+              "success",
+              "Successfully retrieved page context",
+              window.location.href,
+              getCleanedHtml(),
+            );
             break;
 
           default:

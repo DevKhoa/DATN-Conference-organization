@@ -56,6 +56,8 @@ interface UserProfile {
   google_refresh_token: string | null;
 }
 
+const BASE_API_URL = import.meta.env.VITE_API_BASE_URL as string;
+
 const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const { roles } = useAuth();
@@ -291,7 +293,7 @@ const ProfilePage: React.FC = () => {
     setError("");
     try {
       const response = await fetch(
-        `http://localhost:8080/sessions/google-auth-url?email=${encodeURIComponent(profile.email)}`,
+        `${BASE_API_URL}/sessions/google-auth-url?email=${encodeURIComponent(profile.email)}`,
       );
       const data = await response.json();
       if (!response.ok) {
@@ -305,7 +307,11 @@ const ProfilePage: React.FC = () => {
         const height = 700;
         const left = window.screenX + (window.outerWidth - width) / 2;
         const top = window.screenY + (window.outerHeight - height) / 2;
-        window.open(data.auth_url, "GoogleAuthPopup", `width=${width},height=${height},left=${left},top=${top}`);
+        window.open(
+          data.auth_url,
+          "GoogleAuthPopup",
+          `width=${width},height=${height},left=${left},top=${top}`,
+        );
       }
     } catch (e: any) {
       setError(
@@ -327,8 +333,8 @@ const ProfilePage: React.FC = () => {
     setDisconnectingGoogle(true);
     try {
       const response = await fetch(
-        `http://localhost:8080/sessions/google-disconnect?email=${encodeURIComponent(profile.email)}`,
-        { method: "DELETE" }
+        `${BASE_API_URL}/sessions/google-disconnect?email=${encodeURIComponent(profile.email)}`,
+        { method: "DELETE" },
       );
       if (!response.ok) {
         throw new Error("Failed to disconnect Google account.");
@@ -360,11 +366,11 @@ const ProfilePage: React.FC = () => {
   const getInitials = (name: string) => {
     return name
       ? name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .substring(0, 2)
-        .toUpperCase()
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .substring(0, 2)
+          .toUpperCase()
       : "U";
   };
 
@@ -593,10 +599,11 @@ const ProfilePage: React.FC = () => {
                               full_name: e.target.value,
                             })
                           }
-                          className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${basicEditMode
-                            ? "border-input focus:ring-2 focus:ring-ring bg-background"
-                            : "border-input bg-muted text-muted-foreground"
-                            }`}
+                          className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${
+                            basicEditMode
+                              ? "border-input focus:ring-2 focus:ring-ring bg-background"
+                              : "border-input bg-muted text-muted-foreground"
+                          }`}
                         />
                       </div>
                     </div>
@@ -619,10 +626,11 @@ const ProfilePage: React.FC = () => {
                             })
                           }
                           placeholder="University / Institute"
-                          className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${basicEditMode
-                            ? "border-input focus:ring-2 focus:ring-ring bg-background"
-                            : "border-input bg-muted text-muted-foreground"
-                            }`}
+                          className={`w-full pl-10 pr-4 py-2.5 rounded-lg border outline-none transition-all ${
+                            basicEditMode
+                              ? "border-input focus:ring-2 focus:ring-ring bg-background"
+                              : "border-input bg-muted text-muted-foreground"
+                          }`}
                         />
                       </div>
                     </div>
@@ -961,7 +969,10 @@ const ProfilePage: React.FC = () => {
         </div>
       </div>
 
-      <Dialog open={showDisconnectConfirm} onOpenChange={setShowDisconnectConfirm}>
+      <Dialog
+        open={showDisconnectConfirm}
+        onOpenChange={setShowDisconnectConfirm}
+      >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
@@ -969,8 +980,9 @@ const ProfilePage: React.FC = () => {
               Disconnect Google Account
             </DialogTitle>
             <DialogDescription className="py-4">
-              Are you sure you want to disconnect your Google account? 
-              You will no longer be able to automatically generate Google Meet links for your sessions.
+              Are you sure you want to disconnect your Google account? You will
+              no longer be able to automatically generate Google Meet links for
+              your sessions.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
