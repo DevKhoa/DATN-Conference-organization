@@ -36,7 +36,7 @@ const BASE_LINKS: {
     { name: "Papers", href: "/papers" },
     { name: "Conferences", href: "/conferences" },
     { name: "Subscriptions", href: "/subscriptions" },
-    { name: "News", href: "/news" },
+    { name: "Help Center", href: "/faq" },
     { name: "Proceedings", href: "/proceedings" },
   ];
 
