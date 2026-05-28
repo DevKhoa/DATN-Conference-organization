@@ -34,3 +34,22 @@ export interface IDeleteConferenceBannerPayload {
 export interface IDeleteConferenceBannerResponse {
   remaining_banners: string[];
 }
+
+export interface IUpdateConferencePayload {
+  conferenceId: number;
+  conf_name?: string;
+  description?: string;
+  location?: string;
+  start_date?: string;
+  end_date: string;
+  status?: string;
+  is_active?: boolean;
+  open_for_papers?: boolean;
+  format_type?: string;
+  timezone?: string;
+  max_chairs_per_session?: number;
+}
+
+export interface IUpdateConferenceResponse {
+  conf_id: number;
+}

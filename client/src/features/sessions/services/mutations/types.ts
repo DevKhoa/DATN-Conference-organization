@@ -30,6 +30,7 @@ export interface ISaveSessionPayload {
     assigned_papers: SessionPaperDetail[];
     format_type: string;
     meet_link?: string;
+    google_event_id?: string | null;
     record_video_url?: string;
   }>;
 }

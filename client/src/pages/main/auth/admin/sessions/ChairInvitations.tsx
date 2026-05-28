@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import {
+  AlertTriangle,
   ArrowLeft,
   ChevronDown,
   ChevronUp,
@@ -25,6 +26,8 @@ import { Route } from "@/routes/(app)/conferences.$conferenceId.sessions/$sessio
 import {
   fetchSessionChairInvitations,
   useSessionsByConferenceQuery,
+  checkChairScheduleConflict,
+  type ChairConflictSession,
 } from "@/features/sessions/services/queries";
 import { SessionKeys } from "@/features/sessions/services/queries/keys";
 import {
@@ -76,6 +79,11 @@ const ChairInvitationsPage = () => {
   const [loadingReasoningUserId, setLoadingReasoningUserId] = useState<
     number | null
   >(null);
+  const [isCheckingConflict, setIsCheckingConflict] = useState(false);
+  const [conflictInfo, setConflictInfo] = useState<{
+    email: string;
+    sessions: ChairConflictSession[];
+  } | null>(null);
 
   const { data: sessions = [], isLoading: isLoadingSessions } =
     useSessionsByConferenceQuery(Number(conferenceId));
@@ -137,13 +145,42 @@ const ChairInvitationsPage = () => {
       return;
     }
 
+    // Clear any previous conflict warning
+    setConflictInfo(null);
+
     try {
+      // ── Step 1: Check schedule conflict if the session already has a time set ──
+      setIsCheckingConflict(true);
+      let conflictResult;
+      try {
+        conflictResult = await checkChairScheduleConflict(
+          Number(selectedSessionId),
+          inviteEmail.trim(),
+        );
+      } finally {
+        setIsCheckingConflict(false);
+      }
+
+      if (conflictResult.has_conflict && conflictResult.conflicting_sessions.length > 0) {
+        // Found a conflict — show warning and abort invite
+        setConflictInfo({
+          email: inviteEmail.trim(),
+          sessions: conflictResult.conflicting_sessions,
+        });
+        toast.error(
+          `Schedule conflict detected for ${inviteEmail.trim()}. Invitation not sent.`,
+        );
+        return;
+      }
+
+      // ── Step 2: No conflict — proceed with invitation ──
       await createInvitationMutation.mutateAsync({
         sessionId: Number(selectedSessionId),
         email: inviteEmail.trim(),
         invitedBy,
       });
       setInviteEmail("");
+      setSelectedChair(null);
       toast.success("Invitation sent successfully.");
     } catch (error: any) {
       const message =
@@ -313,7 +350,7 @@ const ChairInvitationsPage = () => {
                     if (
                       selectedChair &&
                       e.target.value.trim().toLowerCase() !==
-                        selectedChair.email.trim().toLowerCase()
+                      selectedChair.email.trim().toLowerCase()
                     ) {
                       setSelectedChair(null);
                     }
@@ -323,16 +360,158 @@ const ChairInvitationsPage = () => {
 
                 <Button
                   onClick={handleCreateInvitation}
-                  disabled={createInvitationMutation.isPending}
+                  disabled={createInvitationMutation.isPending || isCheckingConflict}
                 >
-                  {createInvitationMutation.isPending ? (
+                  {createInvitationMutation.isPending || isCheckingConflict ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <MailPlus className="mr-2 h-4 w-4" />
                   )}
-                  Send Invite
+                  {isCheckingConflict ? "Checking..." : "Send Invite"}
                 </Button>
               </div>
+
+              {/* ── Chair schedule conflict warning ── */}
+              {conflictInfo && (
+                <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+                    <div className="min-w-0">
+                      <p className="font-semibold text-destructive">
+                        Schedule conflict — invitation not sent
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        <span className="font-medium">{conflictInfo.email}</span>{" "}
+                        is already assigned as chair for the following session(s) that overlap with this one:
+                      </p>
+                      <ul className="mt-2 space-y-1">
+                        {conflictInfo.sessions.map((cs) => (
+                          <li
+                            key={cs.session_id}
+                            className="rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                          >
+                            <span className="font-medium">{cs.session_name}</span>
+                            {cs.conf_name && (
+                              <span className="ml-1 text-muted-foreground">
+                                ({cs.conf_name})
+                              </span>
+                            )}
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              {new Date(cs.start_time).toLocaleString()} –{" "}
+                              {new Date(cs.end_time).toLocaleTimeString()}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedChair && selectedSessionId && (
+                <div className="rounded-xl border border-border bg-background p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-base font-semibold">
+                          {selectedChair.full_name}
+                        </h3>
+                        <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+                          Manual
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {selectedChair.email}
+                        {selectedChair.organization
+                          ? ` • ${selectedChair.organization}`
+                          : ""}
+                      </p>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleShowReasoning({
+                          user_id: selectedChair.user_id,
+                          full_name: selectedChair.full_name,
+                          email: selectedChair.email,
+                          organization: selectedChair.organization || "",
+                          match_score: 0,
+                        });
+                      }}
+                      disabled={
+                        loadingReasoningUserId === selectedChair.user_id
+                      }
+                    >
+                      {loadingReasoningUserId === selectedChair.user_id ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : expandedReasoningUserId === selectedChair.user_id &&
+                        reasoningByUserId[selectedChair.user_id] ? (
+                        <ChevronUp className="mr-2 h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="mr-2 h-4 w-4" />
+                      )}
+                      Hint
+                    </Button>
+                  </div>
+
+                  {expandedReasoningUserId === selectedChair.user_id &&
+                    reasoningByUserId[selectedChair.user_id] && (
+                      <div className="mt-4 rounded-xl bg-muted/40 p-4">
+                        <p className="text-sm font-semibold">Match review</p>
+                        <div className="mt-3 space-y-3">
+                          {reasoningByUserId[
+                            selectedChair.user_id
+                          ]!.analysis.analyzed_papers.map((paper) => (
+                            <div
+                              key={paper.new_paper_title}
+                              className="rounded-lg border border-border bg-card p-3"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <h4 className="font-medium">
+                                  {paper.new_paper_title}
+                                </h4>
+                                <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+                                  {paper.relevance_score}
+                                </span>
+                              </div>
+                              <p className="mt-2 text-sm text-muted-foreground">
+                                {paper.reasoning}
+                              </p>
+
+                              {paper.related_profile_papers &&
+                                paper.related_profile_papers.length > 0 && (
+                                  <div className="mt-3 space-y-2">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                      Related profile papers
+                                    </p>
+                                    {paper.related_profile_papers.map(
+                                      (item) => (
+                                        <div
+                                          key={`${paper.new_paper_title}-${item.title}`}
+                                          className="rounded-md bg-background p-2"
+                                        >
+                                          <p className="text-sm font-medium">
+                                            {item.title}
+                                          </p>
+                                          <p className="text-sm text-muted-foreground">
+                                            {item.reasoning}
+                                          </p>
+                                        </div>
+                                      ),
+                                    )}
+                                  </div>
+                                )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                </div>
+              )}
             </div>
           </div>
 

@@ -14,4 +14,6 @@ export interface ConferenceDetail extends Conference {
   banner_urls: string[] | null;
   keywords: string[] | null;
   open_for_papers: boolean;
+  timezone?: string | null;
+  max_chairs_per_session?: number | null;
 }

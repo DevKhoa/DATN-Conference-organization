@@ -28,7 +28,7 @@ export const useCreateRegistrationMutation = () => {
         },
       );
 
-      if (!data.checkout_url) {
+      if (!data.checkout_url && data.provider !== "FREE") {
         throw new Error("Failed to create registration.");
       }
 

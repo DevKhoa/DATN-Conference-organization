@@ -214,10 +214,16 @@ const MyPaperDetailPage: React.FC = () => {
         <div className="bg-card border-b border-border sticky top-0 z-30 shadow-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <button
-              onClick={() => navigate({ to: "/papers/me" } as any)}
+              onClick={() => {
+                if (window.history.length > 2) {
+                  window.history.back();
+                } else {
+                  navigate({ to: "/papers/me" } as any);
+                }
+              }}
               className="flex items-center text-sm text-muted-foreground hover:text-primary mb-2 transition-colors"
             >
-              <ArrowLeft className="w-4 h-4 mr-1" /> Back to List
+              <ArrowLeft className="w-4 h-4 mr-1" /> Back
             </button>
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>

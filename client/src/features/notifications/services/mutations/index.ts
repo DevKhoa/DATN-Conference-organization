@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { NotificationsKeys } from "../queries/keys";
 import { supabase } from "@/lib/supabase";
+import { request } from "@/lib/axios";
 
 export const useMarkNotificationAsReadMutation = () => {
   const queryClient = useQueryClient();
@@ -79,7 +80,7 @@ export const resolveNotificationTargetUsers = async ({
           .in("conf_id", confIds);
 
         const sessionIds = (sessionsData || [])
-          .map((session) => session.session_id)
+          .map((session: any) => session.session_id)
           .filter(Boolean);
 
         if (sessionIds.length > 0) {
@@ -91,7 +92,7 @@ export const resolveNotificationTargetUsers = async ({
           paperIds = [
             ...new Set(
               (sessionPapersData || [])
-                .map((sessionPaper) => sessionPaper.paper_id)
+                .map((sessionPaper: any) => sessionPaper.paper_id)
                 .filter(Boolean),
             ),
           ];
@@ -104,7 +105,7 @@ export const resolveNotificationTargetUsers = async ({
         paperIds = [
           ...new Set(
             (sessionPapersData || [])
-              .map((sessionPaper) => sessionPaper.paper_id)
+              .map((sessionPaper: any) => sessionPaper.paper_id)
               .filter(Boolean),
           ),
         ];
@@ -117,8 +118,8 @@ export const resolveNotificationTargetUsers = async ({
           .in("paper_id", paperIds);
 
         const primaryAuthorIds = (authorsData || [])
-          .map((paper) => paper.primary_author_id)
-          .filter(Boolean) as number[];
+          .map((paper: any) => paper.primary_author_id)
+          .filter(Boolean);
 
         const { data: coAuthorsData } = await supabase
           .from("paper_coauthors")
@@ -126,7 +127,7 @@ export const resolveNotificationTargetUsers = async ({
           .in("paper_id", paperIds);
 
         const coAuthorIds = (coAuthorsData || [])
-          .map((coAuthor) => coAuthor.user_id)
+          .map((coAuthor: any) => coAuthor.user_id)
           .filter(Boolean);
 
         userIdSets.push([...primaryAuthorIds, ...coAuthorIds]);
@@ -143,7 +144,7 @@ export const resolveNotificationTargetUsers = async ({
           .in("conf_id", confIds);
 
         const sessionIds = (sessionsData || [])
-          .map((session) => session.session_id)
+          .map((session: any) => session.session_id)
           .filter(Boolean);
 
         if (sessionIds.length > 0) {
@@ -153,7 +154,7 @@ export const resolveNotificationTargetUsers = async ({
             .in("session_id", sessionIds);
 
           chairIds = (chairData || [])
-            .map((sessionChair) => sessionChair.user_id)
+            .map((sessionChair: any) => sessionChair.user_id)
             .filter(Boolean);
         }
       } else {
@@ -162,7 +163,7 @@ export const resolveNotificationTargetUsers = async ({
           .select("user_id");
 
         chairIds = (chairData || [])
-          .map((sessionChair) => sessionChair.user_id)
+          .map((sessionChair: any) => sessionChair.user_id)
           .filter(Boolean);
       }
 
@@ -177,7 +178,7 @@ export const resolveNotificationTargetUsers = async ({
           .in("conf_id", confIds);
 
         const sessionIds = (sessionsData || [])
-          .map((session) => session.session_id)
+          .map((session: any) => session.session_id)
           .filter(Boolean);
 
         if (sessionIds.length > 0) {
@@ -189,7 +190,7 @@ export const resolveNotificationTargetUsers = async ({
           const ticketIds = [
             ...new Set(
               (ticketSessionData || [])
-                .map((ticket) => ticket.ticket_id)
+                .map((ticket: any) => ticket.ticket_id)
                 .filter(Boolean),
             ),
           ];
@@ -202,8 +203,8 @@ export const resolveNotificationTargetUsers = async ({
 
             userIdSets.push(
               (registrationsData || [])
-                .map((registration) => registration.user_id)
-                .filter(Boolean) as number[],
+                .map((registration: any) => registration.user_id)
+                .filter(Boolean),
             );
           }
         }
@@ -214,8 +215,8 @@ export const resolveNotificationTargetUsers = async ({
 
         userIdSets.push(
           (registrationsData || [])
-            .map((registration) => registration.user_id)
-            .filter(Boolean) as number[],
+            .map((registration: any) => registration.user_id)
+            .filter(Boolean),
         );
       }
     }
@@ -225,7 +226,7 @@ export const resolveNotificationTargetUsers = async ({
 
   if (confScope === "all") {
     const { data } = await supabase.from("profiles").select("user_id");
-    return (data || []).map((user) => user.user_id).filter(Boolean);
+    return (data || []).map((user: any) => user.user_id).filter(Boolean);
   }
 
   if (selectedConfIds.length === 0) return [];
@@ -237,7 +238,7 @@ export const resolveNotificationTargetUsers = async ({
   if (sessionsError) throw sessionsError;
 
   const sessionIds = (sessionsData || [])
-    .map((session) => session.session_id)
+    .map((session: any) => session.session_id)
     .filter(Boolean);
   if (sessionIds.length === 0) return [];
 
@@ -250,7 +251,7 @@ export const resolveNotificationTargetUsers = async ({
   const ticketIds = [
     ...new Set(
       (ticketSessionData || [])
-        .map((ticket) => ticket.ticket_id)
+        .map((ticket: any) => ticket.ticket_id)
         .filter(Boolean),
     ),
   ];
@@ -265,7 +266,7 @@ export const resolveNotificationTargetUsers = async ({
   return [
     ...new Set(
       (registrationsData || [])
-        .map((registration) => registration.user_id)
+        .map((registration: any) => registration.user_id)
         .filter(Boolean),
     ),
   ];
@@ -336,6 +337,7 @@ export const useSendNotificationMutation = () => {
       finalContent,
       targetUserIds,
       activeTab,
+      sendEmail = false,
     }: {
       senderEmail: string;
       conferenceId?: number;
@@ -347,6 +349,8 @@ export const useSendNotificationMutation = () => {
       finalContent: string;
       targetUserIds: number[];
       activeTab: "template" | "manual";
+      /** Also dispatch an email to each recipient */
+      sendEmail?: boolean;
     }) => {
       const { data: sender } = await supabase
         .from("profiles")
@@ -405,6 +409,20 @@ export const useSendNotificationMutation = () => {
             throw new Error(`Fan-out insert failed: ${fanOutErr.message}`);
           }
         }
+      }
+
+      // ── Email dispatch (optional) ────────────────────────────────
+      if (sendEmail && targetUserIds.length > 0) {
+        // Fire-and-forget — don't throw on email failure
+        request
+          .post("/notifications/send-email", {
+            user_ids: targetUserIds,
+            subject: finalTitle,
+            html_content: finalContent,
+          })
+          .catch((err) =>
+            console.warn("[NotifEmail] Email dispatch error:", err),
+          );
       }
     },
   });

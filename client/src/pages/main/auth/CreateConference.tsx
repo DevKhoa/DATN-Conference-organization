@@ -111,8 +111,18 @@ const CreateConferencePage: React.FC = () => {
       return;
     }
 
-    if (new Date(formData.start_date) > new Date(formData.end_date)) {
-      setError("Start date cannot be after end date.");
+    const startDate = new Date(formData.start_date);
+    const endDate = new Date(formData.end_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (startDate < today) {
+      setError("Start date cannot be in the past.");
+      return;
+    }
+
+    if (startDate >= endDate) {
+      setError("Start date must be strictly before end date.");
       return;
     }
 
@@ -393,16 +403,29 @@ const CreateConferencePage: React.FC = () => {
                         type="number"
                         min={1}
                         required
-                        value={formData.max_chairs_per_session}
-                        onChange={(e) =>
+                        value={formData.max_chairs_per_session || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
                           setFormData({
                             ...formData,
                             max_chairs_per_session:
-                              parseInt(e.target.value) || 1,
-                          })
-                        }
+                              val === "" ? 0 : parseInt(val),
+                          });
+                        }}
+                        onBlur={() => {
+                          if (
+                            !formData.max_chairs_per_session ||
+                            formData.max_chairs_per_session < 1
+                          ) {
+                            setFormData({
+                              ...formData,
+                              max_chairs_per_session: 1,
+                            });
+                          }
+                        }}
                         className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none"
                         placeholder="e.g. 1"
+                        inputMode="numeric"
                       />
                     </div>
                     <p className="text-xs text-slate-500 mt-1">

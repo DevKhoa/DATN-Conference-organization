@@ -14,6 +14,7 @@ export interface ExistingSession {
   is_ai_generated: boolean;
   assigned_papers: SessionPaperDetail[];
   meet_link?: string;
+  google_event_id?: string | null;
   is_meet_active?: boolean;
   record_video_url?: string;
   format_type: string;
@@ -29,6 +30,7 @@ export interface LocalSession {
   is_ai_generated: boolean;
   assigned_papers: SessionPaperDetail[];
   meet_link?: string;
+  google_event_id?: string | null;
   is_meet_active?: boolean;
   record_video_url?: string;
   format_type: string;

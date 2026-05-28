@@ -53,7 +53,7 @@ const PapersPage = () => {
   const [conferenceFilter, setConferenceFilter] = useState<string>("ALL");
   const [authorFilter, setAuthorFilter] = useState<string>("ALL");
   const [sortBy, setSortBy] = useState<
-    "DATE_DESC" | "DATE_ASC" | "TITLE_AZ" | "DECISION"
+    "DATE_DESC" | "DATE_ASC" | "TITLE_AZ"
   >("DATE_DESC");
 
   // Debounce search term
@@ -86,10 +86,8 @@ const PapersPage = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [
-    debouncedSearch,
-    statusFilter,
-    conferenceFilter,
     authorFilter,
+    sortBy,
     setCurrentPage,
   ]);
 
@@ -105,6 +103,7 @@ const PapersPage = () => {
     pageSize: ITEMS_PER_PAGE,
     totalCount: totalCount,
     filters,
+    sortOrder: sortBy,
   });
 
   const papers = paginatedData?.data || [];
@@ -188,48 +187,9 @@ const PapersPage = () => {
     }
   };
 
-  // --- Client-side Sorting (filtering is now server-side) ---
+  // --- Client-side Sorting is now handled by the server ---
 
-  const filteredPapers = useMemo(() => {
-    const result = [...papers];
-
-    // When searching, prioritize title matches over abstract-only matches
-    const lowerSearch = debouncedSearch?.toLowerCase() || "";
-
-    result.sort((a, b) => {
-      if (lowerSearch) {
-        const aTitle = a.title?.toLowerCase().includes(lowerSearch) ? 0 : 1;
-        const bTitle = b.title?.toLowerCase().includes(lowerSearch) ? 0 : 1;
-        if (aTitle !== bTitle) return aTitle - bTitle;
-      }
-
-      switch (sortBy) {
-        case "DATE_ASC":
-          return (
-            new Date(a.created_at || 0).getTime() -
-            new Date(b.created_at || 0).getTime()
-          );
-        case "TITLE_AZ":
-          return a.title.localeCompare(b.title);
-        case "DECISION":
-          const d1 = a.final_decision_date
-            ? new Date(a.final_decision_date).getTime()
-            : 0;
-          const d2 = b.final_decision_date
-            ? new Date(b.final_decision_date).getTime()
-            : 0;
-          return d2 - d1;
-        case "DATE_DESC":
-        default:
-          return (
-            new Date(b.created_at || 0).getTime() -
-            new Date(a.created_at || 0).getTime()
-          );
-      }
-    });
-
-    return result;
-  }, [papers, sortBy, debouncedSearch]);
+  const filteredPapers = papers;
 
   // --- Render ---
 
@@ -461,7 +421,6 @@ const PapersPage = () => {
                       <option value="DATE_DESC">Newest First</option>
                       <option value="DATE_ASC">Oldest First</option>
                       <option value="TITLE_AZ">Title (A-Z)</option>
-                      <option value="DECISION">Decision Date</option>
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   </div>

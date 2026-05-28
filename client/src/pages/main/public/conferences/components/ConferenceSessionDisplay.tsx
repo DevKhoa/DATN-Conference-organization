@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   ChevronDown,
   Eye,
@@ -12,6 +13,11 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import { ChairSection } from "./ChairSection";
 import type { ConferenceDetailSession } from "@/features/conferences/services/queries";
@@ -57,16 +63,31 @@ export const ConferenceSessionDisplay = ({
       ? [session.chair]
       : [];
 
+  const isTimeForAutoJoin = useMemo(() => {
+    if (!session.start_time || !session.end_time) return false;
+    const now = Date.now();
+    const sessionStart = new Date(session.start_time).getTime();
+    const sessionEnd = new Date(session.end_time).getTime();
+    return now >= sessionStart - 15 * 60 * 1000 && now <= sessionEnd;
+  }, [session.start_time, session.end_time]);
+
+  const isMeetBtnActive = useMemo(() => {
+    if (!session.meet_link) return false;
+    if (session.is_meet_active === false) return false;
+    if (session.is_meet_active === true) return true;
+    return isTimeForAutoJoin;
+  }, [session.meet_link, session.is_meet_active, isTimeForAutoJoin]);
+
   return (
     <div
+      id={`session-${session.session_id}`}
       className={`group flex gap-4 md:gap-6 relative ${isExpanded ? "mb-0" : "mb-8"}`}
     >
       <div className="flex flex-col items-center shrink-0 w-16 z-10">
         <div className="bg-muted py-2 flex flex-col items-center w-full">
           <span
-            className={`text-sm font-bold font-mono tracking-tight ${
-              isExpanded ? "text-primary" : "text-muted-foreground"
-            }`}
+            className={`text-sm font-bold font-mono tracking-tight ${isExpanded ? "text-primary" : "text-muted-foreground"
+              }`}
           >
             {formatTimeOnly(session.start_time)}
           </span>
@@ -74,11 +95,10 @@ export const ConferenceSessionDisplay = ({
             {formatTimeOnly(session.end_time)}
           </span>
           <div
-            className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-300 relative bg-white ${
-              isExpanded
+            className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-300 relative bg-white ${isExpanded
                 ? "border-primary shadow-[0_0_0_4px_rgba(59,130,246,0.1)] scale-110"
                 : "border-border group-hover:border-primary/40"
-            }`}
+              }`}
           >
             {isExpanded && (
               <div className="absolute inset-0.5 rounded-full bg-primary" />
@@ -88,20 +108,32 @@ export const ConferenceSessionDisplay = ({
       </div>
 
       <div
-        className={`grow relative z-10 rounded-2xl border bg-white transition-all duration-300 ${
-          isExpanded
+        className={`grow min-w-0 relative z-10 rounded-2xl border bg-white transition-all duration-300 ${isExpanded
             ? "border-primary/30 shadow-lg ring-1 ring-primary/20 translate-x-1"
             : "border-border shadow-sm hover:border-border/80 hover:shadow-md"
-        }`}
+          }`}
       >
+        {canEdit && onDelete && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="absolute top-3 right-3 h-8 w-8 flex items-center justify-center rounded-full bg-destructive/10 text-destructive hover:bg-destructive hover:text-white transition-all duration-200 z-20 shadow-sm border border-destructive/20"
+            title="Delete Session"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
         <div onClick={onToggle} className="cursor-pointer p-5 md:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
+          <div
+            className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-4 ${canEdit && onDelete ? "pr-10" : ""}`}
+          >
             <div
-              className={`flex flex-1 items-start gap-3 text-lg font-bold transition-colors md:text-xl min-w-70 ${
-                isExpanded
+              className={`flex flex-1 items-start gap-3 text-lg font-bold transition-colors md:text-xl min-w-0 ${isExpanded
                   ? "text-primary"
                   : "text-foreground group-hover:text-primary"
-              }`}
+                }`}
             >
               <div className="shrink-0 mt-0.5 rounded-xl bg-muted p-2 text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
                 {session.format_type?.toLowerCase() === "virtual" && (
@@ -119,8 +151,19 @@ export const ConferenceSessionDisplay = ({
                     <MapPin className="h-4 w-4" />
                   )}
               </div>
-              <div className="flex min-w-0 flex-col">
-                <span>{session.session_name}</span>
+              <div className="flex min-w-0 flex-1 flex-col">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className={`break-words ${isExpanded ? "" : "line-clamp-1"}`}
+                    >
+                      {session.session_name}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[300px]">
+                    <p className="text-xs font-medium">{session.session_name}</p>
+                  </TooltipContent>
+                </Tooltip>
                 <span className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                   {session.room_location ||
                     (session.format_type === "virtual"
@@ -131,24 +174,20 @@ export const ConferenceSessionDisplay = ({
             </div>
 
             <div className="ml-auto flex shrink-0 items-center gap-3 transition-all">
-              <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="flex items-center justify-end gap-2">
                 {session.format_type !== "in-person" && canAccessVirtual && (
                   <>
                     {session.meet_link !== undefined && (
                       <div className="flex items-center gap-1 animate-in slide-in-from-right-2 duration-300 group/meet">
                         <button
                           className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold shadow-sm transition-all duration-300 ${
-                            session.meet_link &&
-                            (session.is_meet_active ?? true)
+                            isMeetBtnActive
                               ? "border-transparent bg-linear-to-r from-indigo-600 to-violet-600 text-white hover:from-indigo-700 hover:to-violet-700 hover:shadow-indigo-200"
                               : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
                           }`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (
-                              session.meet_link &&
-                              (session.is_meet_active ?? true)
-                            ) {
+                            if (isMeetBtnActive) {
                               window.open(session.meet_link, "_blank");
                             } else {
                               toast.info("Room is not available now", {
@@ -171,11 +210,10 @@ export const ConferenceSessionDisplay = ({
                                 isActive: !(session.is_meet_active ?? true),
                               });
                             }}
-                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 ${
-                              (session.is_meet_active ?? true)
+                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 ${(session.is_meet_active ?? true)
                                 ? "border-emerald-100 bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
                                 : "border-slate-200 bg-slate-100 text-slate-400 hover:bg-slate-200"
-                            }`}
+                              }`}
                             title={
                               (session.is_meet_active ?? true)
                                 ? "Deactivate Meeting Room"
@@ -194,11 +232,10 @@ export const ConferenceSessionDisplay = ({
 
                     {session.record_video_url !== undefined && (
                       <button
-                        className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold shadow-sm transition-all duration-300 animate-in slide-in-from-right-2 ${
-                          session.record_video_url
+                        className={`flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold shadow-sm transition-all duration-300 animate-in slide-in-from-right-2 ${session.record_video_url
                             ? "border-transparent bg-linear-to-r from-rose-600 to-pink-600 text-white hover:from-rose-700 hover:to-pink-700 hover:shadow-rose-200"
                             : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
-                        }`}
+                          }`}
                         onClick={(e) => {
                           e.stopPropagation();
                           if (session.record_video_url) {
@@ -211,7 +248,12 @@ export const ConferenceSessionDisplay = ({
                           }
                         }}
                       >
-                        <Youtube className="h-3.5 w-3.5" />
+                        {session.record_video_url?.includes("youtube.com") ||
+                        session.record_video_url?.includes("youtu.be") ? (
+                          <Youtube className="h-3.5 w-3.5" />
+                        ) : (
+                          <Video className="h-3.5 w-3.5" />
+                        )}
                         Watch Recording
                       </button>
                     )}
@@ -243,26 +285,13 @@ export const ConferenceSessionDisplay = ({
                   </button>
                 )}
 
-                {canEdit && onDelete && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete();
-                    }}
-                    className="shrink-0 rounded-lg border border-border bg-destructive/10 px-3 py-1.5 text-xs font-bold text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground flex items-center gap-1.5 ml-2"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete
-                  </button>
-                )}
               </div>
 
               <div
-                className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-300 ${
-                  isExpanded
+                className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-300 ${isExpanded
                     ? "rotate-180 bg-primary/10 text-primary"
                     : "bg-muted text-muted-foreground"
-                }`}
+                  }`}
               >
                 <ChevronDown className="h-5 w-5" />
               </div>

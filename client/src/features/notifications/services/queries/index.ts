@@ -14,6 +14,7 @@ type NotificationMeta = Pick<
   | "created_at"
   | "conf_id"
   | "attachments"
+  | "target_criteria"
 >;
 
 export type UserNotification = Tables<"user_notifications"> & {
@@ -54,7 +55,7 @@ export const useUserNotifications = () => {
         .from("user_notifications")
         .select(
           `id, notification_id, is_read, read_at, dynamic_title, dynamic_content,
-               notifications ( notification_id, title, content, type, created_at, conf_id, attachments )`,
+               notifications ( notification_id, title, content, type, created_at, conf_id, attachments, target_criteria )`,
         )
         .eq("user_id", userId)
         .order("id", { ascending: false })
@@ -137,7 +138,7 @@ export const useNotificationConferenceUsersPoolQuery = (
 
       const sessions = sessionsData || [];
       const sessionIds = sessions
-        .map((session) => session.session_id)
+        .map((session: any) => session.session_id)
         .filter(Boolean);
       let chairIds: number[] = [];
 
@@ -148,7 +149,7 @@ export const useNotificationConferenceUsersPoolQuery = (
           .in("session_id", sessionIds);
 
         chairIds = (sessionChairsData || [])
-          .map((sessionChair) => sessionChair.user_id)
+          .map((sessionChair: any) => sessionChair.user_id)
           .filter(Boolean);
       }
 
@@ -162,7 +163,7 @@ export const useNotificationConferenceUsersPoolQuery = (
         const ticketIds = [
           ...new Set(
             (ticketSessionData || [])
-              .map((ticket) => ticket.ticket_id)
+              .map((ticket: any) => ticket.ticket_id)
               .filter(Boolean),
           ),
         ];
@@ -174,8 +175,8 @@ export const useNotificationConferenceUsersPoolQuery = (
             .in("ticket_id", ticketIds);
 
           attendeeIds = (registrationsData || [])
-            .map((registration) => registration.user_id)
-            .filter(Boolean) as number[];
+            .map((registration: any) => registration.user_id)
+            .filter(Boolean);
         }
       }
 
@@ -220,7 +221,7 @@ export const useNotificationUserSearchQuery = ({
 
       if (confScope === "specific") {
         if (confUsersPool.length === 0) return [];
-        query = query.in("user_id", confUsersPool);
+        query = (query as any).in("user_id", confUsersPool);
       }
 
       const { data, error } = await query;

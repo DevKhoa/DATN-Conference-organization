@@ -9,6 +9,8 @@ import type {
   IUploadConferenceBannerResponse,
   IDeleteConferenceBannerPayload,
   IDeleteConferenceBannerResponse,
+  IUpdateConferencePayload,
+  IUpdateConferenceResponse,
 } from "./types";
 
 export const useCreateConferenceMutation = () => {
@@ -97,6 +99,39 @@ export const useDeleteConferenceBannerMutation = () => {
       if (error) throw error;
 
       return { remaining_banners: result.remaining_banners };
+    },
+  });
+};
+
+export const useUpdateConferenceMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (
+      payload: IUpdateConferencePayload,
+    ): Promise<IUpdateConferenceResponse> => {
+      const { conferenceId, ...updateData } = payload;
+
+      const { data, error } = await supabase
+        .from("conferences")
+        .update(updateData)
+        .eq("conf_id", conferenceId)
+        .select("conf_id")
+        .single();
+
+      if (error) throw error;
+      return { conf_id: data.conf_id };
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [ConferencesKeys.ConferenceDetail, variables.conferenceId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [ConferencesKeys.PaginatedConferences],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [ConferencesKeys.ActiveConferences],
+      });
     },
   });
 };

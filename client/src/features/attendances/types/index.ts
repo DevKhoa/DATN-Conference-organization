@@ -7,6 +7,7 @@ export interface Attendance {
 }
 
 export interface AttendanceUpsertPayload {
+  at_id?: number;
   registration_id: number;
   session_id: number;
   is_checkin: boolean;

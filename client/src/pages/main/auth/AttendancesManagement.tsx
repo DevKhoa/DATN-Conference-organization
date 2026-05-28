@@ -119,6 +119,7 @@ const AttendancesManagementPage: React.FC = () => {
   const handleToggleCheckIn = async (
     registrationId: number,
     currentStatus: boolean,
+    atId: number | null
   ) => {
     if (!selectedSessionId) return;
 
@@ -126,6 +127,7 @@ const AttendancesManagementPage: React.FC = () => {
     const newTime = newStatus ? new Date().toISOString() : null;
 
     toggleAttendanceMutation.mutate({
+      at_id: atId || undefined,
       registration_id: registrationId,
       session_id: selectedSessionId,
       is_checkin: newStatus,
@@ -244,8 +246,8 @@ const AttendancesManagementPage: React.FC = () => {
                     <Calendar className="w-3.5 h-3.5" />{" "}
                     {currentConf?.start_date
                       ? new Date(currentConf.start_date).toLocaleDateString(
-                          "vi-VN",
-                        )
+                        "vi-VN",
+                      )
                       : "--/--/----"}
                   </span>
                   <span className="flex items-center gap-1">
@@ -355,7 +357,7 @@ const AttendancesManagementPage: React.FC = () => {
                       24 *
                       (1 -
                         attendees.filter((a) => a.is_checkin).length /
-                          (attendees.length || 1))
+                        (attendees.length || 1))
                     }
                     className="transition-all duration-1000"
                   />
@@ -363,10 +365,10 @@ const AttendancesManagementPage: React.FC = () => {
                 <span className="absolute text-[10px] font-black text-slate-700">
                   {attendees.length > 0
                     ? Math.round(
-                        (attendees.filter((a) => a.is_checkin).length /
-                          attendees.length) *
-                          100,
-                      )
+                      (attendees.filter((a) => a.is_checkin).length /
+                        attendees.length) *
+                      100,
+                    )
                     : 0}
                   %
                 </span>
@@ -527,25 +529,25 @@ const AttendancesManagementPage: React.FC = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 font-black text-[10px] px-3 py-1.5 h-auto rounded-lg"
+                          className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 font-bold text-xs px-3 py-1.5 h-auto rounded-lg whitespace-nowrap inline-flex items-center"
                           onClick={() =>
-                            handleToggleCheckIn(a.registration_id, true)
+                            handleToggleCheckIn(a.registration_id, true, a.at_id)
                           }
                         >
-                          <XCircle className="w-3.5 h-3.5 mr-1.5" />
-                          Remove Check in
+                          <XCircle className="w-3.5 h-3.5 mr-1.5 shrink-0" />
+                          Remove Check In
                         </Button>
                       ) : (
                         <Button
                           variant="default"
                           size="sm"
-                          className="bg-brand-700 hover:bg-brand-800 font-black text-[10px] px-4 py-1.5 h-auto rounded-lg shadow-md"
+                          className="bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs px-4 py-1.5 h-auto rounded-lg shadow-md whitespace-nowrap inline-flex items-center"
                           onClick={() =>
-                            handleToggleCheckIn(a.registration_id, false)
+                            handleToggleCheckIn(a.registration_id, false, a.at_id)
                           }
                         >
-                          <UserCheck className="w-3.5 h-3.5 mr-1.5" />
-                          Check-in
+                          <UserCheck className="w-3.5 h-3.5 mr-1.5 shrink-0" />
+                          Check In
                         </Button>
                       )}
                     </td>

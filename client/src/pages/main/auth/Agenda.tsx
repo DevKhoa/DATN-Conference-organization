@@ -183,6 +183,21 @@ export default function MyAgendaPage() {
       .sort((a, b) => a.displayStartJS.getTime() - b.displayStartJS.getTime());
   }, [sessions, useUserTimezone]);
 
+  const conferenceTimezones = useMemo(() => {
+    const tzs = new Set<string>();
+    sessions.forEach((s) => {
+      if (s.timezone) tzs.add(s.timezone);
+    });
+    return Array.from(tzs);
+  }, [sessions]);
+
+  const conferenceTzDisplay =
+    conferenceTimezones.length === 1
+      ? `Conference Time (${conferenceTimezones[0]})`
+      : conferenceTimezones.length > 1
+        ? "Conference Time (Multiple)"
+        : "Conference Time";
+
   const sessionCountByDate = useMemo(() => {
     const map: Record<string, number> = {};
     displaySessions.forEach((s) => {
@@ -364,11 +379,10 @@ export default function MyAgendaPage() {
             <div className="flex bg-muted p-1 rounded-lg ml-auto mr-4">
               <button
                 onClick={() => setUseUserTimezone(!useUserTimezone)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
-                  useUserTimezone
+                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${useUserTimezone
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                } ${!useUserTimezone && hasTimezoneDifference ? "ring-2 ring-primary/60 relative overflow-hidden before:absolute before:inset-0 before:bg-primary/20 before:animate-pulse" : ""}`}
+                  } ${!useUserTimezone && hasTimezoneDifference ? "ring-2 ring-primary/60 relative overflow-hidden before:absolute before:inset-0 before:bg-primary/20 before:animate-pulse" : ""}`}
                 title="Toggle Timezone"
               >
                 <Globe
@@ -386,7 +400,7 @@ export default function MyAgendaPage() {
                   <span>
                     {useUserTimezone
                       ? `My Timezone (${userTimezone})`
-                      : "Conference Time"}
+                      : conferenceTzDisplay}
                   </span>
                 </span>
               </button>
@@ -396,21 +410,19 @@ export default function MyAgendaPage() {
           <div className="flex bg-muted p-1 rounded-lg">
             <button
               onClick={() => setViewMode("list")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                viewMode === "list"
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${viewMode === "list"
                   ? "bg-card text-primary shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent"
-              }`}
+                }`}
             >
               <List size={16} /> Schedule
             </button>
             <button
               onClick={() => setViewMode("timeline")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                viewMode === "timeline"
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${viewMode === "timeline"
                   ? "bg-card text-primary shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent"
-              }`}
+                }`}
             >
               <LayoutGrid size={16} /> Timeline
             </button>
@@ -442,6 +454,7 @@ export default function MyAgendaPage() {
                             navigate({
                               to: "/conferences/$conferenceId",
                               params: { conferenceId: String(session.conf_id) },
+                              hash: `session-${session.session_id}`,
                             })
                           }
                         >
@@ -463,16 +476,21 @@ export default function MyAgendaPage() {
                                     <span>
                                       {format(session.displayStartJS, "HH:mm")}{" "}
                                       - {format(session.displayEndJS, "HH:mm")}
+                                      {!useUserTimezone && (
+                                        <span className="text-[11px] ml-1 font-bold opacity-80">
+                                          ({session.timezone || "UTC"})
+                                        </span>
+                                      )}
                                     </span>
                                     {!isSameDay(
                                       session.displayStartJS,
                                       session.displayEndJS,
                                     ) && (
-                                      <span className="bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-purple-500/20">
-                                        +Multi-Day (
-                                        {format(session.displayEndJS, "dd/MM")})
-                                      </span>
-                                    )}
+                                        <span className="bg-purple-500/10 text-purple-600 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border border-purple-500/20">
+                                          +Multi-Day (
+                                          {format(session.displayEndJS, "dd/MM")})
+                                        </span>
+                                      )}
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
@@ -712,11 +730,10 @@ export default function MyAgendaPage() {
                     return (
                       <div
                         key={session.session_id}
-                        className={`absolute cursor-pointer group z-20 rounded-md border-l-[3px] border hover:-translate-y-0.5 transition-all shadow-sm px-2 py-1 ${
-                          isNextDay
+                        className={`absolute cursor-pointer group z-20 rounded-md border-l-[3px] border hover:-translate-y-0.5 transition-all shadow-sm px-2 py-1 ${isNextDay
                             ? "border-l-purple-500 border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 bg-[radial-gradient(#e9d5ff_1px,transparent_1px)] [background-size:16px_16px]"
                             : "border-l-primary border-primary/20 bg-primary/10 hover:bg-primary/15"
-                        }`}
+                          }`}
                         style={getEventStyle(
                           session.displayStartJS,
                           session.displayEndJS,
@@ -727,6 +744,7 @@ export default function MyAgendaPage() {
                           navigate({
                             to: "/conferences/$conferenceId",
                             params: { conferenceId: String(session.conf_id) },
+                            hash: `session-${session.session_id}`,
                           });
                         }}
                       >
@@ -747,8 +765,13 @@ export default function MyAgendaPage() {
                             <span>
                               {format(session.displayStartJS, "HH:mm")}–
                               {format(session.displayEndJS, "HH:mm")}{" "}
+                              {!useUserTimezone && (
+                                <span className="opacity-80 font-bold ml-0.5">
+                                  ({session.timezone || "UTC"})
+                                </span>
+                              )}
                               {isNextDay && (
-                                <span className="font-bold">
+                                <span className="font-bold ml-1">
                                   ({format(session.displayEndJS, "dd/MM")})
                                 </span>
                               )}
@@ -769,8 +792,13 @@ export default function MyAgendaPage() {
                                 <span>
                                   {format(session.displayStartJS, "HH:mm")}–
                                   {format(session.displayEndJS, "HH:mm")}{" "}
+                                  {!useUserTimezone && (
+                                    <span className="opacity-80 font-bold ml-0.5">
+                                      ({session.timezone || "UTC"})
+                                    </span>
+                                  )}
                                   {isNextDay && (
-                                    <span className="font-bold">
+                                    <span className="font-bold ml-1">
                                       ({format(session.displayEndJS, "dd/MM")})
                                     </span>
                                   )}
