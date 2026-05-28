@@ -7,8 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import papers, sessions, users, reviews, conferences, common, checkin, registrations, subscriptions, payments, assistance, web_socket, proceedings, notifications
 from packages.scheduler import start_scheduler, stop_scheduler
 
-# HOST = '0.0.0.0'
-HOST = 'localhost'
+HOST = '0.0.0.0'
+# HOST = 'localhost'
 PORT = 8080
 
 

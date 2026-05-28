@@ -1,0 +1,27 @@
+.venv/
+
+# Python caches / local tooling
+__pycache__/
+*.py[codz]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Notebooks (not needed for image build)
+.ipynb_checkpoints/
+*.ipynb
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Local env files (prefer runtime env vars)
+.env
+
+# Local scratch
+temp_storage/
+*.log
