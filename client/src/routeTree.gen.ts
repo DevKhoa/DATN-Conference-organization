@@ -14,8 +14,6 @@ import { Route as RegisterSuccessRouteImport } from "./routes/register-success"
 import { Route as RegisterConfirmRouteImport } from "./routes/register-confirm"
 import { Route as RegisterRouteImport } from "./routes/register"
 import { Route as LoginRouteImport } from "./routes/login"
-import { Route as FaqRouteImport } from "./routes/faq"
-import { Route as AiAssistantRouteImport } from "./routes/ai-assistant"
 import { Route as R403RouteImport } from "./routes/403"
 import { Route as appRouteRouteImport } from "./routes/(app)/route"
 import { Route as IndexRouteImport } from "./routes/index"
@@ -23,29 +21,25 @@ import { Route as PapersIndexRouteImport } from "./routes/papers/index"
 import { Route as ConferencesIndexRouteImport } from "./routes/conferences/index"
 import { Route as PapersPaperIdRouteImport } from "./routes/papers/$paperId"
 import { Route as ConferencesConferenceIdRouteImport } from "./routes/conferences/$conferenceId"
-import { Route as appTicketsRouteImport } from "./routes/(app)/tickets"
 import { Route as appProfileRouteImport } from "./routes/(app)/profile"
 import { Route as appProceedingsRouteImport } from "./routes/(app)/proceedings"
 import { Route as appCheckinRouteImport } from "./routes/(app)/checkin"
-import { Route as appAttendancesRouteImport } from "./routes/(app)/attendances"
-import { Route as appSessionsRouteRouteImport } from "./routes/(app)/sessions/route"
 import { Route as appAdminRouteRouteImport } from "./routes/(app)/admin/route"
-import { Route as appSessionsIndexRouteImport } from "./routes/(app)/sessions/index"
 import { Route as appChairInvitationsIndexRouteImport } from "./routes/(app)/chair-invitations.index"
 import { Route as appAdminIndexRouteImport } from "./routes/(app)/admin/index"
+import { Route as appTicketsMeRouteImport } from "./routes/(app)/tickets.me"
 import { Route as appSubscriptionsMeRouteImport } from "./routes/(app)/subscriptions.me"
-import { Route as appSessionsChairInvitationsRouteImport } from "./routes/(app)/sessions/chair-invitations"
-import { Route as appSessionsAssignRouteImport } from "./routes/(app)/sessions.assign"
 import { Route as appPapersSubmitRouteImport } from "./routes/(app)/papers.submit"
 import { Route as appNotificationsCreateRouteImport } from "./routes/(app)/notifications.create"
 import { Route as appConferencesCreateRouteImport } from "./routes/(app)/conferences.create"
 import { Route as appChairInvitationsTokenRouteImport } from "./routes/(app)/chair-invitations.$token"
 import { Route as appAgendaMeRouteImport } from "./routes/(app)/agenda.me"
+import { Route as appAdminTicketsRouteRouteImport } from "./routes/(app)/admin/tickets/route"
 import { Route as appAdminDashboardRouteRouteImport } from "./routes/(app)/admin/dashboard/route"
+import { Route as appAdminAttendancesRouteRouteImport } from "./routes/(app)/admin/attendances/route"
 import { Route as appPapersMeIndexRouteImport } from "./routes/(app)/papers/me/index"
 import { Route as appAdminAwardsIndexRouteImport } from "./routes/(app)/admin/awards/index"
 import { Route as appPapersMePaperIdRouteImport } from "./routes/(app)/papers/me/$paperId"
-import { Route as appConferencesConferenceIdImportPapersRouteImport } from "./routes/(app)/conferences.$conferenceId/import-papers"
 import { Route as appAdminAwardsTemplatesRouteImport } from "./routes/(app)/admin/awards/templates"
 import { Route as appConferencesConferenceIdSessionsRouteRouteImport } from "./routes/(app)/conferences.$conferenceId.sessions/route"
 import { Route as appConferencesConferenceIdSessionsIndexRouteImport } from "./routes/(app)/conferences.$conferenceId.sessions/index"
@@ -75,16 +69,6 @@ const RegisterRoute = RegisterRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: "/login",
   path: "/login",
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FaqRoute = FaqRouteImport.update({
-  id: "/faq",
-  path: "/faq",
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AiAssistantRoute = AiAssistantRouteImport.update({
-  id: "/ai-assistant",
-  path: "/ai-assistant",
   getParentRoute: () => rootRouteImport,
 } as any)
 const R403Route = R403RouteImport.update({
@@ -121,11 +105,6 @@ const ConferencesConferenceIdRoute = ConferencesConferenceIdRouteImport.update({
   path: "/conferences/$conferenceId",
   getParentRoute: () => rootRouteImport,
 } as any)
-const appTicketsRoute = appTicketsRouteImport.update({
-  id: "/tickets",
-  path: "/tickets",
-  getParentRoute: () => appRouteRoute,
-} as any)
 const appProfileRoute = appProfileRouteImport.update({
   id: "/profile",
   path: "/profile",
@@ -141,25 +120,10 @@ const appCheckinRoute = appCheckinRouteImport.update({
   path: "/checkin",
   getParentRoute: () => appRouteRoute,
 } as any)
-const appAttendancesRoute = appAttendancesRouteImport.update({
-  id: "/attendances",
-  path: "/attendances",
-  getParentRoute: () => appRouteRoute,
-} as any)
-const appSessionsRouteRoute = appSessionsRouteRouteImport.update({
-  id: "/sessions",
-  path: "/sessions",
-  getParentRoute: () => appRouteRoute,
-} as any)
 const appAdminRouteRoute = appAdminRouteRouteImport.update({
   id: "/admin",
   path: "/admin",
   getParentRoute: () => appRouteRoute,
-} as any)
-const appSessionsIndexRoute = appSessionsIndexRouteImport.update({
-  id: "/",
-  path: "/",
-  getParentRoute: () => appSessionsRouteRoute,
 } as any)
 const appChairInvitationsIndexRoute =
   appChairInvitationsIndexRouteImport.update({
@@ -172,21 +136,15 @@ const appAdminIndexRoute = appAdminIndexRouteImport.update({
   path: "/",
   getParentRoute: () => appAdminRouteRoute,
 } as any)
+const appTicketsMeRoute = appTicketsMeRouteImport.update({
+  id: "/tickets/me",
+  path: "/tickets/me",
+  getParentRoute: () => appRouteRoute,
+} as any)
 const appSubscriptionsMeRoute = appSubscriptionsMeRouteImport.update({
   id: "/subscriptions/me",
   path: "/subscriptions/me",
   getParentRoute: () => appRouteRoute,
-} as any)
-const appSessionsChairInvitationsRoute =
-  appSessionsChairInvitationsRouteImport.update({
-    id: "/chair-invitations",
-    path: "/chair-invitations",
-    getParentRoute: () => appSessionsRouteRoute,
-  } as any)
-const appSessionsAssignRoute = appSessionsAssignRouteImport.update({
-  id: "/assign",
-  path: "/assign",
-  getParentRoute: () => appSessionsRouteRoute,
 } as any)
 const appPapersSubmitRoute = appPapersSubmitRouteImport.update({
   id: "/papers/submit",
@@ -214,11 +172,22 @@ const appAgendaMeRoute = appAgendaMeRouteImport.update({
   path: "/agenda/me",
   getParentRoute: () => appRouteRoute,
 } as any)
+const appAdminTicketsRouteRoute = appAdminTicketsRouteRouteImport.update({
+  id: "/tickets",
+  path: "/tickets",
+  getParentRoute: () => appAdminRouteRoute,
+} as any)
 const appAdminDashboardRouteRoute = appAdminDashboardRouteRouteImport.update({
   id: "/dashboard",
   path: "/dashboard",
   getParentRoute: () => appAdminRouteRoute,
 } as any)
+const appAdminAttendancesRouteRoute =
+  appAdminAttendancesRouteRouteImport.update({
+    id: "/attendances",
+    path: "/attendances",
+    getParentRoute: () => appAdminRouteRoute,
+  } as any)
 const appPapersMeIndexRoute = appPapersMeIndexRouteImport.update({
   id: "/papers/me/",
   path: "/papers/me/",
@@ -234,12 +203,6 @@ const appPapersMePaperIdRoute = appPapersMePaperIdRouteImport.update({
   path: "/papers/me/$paperId",
   getParentRoute: () => appRouteRoute,
 } as any)
-const appConferencesConferenceIdImportPapersRoute =
-  appConferencesConferenceIdImportPapersRouteImport.update({
-    id: "/conferences/$conferenceId/import-papers",
-    path: "/conferences/$conferenceId/import-papers",
-    getParentRoute: () => appRouteRoute,
-  } as any)
 const appAdminAwardsTemplatesRoute = appAdminAwardsTemplatesRouteImport.update({
   id: "/awards/templates",
   path: "/awards/templates",
@@ -273,39 +236,33 @@ const appConferencesConferenceIdSessionsSessionIdChairsRoute =
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute
   "/403": typeof R403Route
-  "/ai-assistant": typeof AiAssistantRoute
-  "/faq": typeof FaqRoute
   "/login": typeof LoginRoute
   "/register": typeof RegisterRoute
   "/register-confirm": typeof RegisterConfirmRoute
   "/register-success": typeof RegisterSuccessRoute
   "/subscriptions": typeof SubscriptionsRoute
   "/admin": typeof appAdminRouteRouteWithChildren
-  "/sessions": typeof appSessionsRouteRouteWithChildren
-  "/attendances": typeof appAttendancesRoute
   "/checkin": typeof appCheckinRoute
   "/proceedings": typeof appProceedingsRoute
   "/profile": typeof appProfileRoute
-  "/tickets": typeof appTicketsRoute
   "/conferences/$conferenceId": typeof ConferencesConferenceIdRoute
   "/papers/$paperId": typeof PapersPaperIdRoute
   "/conferences/": typeof ConferencesIndexRoute
   "/papers/": typeof PapersIndexRoute
+  "/admin/attendances": typeof appAdminAttendancesRouteRoute
   "/admin/dashboard": typeof appAdminDashboardRouteRoute
+  "/admin/tickets": typeof appAdminTicketsRouteRoute
   "/agenda/me": typeof appAgendaMeRoute
   "/chair-invitations/$token": typeof appChairInvitationsTokenRoute
   "/conferences/create": typeof appConferencesCreateRoute
   "/notifications/create": typeof appNotificationsCreateRoute
   "/papers/submit": typeof appPapersSubmitRoute
-  "/sessions/assign": typeof appSessionsAssignRoute
-  "/sessions/chair-invitations": typeof appSessionsChairInvitationsRoute
   "/subscriptions/me": typeof appSubscriptionsMeRoute
+  "/tickets/me": typeof appTicketsMeRoute
   "/admin/": typeof appAdminIndexRoute
   "/chair-invitations/": typeof appChairInvitationsIndexRoute
-  "/sessions/": typeof appSessionsIndexRoute
   "/conferences/$conferenceId/sessions": typeof appConferencesConferenceIdSessionsRouteRouteWithChildren
   "/admin/awards/templates": typeof appAdminAwardsTemplatesRoute
-  "/conferences/$conferenceId/import-papers": typeof appConferencesConferenceIdImportPapersRoute
   "/papers/me/$paperId": typeof appPapersMePaperIdRoute
   "/admin/awards/": typeof appAdminAwardsIndexRoute
   "/papers/me/": typeof appPapersMeIndexRoute
@@ -316,36 +273,31 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   "/": typeof IndexRoute
   "/403": typeof R403Route
-  "/ai-assistant": typeof AiAssistantRoute
-  "/faq": typeof FaqRoute
   "/login": typeof LoginRoute
   "/register": typeof RegisterRoute
   "/register-confirm": typeof RegisterConfirmRoute
   "/register-success": typeof RegisterSuccessRoute
   "/subscriptions": typeof SubscriptionsRoute
-  "/attendances": typeof appAttendancesRoute
   "/checkin": typeof appCheckinRoute
   "/proceedings": typeof appProceedingsRoute
   "/profile": typeof appProfileRoute
-  "/tickets": typeof appTicketsRoute
   "/conferences/$conferenceId": typeof ConferencesConferenceIdRoute
   "/papers/$paperId": typeof PapersPaperIdRoute
   "/conferences": typeof ConferencesIndexRoute
   "/papers": typeof PapersIndexRoute
+  "/admin/attendances": typeof appAdminAttendancesRouteRoute
   "/admin/dashboard": typeof appAdminDashboardRouteRoute
+  "/admin/tickets": typeof appAdminTicketsRouteRoute
   "/agenda/me": typeof appAgendaMeRoute
   "/chair-invitations/$token": typeof appChairInvitationsTokenRoute
   "/conferences/create": typeof appConferencesCreateRoute
   "/notifications/create": typeof appNotificationsCreateRoute
   "/papers/submit": typeof appPapersSubmitRoute
-  "/sessions/assign": typeof appSessionsAssignRoute
-  "/sessions/chair-invitations": typeof appSessionsChairInvitationsRoute
   "/subscriptions/me": typeof appSubscriptionsMeRoute
+  "/tickets/me": typeof appTicketsMeRoute
   "/admin": typeof appAdminIndexRoute
   "/chair-invitations": typeof appChairInvitationsIndexRoute
-  "/sessions": typeof appSessionsIndexRoute
   "/admin/awards/templates": typeof appAdminAwardsTemplatesRoute
-  "/conferences/$conferenceId/import-papers": typeof appConferencesConferenceIdImportPapersRoute
   "/papers/me/$paperId": typeof appPapersMePaperIdRoute
   "/admin/awards": typeof appAdminAwardsIndexRoute
   "/papers/me": typeof appPapersMeIndexRoute
@@ -358,39 +310,33 @@ export interface FileRoutesById {
   "/": typeof IndexRoute
   "/(app)": typeof appRouteRouteWithChildren
   "/403": typeof R403Route
-  "/ai-assistant": typeof AiAssistantRoute
-  "/faq": typeof FaqRoute
   "/login": typeof LoginRoute
   "/register": typeof RegisterRoute
   "/register-confirm": typeof RegisterConfirmRoute
   "/register-success": typeof RegisterSuccessRoute
   "/subscriptions": typeof SubscriptionsRoute
   "/(app)/admin": typeof appAdminRouteRouteWithChildren
-  "/(app)/sessions": typeof appSessionsRouteRouteWithChildren
-  "/(app)/attendances": typeof appAttendancesRoute
   "/(app)/checkin": typeof appCheckinRoute
   "/(app)/proceedings": typeof appProceedingsRoute
   "/(app)/profile": typeof appProfileRoute
-  "/(app)/tickets": typeof appTicketsRoute
   "/conferences/$conferenceId": typeof ConferencesConferenceIdRoute
   "/papers/$paperId": typeof PapersPaperIdRoute
   "/conferences/": typeof ConferencesIndexRoute
   "/papers/": typeof PapersIndexRoute
+  "/(app)/admin/attendances": typeof appAdminAttendancesRouteRoute
   "/(app)/admin/dashboard": typeof appAdminDashboardRouteRoute
+  "/(app)/admin/tickets": typeof appAdminTicketsRouteRoute
   "/(app)/agenda/me": typeof appAgendaMeRoute
   "/(app)/chair-invitations/$token": typeof appChairInvitationsTokenRoute
   "/(app)/conferences/create": typeof appConferencesCreateRoute
   "/(app)/notifications/create": typeof appNotificationsCreateRoute
   "/(app)/papers/submit": typeof appPapersSubmitRoute
-  "/(app)/sessions/assign": typeof appSessionsAssignRoute
-  "/(app)/sessions/chair-invitations": typeof appSessionsChairInvitationsRoute
   "/(app)/subscriptions/me": typeof appSubscriptionsMeRoute
+  "/(app)/tickets/me": typeof appTicketsMeRoute
   "/(app)/admin/": typeof appAdminIndexRoute
   "/(app)/chair-invitations/": typeof appChairInvitationsIndexRoute
-  "/(app)/sessions/": typeof appSessionsIndexRoute
   "/(app)/conferences/$conferenceId/sessions": typeof appConferencesConferenceIdSessionsRouteRouteWithChildren
   "/(app)/admin/awards/templates": typeof appAdminAwardsTemplatesRoute
-  "/(app)/conferences/$conferenceId/import-papers": typeof appConferencesConferenceIdImportPapersRoute
   "/(app)/papers/me/$paperId": typeof appPapersMePaperIdRoute
   "/(app)/admin/awards/": typeof appAdminAwardsIndexRoute
   "/(app)/papers/me/": typeof appPapersMeIndexRoute
@@ -403,39 +349,33 @@ export interface FileRouteTypes {
   fullPaths:
     | "/"
     | "/403"
-    | "/ai-assistant"
-    | "/faq"
     | "/login"
     | "/register"
     | "/register-confirm"
     | "/register-success"
     | "/subscriptions"
     | "/admin"
-    | "/sessions"
-    | "/attendances"
     | "/checkin"
     | "/proceedings"
     | "/profile"
-    | "/tickets"
     | "/conferences/$conferenceId"
     | "/papers/$paperId"
     | "/conferences/"
     | "/papers/"
+    | "/admin/attendances"
     | "/admin/dashboard"
+    | "/admin/tickets"
     | "/agenda/me"
     | "/chair-invitations/$token"
     | "/conferences/create"
     | "/notifications/create"
     | "/papers/submit"
-    | "/sessions/assign"
-    | "/sessions/chair-invitations"
     | "/subscriptions/me"
+    | "/tickets/me"
     | "/admin/"
     | "/chair-invitations/"
-    | "/sessions/"
     | "/conferences/$conferenceId/sessions"
     | "/admin/awards/templates"
-    | "/conferences/$conferenceId/import-papers"
     | "/papers/me/$paperId"
     | "/admin/awards/"
     | "/papers/me/"
@@ -446,36 +386,31 @@ export interface FileRouteTypes {
   to:
     | "/"
     | "/403"
-    | "/ai-assistant"
-    | "/faq"
     | "/login"
     | "/register"
     | "/register-confirm"
     | "/register-success"
     | "/subscriptions"
-    | "/attendances"
     | "/checkin"
     | "/proceedings"
     | "/profile"
-    | "/tickets"
     | "/conferences/$conferenceId"
     | "/papers/$paperId"
     | "/conferences"
     | "/papers"
+    | "/admin/attendances"
     | "/admin/dashboard"
+    | "/admin/tickets"
     | "/agenda/me"
     | "/chair-invitations/$token"
     | "/conferences/create"
     | "/notifications/create"
     | "/papers/submit"
-    | "/sessions/assign"
-    | "/sessions/chair-invitations"
     | "/subscriptions/me"
+    | "/tickets/me"
     | "/admin"
     | "/chair-invitations"
-    | "/sessions"
     | "/admin/awards/templates"
-    | "/conferences/$conferenceId/import-papers"
     | "/papers/me/$paperId"
     | "/admin/awards"
     | "/papers/me"
@@ -487,39 +422,33 @@ export interface FileRouteTypes {
     | "/"
     | "/(app)"
     | "/403"
-    | "/ai-assistant"
-    | "/faq"
     | "/login"
     | "/register"
     | "/register-confirm"
     | "/register-success"
     | "/subscriptions"
     | "/(app)/admin"
-    | "/(app)/sessions"
-    | "/(app)/attendances"
     | "/(app)/checkin"
     | "/(app)/proceedings"
     | "/(app)/profile"
-    | "/(app)/tickets"
     | "/conferences/$conferenceId"
     | "/papers/$paperId"
     | "/conferences/"
     | "/papers/"
+    | "/(app)/admin/attendances"
     | "/(app)/admin/dashboard"
+    | "/(app)/admin/tickets"
     | "/(app)/agenda/me"
     | "/(app)/chair-invitations/$token"
     | "/(app)/conferences/create"
     | "/(app)/notifications/create"
     | "/(app)/papers/submit"
-    | "/(app)/sessions/assign"
-    | "/(app)/sessions/chair-invitations"
     | "/(app)/subscriptions/me"
+    | "/(app)/tickets/me"
     | "/(app)/admin/"
     | "/(app)/chair-invitations/"
-    | "/(app)/sessions/"
     | "/(app)/conferences/$conferenceId/sessions"
     | "/(app)/admin/awards/templates"
-    | "/(app)/conferences/$conferenceId/import-papers"
     | "/(app)/papers/me/$paperId"
     | "/(app)/admin/awards/"
     | "/(app)/papers/me/"
@@ -532,8 +461,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   appRouteRoute: typeof appRouteRouteWithChildren
   R403Route: typeof R403Route
-  AiAssistantRoute: typeof AiAssistantRoute
-  FaqRoute: typeof FaqRoute
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
   RegisterConfirmRoute: typeof RegisterConfirmRoute
@@ -580,20 +507,6 @@ declare module "@tanstack/react-router" {
       path: "/login"
       fullPath: "/login"
       preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    "/faq": {
-      id: "/faq"
-      path: "/faq"
-      fullPath: "/faq"
-      preLoaderRoute: typeof FaqRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    "/ai-assistant": {
-      id: "/ai-assistant"
-      path: "/ai-assistant"
-      fullPath: "/ai-assistant"
-      preLoaderRoute: typeof AiAssistantRouteImport
       parentRoute: typeof rootRouteImport
     }
     "/403": {
@@ -645,13 +558,6 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof ConferencesConferenceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/(app)/tickets": {
-      id: "/(app)/tickets"
-      path: "/tickets"
-      fullPath: "/tickets"
-      preLoaderRoute: typeof appTicketsRouteImport
-      parentRoute: typeof appRouteRoute
-    }
     "/(app)/profile": {
       id: "/(app)/profile"
       path: "/profile"
@@ -673,33 +579,12 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof appCheckinRouteImport
       parentRoute: typeof appRouteRoute
     }
-    "/(app)/attendances": {
-      id: "/(app)/attendances"
-      path: "/attendances"
-      fullPath: "/attendances"
-      preLoaderRoute: typeof appAttendancesRouteImport
-      parentRoute: typeof appRouteRoute
-    }
-    "/(app)/sessions": {
-      id: "/(app)/sessions"
-      path: "/sessions"
-      fullPath: "/sessions"
-      preLoaderRoute: typeof appSessionsRouteRouteImport
-      parentRoute: typeof appRouteRoute
-    }
     "/(app)/admin": {
       id: "/(app)/admin"
       path: "/admin"
       fullPath: "/admin"
       preLoaderRoute: typeof appAdminRouteRouteImport
       parentRoute: typeof appRouteRoute
-    }
-    "/(app)/sessions/": {
-      id: "/(app)/sessions/"
-      path: "/"
-      fullPath: "/sessions/"
-      preLoaderRoute: typeof appSessionsIndexRouteImport
-      parentRoute: typeof appSessionsRouteRoute
     }
     "/(app)/chair-invitations/": {
       id: "/(app)/chair-invitations/"
@@ -715,26 +600,19 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof appAdminIndexRouteImport
       parentRoute: typeof appAdminRouteRoute
     }
+    "/(app)/tickets/me": {
+      id: "/(app)/tickets/me"
+      path: "/tickets/me"
+      fullPath: "/tickets/me"
+      preLoaderRoute: typeof appTicketsMeRouteImport
+      parentRoute: typeof appRouteRoute
+    }
     "/(app)/subscriptions/me": {
       id: "/(app)/subscriptions/me"
       path: "/subscriptions/me"
       fullPath: "/subscriptions/me"
       preLoaderRoute: typeof appSubscriptionsMeRouteImport
       parentRoute: typeof appRouteRoute
-    }
-    "/(app)/sessions/chair-invitations": {
-      id: "/(app)/sessions/chair-invitations"
-      path: "/chair-invitations"
-      fullPath: "/sessions/chair-invitations"
-      preLoaderRoute: typeof appSessionsChairInvitationsRouteImport
-      parentRoute: typeof appSessionsRouteRoute
-    }
-    "/(app)/sessions/assign": {
-      id: "/(app)/sessions/assign"
-      path: "/assign"
-      fullPath: "/sessions/assign"
-      preLoaderRoute: typeof appSessionsAssignRouteImport
-      parentRoute: typeof appSessionsRouteRoute
     }
     "/(app)/papers/submit": {
       id: "/(app)/papers/submit"
@@ -771,11 +649,25 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof appAgendaMeRouteImport
       parentRoute: typeof appRouteRoute
     }
+    "/(app)/admin/tickets": {
+      id: "/(app)/admin/tickets"
+      path: "/tickets"
+      fullPath: "/admin/tickets"
+      preLoaderRoute: typeof appAdminTicketsRouteRouteImport
+      parentRoute: typeof appAdminRouteRoute
+    }
     "/(app)/admin/dashboard": {
       id: "/(app)/admin/dashboard"
       path: "/dashboard"
       fullPath: "/admin/dashboard"
       preLoaderRoute: typeof appAdminDashboardRouteRouteImport
+      parentRoute: typeof appAdminRouteRoute
+    }
+    "/(app)/admin/attendances": {
+      id: "/(app)/admin/attendances"
+      path: "/attendances"
+      fullPath: "/admin/attendances"
+      preLoaderRoute: typeof appAdminAttendancesRouteRouteImport
       parentRoute: typeof appAdminRouteRoute
     }
     "/(app)/papers/me/": {
@@ -797,13 +689,6 @@ declare module "@tanstack/react-router" {
       path: "/papers/me/$paperId"
       fullPath: "/papers/me/$paperId"
       preLoaderRoute: typeof appPapersMePaperIdRouteImport
-      parentRoute: typeof appRouteRoute
-    }
-    "/(app)/conferences/$conferenceId/import-papers": {
-      id: "/(app)/conferences/$conferenceId/import-papers"
-      path: "/conferences/$conferenceId/import-papers"
-      fullPath: "/conferences/$conferenceId/import-papers"
-      preLoaderRoute: typeof appConferencesConferenceIdImportPapersRouteImport
       parentRoute: typeof appRouteRoute
     }
     "/(app)/admin/awards/templates": {
@@ -845,14 +730,18 @@ declare module "@tanstack/react-router" {
 }
 
 interface appAdminRouteRouteChildren {
+  appAdminAttendancesRouteRoute: typeof appAdminAttendancesRouteRoute
   appAdminDashboardRouteRoute: typeof appAdminDashboardRouteRoute
+  appAdminTicketsRouteRoute: typeof appAdminTicketsRouteRoute
   appAdminIndexRoute: typeof appAdminIndexRoute
   appAdminAwardsTemplatesRoute: typeof appAdminAwardsTemplatesRoute
   appAdminAwardsIndexRoute: typeof appAdminAwardsIndexRoute
 }
 
 const appAdminRouteRouteChildren: appAdminRouteRouteChildren = {
+  appAdminAttendancesRouteRoute: appAdminAttendancesRouteRoute,
   appAdminDashboardRouteRoute: appAdminDashboardRouteRoute,
+  appAdminTicketsRouteRoute: appAdminTicketsRouteRoute,
   appAdminIndexRoute: appAdminIndexRoute,
   appAdminAwardsTemplatesRoute: appAdminAwardsTemplatesRoute,
   appAdminAwardsIndexRoute: appAdminAwardsIndexRoute,
@@ -861,21 +750,6 @@ const appAdminRouteRouteChildren: appAdminRouteRouteChildren = {
 const appAdminRouteRouteWithChildren = appAdminRouteRoute._addFileChildren(
   appAdminRouteRouteChildren,
 )
-
-interface appSessionsRouteRouteChildren {
-  appSessionsAssignRoute: typeof appSessionsAssignRoute
-  appSessionsChairInvitationsRoute: typeof appSessionsChairInvitationsRoute
-  appSessionsIndexRoute: typeof appSessionsIndexRoute
-}
-
-const appSessionsRouteRouteChildren: appSessionsRouteRouteChildren = {
-  appSessionsAssignRoute: appSessionsAssignRoute,
-  appSessionsChairInvitationsRoute: appSessionsChairInvitationsRoute,
-  appSessionsIndexRoute: appSessionsIndexRoute,
-}
-
-const appSessionsRouteRouteWithChildren =
-  appSessionsRouteRoute._addFileChildren(appSessionsRouteRouteChildren)
 
 interface appConferencesConferenceIdSessionsRouteRouteChildren {
   appConferencesConferenceIdSessionsIndexRoute: typeof appConferencesConferenceIdSessionsIndexRoute
@@ -900,44 +774,37 @@ const appConferencesConferenceIdSessionsRouteRouteWithChildren =
 
 interface appRouteRouteChildren {
   appAdminRouteRoute: typeof appAdminRouteRouteWithChildren
-  appSessionsRouteRoute: typeof appSessionsRouteRouteWithChildren
-  appAttendancesRoute: typeof appAttendancesRoute
   appCheckinRoute: typeof appCheckinRoute
   appProceedingsRoute: typeof appProceedingsRoute
   appProfileRoute: typeof appProfileRoute
-  appTicketsRoute: typeof appTicketsRoute
   appAgendaMeRoute: typeof appAgendaMeRoute
   appChairInvitationsTokenRoute: typeof appChairInvitationsTokenRoute
   appConferencesCreateRoute: typeof appConferencesCreateRoute
   appNotificationsCreateRoute: typeof appNotificationsCreateRoute
   appPapersSubmitRoute: typeof appPapersSubmitRoute
   appSubscriptionsMeRoute: typeof appSubscriptionsMeRoute
+  appTicketsMeRoute: typeof appTicketsMeRoute
   appChairInvitationsIndexRoute: typeof appChairInvitationsIndexRoute
   appConferencesConferenceIdSessionsRouteRoute: typeof appConferencesConferenceIdSessionsRouteRouteWithChildren
-  appConferencesConferenceIdImportPapersRoute: typeof appConferencesConferenceIdImportPapersRoute
   appPapersMePaperIdRoute: typeof appPapersMePaperIdRoute
   appPapersMeIndexRoute: typeof appPapersMeIndexRoute
 }
 
 const appRouteRouteChildren: appRouteRouteChildren = {
   appAdminRouteRoute: appAdminRouteRouteWithChildren,
-  appSessionsRouteRoute: appSessionsRouteRouteWithChildren,
-  appAttendancesRoute: appAttendancesRoute,
   appCheckinRoute: appCheckinRoute,
   appProceedingsRoute: appProceedingsRoute,
   appProfileRoute: appProfileRoute,
-  appTicketsRoute: appTicketsRoute,
   appAgendaMeRoute: appAgendaMeRoute,
   appChairInvitationsTokenRoute: appChairInvitationsTokenRoute,
   appConferencesCreateRoute: appConferencesCreateRoute,
   appNotificationsCreateRoute: appNotificationsCreateRoute,
   appPapersSubmitRoute: appPapersSubmitRoute,
   appSubscriptionsMeRoute: appSubscriptionsMeRoute,
+  appTicketsMeRoute: appTicketsMeRoute,
   appChairInvitationsIndexRoute: appChairInvitationsIndexRoute,
   appConferencesConferenceIdSessionsRouteRoute:
     appConferencesConferenceIdSessionsRouteRouteWithChildren,
-  appConferencesConferenceIdImportPapersRoute:
-    appConferencesConferenceIdImportPapersRoute,
   appPapersMePaperIdRoute: appPapersMePaperIdRoute,
   appPapersMeIndexRoute: appPapersMeIndexRoute,
 }
@@ -950,8 +817,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   appRouteRoute: appRouteRouteWithChildren,
   R403Route: R403Route,
-  AiAssistantRoute: AiAssistantRoute,
-  FaqRoute: FaqRoute,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
   RegisterConfirmRoute: RegisterConfirmRoute,
