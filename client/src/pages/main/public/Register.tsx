@@ -19,7 +19,7 @@ import { Route } from "@/routes/register";
 const CAROUSEL_SLIDES = [
   {
     image:
-      "https://nursingeducation.org/wp-content/uploads/2024/07/Research-Nurse-scaled-e1721688270245.jpg",
+      "https://cdn.seeklearning.com.au/media/images/career-guide/module/researcher.jpg",
     title: "Join the Global Scientific Community",
     subtitle: "Connect with researchers and organizers worldwide.",
   },
