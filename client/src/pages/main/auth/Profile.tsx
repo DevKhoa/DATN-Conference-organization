@@ -56,7 +56,7 @@ interface UserProfile {
   google_refresh_token: string | null;
 }
 
-const BASE_API_URL = import.meta.env.VITE_API_BASE_URL as string;
+const BASE_API_URL = ((import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:8080").replace(/\/$/, "");
 
 const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
@@ -294,8 +294,7 @@ const ProfilePage: React.FC = () => {
     try {
       const response = await fetch(
         `${BASE_API_URL}/sessions/google-auth-url?email=${encodeURIComponent(profile.email)}`,
-      );
-      const data = await response.json();
+      );      const data = await response.json();
       if (!response.ok) {
         throw new Error(
           data.detail || "Failed to get auth URL. Please log in again.",

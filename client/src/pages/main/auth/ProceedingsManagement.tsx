@@ -97,6 +97,7 @@ import {
 } from "@/features/proceedings/management/constants";
 import { ProceedingsBasicTabsSection } from "@/features/proceedings/management/sections/ProceedingsBasicTabsSection";
 import { ProceedingsEditorSection } from "@/features/proceedings/management/sections/ProceedingsEditorSection";
+import { generateUUID } from "@/features/proceedings/utils/uuid";
 
 const handlePos = getHandlePosition;
 // ─── Tab definitions ──────────────────────────────────────────────────────────
@@ -482,7 +483,7 @@ const ProceedingsManagementPage: React.FC = () => {
       }
 
       return {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         paperTitle: p.title,
         authors: a?.full_name || "",
         abstract: p.abstract || "",
@@ -700,7 +701,7 @@ const ProceedingsManagementPage: React.FC = () => {
         const c = getObj(s.chair);
         if (c?.full_name && !chairSet.has(c.full_name))
           chairSet.set(c.full_name, {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             name: c.full_name,
             role: "Session Chair",
             affiliation: c.organization || "",
@@ -710,7 +711,7 @@ const ProceedingsManagementPage: React.FC = () => {
       reviewers?.forEach((rv: any) => {
         if (rv?.full_name && !reviewerSet.has(rv.full_name))
           reviewerSet.set(rv.full_name, {
-            id: rv.id || crypto.randomUUID(),
+            id: rv.id || generateUUID(),
             name: rv.full_name,
             role: "Program Committee",
             affiliation: rv.organization || "",
@@ -763,7 +764,7 @@ const ProceedingsManagementPage: React.FC = () => {
                 (1000 * 3600 * 24),
             ) + 1;
           return {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             date: `Day ${dayDiff} - ${currentSlot.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}`,
             time: `${currentSlot.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – ${new Date(s.end_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
             location: s.room_location,
@@ -1427,7 +1428,7 @@ const ProceedingsManagementPage: React.FC = () => {
       // 5. Ctrl+V Paste — patchPage saves history
       if ((e.ctrlKey || e.metaKey) && e.key === "v" && clipboard) {
         e.preventDefault();
-        const newId = crypto.randomUUID();
+        const newId = generateUUID();
         const pastedEl = {
           ...clipboard,
           id: newId,
@@ -1445,7 +1446,7 @@ const ProceedingsManagementPage: React.FC = () => {
   }, [selEl, clipboard, selPage, selElId, edPages]);
 
   const addText = () => {
-    const id = crypto.randomUUID();
+    const id = generateUUID();
     const maxTxtZ = curPg.els
       .filter((e) => e.type === "text")
       .reduce((m, e) => Math.max(m, e.zIndex ?? 100), 100);
@@ -1498,7 +1499,7 @@ const ProceedingsManagementPage: React.FC = () => {
   const applyBgImage = (src: string, scope: "current" | "all") => {
     saveHistory();
     const makeEl = (): EditorEl => ({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: "image",
       src,
       x: 0,
@@ -1537,7 +1538,7 @@ const ProceedingsManagementPage: React.FC = () => {
   const addImage = (src: string, isBackground: boolean = false) => {
     const img = new window.Image();
     img.onload = () => {
-      const id = crypto.randomUUID();
+      const id = generateUUID();
       const maxImgZ = curPg.els
         .filter((e) => e.type === "image")
         .reduce((m, e) => Math.max(m, e.zIndex ?? 10), 10);
@@ -1591,7 +1592,7 @@ const ProceedingsManagementPage: React.FC = () => {
   };
 
   const addTable = (rows: number, cols: number) => {
-    const id = crypto.randomUUID();
+    const id = generateUUID();
     const tW = 500,
       tH = rows * 32 + 10;
     const tblData = createEmptyTable(rows, cols, tW, tH);
@@ -1698,7 +1699,7 @@ const ProceedingsManagementPage: React.FC = () => {
   const insertPage = (afterIdx: number) => {
     saveHistory();
     const blank: EditorPage = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       bg: "",
       bgColor: "#ffffff",
       els: [],
@@ -1769,7 +1770,7 @@ const ProceedingsManagementPage: React.FC = () => {
     updateKeynotes([
       ...procData.keynotes,
       {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         name: "",
         photo: "",
         presentationTitle: "",
@@ -1872,7 +1873,7 @@ const ProceedingsManagementPage: React.FC = () => {
     updateCommittee([
       ...procData.committee,
       {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         role: "Program Committee",
         name: "",
         affiliation: "",

@@ -34,9 +34,10 @@ from packages.google_oauth import google_meet_service
 
 router = APIRouter(tags=["sessions"])
 
-def _build_invite_link(token: str) -> str:
+def _build_invite_link(token: str, client_url: str = None) -> str:
     base_url = (
-        os.environ.get("CLIENT_URL")
+        client_url
+        or os.environ.get("CLIENT_URL")
         or "http://localhost:3000"
     ).rstrip("/")
     return f"{base_url}/chair-invitations/{token}"
@@ -547,7 +548,7 @@ async def create_chair_invitation(
         raise HTTPException(status_code=500, detail="Failed to create chair invitation.")
 
     invitation = create_res.data[0]
-    invite_link = _build_invite_link(token)
+    invite_link = _build_invite_link(token, request.client_url)
     session_name = session_data.get("session_name") or "Session"
     conference_name = conference_data.get("conf_name") or "Conference"
 

@@ -366,14 +366,17 @@ export const useCreateChairInvitationMutation = () => {
       sessionId,
       email,
       invitedBy,
+      clientUrl,
     }: {
       sessionId: number;
       email: string;
       invitedBy?: number;
+      clientUrl?: string;
     }) => {
       return request.post(`/sessions/${sessionId}/chair-invitations`, {
         email,
         invited_by: invitedBy,
+        client_url: clientUrl,
       });
     },
     onSuccess: (_, variables) => {
