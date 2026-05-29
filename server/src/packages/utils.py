@@ -82,23 +82,6 @@ class Logger:
     def exception(self, message: str):
         self.logger.exception(message, stacklevel=2)
 
-
-def get_google_credentials():
-    """Load Google credentials from env var JSON string or fallback to ADC."""
-    creds_json = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-    
-    if creds_json:
-        # Parse the JSON string directly
-        creds_info = json.loads(creds_json)
-        credentials = service_account.Credentials.from_service_account_info(
-            creds_info,
-        )
-        return credentials
-    
-    return None
-
-GOOGLE_APPLICATION_CREDENTIALS = get_google_credentials()
-
 #======================================== CONSTANTS ========================================#
 
 USER_ID = "agent"
@@ -126,11 +109,12 @@ MAX_PAPER_SIZE_MB = 5
 
 logger = Logger()
 
-genai_client = genai.Client(credentials=GOOGLE_APPLICATION_CREDENTIALS)
-language_client = language_v2.LanguageServiceClient(credentials=GOOGLE_APPLICATION_CREDENTIALS)
-storage_client = storage.Client(credentials=GOOGLE_APPLICATION_CREDENTIALS)
+genai_client = genai.Client()
+language_client = language_v2.LanguageServiceClient()
+storage_client = storage.Client()
 
 embedding_model = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL_NAME, output_dimensionality=VECTOR_DIMENSION)
+
 supabase_client = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY"))
 
 PAYOS_CLIENT_ID = os.environ.get("PAYOS_CLIENT_ID")
