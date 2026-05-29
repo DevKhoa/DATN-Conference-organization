@@ -8,6 +8,7 @@ import {
   List,
   ListOrdered,
   Loader2,
+  Mail,
   PenLine,
   Search,
   Send,
@@ -189,48 +190,21 @@ const RichTextEditor: React.FC<{
           Strike
         </button>
         <div className="w-px h-5 bg-border mx-1" />
-        <button
-          type="button"
-          title="Heading"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            toggleBlock("h3");
+        <select
+          title="Font Size"
+          onChange={(e) => {
+            runEditorCommand("fontSize", e.target.value);
+            // reset selection so it doesn't stay stuck on the dropdown
+            e.target.value = "";
           }}
-          className={`px-2 h-7 rounded text-xs transition-colors ${formatState.block === "h3"
-            ? "bg-primary/10 text-primary"
-            : "text-muted-foreground hover:bg-accent"
-            }`}
+          className="h-7 rounded text-xs border-none bg-transparent text-muted-foreground hover:bg-accent transition-colors outline-none cursor-pointer px-1"
         >
-          H3
-        </button>
-        <button
-          type="button"
-          title="Quote"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            toggleBlock("blockquote");
-          }}
-          className={`px-2 h-7 rounded text-xs transition-colors ${formatState.block === "blockquote"
-            ? "bg-primary/10 text-primary"
-            : "text-muted-foreground hover:bg-accent"
-            }`}
-        >
-          Quote
-        </button>
-        <button
-          type="button"
-          title="Code block"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            toggleBlock("pre");
-          }}
-          className={`px-2 h-7 rounded text-xs transition-colors ${formatState.block === "pre"
-            ? "bg-primary/10 text-primary"
-            : "text-muted-foreground hover:bg-accent"
-            }`}
-        >
-          Code
-        </button>
+          <option value="" disabled selected hidden>Size</option>
+          <option value="1">Small</option>
+          <option value="3">Normal</option>
+          <option value="5">Large</option>
+          <option value="7">Huge</option>
+        </select>
         <div className="w-px h-5 bg-border mx-1" />
         {/* Nút Ordered list (Numbering) */}
         <button
@@ -453,7 +427,7 @@ const CreatePushNotificationsPage: React.FC<CreatePushNotificationsProps> = ({
   const navigate = useNavigate();
   const { session } = useAuth();
   const resolvedUserEmail = userEmail ?? session?.user?.email ?? "";
-  const handleClose = onClose ?? (() => navigate({ to: "/profile" }));
+  const handleClose = onClose ?? (() => window.history.back());
   const isConferenceScoped = !!conferenceId;
 
   // Tabs
@@ -509,6 +483,7 @@ const CreatePushNotificationsPage: React.FC<CreatePushNotificationsProps> = ({
   // Submission
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [sendEmail, setSendEmail] = useState(false);
 
   // Create / Edit template form state
   const [showCreateTemplate, setShowCreateTemplate] = useState(false);
@@ -686,6 +661,7 @@ const CreatePushNotificationsPage: React.FC<CreatePushNotificationsProps> = ({
         finalContent,
         targetUserIds,
         activeTab,
+        sendEmail,
       });
 
       setSubmitSuccess(true);
@@ -1523,28 +1499,47 @@ const CreatePushNotificationsPage: React.FC<CreatePushNotificationsProps> = ({
 
           {/* Footer */}
           {!submitSuccess && (
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border shrink-0 bg-muted/40">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleClose}
-                disabled={submitting}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleSubmit}
-                disabled={submitting}
-                className={submitting ? "animate-pulse" : ""}
-              >
-                {submitting ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4 mr-2" />
-                )}
-                {submitting ? "Sending..." : "Send Notification"}
-              </Button>
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-border shrink-0 bg-muted/40">
+              {/* Send via Email checkbox */}
+              <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <div className="relative flex items-center">
+                  <input
+                    type="checkbox"
+                    id="send-email-toggle"
+                    checked={sendEmail}
+                    onChange={(e) => setSendEmail(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-muted border border-border rounded-full peer peer-checked:bg-primary peer-checked:border-primary transition-colors" />
+                  <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4" />
+                </div>
+                <Mail className="w-3.5 h-3.5" />
+                Also send via Email
+              </label>
+
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClose}
+                  disabled={submitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className={submitting ? "animate-pulse" : ""}
+                >
+                  {submitting ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4 mr-2" />
+                  )}
+                  {submitting ? "Sending..." : "Send Notification"}
+                </Button>
+              </div>
             </div>
           )}
         </div>

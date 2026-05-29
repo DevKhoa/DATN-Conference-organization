@@ -45,8 +45,10 @@ export const useSaveProceedingsConfigMutation = () => {
       internetInfo,
       galaInfo,
       keynotesJson,
+      editorPagesJson,
+      editorHfJson,
     }: SaveProceedingsConfigPayload) => {
-      const { error } = await supabase.from("proceedings_configs").upsert({
+      const upsertPayload: Record<string, any> = {
         conf_id: confId,
         proceedings_title: proceedingsTitle,
         foreword,
@@ -56,7 +58,19 @@ export const useSaveProceedingsConfigMutation = () => {
         internet_info: internetInfo,
         gala_info: galaInfo,
         keynotes_json: keynotesJson,
-      });
+      };
+
+      // Only write editor state when caller provides it (i.e. editor has been opened)
+      if (editorPagesJson !== undefined) {
+        upsertPayload.editor_pages_json = editorPagesJson;
+      }
+      if (editorHfJson !== undefined) {
+        upsertPayload.editor_hf_json = editorHfJson;
+      }
+
+      const { error } = await supabase
+        .from("proceedings_configs")
+        .upsert(upsertPayload);
 
       if (error) {
         throw error;

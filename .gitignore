@@ -183,6 +183,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+env.yaml
 
 # Spyder project settings
 .spyderproject
@@ -243,7 +244,6 @@ __marimo__/
 .streamlit/secrets.toml
 
 Credentials/
-Test/
-*Test*
-*test*
-.vscode
+*.ipynb
+
+/database-schema.md

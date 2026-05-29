@@ -7,10 +7,10 @@ import numpy as np
 from k_means_constrained import KMeansConstrained
 
 from fastapi import APIRouter, HTTPException, Query, Path, BackgroundTasks
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from google.genai import types
 
-from packages.my_email import normalize_email, send_email
+from packages.my_email import normalize_email, send_email, send_html_email
 from packages.schema import (
     AutoSessionRequest,
     AuthorProfileAnalysis,
@@ -21,9 +21,15 @@ from packages.schema import (
     MatchReviewResponse,
     SessionChairResponse,
     ChairRecommendation,
+    SessionAuthResponse,
+    GoogleMeetCallbackRequest,
+    MeetCreationRequest,
+    MeetCreationResponse,
 )
 from packages.utils import logger, supabase_client, genai_client, MODEL, EMBEDDING_MODEL_NAME, VECTOR_DIMENSION, CHAIR_ROLE_ID, PAPER_MATCH_REVIEWER
 from packages.auto_session import get_batch_embeddings, generate_session_title
+from packages.session_notifier import send_session_start_notifications, get_session_recipients
+from packages.google_oauth import google_meet_service
 
 
 router = APIRouter(tags=["sessions"])
@@ -215,13 +221,6 @@ async def auto_generate_sessions(request: AutoSessionRequest):
         if request.min_paper * request.n_session > total_papers:
              raise HTTPException(status_code=400, detail=f"Minimum requirement not met. Not enough papers to fill {request.n_session} sessions with at least {request.min_paper} papers each.")
 
-        if request.min_paper > total_papers:
-            raise HTTPException(status_code=400, detail="The minium number of papers per session should not exeed the number of papers in total")
-
-        if request.max_paper > total_papers:
-            raise HTTPException(status_code=400, detail="The maximum number of papers per session should not exeed the number of papers in total")
-
-
         logger.info("Generating embeddings...")
         df['abstract'] = df['abstract'].fillna('')
         df['text_for_embed'] = df['title'] + " " + df['abstract']
@@ -271,8 +270,6 @@ async def auto_generate_sessions(request: AutoSessionRequest):
             "sessions": result_summary
         }
 
-    except HTTPException as http_e:
-        raise http_e
     except Exception as e:
         logger.error(f"Auto-schedule failed: {str(e)}")
         raise HTTPException(status_code=500, detail="The auto-scheduling process failed. Please try again later.")
@@ -551,14 +548,41 @@ async def create_chair_invitation(
 
     invitation = create_res.data[0]
     invite_link = _build_invite_link(token)
-    email_subject = f"Chair invitation for {session_data.get('session_name') or 'session'}"
-    email_body = (
-        f"You have been invited to chair the session '{session_data.get('session_name') or session_id}'\n\n"
-        f"Conference: {conference_data.get('conf_name') or conference_data.get('conf_id')}\n"
-        f"Invitation link: {invite_link}\n"
+    session_name = session_data.get("session_name") or "Session"
+    conference_name = conference_data.get("conf_name") or "Conference"
+
+    email_subject = f"Invitation to Chair: {session_name}"
+
+    email_plain_body = (
+        f"Dear Colleague,\n\n"
+        f"You are cordially invited to serve as the Session Chair for the session '{session_name}' "
+        f"at the upcoming conference '{conference_name}'.\n\n"
+        f"Please view details and respond using this link:\n"
+        f"{invite_link}\n\n"
+        f"Thank you for your time and support.\n\n"
+        f"Best regards,\n"
+        f"Conference Organizing Committee"
     )
 
-    background_tasks.add_task(send_email, normalized_email, email_subject, email_body)
+    email_html_body = (
+        f"<p>Dear Colleague,</p>"
+        f"<p>You are cordially invited to serve as the Session Chair for the session '{session_name}' at the upcoming conference '{conference_name}'.</p>"
+        f"<p>Please review details and respond using the following link:</p>"
+        f"<p><a href='{invite_link}' style='color: #4f46e5; font-weight: bold; text-decoration: underline;'>"
+        f"Enter this invitation link</a></p>"
+        f"<p>Thank you for your time and support.</p>"
+        f"<p>Best regards,</p>"
+        f"<p>Conference Organizing Committee</p>"
+    )
+
+    notif_content = (
+        f"You are cordially invited to serve as the Session Chair for the session "
+        f"<strong>{session_name}</strong> at the conference <strong>{conference_name}</strong>.<br/><br/>"
+        f"Please <a href='{invite_link}' target='_blank' style='color: #4f46e5; font-weight: 600; text-decoration: underline;'>"
+        f"click here to view and respond to the invitation</a>."
+    )
+
+    background_tasks.add_task(send_html_email, normalized_email, email_subject, email_html_body, email_plain_body)
 
     if invitee_profile:
         try:
@@ -566,7 +590,7 @@ async def create_chair_invitation(
                 "conf_id": conference_data["conf_id"],
                 "sender_id": request.invited_by,
                 "title": email_subject,
-                "content": email_body,
+                "content": notif_content,
                 "attachments": [],
                 "type": "manual",
                 "target_type": "user",
@@ -579,7 +603,7 @@ async def create_chair_invitation(
                     "notification_id": notification_id,
                     "user_id": invitee_profile["user_id"],
                     "dynamic_title": email_subject,
-                    "dynamic_content": email_body,
+                    "dynamic_content": notif_content,
                 }).execute()
         except Exception as notification_error:
             logger.warning(f"Failed to create invitation notification: {notification_error}")
@@ -696,16 +720,38 @@ async def accept_chair_invitation(token: str, request: ChairInvitationDecisionRe
 
     updated_invitation = update_res.data[0]
 
+    invitee_profile_res = _select_profile_by_email(invitee_email)
+    invitee_profile = invitee_profile_res.data if invitee_profile_res.data else None
+
     try:
-        supabase_client.table("user_roles").insert({
-            "user_id": invitee_user_id,
-            "role_id": CHAIR_ROLE_ID,
-        }).execute()
+        user_uuid = invitee_profile.get("id") if invitee_profile else None
+        if user_uuid:
+            supabase_client.table("user_roles").insert({
+                "user_id": user_uuid,
+                "role_id": CHAIR_ROLE_ID,
+            }).execute()
+        else:
+            supabase_client.table("user_roles").insert({
+                "user_id": invitee_user_id,
+                "role_id": CHAIR_ROLE_ID,
+            }).execute()
     except Exception as role_error:
         logger.warning(f"Unable to ensure chair role for user {invitee_user_id}: {role_error}")
 
-    invitee_profile_res = _select_profile_by_email(invitee_email)
-    invitee_profile = invitee_profile_res.data if invitee_profile_res.data else None
+    try:
+        existing_att = supabase_client.table("attendences").select("at_id") \
+            .eq("session_id", invitation["session_id"]) \
+            .eq("user_id", invitee_user_id) \
+            .execute()
+        
+        if not existing_att.data:
+            supabase_client.table("attendences").insert({
+                "session_id": invitation["session_id"],
+                "user_id": invitee_user_id,
+                "is_checkin": False
+            }).execute()
+    except Exception as att_error:
+        logger.warning(f"Unable to add attendences for chair {invitee_user_id}: {att_error}")
 
     return _serialize_invitation(updated_invitation, session_data, conference_data, invitee_profile["user_id"] if invitee_profile else invitee_user_id)
 
@@ -745,3 +791,319 @@ async def cancel_chair_invitation(session_id: int = Path(..., description="ID of
     invitee_profile_res = _select_profile_by_email(normalize_email(updated_invitation.get("email") or ""))
     invitee_profile = invitee_profile_res.data if invitee_profile_res.data else None
     return _serialize_invitation(updated_invitation, session_data, conference_data, invitee_profile["user_id"] if invitee_profile else None)
+
+
+@router.post("/sessions/{session_id}/notify-start")
+async def notify_session_start(
+    background_tasks: BackgroundTasks,
+    session_id: int = Path(..., description="ID of the session to notify"),
+):
+    """
+    Manually trigger session-start notifications for a given session.
+    Useful for admins and for testing the notification flow.
+    The notification is sent even if it was previously sent (no dedup check here).
+    """
+    # Validate session exists
+    session_data, conference_data = _fetch_session_and_conference(session_id)
+
+    # Preview recipients before sending
+    recipients = get_session_recipients(session_id)
+    if not recipients:
+        raise HTTPException(
+            status_code=400,
+            detail="No chairs or authors found for this session. Notification not sent."
+        )
+
+    # Run in background so the API returns immediately
+    background_tasks.add_task(send_session_start_notifications, session_id)
+
+    return {
+        "status": "dispatched",
+        "session_id": session_id,
+        "session_name": session_data.get("session_name"),
+        "recipient_count": len(recipients),
+        "recipients": [
+            {"user_id": r["user_id"], "email": r["email"], "role": r["role"]}
+            for r in recipients
+        ],
+    }
+
+
+@router.get("/sessions/google-auth-url", response_model=SessionAuthResponse)
+async def get_google_auth_url(email: str = Query(...)):
+    try:
+        auth_url, state = google_meet_service.get_authorization_url(email)
+        return {"auth_url": auth_url, "state": state}
+    except Exception as e:
+        logger.error(f"Failed to get Google Auth URL: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sessions/google-oauth-callback")
+async def google_oauth_callback(state: str, code: str):
+    try:
+        # Trao đổi mã code lấy token
+        token_data = google_meet_service.get_refresh_token(code)
+        refresh_token = token_data.get("refresh_token")
+        
+        # Lưu refresh_token vào profile người dùng
+        email = state.split("::")[0] if "::" in state else None
+        if email and refresh_token:
+            supabase_client.table("profiles").update({"google_refresh_token": refresh_token}).eq("email", email).execute()
+            
+        # Trả về HTML để đóng popup
+        
+        return HTMLResponse(content="""
+            <html>
+                <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f0f2f5;">
+                    <div style="background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center;">
+                        <h2 style="color: #1a73e8;">Authentication Successful!</h2>
+                        <p>You can close this window now and return to the management page.</p>
+                        <script>
+                            if (window.opener) {
+                                window.opener.postMessage({ type: "google-auth-success" }, "*");
+                            }
+                            setTimeout(() => window.close(), 3000);
+                        </script>
+                    </div>
+                </body>
+            </html>
+        """)
+    except Exception as e:
+        logger.error(f"Google OAuth Callback Error: {e}")
+        return HTMLResponse(content=f"<html><body><p>Authentication Error: {str(e)}</p></body></html>", status_code=500)
+
+
+@router.post("/sessions/{session_id}/create-meet", response_model=MeetCreationResponse)
+async def create_session_meet(
+    session_id: int,
+    request: MeetCreationRequest
+):
+    try:
+        session_res = supabase_client.table("sessions") \
+            .select("session_name, start_time, end_time, conferences(timezone)") \
+            .eq("session_id", session_id) \
+            .single().execute()
+            
+        if not session_res.data:
+            raise HTTPException(status_code=404, detail="Session not found")
+            
+        s = session_res.data
+        conf_timezone = s.get('conferences', {}).get('timezone', 'UTC')
+        
+        if not s['start_time'] or not s['end_time']:
+            raise HTTPException(status_code=400, detail="Session must have start and end times to create a Meet link.")
+
+        result = google_meet_service.create_meeting(
+            email=request.email,
+            summary=f"Session: {s['session_name']}",
+            start_time=s['start_time'],
+            end_time=s['end_time'],
+            timezone=conf_timezone
+        )
+        
+        # Cập nhật session với meet link và event_id
+        supabase_client.table("sessions").update({
+            "meet_link": result['meet_link'],
+            "google_event_id": result['event_id']
+        }).eq("session_id", session_id).execute()
+        
+        return result
+    except Exception as e:
+        logger.error(f"Failed to create Meet link: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/sessions/{session_id}/update-meet", response_model=MeetCreationResponse)
+async def update_session_meet(
+    session_id: int,
+    request: MeetCreationRequest
+):
+    try:
+        session_res = supabase_client.table("sessions") \
+            .select("session_name, start_time, end_time, google_event_id, conferences(timezone)") \
+            .eq("session_id", session_id) \
+            .single().execute()
+            
+        if not session_res.data:
+            raise HTTPException(status_code=404, detail="Session not found")
+            
+        s = session_res.data
+        conf_timezone = s.get('conferences', {}).get('timezone', 'UTC')
+        event_id = s.get('google_event_id')
+        
+        if not event_id:
+            raise HTTPException(status_code=400, detail="Session does not have an associated Google Calendar event.")
+            
+        if not s['start_time'] or not s['end_time']:
+            raise HTTPException(status_code=400, detail="Session must have start and end times to update the Meet event.")
+
+        result = google_meet_service.update_meeting(
+            email=request.email,
+            event_id=event_id,
+            summary=f"Session: {s['session_name']}",
+            start_time=s['start_time'],
+            end_time=s['end_time'],
+            timezone=conf_timezone
+        )
+        
+        # Cập nhật session với meet link
+        supabase_client.table("sessions").update({
+            "meet_link": result['meet_link']
+        }).eq("session_id", session_id).execute()
+        
+        return result
+    except Exception as e:
+        logger.error(f"Failed to update Meet event: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/sessions/{session_id}/meet")
+async def delete_session_meet(
+    session_id: int,
+    email: str = Query(...)
+):
+    try:
+        session_res = supabase_client.table("sessions").select("google_event_id").eq("session_id", session_id).single().execute()
+        if not session_res.data or not session_res.data.get('google_event_id'):
+            supabase_client.table("sessions").update({"meet_link": None}).eq("session_id", session_id).execute()
+            return {"status": "cleared local link"}
+            
+        event_id = session_res.data['google_event_id']
+        google_meet_service.delete_meeting(email, event_id)
+        
+        supabase_client.table("sessions").update({
+            "meet_link": None,
+            "google_event_id": None
+        }).eq("session_id", session_id).execute()
+        
+        return {"status": "deleted"}
+    except Exception as e:
+        logger.error(f"Failed to delete Meet link: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/sessions/{session_id}/toggle-meet")
+async def toggle_session_meet(
+    session_id: int,
+    is_active: bool = Query(...)
+):
+    try:
+        supabase_client.table("sessions").update({
+            "is_meet_active": is_active
+        }).eq("session_id", session_id).execute()
+        return {"status": "success", "is_meet_active": is_active}
+    except Exception as e:
+        logger.error(f"Failed to toggle session meet: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/sessions/google-disconnect")
+async def disconnect_google(email: str = Query(...)):
+    try:
+        supabase_client.table("profiles").update({"google_refresh_token": None}).eq("email", email).execute()
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Failed to disconnect Google: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sessions/{session_id}/chair-conflict-check")
+async def check_chair_schedule_conflict(
+    session_id: int = Path(..., description="ID of the session to invite the chair to"),
+    email: str = Query(..., description="Email of the chair candidate to check"),
+):
+    """
+    Check whether a chair candidate (by email) has a schedule conflict with the given session.
+    - If the email is not registered in the system, returns has_conflict=False (cannot check).
+    - If the user IS registered, fetches all sessions they are already chairing and checks
+      for time overlap with the target session.
+
+    Overlap condition: A.start < B.end AND B.start < A.end
+    """
+    try:
+        # 1. Fetch the target session's time window
+        session_res = supabase_client.table("sessions") \
+            .select("session_id, session_name, start_time, end_time, conf_id") \
+            .eq("session_id", session_id) \
+            .single() \
+            .execute()
+
+        if not session_res.data:
+            raise HTTPException(status_code=404, detail="Session not found.")
+
+        target = session_res.data
+        target_start = target.get("start_time")
+        target_end = target.get("end_time")
+
+        if not target_start or not target_end:
+            # No time set yet → cannot detect conflict
+            return {"has_conflict": False, "user_found": False, "conflicting_sessions": []}
+
+        target_start_dt = datetime.fromisoformat(target_start)
+        target_end_dt = datetime.fromisoformat(target_end)
+
+        # 2. Look up the profile by email
+        normalized_email = normalize_email(email)
+        profile_res = _select_profile_by_email(normalized_email)
+        profile = profile_res.data if profile_res.data else None
+
+        if not profile:
+            # User not found → no conflict possible (external invite)
+            return {"has_conflict": False, "user_found": False, "conflicting_sessions": []}
+
+        user_id = profile["user_id"]
+
+        # 3. Fetch all sessions where this user is already a chair (excluding the target session)
+        sc_res = supabase_client.table("session_chairs") \
+            .select("session_id") \
+            .eq("user_id", user_id) \
+            .neq("session_id", session_id) \
+            .execute()
+
+        existing_session_ids = [row["session_id"] for row in (sc_res.data or [])]
+
+        if not existing_session_ids:
+            return {"has_conflict": False, "user_found": True, "conflicting_sessions": []}
+
+        # 4. Fetch time info for all those sessions (join conference name for display)
+        sessions_res = supabase_client.table("sessions") \
+            .select("session_id, session_name, start_time, end_time, conferences!inner(conf_name)") \
+            .in_("session_id", existing_session_ids) \
+            .execute()
+
+        # 5. Detect overlaps
+        conflicting: list[dict] = []
+        for s in (sessions_res.data or []):
+            s_start = s.get("start_time")
+            s_end = s.get("end_time")
+            if not s_start or not s_end:
+                continue
+
+            s_start_dt = datetime.fromisoformat(s_start)
+            s_end_dt = datetime.fromisoformat(s_end)
+
+            # Classic overlap check: A.start < B.end AND B.start < A.end
+            if target_start_dt < s_end_dt and s_start_dt < target_end_dt:
+                conf_info = s.get("conferences") or {}
+                if isinstance(conf_info, list):
+                    conf_info = conf_info[0] if conf_info else {}
+                conflicting.append({
+                    "session_id": s["session_id"],
+                    "session_name": s.get("session_name") or "Unnamed Session",
+                    "start_time": s_start,
+                    "end_time": s_end,
+                    "conf_name": conf_info.get("conf_name") or "",
+                })
+
+        return {
+            "has_conflict": len(conflicting) > 0,
+            "user_found": True,
+            "conflicting_sessions": conflicting,
+        }
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Chair conflict check error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

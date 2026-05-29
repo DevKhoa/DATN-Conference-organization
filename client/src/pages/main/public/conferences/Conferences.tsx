@@ -51,14 +51,13 @@ const ConferencesPage: React.FC = () => {
   // Filter States
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [formatTypeFilter, setFormatTypeFilter] = useState("ALL");
   const [sortOrder, setSortOrder] = useState<
+    | "RELEVANCE"
     | "START_DATE_ASC"
     | "START_DATE_DESC"
-    | "ONGOING_FIRST"
-    | "UPCOMING_FIRST"
-    | "CLOSED_FIRST"
     | "AZ"
-  >("START_DATE_ASC");
+  >("RELEVANCE");
   const [selectedKeyword, setSelectedKeyword] = useState<string>("");
 
   // Topic search state
@@ -71,16 +70,18 @@ const ConferencesPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  const canCreate = checkRoles([Role.ADMIN, Role.SECRETARIAT]);
+
   const filters: ConferencesFilterParams = useMemo(
     () => ({
       searchTerm: debouncedSearch || undefined,
       statusFilter,
       selectedKeyword: selectedKeyword || undefined,
+      formatType: formatTypeFilter,
+      canViewDrafts: canCreate,
     }),
-    [debouncedSearch, statusFilter, selectedKeyword],
+    [debouncedSearch, statusFilter, selectedKeyword, formatTypeFilter, canCreate],
   );
-
-  const canCreate = checkRoles([Role.ADMIN, Role.SECRETARIAT]);
 
   // After state declarations, wire up server-side queries with filters
   const { data: totalCount = 0 } = useConferencesCountQuery(filters);
@@ -94,6 +95,7 @@ const ConferencesPage: React.FC = () => {
     pageSize: ITEMS_PER_PAGE,
     totalCount,
     filters,
+    sortOrder,
   });
 
   const conferences = paginatedData?.data || [];
@@ -105,7 +107,7 @@ const ConferencesPage: React.FC = () => {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, statusFilter, selectedKeyword, setCurrentPage]);
+  }, [debouncedSearch, statusFilter, selectedKeyword, formatTypeFilter, sortOrder, setCurrentPage]);
 
   const getConferenceKeywords = (
     conf: (typeof conferences)[number],
@@ -180,51 +182,8 @@ const ConferencesPage: React.FC = () => {
     return getEventTimingScore(conf) === 3;
   };
 
-  // Client-side sort only (filtering is now server-side)
-  const filteredConferences = useMemo(() => {
-    return [...conferences].sort((a, b) => {
-      if (sortOrder === "START_DATE_ASC") {
-        return (
-          new Date(a.start_date ?? 0).getTime() -
-          new Date(b.start_date ?? 0).getTime()
-        );
-      } else if (sortOrder === "START_DATE_DESC") {
-        return (
-          new Date(b.start_date ?? 0).getTime() -
-          new Date(a.start_date ?? 0).getTime()
-        );
-      } else if (sortOrder === "ONGOING_FIRST") {
-        const scoreA = getEventTimingScore(a);
-        const scoreB = getEventTimingScore(b);
-        if (scoreA === 1 && scoreB !== 1) return -1;
-        if (scoreB === 1 && scoreA !== 1) return 1;
-        return (
-          new Date(a.start_date ?? 0).getTime() -
-          new Date(b.start_date ?? 0).getTime()
-        );
-      } else if (sortOrder === "UPCOMING_FIRST") {
-        const scoreA = getEventTimingScore(a);
-        const scoreB = getEventTimingScore(b);
-        if (scoreA === 2 && scoreB !== 2) return -1;
-        if (scoreB === 2 && scoreA !== 2) return 1;
-        return (
-          new Date(a.start_date ?? 0).getTime() -
-          new Date(b.start_date ?? 0).getTime()
-        );
-      } else if (sortOrder === "CLOSED_FIRST") {
-        const scoreA = getEventTimingScore(a);
-        const scoreB = getEventTimingScore(b);
-        if (scoreA === 3 && scoreB !== 3) return -1;
-        if (scoreB === 3 && scoreA !== 3) return 1;
-        return (
-          new Date(b.start_date ?? 0).getTime() -
-          new Date(a.start_date ?? 0).getTime()
-        );
-      } else {
-        return a.conf_name.localeCompare(b.conf_name);
-      }
-    });
-  }, [conferences, sortOrder]);
+  // Client-side sort is removed as it's now handled by the server
+  const filteredConferences = conferences;
 
   const displayTotalCount = totalCount;
   const displayTotalPages = Math.max(
@@ -306,6 +265,25 @@ const ConferencesPage: React.FC = () => {
               <div className="flex flex-col sm:flex-row gap-4 lg:w-auto w-full">
                 <div className="w-full sm:w-40">
                   <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1.5 ml-1">
+                    Format
+                  </label>
+                  <div className="relative">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                    <select
+                      className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-input bg-background text-foreground focus:ring-2 focus:ring-ring outline-none appearance-none"
+                      value={formatTypeFilter}
+                      onChange={(e) => setFormatTypeFilter(e.target.value)}
+                    >
+                      <option value="ALL">All Formats</option>
+                      <option value="in-person">In-person</option>
+                      <option value="virtual">Virtual</option>
+                      <option value="hybrid">Hybrid</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="w-full sm:w-40">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1.5 ml-1">
                     Status
                   </label>
                   <div className="relative">
@@ -318,7 +296,7 @@ const ConferencesPage: React.FC = () => {
                       <option value="ALL">All Status</option>
                       <option value="OPEN">Open</option>
                       <option value="CLOSED">Closed</option>
-                      <option value="DRAFT">Draft</option>
+                      {canCreate && <option value="DRAFT">Draft</option>}
                     </select>
                   </div>
                 </div>
@@ -332,15 +310,13 @@ const ConferencesPage: React.FC = () => {
                     value={sortOrder}
                     onChange={(e) => setSortOrder(e.target.value as any)}
                   >
+                    <option value="RELEVANCE">Most Relevant</option>
                     <option value="START_DATE_ASC">
                       Start Date (Earliest first)
                     </option>
                     <option value="START_DATE_DESC">
                       Start Date (Latest first)
                     </option>
-                    <option value="ONGOING_FIRST">Status: Ongoing</option>
-                    <option value="UPCOMING_FIRST">Status: Upcoming</option>
-                    <option value="CLOSED_FIRST">Status: Closed</option>
                     <option value="AZ">Alphabetical (A-Z)</option>
                   </select>
                 </div>
@@ -452,6 +428,7 @@ const ConferencesPage: React.FC = () => {
                   setSearchTerm("");
                   setStatusFilter("ALL");
                   setSelectedKeyword("");
+                  setFormatTypeFilter("ALL");
                   setTopicSearch("");
                 }}
               >

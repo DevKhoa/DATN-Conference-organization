@@ -217,19 +217,22 @@ const TicketManagementPage = () => {
           .map((s) => s.session_id) || [];
     }
 
-    const newOpen = new Date(form.open_time).getTime();
-    const newClose = new Date(form.close_time).getTime();
+    const newOpen = dayjs(form.open_time, "DD/MM/YYYY hh:mm A").valueOf();
+    const newClose = dayjs(form.close_time, "DD/MM/YYYY hh:mm A").valueOf();
     const newPrice = form.price !== "" ? parseFloat(form.price) : 0;
+
+    if (newPrice === 0 && (!form.quantity_limit || parseInt(form.quantity_limit) <= 0)) {
+      setFormError("Free tickets must have a specific quantity limit.");
+      return;
+    }
 
     if (newOpen >= newClose) {
       setFormError("Close time must be after open time.");
       return;
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const openDate = new Date(form.open_time);
-    openDate.setHours(0, 0, 0, 0);
+    const today = dayjs().startOf('day').valueOf();
+    const openDate = dayjs(form.open_time, "DD/MM/YYYY hh:mm A").startOf('day').valueOf();
     if (openDate < today && editingId === null) {
       setFormError("Sale start time must be from today onwards.");
       return;
@@ -694,8 +697,8 @@ const TicketManagementPage = () => {
                     value={
                       form.currency === "VND" && form.price !== ""
                         ? new Intl.NumberFormat("vi-VN").format(
-                            Number(form.price),
-                          )
+                          Number(form.price),
+                        )
                         : form.price
                     }
                     onChange={(e) => {

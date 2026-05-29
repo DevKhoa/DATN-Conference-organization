@@ -32,12 +32,13 @@ const BASE_LINKS: {
   href: string;
   icon?: React.ComponentType<{ className?: string }>;
 }[] = [
-  { name: "Home", href: "/" },
-  { name: "Papers", href: "/papers" },
-  { name: "Conferences", href: "/conferences" },
-  { name: "Subscriptions", href: "/subscriptions" },
-  { name: "Proceedings", href: "/proceedings" },
-];
+    { name: "Home", href: "/" },
+    { name: "Papers", href: "/papers" },
+    { name: "Conferences", href: "/conferences" },
+    { name: "Subscriptions", href: "/subscriptions" },
+    { name: "Help Center", href: "/faq" },
+    { name: "Proceedings", href: "/proceedings" },
+  ];
 
 const Navbar: React.FC<NavbarProps> = ({ className }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -138,6 +139,18 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
   ) => {
     e.preventDefault();
     setIsOpen(false);
+
+    if (href === "/proceedings" && !session) {
+      toast.info("Vui lòng tạo tài khoản hoặc đăng nhập để xem Proceedings!", {
+        duration: 5000,
+      });
+      navigate({
+        to: "/login",
+        search: { redirect: "/proceedings" },
+      });
+      return;
+    }
+
     navigate({ to: href });
   };
 
@@ -206,14 +219,14 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                 </button>
                 <div className="absolute top-full left-0 mt-0 w-56 bg-background rounded-xl shadow-lg ring-1 ring-border py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                   <a
-                    href="/admin"
-                    onClick={(e) => handleLinkClick(e, "/admin")}
+                    href="/admin/dashboard"
+                    onClick={(e) => handleLinkClick(e, "/admin/dashboard")}
                     className="block px-4 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
                   >
                     Admin Dashboard
                   </a>
                   <a
-                    href="/admin"
+                    href="/notifications/create"
                     onClick={(e) => handleLinkClick(e, "/notifications/create")}
                     className="block px-4 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
                   >
@@ -398,14 +411,14 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                 </div>
                 <div className="flex flex-col space-y-1">
                   <a
-                    href="/admin"
-                    onClick={(e) => handleLinkClick(e, "/admin")}
+                    href="/admin/dashboard"
+                    onClick={(e) => handleLinkClick(e, "/admin/dashboard")}
                     className="inline-flex px-3 py-2 ml-4 rounded-md text-base font-medium hover:bg-accent items-center gap-2 text-foreground hover:text-primary"
                   >
                     Admin Dashboard
                   </a>
                   <a
-                    href="/admin"
+                    href="/notifications/create"
                     onClick={(e) => handleLinkClick(e, "/notifications/create")}
                     className="inline-flex px-3 py-2 ml-4 rounded-md text-base font-medium hover:bg-accent items-center gap-2 text-foreground hover:text-primary"
                   >

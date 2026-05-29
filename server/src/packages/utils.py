@@ -14,6 +14,7 @@ from email.message import EmailMessage
 
 from pypdf import PdfReader
 
+from google.oauth2 import service_account
 from google import genai
 from google.cloud import language_v2
 from google.cloud import storage
@@ -113,6 +114,7 @@ language_client = language_v2.LanguageServiceClient()
 storage_client = storage.Client()
 
 embedding_model = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL_NAME, output_dimensionality=VECTOR_DIMENSION)
+
 supabase_client = create_client(os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY"))
 
 PAYOS_CLIENT_ID = os.environ.get("PAYOS_CLIENT_ID")

@@ -3,6 +3,7 @@ export interface ChairCandidate {
   full_name: string;
   email: string;
   organization: string;
+  description?: string | null;
   similarity_score?: number;
 }
 
@@ -16,4 +17,5 @@ export interface ProfileData {
   role_name: string;
   role_id: number;
   avatar_url: string | null;
+  google_refresh_token: string | null;
 }

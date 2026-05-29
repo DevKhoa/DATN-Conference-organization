@@ -277,7 +277,6 @@ const ProceedingsManagementPage: React.FC = () => {
     headerText: "",
     footerText: "",
     showPageNum: true,
-    pageNumPos: "right",
     startFrom: 1,
   });
   const [showHFPanel, setShowHFPanel] = useState(false);
@@ -660,6 +659,10 @@ const ProceedingsManagementPage: React.FC = () => {
     return built;
   };
 
+  // Holds deserialized editor state loaded from DB during bootstrap.
+  // Used by initEditor to restore instead of rebuilding from procData.
+  const savedEditorStateRef = useRef<{ pages: EditorPage[]; hf: HFConfig } | null>(null);
+
   const loadFullConferenceData = async (confId: number) => {
     setLoading(true);
     setError(null);
@@ -669,6 +672,7 @@ const ProceedingsManagementPage: React.FC = () => {
     pendingBannerUrlsRef.current = [];
     bannerLogosPendingRef.current = false;
     coverLogosLoadingRef.current = null;
+    savedEditorStateRef.current = null; // reset on new conference load
     try {
       const conf = conferences.find((c) => c.conf_id === confId);
       if (!conf) {
@@ -719,6 +723,24 @@ const ProceedingsManagementPage: React.FC = () => {
         savedKeynotes = JSON.parse(config?.keynotes_json || "[]");
       } catch {
         /* ignore */
+      }
+
+      // Restore editor state from DB if available
+      try {
+        if (config?.editor_pages_json) {
+          const parsedPages = JSON.parse(config.editor_pages_json) as EditorPage[];
+          const parsedHf = config.editor_hf_json
+            ? (JSON.parse(config.editor_hf_json) as HFConfig)
+            : null;
+          if (Array.isArray(parsedPages) && parsedPages.length > 0) {
+            savedEditorStateRef.current = {
+              pages: parsedPages,
+              hf: parsedHf ?? hf,
+            };
+          }
+        }
+      } catch {
+        savedEditorStateRef.current = null;
       }
 
       const newProcData = {
@@ -786,10 +808,11 @@ const ProceedingsManagementPage: React.FC = () => {
     }
   };
 
+
   const handleSaveConfig = async () => {
     if (!selectedConfId) return;
     try {
-      await saveProceedingsConfigMutation.mutateAsync({
+      const payload: Parameters<typeof saveProceedingsConfigMutation.mutateAsync>[0] = {
         confId: selectedConfId,
         proceedingsTitle: procData.cover.title,
         foreword: procData.foreword,
@@ -799,12 +822,24 @@ const ProceedingsManagementPage: React.FC = () => {
         internetInfo: procData.generalInfo.coffeeInternetInfo,
         galaInfo: procData.generalInfo.galaDinner,
         keynotesJson: JSON.stringify(procData.keynotes),
-      });
+      };
+
+      // If the PDF Editor has been opened and pages are ready, persist the full
+      // editor state so it can be restored on next load.
+      if (edReady && edPages.length > 0) {
+        // Strip thumbnail data-URLs before saving to keep payload small
+        const pagesForSave = stripPagesForCache(edPages);
+        payload.editorPagesJson = JSON.stringify(pagesForSave);
+        payload.editorHfJson = JSON.stringify(hf);
+      }
+
+      await saveProceedingsConfigMutation.mutateAsync(payload);
       setError(null);
     } catch (e: any) {
       setError("Save failed: " + (e?.message || "Unknown error"));
     }
   };
+
 
   // ✅ SAU — render toàn bộ, không chunk, không auto-trigger
   const generateBlobInBackground = async (
@@ -952,6 +987,26 @@ const ProceedingsManagementPage: React.FC = () => {
     if ((!forceRebuild && edReady) || edLoading) return;
     setEdLoading(true);
     try {
+      // ── Restore from saved DB state ─────────────────────────────────────────
+      const saved = forceRebuild ? null : savedEditorStateRef.current;
+      if (saved && saved.pages.length > 0) {
+        // Pages were saved without thumbnails — re-render them now
+        const pagesWithThumbs: EditorPage[] = [];
+        for (const pg of saved.pages) {
+          const thumb = await renderThumbnail(pg);
+          pagesWithThumbs.push({ ...pg, bg: thumb });
+          if (pagesWithThumbs.length % 3 === 0) {
+            setEdPages([...pagesWithThumbs]);
+          }
+        }
+        setEdPages(pagesWithThumbs);
+        setHF(saved.hf);
+        setSelPage(0);
+        setEdReady(true);
+        return;
+      }
+
+      // ── Fresh build from procData ────────────────────────────────────────────
       await ensureAllPapersLoaded();
       await ensureCoverLogosLoaded();
       let pages = buildEditorPages(procDataRef.current);

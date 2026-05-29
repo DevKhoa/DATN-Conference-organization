@@ -10,6 +10,19 @@ export const useToggleAttendanceMutation = () => {
 
   return useMutation({
     mutationFn: async (payload: AttendanceUpsertPayload) => {
+      if (payload.at_id) {
+        const { data, error } = await supabase
+          .from("attendences")
+          .update({
+            is_checkin: payload.is_checkin,
+            checkin_time: payload.checkin_time,
+          })
+          .eq("at_id", payload.at_id);
+
+        if (error) throw error;
+        return data;
+      }
+
       const { data, error } = await supabase.from("attendences").upsert(
         {
           registration_id: payload.registration_id,

@@ -54,6 +54,7 @@ export const useSaveSessionsMutation = () => {
               format_type: s.format_type,
               conf_id: conferenceId,
               meet_link: s.meet_link,
+              google_event_id: s.google_event_id,
               record_video_url: s.record_video_url,
             })
             .eq("session_id", currentDbId);
@@ -78,6 +79,7 @@ export const useSaveSessionsMutation = () => {
                 format_type: s.format_type,
                 is_ai_generated: s.is_ai_generated,
                 meet_link: s.meet_link,
+                google_event_id: s.google_event_id,
                 record_video_url: s.record_video_url,
               },
             ])
@@ -104,6 +106,64 @@ export const useSaveSessionsMutation = () => {
             .from("session_papers")
             .insert(paperInserts);
           if (pError) throw pError;
+
+          // Assign authors & coauthors to checkin (attendences table)
+          const paperIds = s.assigned_papers.map((p) => p.paper_id);
+          
+          const { data: papersData } = await supabase
+            .from("papers")
+            .select("primary_author_id")
+            .in("paper_id", paperIds);
+            
+          const { data: coauthorsData } = await supabase
+            .from("paper_coauthors")
+            .select("user_id")
+            .in("paper_id", paperIds);
+
+          const authorIds = new Set<number>();
+          papersData?.forEach((p) => {
+            if (p.primary_author_id) authorIds.add(p.primary_author_id);
+          });
+          coauthorsData?.forEach((c) => {
+            if (c.user_id) authorIds.add(c.user_id);
+          });
+
+          if (authorIds.size > 0) {
+            const { data: regs } = await supabase
+              .from("registrations")
+              .select("registration_id, user_id")
+              .in("user_id", Array.from(authorIds));
+
+            if (regs && regs.length > 0) {
+              const regIds = regs.map((r) => r.registration_id);
+              const userIdToRegId = new Map<number, number>();
+              regs.forEach((r) => {
+                if (r.user_id && r.registration_id) {
+                  userIdToRegId.set(r.user_id, r.registration_id);
+                }
+              });
+
+              const { data: existingAtt } = await supabase
+                .from("attendences")
+                .select("registration_id")
+                .eq("session_id", currentDbId)
+                .in("registration_id", regIds);
+
+              const existingRegIds = new Set(existingAtt?.map((e) => e.registration_id) || []);
+              const newAtts = Array.from(authorIds)
+                .map((userId) => userIdToRegId.get(userId))
+                .filter((regId): regId is number => !!regId && !existingRegIds.has(regId))
+                .map((regId) => ({
+                  session_id: currentDbId,
+                  registration_id: regId,
+                  is_checkin: false,
+                }));
+
+              if (newAtts.length > 0) {
+                await supabase.from("attendences").insert(newAtts);
+              }
+            }
+          }
         }
 
         return { temp_id: s.temp_id, db_id: currentDbId! };
@@ -169,7 +229,7 @@ export const useDeleteMeetMutation = () => {
     }) => {
       const data = await request.delete<{ status: string; message: string }>(
         `/sessions/${sessionId}/meet`,
-        { params: { email } },
+        { email },
       );
       return data;
     },
@@ -194,6 +254,31 @@ export const useCreateMeetMutation = () => {
     }) => {
       const data = await request.post<IMeetCreationResponse>(
         `/sessions/${sessionId}/create-meet`,
+        { session_id: sessionId, email },
+      );
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.ExistingSessions],
+      });
+    },
+  });
+};
+
+export const useUpdateMeetMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      email,
+    }: {
+      sessionId: number;
+      email: string;
+    }) => {
+      const data = await request.patch<IMeetCreationResponse>(
+        `/sessions/${sessionId}/update-meet`,
         { session_id: sessionId, email },
       );
       return data;

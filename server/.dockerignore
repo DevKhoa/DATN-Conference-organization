@@ -1,0 +1,30 @@
+
+# Python virtualenv (huge; never ship)
+.venv/
+
+# Python caches / local tooling
+__pycache__/
+*.py[codz]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Local env files
+.env
+
+# Local scratch
+temp_storage/
+*.log
+env.yaml

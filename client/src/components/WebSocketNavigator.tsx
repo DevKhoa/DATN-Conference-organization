@@ -4,6 +4,9 @@ import useAuth from "@/features/auth/hooks/useAuth";
 import { RadioTower, Wifi, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 
+const BASE_API_URL = import.meta.env.VITE_API_BASE_URL as string;
+const wsProtocolUrl = BASE_API_URL.replace(/^http/, "ws");
+
 interface WebSocketNavigatorProps {
   isActive: boolean;
   tabId: string;
@@ -13,7 +16,7 @@ export const WebSocketNavigator = ({
   isActive,
   tabId,
 }: WebSocketNavigatorProps) => {
-  const { session, roles } = useAuth();
+  const { session } = useAuth();
   const navigate = useNavigate();
   const [, setIsActive] = useState(false);
 
@@ -26,7 +29,7 @@ export const WebSocketNavigator = ({
       `[WebSocketNavigator] Connecting... UserID: ${userId}, TabID: ${tabId}`,
     );
 
-    const ws = new WebSocket(`ws://localhost:8080/ws/${userId}/${tabId}`);
+    const ws = new WebSocket(`${wsProtocolUrl}/ws/${userId}/${tabId}`);
 
     ws.onopen = () => {
       console.log(`[WebSocketNavigator] Connected! TabID is: ${tabId}`);
@@ -37,19 +40,17 @@ export const WebSocketNavigator = ({
         const data = JSON.parse(event.data);
         console.log("[WebSocketNavigator] Received action:", data);
 
-        // const getPageContextIds = () => {
-        //   const elements = document.querySelectorAll(
-        //     "button[id], a[id], input[id], form[id], textarea[id], select[id]",
-        //   );
-        //   return Array.from(elements).map((el) => el.id);
-        // };
+        const getPageContextIds = () => {
+          const elements = document.querySelectorAll(
+            "button[id], a[id], input[id], form[id], textarea[id], select[id]",
+          );
+          return Array.from(elements).map((el) => el.id);
+        };
 
         const getCleanedHtml = () => {
           const clone = document.body.cloneNode(true) as HTMLElement;
-
-          // Remove elements that should be excluded from agent context
           const elementsToRemove = clone.querySelectorAll(
-            "script, style, svg, noscript, iframe, [data-agent-ignore='true']",
+            "script, style, svg, noscript, iframe",
           );
           elementsToRemove.forEach((el) => el.remove());
 
@@ -67,7 +68,6 @@ export const WebSocketNavigator = ({
           message: string,
           url: string,
           html?: string,
-          userRoles?: string[],
         ) => {
           if (data.action_id && ws.readyState === WebSocket.OPEN) {
             ws.send(
@@ -76,9 +76,8 @@ export const WebSocketNavigator = ({
                 status,
                 message,
                 url,
-                // available_ids: getPageContextIds(),
+                available_ids: getPageContextIds(),
                 html: html,
-                user_roles: userRoles,
               }),
             );
           }
@@ -392,7 +391,6 @@ export const WebSocketNavigator = ({
               "Successfully retrieved page context",
               window.location.href,
               getCleanedHtml(),
-              roles,
             );
             break;
 

@@ -18,11 +18,11 @@ export const formatToLocal = (dateStr: string) => {
       "DD/MM/YYYY h:mm A",
       "DD/MM/YYYY H:mm",
     ],
-    true,
+    true
   );
 
   // Return with the 'T' for bulletproof cross-browser parsing later
-  return parsed.isValid() ? parsed.format("YYYY-MM-DDTHH:mm:ss") : dateStr;
+  return parsed.isValid() ? parsed.format() : dateStr;
 };
 
 export const formatPaperTime = (timeStr: string, sessionLocalStart: string) => {

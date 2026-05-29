@@ -3,6 +3,8 @@ import type { CSSProperties } from "react";
 export const DIRS = ["n", "s", "e", "w", "ne", "nw", "se", "sw"] as const;
 export type ResizeDirection = (typeof DIRS)[number];
 
+const BASE_API_URL = import.meta.env.VITE_API_BASE_URL as string;
+
 export const DIR_CURSOR: Record<ResizeDirection, string> = {
   n: "ns-resize",
   s: "ns-resize",
@@ -59,7 +61,7 @@ export const urlToBase64 = async (url: string): Promise<string> => {
 
   try {
     const resp = await fetch(
-      `http://localhost:8080/proxy-image?url=${encodeURIComponent(url)}`,
+      `${BASE_API_URL}/proxy-image?url=${encodeURIComponent(url)}`,
     );
     if (resp.ok) {
       const json = await resp.json();

@@ -1,4 +1,3 @@
-
 import json
 import re
 import httpx
@@ -6,7 +5,7 @@ import contextvars
 
 from packages.utils import Logger, supabase_client
 from assistances.tool_response import ToolResponse
-from packages.utils import extract_ordered_elements
+import os
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -17,7 +16,7 @@ logger = Logger()
 user_id_var = contextvars.ContextVar("user_id", default=None)
 tab_id_var = contextvars.ContextVar("tab_id", default=None)
 
-BASE_URL = "http://localhost:8080/trigger-action"
+BASE_URL = f"{os.environ.get("API_BASE_URL")}/trigger-action"
 
 
 def make_query(sql_query: str) -> str:
@@ -80,6 +79,7 @@ def make_query(sql_query: str) -> str:
             content_type="text"
         )
         return ToolResponse.model_dump(response_dict)
+
 async def navigate(path: str) -> str:
     """
     Navigates to a specific page or path in the application on the user's browser.
@@ -92,7 +92,7 @@ async def navigate(path: str) -> str:
     function_name = "navigate"
     user_id = user_id_var.get()
     tab_id = tab_id_var.get()
- 
+
     if not user_id or not tab_id:
         error_msg = f"Cannot execute {function_name} tool: The tab is missing"
         logger.warning(error_msg)
@@ -113,15 +113,16 @@ async def navigate(path: str) -> str:
         async with httpx.AsyncClient() as client:
             response = await client.post(url, json=payload)
         response.raise_for_status()
- 
+
         res_data = response.json()
- 
+
         logger.info(res_data)
         
         if res_data.get("status") == "error":
             error_msg = f"Browser error: {res_data.get('message', 'Unknown error')}"
             current_url = res_data.get("url", "unknown url")
-            error_data = {"error": error_msg, "current_url": current_url}
+            available_ids = res_data.get("available_ids", [])
+            error_data = {"error": error_msg, "current_url": current_url, "available_elements": available_ids}
             logger.warning(error_msg)
             response_dict = ToolResponse.error_response(
                 function_name=function_name,
@@ -131,7 +132,9 @@ async def navigate(path: str) -> str:
             return ToolResponse.model_dump(response_dict)
         
         current_url = res_data.get("url", "unknown url")
-        success_data = {"message": res_data.get("message"),  "current_url": current_url}
+        available_ids = res_data.get("available_ids", [])
+
+        success_data = {"current_url": current_url, "available_elements": available_ids}
         
         response_dict = ToolResponse.success_response(
             function_name=function_name,
@@ -139,7 +142,7 @@ async def navigate(path: str) -> str:
             content_type="json"
         )
         return ToolResponse.model_dump(response_dict)
- 
+
     except Exception as e:
         error_msg = f"Error sending navigation command: {str(e)}"
         logger.error(error_msg)
@@ -150,24 +153,24 @@ async def navigate(path: str) -> str:
         )
         return ToolResponse.model_dump(response_dict)
     
-
 async def click(target: str) -> str:
     """
     Clicks on a specific valid button or element on this current page using CSS Selectors.
- 
+
     Args:
         target (str): Target to click (e.g. '#btn-submit').
     Output:
         json: Execution status, including the current page url and availble elements
- 
+
     """
     function_name = "click"
     user_id = user_id_var.get()
     tab_id = tab_id_var.get()
- 
+
     if target and not target.startswith("#"):
         target = f"#{target}"
- 
+
+    
     if not user_id or not tab_id:
         error_msg = f"Cannot execute {function_name} tool: The tab is missing"
         logger.warning(error_msg)
@@ -183,17 +186,18 @@ async def click(target: str) -> str:
         "action": "click",
         "target": target
     }
- 
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(url, json=payload)
         response.raise_for_status()
- 
+
         res_data = response.json()
         if res_data.get("status") == "error":
             error_msg = f"Browser error: {res_data.get('message', 'Unknown error')}"
             current_url = res_data.get("url", "unknown url")
-            error_data = {"error": error_msg, "current_url": current_url}
+            available_ids = res_data.get("available_ids", [])
+            error_data = {"error": error_msg, "current_url": current_url, "available_elements": available_ids}
             logger.warning(error_msg)
             response_dict = ToolResponse.error_response(
                 function_name=function_name,
@@ -203,7 +207,9 @@ async def click(target: str) -> str:
             return ToolResponse.model_dump(response_dict)
         
         current_url = res_data.get("url", "unknown url")
-        success_data = {"message": res_data.get("message"),  "current_url": current_url}
+        available_ids = res_data.get("available_ids", [])
+
+        success_data = {"current_url": current_url, "available_elements": available_ids}
         
         response_dict = ToolResponse.success_response(
             function_name=function_name,
@@ -222,7 +228,7 @@ async def click(target: str) -> str:
         )
         return ToolResponse.model_dump(response_dict)
     
- 
+
 async def fill(target: str, value: str) -> str:
     """
     Fills a form input target with a specific value using CSS Selectors.
@@ -234,10 +240,10 @@ async def fill(target: str, value: str) -> str:
     function_name = "fill"
     user_id = user_id_var.get()
     tab_id = tab_id_var.get()
- 
+
     if target and not target.startswith("#"):
         target = f"#{target}"
- 
+
     if not user_id or not tab_id:
         error_msg = f"Cannot execute {function_name} tool: The tab is missing"
         logger.warning(error_msg)
@@ -254,17 +260,18 @@ async def fill(target: str, value: str) -> str:
         "target": target,
         "value": value
     }
- 
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(url, json=payload)
         response.raise_for_status()
- 
+
         res_data = response.json()
         if res_data.get("status") == "error":
             error_msg = f"Browser error: {res_data.get('message', 'Unknown error')}"
             current_url = res_data.get("url", "unknown url")
-            error_data = {"error": error_msg, "current_url": current_url}
+            available_ids = res_data.get("available_ids", [])
+            error_data = {"error": error_msg, "current_url": current_url, "available_elements": available_ids}
             logger.warning(error_msg)
             response_dict = ToolResponse.error_response(
                 function_name=function_name,
@@ -274,7 +281,9 @@ async def fill(target: str, value: str) -> str:
             return ToolResponse.model_dump(response_dict)
         
         current_url = res_data.get("url", "unknown url")
-        success_data = {"message": res_data.get("message"),  "current_url": current_url}
+        available_ids = res_data.get("available_ids", [])
+
+        success_data = {"current_url": current_url, "available_elements": available_ids}
         
         response_dict = ToolResponse.success_response(
             function_name=function_name,
@@ -292,7 +301,71 @@ async def fill(target: str, value: str) -> str:
             content_type="text"
         )
         return ToolResponse.model_dump(response_dict)
- 
+
+async def current_tab() -> str:
+    """
+    Retrieves the current URL, available interactive elements, and cleaned HTML context on the page without performing any action.
+    """
+    function_name = "current_tab"
+    user_id = user_id_var.get()
+    tab_id = tab_id_var.get()
+
+    if not user_id or not tab_id:
+        error_msg = f"Cannot execute {function_name} tool: The tab is missing"
+        logger.warning(error_msg)
+        response_dict = ToolResponse.error_response(
+            function_name=function_name,
+            error=error_msg,
+            content_type="text"
+        )
+        return ToolResponse.model_dump(response_dict)
+    
+    url = f"{BASE_URL}/{user_id}/{tab_id}"
+    payload = {
+        "action": "get_context"
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, json=payload)
+        response.raise_for_status()
+
+        res_data = response.json()
+        if res_data.get("status") == "error":
+            error_msg = f"Browser error: {res_data.get('message', 'Unknown error')}"
+            current_url = res_data.get("url", "unknown url")
+            available_ids = res_data.get("available_ids", [])
+            error_data = {"error": error_msg, "current_url": current_url, "available_elements": available_ids}
+            logger.warning(error_msg)
+            response_dict = ToolResponse.error_response(
+                function_name=function_name,
+                error=error_data,
+                content_type="json"
+            )
+            return ToolResponse.model_dump(response_dict)
+        
+        current_url = res_data.get("url", "unknown url")
+        available_ids = res_data.get("available_ids", [])
+        html = res_data.get("html", "")
+
+        success_data = {"current_url": current_url, "available_elements": available_ids, "html": html}
+        
+        response_dict = ToolResponse.success_response(
+            function_name=function_name,
+            output=success_data,
+            content_type="json"
+        )
+        return ToolResponse.model_dump(response_dict)
+        
+    except Exception as e:
+        error_msg = f"Error sending get_context command: {str(e)}"
+        logger.error(error_msg)
+        response_dict = ToolResponse.error_response(
+            function_name=function_name,
+            error=error_msg,
+            content_type="text"
+        )
+        return ToolResponse.model_dump(response_dict)
 
 async def fill_enter(target: str, value: str) -> str:
     """
@@ -306,10 +379,10 @@ async def fill_enter(target: str, value: str) -> str:
     function_name = "fill_enter"
     user_id = user_id_var.get()
     tab_id = tab_id_var.get()
- 
+
     if target and not target.startswith("#"):
         target = f"#{target}"
- 
+
     if not user_id or not tab_id:
         error_msg = f"Cannot execute {function_name} tool: The tab is missing"
         logger.warning(error_msg)
@@ -326,17 +399,18 @@ async def fill_enter(target: str, value: str) -> str:
         "target": target,
         "value": value
     }
- 
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(url, json=payload)
         response.raise_for_status()
- 
+
         res_data = response.json()
         if res_data.get("status") == "error":
             error_msg = f"Browser error: {res_data.get('message', 'Unknown error')}"
             current_url = res_data.get("url", "unknown url")
-            error_data = {"error": error_msg, "current_url": current_url}
+            available_ids = res_data.get("available_ids", [])
+            error_data = {"error": error_msg, "current_url": current_url, "available_elements": available_ids}
             logger.warning(error_msg)
             response_dict = ToolResponse.error_response(
                 function_name=function_name,
@@ -346,7 +420,9 @@ async def fill_enter(target: str, value: str) -> str:
             return ToolResponse.model_dump(response_dict)
         
         current_url = res_data.get("url", "unknown url")
-        success_data = {"message": res_data.get("message"),  "current_url": current_url}
+        available_ids = res_data.get("available_ids", [])
+
+        success_data = {"current_url": current_url, "available_elements": available_ids}
         
         response_dict = ToolResponse.success_response(
             function_name=function_name,
@@ -364,7 +440,7 @@ async def fill_enter(target: str, value: str) -> str:
             content_type="text"
         )
         return ToolResponse.model_dump(response_dict)
- 
+
 async def fill_datetime(target: str, value: str) -> str:
     """
     Fills a datetime/date form input target with a specific value using CSS Selectors.
@@ -377,10 +453,10 @@ async def fill_datetime(target: str, value: str) -> str:
     function_name = "fill_datetime"
     user_id = user_id_var.get()
     tab_id = tab_id_var.get()
- 
+
     if target and not target.startswith("#"):
         target = f"#{target}"
- 
+
     if not user_id or not tab_id:
         error_msg = f"Cannot execute {function_name} tool: The tab is missing"
         logger.warning(error_msg)
@@ -397,17 +473,18 @@ async def fill_datetime(target: str, value: str) -> str:
         "target": target,
         "value": value
     }
- 
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(url, json=payload)
         response.raise_for_status()
- 
+
         res_data = response.json()
         if res_data.get("status") == "error":
             error_msg = f"Browser error: {res_data.get('message', 'Unknown error')}"
             current_url = res_data.get("url", "unknown url")
-            error_data = {"error": error_msg, "current_url": current_url}
+            available_ids = res_data.get("available_ids", [])
+            error_data = {"error": error_msg, "current_url": current_url, "available_elements": available_ids}
             logger.warning(error_msg)
             response_dict = ToolResponse.error_response(
                 function_name=function_name,
@@ -417,7 +494,9 @@ async def fill_datetime(target: str, value: str) -> str:
             return ToolResponse.model_dump(response_dict)
         
         current_url = res_data.get("url", "unknown url")
-        success_data = {"message": res_data.get("message"),  "current_url": current_url}
+        available_ids = res_data.get("available_ids", [])
+
+        success_data = {"current_url": current_url, "available_elements": available_ids}
         
         response_dict = ToolResponse.success_response(
             function_name=function_name,
@@ -428,78 +507,6 @@ async def fill_datetime(target: str, value: str) -> str:
         
     except Exception as e:
         error_msg = f"Error sending fill_datetime command: {str(e)}"
-        logger.error(error_msg)
-        response_dict = ToolResponse.error_response(
-            function_name=function_name,
-            error=error_msg,
-            content_type="text"
-        )
-        return ToolResponse.model_dump(response_dict)
-    
-async def current_tab() -> str:
-    """
-    Retrieves the current URL and available interactive elements on the page without performing any action.
-    """
-    function_name = "current_tab"
-    user_id = user_id_var.get()
-    tab_id = tab_id_var.get()
- 
-    if not user_id or not tab_id:
-        error_msg = f"Cannot execute {function_name} tool: The tab is missing"
-        logger.warning(error_msg)
-        response_dict = ToolResponse.error_response(
-            function_name=function_name,
-            error=error_msg,
-            content_type="text"
-        )
-        return ToolResponse.model_dump(response_dict)
-    
-    url = f"{BASE_URL}/{user_id}/{tab_id}"
-    payload = {
-        "action": "get_context"
-    }
-
- 
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, json=payload)
-        response.raise_for_status()
- 
-        res_data = response.json()
-
-        logger.info(f"Res data: {res_data}")
-
-        if res_data.get("status") == "error":
-            error_msg = f"Browser error: {res_data.get('message', 'Unknown error')}"
-            current_url = res_data.get("url", "unknown url")
-            html = res_data.get("html", '')
-            available_ids = extract_ordered_elements(html)
-            user_roles = res_data.get("user_roles") or []
-            error_data = {"error": error_msg, "current_url": current_url, "available_elements": available_ids, "user_roles": user_roles}
-            logger.warning(error_msg)
-            response_dict = ToolResponse.error_response(
-                function_name=function_name,
-                error=error_data,
-                content_type="json"
-            )
-            return ToolResponse.model_dump(response_dict)
-        
-        current_url = res_data.get("url", "unknown url")
-        html = res_data.get("html", '')
-        available_ids = extract_ordered_elements(html)
-        user_roles = res_data.get("user_roles") or []
- 
-        success_data = {"current_url": current_url, "available_elements": available_ids, "user_roles": user_roles}
-        
-        response_dict = ToolResponse.success_response(
-            function_name=function_name,
-            output=success_data,
-            content_type="json"
-        )
-        return ToolResponse.model_dump(response_dict)
-        
-    except Exception as e:
-        error_msg = f"Error sending get_context command: {str(e)}"
         logger.error(error_msg)
         response_dict = ToolResponse.error_response(
             function_name=function_name,

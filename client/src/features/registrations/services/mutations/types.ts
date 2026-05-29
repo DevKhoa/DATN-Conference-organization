@@ -5,4 +5,6 @@ export interface ICreateRegistrationPayload {
 
 export interface ICreateRegistrationResponse {
   checkout_url: string;
+  provider: string;
+  amount: number;
 }

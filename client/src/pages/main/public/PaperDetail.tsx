@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { usePublicPaperDetailPageQuery } from "@/features/papers/services/queries";
 import { useSavePaperAwardMarkingMutation } from "@/features/papers/services/mutations";
 import type { PaperApplicableAward } from "@/features/papers/types";
+import { EditPaperModal } from "./components/EditPaperModal";
 
 interface AwardFormState {
   comments: string;
@@ -40,9 +41,11 @@ const PaperDetailPage: React.FC = () => {
   const { data: currentSubscription } = useMyCurrentSubscriptionQuery();
   const { session, checkRoles } = useAuth();
   const saveAwardMarkingMutation = useSavePaperAwardMarkingMutation();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const hasValidSubscription = !!!currentSubscription;
   const canGrade = checkRoles([Role.CHAIR, Role.ATTENDEE, Role.ADMIN]);
+  const canEditPaper = checkRoles([Role.ADMIN, Role.SECRETARIAT]);
   const userId = session?.user?.user_metadata["user_id"] as number | undefined;
   const {
     data: detailData,
@@ -59,8 +62,9 @@ const PaperDetailPage: React.FC = () => {
   const applicableAwards = detailData?.applicableAwards ?? [];
   const savingAwardId = saveAwardMarkingMutation.isPending
     ? ((saveAwardMarkingMutation.variables as { awardId?: number } | undefined)
-        ?.awardId ?? null)
+      ?.awardId ?? null)
     : null;
+  const versionId = detailData?.versionId ?? null;
 
   useEffect(() => {
     const nextFormById = applicableAwards.reduce<
@@ -252,10 +256,23 @@ const PaperDetailPage: React.FC = () => {
           <p className="text-slate-500 mb-6">
             {error instanceof Error ? error.message : "Paper not found."}
           </p>
-          <Button onClick={() => navigate({ to: "/papers" })}>
-            Return to Archive
-          </Button>
+          {canEditPaper && (
+            <Button onClick={() => setIsEditModalOpen(true)}>
+              Edit & Upload Content
+            </Button>
+          )}
         </div>
+
+        {canEditPaper && (
+          <EditPaperModal
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            paperId={paperId}
+            versionId={null}
+            initialTitle=""
+            initialAbstract=""
+          />
+        )}
       </div>
     );
   }
@@ -264,13 +281,19 @@ const PaperDetailPage: React.FC = () => {
     <DefaultLayout meta={{ title: paper.title }}>
       <div className="min-h-screen bg-slate-50 font-sans pb-20">
         {/* 1. HEADER SECTION */}
-        <div className="bg-white border-b border-slate-200 sticky top-16 z-30 shadow-sm">
+        <div className="bg-white border-b border-slate-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <button
-              onClick={() => navigate({ to: "/papers" })}
+              onClick={() => {
+                if (window.history.length > 2) {
+                  window.history.back();
+                } else {
+                  navigate({ to: "/papers" });
+                }
+              }}
               className="flex items-center text-sm font-medium text-slate-500 hover:text-brand-600 mb-4 transition-colors"
             >
-              <ArrowLeft className="w-4 h-4 mr-1" /> Back to Archive
+              <ArrowLeft className="w-4 h-4 mr-1" /> Back
             </button>
 
             <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
@@ -292,6 +315,11 @@ const PaperDetailPage: React.FC = () => {
               </div>
 
               <div className="flex-shrink-0 flex gap-2">
+                {canEditPaper && (
+                  <Button variant="outline" size="sm" onClick={() => setIsEditModalOpen(true)}>
+                    Edit Paper
+                  </Button>
+                )}
                 <Button variant="outline" size="sm">
                   <Share2 className="w-5 h-5 mr-2" />
                   Share
@@ -420,7 +448,7 @@ const PaperDetailPage: React.FC = () => {
                                         max={100}
                                         value={
                                           form?.scoresByCriteriaId[
-                                            criterion.criteria_id
+                                          criterion.criteria_id
                                           ] || ""
                                         }
                                         onChange={(event) =>
@@ -562,9 +590,14 @@ const PaperDetailPage: React.FC = () => {
                       <h4 className="text-slate-900 font-medium mb-1">
                         Preview Unavailable
                       </h4>
-                      <p className="text-slate-500 text-sm">
+                      <p className="text-slate-500 text-sm mb-4">
                         This paper does not have a displayable version yet.
                       </p>
+                      {canEditPaper && (
+                        <Button variant="outline" onClick={() => setIsEditModalOpen(true)}>
+                          Upload Content
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -631,9 +664,10 @@ const PaperDetailPage: React.FC = () => {
             </div>
 
             {/* RIGHT COLUMN: Sidebar Info */}
-            <div className="lg:col-span-1 space-y-6">
-              {/* 2. AUTHOR INFO */}
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 sticky top-24">
+            <div className="lg:col-span-1">
+              <div className="sticky top-24 space-y-6">
+                {/* 2. AUTHOR INFO */}
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-4">
                   Primary Author
                 </h3>
@@ -694,9 +728,21 @@ const PaperDetailPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+              </div>
             </div>
           </div>
         </div>
+        
+        {canEditPaper && paper && (
+          <EditPaperModal
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            paperId={paper.paper_id}
+            versionId={versionId}
+            initialTitle={paper.title}
+            initialAbstract={paper.abstract || ""}
+          />
+        )}
       </div>
     </DefaultLayout>
   );

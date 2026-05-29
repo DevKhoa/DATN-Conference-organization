@@ -59,7 +59,6 @@ export interface HFConfig {
   headerText: string;
   footerText: string;
   showPageNum: boolean;
-  pageNumPos: "left" | "center" | "right";
   startFrom: number;
 }
 

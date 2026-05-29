@@ -1,4 +1,4 @@
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronsUpDown, Loader2, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -19,6 +19,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import type {
   CreateConferenceAwardPayload,
   UpdateConferenceAwardPayload,
@@ -28,8 +42,15 @@ import type {
   AwardTemplateWithCriteria,
   AwardWithSessions,
 } from "@/features/awards/types";
+import {
+  useConferencesCountQuery,
+  usePaginatedConferencesQuery,
+  type ConferencesFilterParams,
+} from "@/features/conferences/services/queries";
 import type { Conference } from "@/features/conferences/types";
 import type { Session } from "@/features/sessions/types";
+
+const CONF_SEARCH_PAGE_SIZE = 50;
 
 type ConferenceAwardDialogProps = {
   open: boolean;
@@ -83,6 +104,63 @@ export const ConferenceAwardDialog = ({
   const [criteria, setCriteria] = useState<CriterionInput[]>([
     { ...EMPTY_CRITERION },
   ]);
+
+  // Conference combobox state
+  const [confPopoverOpen, setConfPopoverOpen] = useState(false);
+  const [confSearchTerm, setConfSearchTerm] = useState("");
+  const [confDebouncedTerm, setConfDebouncedTerm] = useState("");
+
+  // Debounce the search term for API calls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setConfDebouncedTerm(confSearchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [confSearchTerm]);
+
+  // Fetch conferences with search
+  const confFilters: ConferencesFilterParams = useMemo(
+    () => ({
+      searchTerm: confDebouncedTerm || undefined,
+      statusFilter: "ALL",
+    }),
+    [confDebouncedTerm],
+  );
+  const { data: confTotalCount = 0 } = useConferencesCountQuery(confFilters);
+  const { data: confPaginatedData, isLoading: isLoadingConferences } =
+    usePaginatedConferencesQuery({
+      page: 1,
+      pageSize: CONF_SEARCH_PAGE_SIZE,
+      totalCount: confTotalCount,
+      filters: confFilters,
+    });
+
+  const searchableConferences: Conference[] = useMemo(
+    () =>
+      (confPaginatedData?.data || []).map((c) => ({
+        conf_id: c.conf_id,
+        conf_name: c.conf_name,
+        start_date: c.start_date || "",
+        location: c.location || "",
+        format_type: c.format_type,
+      })),
+    [confPaginatedData?.data],
+  );
+
+  // The display label for the selected conference
+  const selectedConferenceLabel = useMemo(() => {
+    const confId = Number(selectedConferenceIdLocal);
+    if (!confId) return "";
+    // First check in searchable results
+    const found = searchableConferences.find((c) => c.conf_id === confId);
+    if (found) return found.conf_name;
+    // Fallback to parent-provided list
+    const fromParent = conferences.find((c) => c.conf_id === confId);
+    if (fromParent) return fromParent.conf_name;
+    // Fallback to award data
+    if (award && award.conf_id === confId) return award.conference_name || `Conference #${confId}`;
+    return `Conference #${confId}`;
+  }, [selectedConferenceIdLocal, searchableConferences, conferences, award]);
 
   const isEditMode = Boolean(award);
   const criteriaWeightTotal = useMemo(
@@ -314,29 +392,83 @@ export const ConferenceAwardDialog = ({
               <label className="mb-1 block text-sm font-medium">
                 Conference
               </label>
-              <Select
-                value={selectedConferenceIdLocal}
-                onValueChange={(value) => {
-                  setSelectedConferenceIdLocal(value);
-                  onConferenceChange(Number(value));
-                  setSelectedSessionIds([]);
-                }}
-                disabled={isSubmitting || isEditMode}
+              <Popover
+                open={confPopoverOpen}
+                onOpenChange={setConfPopoverOpen}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select conference" />
-                </SelectTrigger>
-                <SelectContent>
-                  {conferences.map((conference) => (
-                    <SelectItem
-                      key={conference.conf_id}
-                      value={String(conference.conf_id)}
-                    >
-                      {conference.conf_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={confPopoverOpen}
+                    className="w-full justify-between font-normal"
+                    disabled={isSubmitting || isEditMode}
+                  >
+                    <span className="truncate">
+                      {selectedConferenceLabel || "Select conference..."}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder="Search conference..."
+                      value={confSearchTerm}
+                      onValueChange={setConfSearchTerm}
+                    />
+                    <CommandList>
+                      {isLoadingConferences ? (
+                        <div className="flex items-center justify-center py-6">
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          <span className="ml-2 text-sm text-muted-foreground">
+                            Loading...
+                          </span>
+                        </div>
+                      ) : (
+                        <>
+                          <CommandEmpty>No conference found.</CommandEmpty>
+                          <CommandGroup>
+                            {searchableConferences.map((conference) => (
+                              <CommandItem
+                                key={conference.conf_id}
+                                value={String(conference.conf_id)}
+                                onSelect={() => {
+                                  const newValue = String(conference.conf_id);
+                                  setSelectedConferenceIdLocal(newValue);
+                                  onConferenceChange(conference.conf_id);
+                                  setSelectedSessionIds([]);
+                                  setConfPopoverOpen(false);
+                                  setConfSearchTerm("");
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    selectedConferenceIdLocal ===
+                                      String(conference.conf_id)
+                                      ? "opacity-100"
+                                      : "opacity-0",
+                                  )}
+                                />
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm">
+                                    {conference.conf_name}
+                                  </p>
+                                  <p className="truncate text-xs text-muted-foreground">
+                                    {conference.location || "N/A"} •{" "}
+                                    {conference.start_date || "No start date"}
+                                  </p>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div>
