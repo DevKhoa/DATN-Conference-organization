@@ -31,11 +31,9 @@ export const checkChairScheduleConflict = async (
 ): Promise<ChairConflictCheckResult> => {
   return request.get<ChairConflictCheckResult>(
     `/sessions/${sessionId}/chair-conflict-check`,
-    { email },
+    { params: { email } },
   );
 };
-
-
 
 export interface AgendaSession {
   session_id: number;
@@ -276,15 +274,15 @@ export const useSessionsByConferenceQuery = (conferenceId: number | null) => {
     queryKey: [SessionKeys.SessionsByConference, conferenceId],
     queryFn: conferenceId
       ? async () => {
-        const { data, error } = await supabase
-          .from("sessions")
-          .select("session_id, session_name, room_location")
-          .eq("conf_id", conferenceId);
+          const { data, error } = await supabase
+            .from("sessions")
+            .select("session_id, session_name, room_location")
+            .eq("conf_id", conferenceId);
 
-        if (error) throw error;
+          if (error) throw error;
 
-        return (data || []) as Session[];
-      }
+          return (data || []) as Session[];
+        }
       : skipToken,
     enabled: !!conferenceId,
   });
@@ -312,10 +310,12 @@ export const useMyAgendaSessionsQuery = () => {
         if (roles.includes(Role.ATTENDEE)) {
           const { data: registrations, error: regError } = await supabase
             .from("registrations")
-            .select(`
+            .select(
+              `
               ticket_id,
               transactions!inner(status)
-            `)
+            `,
+            )
             .eq("user_id", userId)
             .eq("transactions.status", "COMPLETED");
 
@@ -328,7 +328,7 @@ export const useMyAgendaSessionsQuery = () => {
 
             if (ticketSessions) {
               ticketSessions.forEach((ts) =>
-                sessionIdsAllowed.add(ts.session_id)
+                sessionIdsAllowed.add(ts.session_id),
               );
             }
           }
@@ -362,7 +362,7 @@ export const useMyAgendaSessionsQuery = () => {
             new Set([
               ...(primaryPapers?.map((p) => p.paper_id) || []),
               ...(coauthorPapers?.map((p) => p.paper_id) || []),
-            ])
+            ]),
           );
 
           if (paperIds.length > 0) {
@@ -373,7 +373,7 @@ export const useMyAgendaSessionsQuery = () => {
 
             if (sessionPapers) {
               sessionPapers.forEach((sp) =>
-                sessionIdsAllowed.add(sp.session_id)
+                sessionIdsAllowed.add(sp.session_id),
               );
             }
           }

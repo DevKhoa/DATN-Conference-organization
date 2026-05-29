@@ -161,7 +161,10 @@ const ChairInvitationsPage = () => {
         setIsCheckingConflict(false);
       }
 
-      if (conflictResult.has_conflict && conflictResult.conflicting_sessions.length > 0) {
+      if (
+        conflictResult.has_conflict &&
+        conflictResult.conflicting_sessions.length > 0
+      ) {
         // Found a conflict — show warning and abort invite
         setConflictInfo({
           email: inviteEmail.trim(),
@@ -183,10 +186,20 @@ const ChairInvitationsPage = () => {
       setSelectedChair(null);
       toast.success("Invitation sent successfully.");
     } catch (error: any) {
-      const message =
-        error?.response?.data?.detail ||
-        error?.message ||
-        "Failed to send invitation.";
+      let message = "Failed to send invitation.";
+      if (error?.response?.data?.detail) {
+        if (typeof error.response.data.detail === "string") {
+          message = error.response.data.detail;
+        } else if (Array.isArray(error.response.data.detail)) {
+          message = error.response.data.detail
+            .map((d: any) => d.msg || "Validation Error")
+            .join(", ");
+        } else {
+          message = JSON.stringify(error.response.data.detail);
+        }
+      } else if (error?.message) {
+        message = error.message;
+      }
       toast.error(message);
     }
   };
@@ -350,7 +363,7 @@ const ChairInvitationsPage = () => {
                     if (
                       selectedChair &&
                       e.target.value.trim().toLowerCase() !==
-                      selectedChair.email.trim().toLowerCase()
+                        selectedChair.email.trim().toLowerCase()
                     ) {
                       setSelectedChair(null);
                     }
@@ -360,7 +373,9 @@ const ChairInvitationsPage = () => {
 
                 <Button
                   onClick={handleCreateInvitation}
-                  disabled={createInvitationMutation.isPending || isCheckingConflict}
+                  disabled={
+                    createInvitationMutation.isPending || isCheckingConflict
+                  }
                 >
                   {createInvitationMutation.isPending || isCheckingConflict ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -381,8 +396,11 @@ const ChairInvitationsPage = () => {
                         Schedule conflict — invitation not sent
                       </p>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        <span className="font-medium">{conflictInfo.email}</span>{" "}
-                        is already assigned as chair for the following session(s) that overlap with this one:
+                        <span className="font-medium">
+                          {conflictInfo.email}
+                        </span>{" "}
+                        is already assigned as chair for the following
+                        session(s) that overlap with this one:
                       </p>
                       <ul className="mt-2 space-y-1">
                         {conflictInfo.sessions.map((cs) => (
@@ -390,7 +408,9 @@ const ChairInvitationsPage = () => {
                             key={cs.session_id}
                             className="rounded-lg border border-border bg-card px-3 py-2 text-sm"
                           >
-                            <span className="font-medium">{cs.session_name}</span>
+                            <span className="font-medium">
+                              {cs.session_name}
+                            </span>
                             {cs.conf_name && (
                               <span className="ml-1 text-muted-foreground">
                                 ({cs.conf_name})

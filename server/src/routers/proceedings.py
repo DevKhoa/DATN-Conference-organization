@@ -303,7 +303,7 @@ def _draw_text(
                 for word in words:
                     c.drawString(wx, y_cursor, word)
                     wx += _string_width(word, font_name, font_size) + space_w
-                logger.debug(f"Justified line: {line[:30]}...")
+                # logger.debug(f"Justified line: {line[:30]}...")
             else:
                 c.drawString(x, y_cursor, line)
         else:
