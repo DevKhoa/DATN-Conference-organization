@@ -43,7 +43,6 @@ const PaperDetailPage: React.FC = () => {
   const saveAwardMarkingMutation = useSavePaperAwardMarkingMutation();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  const hasValidSubscription = !!!currentSubscription;
   const canGrade = checkRoles([Role.CHAIR, Role.ATTENDEE, Role.ADMIN]);
   const canEditPaper = checkRoles([Role.ADMIN, Role.SECRETARIAT]);
   const userId = session?.user?.user_metadata["user_id"] as number | undefined;
@@ -65,6 +64,8 @@ const PaperDetailPage: React.FC = () => {
       ?.awardId ?? null)
     : null;
   const versionId = detailData?.versionId ?? null;
+
+  const hasValidSubscription = !!currentSubscription || canGrade;
 
   useEffect(() => {
     const nextFormById = applicableAwards.reduce<

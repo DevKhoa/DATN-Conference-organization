@@ -21,6 +21,7 @@ import {
   X,
   Settings,
   Upload,
+  Search,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -141,6 +142,17 @@ const ConferenceDetailPage = () => {
   const [selectedSessionsForCheckin, setSelectedSessionsForCheckin] = useState<
     number[]
   >([]);
+  const [acceptedPapersSearchTerm, setAcceptedPapersSearchTerm] = useState("");
+
+  const filteredAcceptedPapers = useMemo(() => {
+    if (!acceptedPapersSearchTerm.trim()) return acceptedPapers;
+    const lower = acceptedPapersSearchTerm.toLowerCase();
+    return acceptedPapers.filter(
+      (p) =>
+        (p.title || "").toLowerCase().includes(lower) ||
+        (p.author_name || "").toLowerCase().includes(lower)
+    );
+  }, [acceptedPapers, acceptedPapersSearchTerm]);
 
   const currentUserId = session?.user?.user_metadata?.["user_id"] as number | undefined;
 
@@ -754,7 +766,7 @@ const ConferenceDetailPage = () => {
               </section>
 
               <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
-                <div className="mb-6 flex items-center justify-between">
+                <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <div className="rounded-lg bg-primary/10 p-2">
                       <CheckCircle2 className="h-6 w-6 text-primary" />
@@ -762,9 +774,20 @@ const ConferenceDetailPage = () => {
                     <h2 className="text-2xl font-bold text-foreground">
                       Accepted Papers
                     </h2>
+                    <div className="hidden sm:flex rounded-full border border-border bg-muted px-3 py-1 text-sm font-medium text-muted-foreground">
+                      {acceptedPapers.length} Papers
+                    </div>
                   </div>
-                  <div className="rounded-full border border-border bg-muted px-3 py-1 text-sm font-medium text-muted-foreground">
-                    {acceptedPapers.length} Papers
+                  
+                  <div className="relative w-full sm:w-72">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      placeholder="Search by title or author..."
+                      value={acceptedPapersSearchTerm}
+                      onChange={(e) => setAcceptedPapersSearchTerm(e.target.value)}
+                      className="w-full rounded-full border border-border bg-muted/50 py-2 pl-9 pr-4 text-sm outline-none transition-colors focus:border-primary focus:bg-background"
+                    />
                   </div>
                 </div>
 
@@ -773,9 +796,9 @@ const ConferenceDetailPage = () => {
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Loading accepted papers...
                   </div>
-                ) : acceptedPapers.length === 0 ? (
+                ) : filteredAcceptedPapers.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-                    No accepted papers yet.
+                    {acceptedPapersSearchTerm ? "No papers match your search." : "No accepted papers yet."}
                   </div>
                 ) : (
                   <div className="overflow-x-auto rounded-xl border border-border">
@@ -794,7 +817,7 @@ const ConferenceDetailPage = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {acceptedPapers.map((paper) => (
+                        {filteredAcceptedPapers.map((paper) => (
                           <tr
                             key={paper.paper_id}
                             className="border-t border-border hover:bg-accent/30"
