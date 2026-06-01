@@ -1074,6 +1074,7 @@ const ConferenceDetailPage: React.FC = () => {
                                               <div className="flex items-center gap-2 flex-wrap justify-end">
                                                 {session.format_type !==
                                                   "in-person" &&
+                                                  currentUserId &&
                                                   (canAccessVirtual || allowedSessionIds.has(session.session_id)) && (
                                                     <>
                                                       {renderMeetButton(session)}

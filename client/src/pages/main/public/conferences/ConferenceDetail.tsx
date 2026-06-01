@@ -689,7 +689,7 @@ const ConferenceDetailPage = () => {
                                   const hasTicket = registeredSessionIds?.has(session.session_id);
                                   const isCoauthorOrAgenda = allowedSessionIds.has(session.session_id);
 
-                                  const canAccessSessionVirtual = canEdit || isChair || isAuthor || hasTicket || isCoauthorOrAgenda;
+                                  const canAccessSessionVirtual = !!currentUserId && (canEdit || isChair || isAuthor || hasTicket || isCoauthorOrAgenda);
 
                                   return (
                                     <ConferenceSessionDisplay
