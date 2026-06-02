@@ -37,7 +37,6 @@ const BASE_LINKS: {
     { name: "Conferences", href: "/conferences" },
     { name: "Subscriptions", href: "/subscriptions" },
     { name: "Help Center", href: "/faq" },
-    { name: "Proceedings", href: "/proceedings" },
   ];
 
 const Navbar: React.FC<NavbarProps> = ({ className }) => {
@@ -104,6 +103,10 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
   }, []);
 
   let navLinks = [...BASE_LINKS];
+
+  if (canSeeAdminTools) {
+    navLinks = [...navLinks, { name: "Proceedings", href: "/proceedings" }];
+  }
 
   const currentPath = normalizePath(pathname);
 

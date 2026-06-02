@@ -280,7 +280,7 @@ async def import_papers_csv(
             
             # First row = headers
             raw_headers = [str(h).strip().lower() if h else "" for h in all_rows_raw[0]]
-            required_columns = ["title", "abstract", "primary_author_email", "co_author_emails"]
+            required_columns = ["title", "primary_author_email"]
             if not all(col in raw_headers for col in required_columns):
                 raise HTTPException(
                     status_code=400,
@@ -304,7 +304,7 @@ async def import_papers_csv(
                 text_content = content.decode('latin-1')
             
             csv_reader = csv.DictReader(io.StringIO(text_content))
-            required_columns = ["title", "abstract", "primary_author_email", "co_author_emails"]
+            required_columns = ["title", "primary_author_email"]
             if not csv_reader.fieldnames or not all(col in csv_reader.fieldnames for col in required_columns):
                 raise HTTPException(
                     status_code=400, 

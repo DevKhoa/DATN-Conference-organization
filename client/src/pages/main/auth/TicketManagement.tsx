@@ -618,9 +618,13 @@ const TicketManagementPage = () => {
                               <Edit2 className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() =>
-                                setConfirmDeleteId(ticket.ticket_id)
-                              }
+                              onClick={() => {
+                                if (ticket.sold_quantity > 0) {
+                                  alert("This ticket has already been purchased by attendees. You cannot delete it, but you can edit it and set it to Inactive.");
+                                } else {
+                                  setConfirmDeleteId(ticket.ticket_id);
+                                }
+                              }}
                               className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                               title="Delete"
                             >

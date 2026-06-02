@@ -1808,7 +1808,7 @@ const SessionManagerPage = ({
                                                 <SimpleTimePicker
                                                   id={`time-start-session-${idx + 1}-paper-${ap.paper_id}`}
                                                   placeholder="Start"
-                                                  className="w-24 h-8 text-[11px]!"
+                                                  className="w-28 h-8 text-[11px]!"
                                                   value={ap.start_time || ""}
                                                   onChange={(val) =>
                                                     updateSessionPaper(
@@ -1825,7 +1825,7 @@ const SessionManagerPage = ({
                                                 <SimpleTimePicker
                                                   id={`time-end-session-${idx + 1}-paper-${ap.paper_id}`}
                                                   placeholder="End"
-                                                  className="w-24 h-8 text-[11px]!"
+                                                  className="w-28 h-8 text-[11px]!"
                                                   value={ap.end_time || ""}
                                                   onChange={(val) =>
                                                     updateSessionPaper(
