@@ -33,7 +33,8 @@ import { useNavigate } from "@tanstack/react-router";
 import useAuth from "@/features/auth/hooks/useAuth";
 import { Role } from "@/features/auth/types";
 import { DefaultLayout } from "@/layouts/DefaultLayout";
-import { useMyProfileQuery } from "@/features/users/services/queries";
+import { useMyProfileQuery, useUserProfileByEmailQuery } from "@/features/users/services/queries";
+import { useSearch } from "@tanstack/react-router";
 import {
   useImportScholarMutation,
   useUpdateBasicInfoMutation,
@@ -60,7 +61,10 @@ const BASE_API_URL = ((import.meta.env.VITE_API_BASE_URL as string) || "http://l
 
 const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
-  const { roles } = useAuth();
+  const { session, roles } = useAuth();
+  const searchParams = useSearch({ strict: false });
+  const viewEmail = (searchParams as any)?.email;
+  const isPublicView = Boolean(viewEmail && session?.user?.email !== viewEmail);
   // --- STATE ---
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
@@ -92,13 +96,15 @@ const ProfilePage: React.FC = () => {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const cvInputRef = useRef<HTMLInputElement>(null);
 
-  const {
-    data: profileData,
-    isLoading: loading,
-    isFetching,
-    error: profileError,
-    refetch,
-  } = useMyProfileQuery();
+  const myProfileQuery = useMyProfileQuery();
+  const publicProfileQuery = useUserProfileByEmailQuery(isPublicView ? viewEmail : undefined);
+
+  const activeQuery = isPublicView ? publicProfileQuery : myProfileQuery;
+  const profileData = activeQuery.data;
+  const loading = activeQuery.isLoading;
+  const isFetching = activeQuery.isFetching;
+  const profileError = activeQuery.error;
+  const refetch = activeQuery.refetch;
 
   const updateBasicInfoMutation = useUpdateBasicInfoMutation();
   const uploadAvatarMutation = useUploadAvatarMutation();
@@ -444,18 +450,28 @@ const ProfilePage: React.FC = () => {
           {/* Header Navigation */}
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-3xl font-bold text-foreground">My Profile</h1>
+              <h1 className="text-3xl font-bold text-foreground">
+                {isPublicView ? "User Profile" : "My Profile"}
+              </h1>
               <p className="text-muted-foreground mt-1">
-                Manage your identity and professional information.
+                {isPublicView
+                  ? "Viewing professional identity and information."
+                  : "Manage your identity and professional information."}
               </p>
             </div>
             <button
               id="btn-back-dashboard"
-              onClick={() => navigate({ to: "/" })}
+              onClick={() => {
+                if (isPublicView) {
+                  window.history.back();
+                } else {
+                  navigate({ to: "/" });
+                }
+              }}
               className="flex items-center text-sm font-medium text-muted-foreground hover:text-primary transition-colors bg-card px-4 py-2 rounded-lg border border-border shadow-sm"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Dashboard
+              {isPublicView ? "Back" : "Dashboard"}
             </button>
           </div>
 
@@ -480,10 +496,10 @@ const ProfilePage: React.FC = () => {
                 {/* Avatar */}
                 <div className="relative group mx-auto mb-4 w-32 h-32">
                   <div
-                    id="btn-upload-avatar"
-                    onClick={() => avatarInputRef.current?.click()}
-                    className="w-full h-full rounded-full border-4 border-card shadow-lg overflow-hidden cursor-pointer relative bg-primary/10 flex items-center justify-center"
-                    title="Upload Avatar"
+                    id={!isPublicView ? "btn-upload-avatar" : undefined}
+                    onClick={() => !isPublicView && avatarInputRef.current?.click()}
+                    className={`w-full h-full rounded-full border-4 border-card shadow-lg overflow-hidden relative bg-primary/10 flex items-center justify-center ${!isPublicView ? "cursor-pointer" : ""}`}
+                    title={!isPublicView ? "Upload Avatar" : undefined}
                   >
                     {profile?.avatar_url ? (
                       <img
@@ -497,10 +513,12 @@ const ProfilePage: React.FC = () => {
                         {getInitials(profile?.full_name || "")}
                       </span>
                     )}
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Camera className="w-8 h-8 text-white" />
-                    </div>
-                    {uploadingAvatar && (
+                    {!isPublicView && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Camera className="w-8 h-8 text-white" />
+                      </div>
+                    )}
+                    {uploadingAvatar && !isPublicView && (
                       <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
                         <Loader2 className="w-8 h-8 text-primary animate-spin" />
                       </div>
@@ -546,7 +564,7 @@ const ProfilePage: React.FC = () => {
               </div>
 
               {/* AUTHOR ACTION BUTTON */}
-              {isAuthor && (
+              {isAuthor && !isPublicView && (
                 <Button
                   id="btn-my-papers"
                   onClick={() => navigate({ to: "/papers/me" } as any)}
@@ -567,7 +585,7 @@ const ProfilePage: React.FC = () => {
                   <h3 className="text-lg font-semibold text-foreground">
                     Basic Information
                   </h3>
-                  {!basicEditMode && (
+                  {!basicEditMode && !isPublicView && (
                     <Button
                       id="btn-edit-basic"
                       variant="ghost"
@@ -687,9 +705,11 @@ const ProfilePage: React.FC = () => {
                   <h3 className="text-lg font-semibold text-foreground">
                     Professional Bio
                   </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Update your bio to improve networking & AI matching.
-                  </p>
+                  {!isPublicView && (
+                    <p className="text-xs text-muted-foreground">
+                      Update your bio to improve networking & AI matching.
+                    </p>
+                  )}
                 </div>
 
                 <div className="p-6">
@@ -737,32 +757,34 @@ const ProfilePage: React.FC = () => {
                           </span>
                         )}
                       </div>
-                      <div className="flex flex-wrap gap-3">
-                        <Button
-                          id="btn-edit-bio"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setBioMode("MANUAL")}
-                        >
-                          <PenTool className="w-4 h-4 mr-2" /> Edit Text
-                        </Button>
-                        <Button
-                          id="btn-upload-cv"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setBioMode("CV")}
-                        >
-                          <Upload className="w-4 h-4 mr-2" /> Upload CV (PDF)
-                        </Button>
-                        <Button
-                          id="btn-import-scholar"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setBioMode("SCHOLAR")}
-                        >
-                          <LinkIcon className="w-4 h-4 mr-2" /> Import Scholar
-                        </Button>
-                      </div>
+                      {!isPublicView && (
+                        <div className="flex flex-wrap gap-3">
+                          <Button
+                            id="btn-edit-bio"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setBioMode("MANUAL")}
+                          >
+                            <PenTool className="w-4 h-4 mr-2" /> Edit Text
+                          </Button>
+                          <Button
+                            id="btn-upload-cv"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setBioMode("CV")}
+                          >
+                            <Upload className="w-4 h-4 mr-2" /> Upload CV (PDF)
+                          </Button>
+                          <Button
+                            id="btn-import-scholar"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setBioMode("SCHOLAR")}
+                          >
+                            <LinkIcon className="w-4 h-4 mr-2" /> Import Scholar
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -912,57 +934,59 @@ const ProfilePage: React.FC = () => {
               </div>
 
               {/* SECTION 3: INTEGRATIONS */}
-              <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
-                <div className="px-6 py-4 border-b border-border bg-muted/30">
-                  <h3 className="text-lg font-semibold text-foreground">
-                    Integrations
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Connect third-party apps to enhance your experience.
-                  </p>
-                </div>
-                <div className="p-6 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-muted/50 rounded-xl border border-border gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-background rounded-full flex items-center justify-center shadow-sm border border-border shrink-0">
-                        <Calendar className="w-5 h-5 text-primary" />
+              {!isPublicView && (
+                <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+                  <div className="px-6 py-4 border-b border-border bg-muted/30">
+                    <h3 className="text-lg font-semibold text-foreground">
+                      Integrations
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Connect third-party apps to enhance your experience.
+                    </p>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-muted/50 rounded-xl border border-border gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-background rounded-full flex items-center justify-center shadow-sm border border-border shrink-0">
+                          <Calendar className="w-5 h-5 text-primary" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-foreground">
+                            Google Calendar & Meet
+                          </h4>
+                          <p className="text-xs text-muted-foreground">
+                            Used for hosting Virtual & Hybrid sessions.
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-semibold text-foreground">
-                          Google Calendar & Meet
-                        </h4>
-                        <p className="text-xs text-muted-foreground">
-                          Used for hosting Virtual & Hybrid sessions.
-                        </p>
-                      </div>
+                      {profile?.google_refresh_token ? (
+                        <Button
+                          onClick={handleDisconnectGoogle}
+                          variant="outline"
+                          className="border-destructive/50 text-destructive hover:bg-destructive/10 w-full sm:w-auto min-w-[150px]"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Connected
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={handleConnectGoogle}
+                          disabled={connectingGoogle}
+                          variant="outline"
+                          className="border-primary/50 text-primary hover:bg-primary/10 w-full sm:w-auto min-w-[150px]"
+                        >
+                          {connectingGoogle ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <LinkIcon className="w-4 h-4 mr-2" />
+                          )}
+                          Connect Google
+                        </Button>
+                      )}
                     </div>
-                    {profile?.google_refresh_token ? (
-                      <Button
-                        onClick={handleDisconnectGoogle}
-                        variant="outline"
-                        className="border-destructive/50 text-destructive hover:bg-destructive/10 w-full sm:w-auto min-w-[150px]"
-                      >
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        Connected
-                      </Button>
-                    ) : (
-                      <Button
-                        onClick={handleConnectGoogle}
-                        disabled={connectingGoogle}
-                        variant="outline"
-                        className="border-primary/50 text-primary hover:bg-primary/10 w-full sm:w-auto min-w-[150px]"
-                      >
-                        {connectingGoogle ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <LinkIcon className="w-4 h-4 mr-2" />
-                        )}
-                        Connect Google
-                      </Button>
-                    )}
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

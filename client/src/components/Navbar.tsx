@@ -317,14 +317,7 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                         Chair Invitations
                       </button>
                     )}
-                    <a
-                      id="btn-navbar-dropdown-settings"
-                      href="#settings"
-                      className="flex items-center px-4 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                    >
-                      <Settings className="w-4 h-4 mr-3" />
-                      Settings
-                    </a>
+
                     <div className="border-t border-border my-1"></div>
                     <button
                       id="btn-navbar-dropdown-logout"
@@ -495,17 +488,7 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                       Chair Invitations
                     </button>
                   )}
-                  <button
-                    id="btn-navbar-mobile-button-logout"
-                    onClick={() => {
-                      toggleMenu();
-                      navigate({ to: "/agenda/me" });
-                    }}
-                    className="w-full flex items-center justify-center px-4 py-2.5 text-sm font-medium text-foreground bg-background border border-border rounded-lg hover:bg-accent transition-colors shadow-sm"
-                  >
-                    <Calendar className="w-4 h-4 mr-2" />
-                    My Agenda
-                  </button>
+
                   <button
                     id="btn-navbar-mobile-button-logout"
                     onClick={handleLogout}

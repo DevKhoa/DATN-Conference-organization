@@ -226,6 +226,17 @@ const TicketManagementPage = () => {
       return;
     }
 
+    if (newPrice > 0) {
+      if (form.currency === "VND" && newPrice < 2000) {
+        setFormError("The minimum ticket price is 2,000 VND (or 0 for free).");
+        return;
+      }
+      if (form.currency === "USD" && newPrice < 0.1) {
+        setFormError("The minimum ticket price is 0.10 USD (or 0 for free).");
+        return;
+      }
+    }
+
     if (newOpen >= newClose) {
       setFormError("Close time must be after open time.");
       return;
@@ -718,15 +729,23 @@ const TicketManagementPage = () => {
                     placeholder="0"
                     className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition"
                   />
-                  {form.currency === "VND" &&
+                  {form.price !== "" && Number(form.price) > 0 && (
+                    (form.currency === "VND" && Number(form.price) < 2000) ||
+                    (form.currency === "USD" && Number(form.price) < 0.1)
+                  ) ? (
+                    <p className="text-red-600 text-[13px] mt-2 flex items-start gap-1.5 font-medium animate-in slide-in-from-top-1">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      Minimum price is {form.currency === "VND" ? "2,000 VND" : "0.10 USD"} (or 0 for free).
+                    </p>
+                  ) : form.currency === "VND" &&
                     form.price !== "" &&
                     Number(form.price) > 0 &&
-                    Number(form.price) < MinPriceThreshold && (
-                      <p className="text-amber-600 text-[13px] mt-2 flex items-start gap-1.5 font-medium animate-in slide-in-from-top-1">
-                        <AlertCircle className="w-4 h-4 shrink-0" />
-                        Warning: Ticket price is too low.
-                      </p>
-                    )}
+                    Number(form.price) < MinPriceThreshold ? (
+                    <p className="text-amber-600 text-[13px] mt-2 flex items-start gap-1.5 font-medium animate-in slide-in-from-top-1">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      Warning: Ticket price is too low.
+                    </p>
+                  ) : null}
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-foreground mb-1.5">

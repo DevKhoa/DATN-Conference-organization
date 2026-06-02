@@ -46,6 +46,7 @@ export interface AgendaSession {
   chair_name: string;
   timezone?: string;
   session_type?: string;
+  user_roles?: ("attendee" | "chair" | "author")[];
 }
 
 export interface ChairInvitationItem {
@@ -300,6 +301,9 @@ export const useMyAgendaSessionsQuery = () => {
         | number
         | undefined;
       const sessionIdsAllowed = new Set<number>();
+      const attendeeSessionIds = new Set<number>();
+      const chairSessionIds = new Set<number>();
+      const authorSessionIds = new Set<number>();
 
       if (!isAdmin) {
         if (!userId) {
@@ -327,9 +331,10 @@ export const useMyAgendaSessionsQuery = () => {
               .in("ticket_id", ticketIds);
 
             if (ticketSessions) {
-              ticketSessions.forEach((ts) =>
-                sessionIdsAllowed.add(ts.session_id),
-              );
+              ticketSessions.forEach((ts) => {
+                sessionIdsAllowed.add(ts.session_id);
+                attendeeSessionIds.add(ts.session_id);
+              });
             }
           }
         }
@@ -342,7 +347,10 @@ export const useMyAgendaSessionsQuery = () => {
             .eq("user_id", userId);
 
           if (chairSessions) {
-            chairSessions.forEach((cs) => sessionIdsAllowed.add(cs.session_id));
+            chairSessions.forEach((cs) => {
+              sessionIdsAllowed.add(cs.session_id);
+              chairSessionIds.add(cs.session_id);
+            });
           }
         }
 
@@ -372,9 +380,10 @@ export const useMyAgendaSessionsQuery = () => {
               .in("paper_id", paperIds);
 
             if (sessionPapers) {
-              sessionPapers.forEach((sp) =>
-                sessionIdsAllowed.add(sp.session_id),
-              );
+              sessionPapers.forEach((sp) => {
+                sessionIdsAllowed.add(sp.session_id);
+                authorSessionIds.add(sp.session_id);
+              });
             }
           }
         }
@@ -425,6 +434,11 @@ export const useMyAgendaSessionsQuery = () => {
             })
             .filter(Boolean);
 
+          const user_roles: ("attendee" | "chair" | "author")[] = [];
+          if (attendeeSessionIds.has(s.session_id)) user_roles.push("attendee");
+          if (chairSessionIds.has(s.session_id)) user_roles.push("chair");
+          if (authorSessionIds.has(s.session_id)) user_roles.push("author");
+
           return {
             session_id: s.session_id,
             session_name: s.session_name || "Untitled session",
@@ -437,6 +451,7 @@ export const useMyAgendaSessionsQuery = () => {
               chairNames.length > 0 ? chairNames.join(", ") : "Unassigned",
             timezone: s.conferences?.timezone || undefined,
             session_type: s.session_type || undefined,
+            user_roles,
           };
         },
       );

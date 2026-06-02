@@ -142,6 +142,44 @@ export const useSearchChairCandidatesBySessionQuery = ({
   });
 };
 
+export const useUserProfileByEmailQuery = (email?: string) => {
+  return useQuery({
+    queryKey: [UsersKeys.MyProfile, "email", email],
+    queryFn: async () => {
+      if (!email) throw new Error("Email is required");
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(
+          `
+          user_id,
+          full_name,
+          email,
+          organization,
+          description,
+          created_at,
+          avatar_url
+        `
+        )
+        .eq("email", email)
+        .single();
+
+      if (error) throw error;
+
+      return {
+        user_id: data.user_id,
+        full_name: data.full_name,
+        email: data.email,
+        organization: data.organization,
+        description: data.description,
+        created_at: data.created_at,
+        avatar_url: data.avatar_url,
+      } as ProfileData;
+    },
+    enabled: !!email,
+  });
+};
+
 export const useMyProfileQuery = () => {
   const { session, roles } = useAuth();
 
