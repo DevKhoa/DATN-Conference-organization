@@ -13,7 +13,6 @@ import {
 export const CHAIR_CANDIDATE_SEARCH_KEYS = [
   "full_name",
   "email",
-  "organization",
 ] as const;
 
 export type ChairCandidateSearchKey =

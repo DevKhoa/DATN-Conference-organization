@@ -22,7 +22,6 @@ type ChairCandidateSearchProps = {
 const SEARCH_KEYS: MultiKeySearchOption[] = [
   { value: "full_name", label: "Name" },
   { value: "email", label: "Email" },
-  { value: "organization", label: "Org" },
 ];
 
 export const ChairCandidateSearch = ({
