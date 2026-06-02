@@ -18,24 +18,28 @@ export const WebSocketNavigator = ({
 }: WebSocketNavigatorProps) => {
   const { session } = useAuth();
   const navigate = useNavigate();
-  const [, setIsActive] = useState(false);
+
 
   const userId = session?.user?.user_metadata?.["user_id"]?.toString();
 
   useEffect(() => {
     if (!userId || !isActive) return;
 
-    console.log(
-      `[WebSocketNavigator] Connecting... UserID: ${userId}, TabID: ${tabId}`,
-    );
+    let ws: WebSocket;
+    let reconnectTimer: NodeJS.Timeout;
 
-    const ws = new WebSocket(`${wsProtocolUrl}/ws/${userId}/${tabId}`);
+    const connect = () => {
+      console.log(
+        `[WebSocketNavigator] Connecting... UserID: ${userId}, TabID: ${tabId}`,
+      );
 
-    ws.onopen = () => {
-      console.log(`[WebSocketNavigator] Connected! TabID is: ${tabId}`);
-    };
+      ws = new WebSocket(`${wsProtocolUrl}/ws/${userId}/${tabId}`);
 
-    ws.onmessage = (event) => {
+      ws.onopen = () => {
+        console.log(`[WebSocketNavigator] Connected! TabID is: ${tabId}`);
+      };
+
+      ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         console.log("[WebSocketNavigator] Received action:", data);
@@ -164,12 +168,15 @@ export const WebSocketNavigator = ({
               );
               const inputElement = document.querySelector(data.target) as
                 | HTMLInputElement
-                | HTMLTextAreaElement;
+                | HTMLTextAreaElement
+                | HTMLSelectElement;
               if (inputElement) {
                 try {
                   const proto =
                     inputElement instanceof HTMLTextAreaElement
                       ? window.HTMLTextAreaElement.prototype
+                      : inputElement instanceof HTMLSelectElement
+                      ? window.HTMLSelectElement.prototype
                       : window.HTMLInputElement.prototype;
 
                   const nativeInputValueSetter =
@@ -196,6 +203,9 @@ export const WebSocketNavigator = ({
                     inputElement.value = data.value;
                     inputElement.dispatchEvent(
                       new Event("input", { bubbles: true }),
+                    );
+                    inputElement.dispatchEvent(
+                      new Event("change", { bubbles: true }),
                     );
                     sendResponse(
                       "success",
@@ -234,12 +244,15 @@ export const WebSocketNavigator = ({
               );
               const inputElement = document.querySelector(data.target) as
                 | HTMLInputElement
-                | HTMLTextAreaElement;
+                | HTMLTextAreaElement
+                | HTMLSelectElement;
               if (inputElement) {
                 try {
                   const proto =
                     inputElement instanceof HTMLTextAreaElement
                       ? window.HTMLTextAreaElement.prototype
+                      : inputElement instanceof HTMLSelectElement
+                      ? window.HTMLSelectElement.prototype
                       : window.HTMLInputElement.prototype;
 
                   const nativeInputValueSetter =
@@ -277,6 +290,9 @@ export const WebSocketNavigator = ({
                     inputElement.value = data.value;
                     inputElement.dispatchEvent(
                       new Event("input", { bubbles: true }),
+                    );
+                    inputElement.dispatchEvent(
+                      new Event("change", { bubbles: true }),
                     );
                     inputElement.dispatchEvent(
                       new KeyboardEvent("keydown", {
@@ -404,15 +420,24 @@ export const WebSocketNavigator = ({
 
     ws.onerror = (error) => {
       console.error("[WebSocketNavigator] WebSocket Error:", error);
-      setIsActive(false);
     };
 
     ws.onclose = () => {
-      console.log("[WebSocketNavigator] Disconnected");
+      console.log("[WebSocketNavigator] Disconnected. Reconnecting in 3s...");
+      reconnectTimer = setTimeout(() => {
+        if (isActive) connect();
+      }, 3000);
+    };
     };
 
+    connect();
+
     return () => {
-      ws.close();
+      clearTimeout(reconnectTimer);
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
     };
   }, [userId, isActive, tabId, navigate]);
 

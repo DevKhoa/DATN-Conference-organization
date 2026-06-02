@@ -15,7 +15,12 @@ class GoogleMeetService:
             'email'
         ]
         
-        self.client_config = json.loads(os.environ.get("GOOGLE_MEET_CREDENTIALS"))
+        creds_file = os.environ.get("GOOGLE_MEET_CREDENTIALS_FILE")
+        if creds_file:
+            with open(creds_file, "r") as f:
+                self.client_config = json.load(f)
+        else:
+            self.client_config = json.loads(os.environ.get("GOOGLE_MEET_CREDENTIALS", "{}"))
 
     def get_authorization_url(self, email: str):
         # Manually construct URL to avoid PKCE enforcement from google-auth-oauthlib

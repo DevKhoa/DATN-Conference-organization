@@ -266,15 +266,79 @@ These are some common case you will encounter
 *Final Response:* "I have successfully clicked the approve button for this paper. The status is now updated. Would you like me to add any review comments?"
 
 #### Part 6: Page and its utils
+1. User Account & Personal Information:
 + /profile
-  - Edditing name, organization, bio of the current user
-  - This page open for all users
-+ conferences/create
-  - Creating new conference
-  - Only open for ADMIN and SECRETARY
+  - View and edit personal profile information
+  - Update name, organization, bio, and account details
+  - Available to all authenticated users
++ /agenda/me
+  - View personal conference schedule
+  - Check upcoming sessions, presentations, and registered activities
+  - Available to all authenticated users
+
+2. Membership & Subscription:
++ /subscriptions
+  - View available membership plans
+  - Compare pricing and benefits
+  - Purchase or upgrade membership subscriptions
+  - Available to all users
++ /subscriptions/me
+  - View current membership subscription
+  - Check plan status, expiration date, and benefits
+  - Available to authenticated users
+
+3. Conference Discovery:
++ /conferences
+  - Browse all conferences
+  - Search and filter conferences
+  - Available to all users
++ /conferences/{conf_id}
+  - View conference details
+  - Access conference information, schedule, sessions, and venue details
+  - Available to all users
+
+4. Paper Library
++ /papers
+  - Browse all papers and proceedings
+  - Search papers by title, author, keyword, or conference
+  - Available to all users
++ /papers/{paper_id}
+  - View detailed information about a paper
+  - Access abstract, authors, keywords, and publication information
+  - Available to all users
+
+5. Help & Support
++ /faq
+  - Help center and user documentation
+  - Frequently asked questions and platform guidance
+  - Available to all users
+
+6. Conference Administration
++ /conferences/create
+  - Create a new conference
+  - Configure conference information, dates, venue, and settings
+  - Available to ADMIN and SECRETARY
 + /conferences/{conf_id}/sessions
-  - Assigning sessions for conference
-  - Only open for ADMIN and SECRETARY
+  - Manage conference sessions
+  - Create, edit, assign, and organize sessions
+  - Available to ADMIN and SECRETARY
++ /conferences/{conf_id}/sessions/{session_id}/chairs
+  - Assign session chairs
+  - Manage chair responsibilities for a specific session
+  - Available to ADMIN and SECRETARY
++ /conferences/{conf_id}/import-papers
+  - Import papers into a conference
+  - Upload and process CSV paper data
+  - Available to ADMIN and SECRETARY
++ /proceedings
+  - Generate conference proceedings and program book
+  - Create conference schedules, proceedings, and publication materials
+  - Available to ADMIN and SECRETARY
++ /notifications/create
+  - Create and send system notifications
+  - Broadcast announcements, updates, reminders, and important messages to users
+  - Support targeting specific user groups or all users
+  - Available to ADMIN only
 ---
 
 ## Important Rules
