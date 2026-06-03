@@ -71,7 +71,6 @@ export const ChairCandidateSearch = ({
     useSearchChairCandidatesBySessionQuery({
       searchKey: searchPayload.searchKey,
       searchTerm: searchPayload.searchValue,
-      limit: 12,
       sessionId: Number(sessionTempId),
       enabled: isDropdownOpen,
     });

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   Calendar,
@@ -63,6 +63,7 @@ export const ConferenceRegistrationPanel = ({
   conferenceStartDate,
 }: ConferenceRegistrationPanelProps) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { session: authSession } = useAuth();
   const createRegistrationMutation = useCreateRegistrationMutation();
 
@@ -123,6 +124,10 @@ export const ConferenceRegistrationPanel = ({
         description: "Your registration is confirmed. Please check your email.",
       });
       localStorage.removeItem(ticketStorageKey);
+      
+      // Invalidate queries to update Agenda real-time
+      queryClient.invalidateQueries({ queryKey: ["conference-detail-user-registration"] });
+      queryClient.invalidateQueries({ queryKey: ["sessions/myAgenda"] });
 
       // Fallback: trigger QR email in case webhook didn't reach server
       try {
@@ -172,6 +177,11 @@ export const ConferenceRegistrationPanel = ({
       // Free ticket — no PayOS redirect needed
       if (result.provider === "FREE") {
         localStorage.removeItem(ticketStorageKey);
+        
+        // Invalidate queries to update Agenda real-time
+        queryClient.invalidateQueries({ queryKey: ["conference-detail-user-registration"] });
+        queryClient.invalidateQueries({ queryKey: ["sessions/myAgenda"] });
+        
         setIsRegisterModalOpen(false);
         toast.success("Registration confirmed!", {
           description:

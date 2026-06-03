@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Globe,
   Video,
+  ChevronDown,
 } from "lucide-react";
 import {
   format,
@@ -140,6 +141,9 @@ export default function MyAgendaPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [useUserTimezone, setUseUserTimezone] = useState(false);
 
+  // State for toggled dates in list view
+  const [collapsedDates, setCollapsedDates] = useState<Record<string, boolean>>({});
+  
   // States for Timeline view
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -183,6 +187,23 @@ export default function MyAgendaPage() {
       })
       .sort((a, b) => a.displayStartJS.getTime() - b.displayStartJS.getTime());
   }, [sessions, useUserTimezone]);
+
+  // Collapse past dates initially
+  useEffect(() => {
+    const today = format(new Date(), "yyyy-MM-dd");
+    const initial: Record<string, boolean> = {};
+    displaySessions.forEach(s => {
+      const d = s.displayDateOnly;
+      if (!(d in initial)) {
+        initial[d] = d < today;
+      }
+    });
+    setCollapsedDates(initial);
+  }, [displaySessions]);
+
+  const toggleDate = (date: string) => {
+    setCollapsedDates(prev => ({ ...prev, [date]: !prev[date] }));
+  };
 
   const conferenceTimezones = useMemo(() => {
     const tzs = new Set<string>();
@@ -475,13 +496,25 @@ export default function MyAgendaPage() {
             </div>
           ) : (
             <div className="space-y-10">
-              {Object.entries(groupedSessions).map(([date, daySessions]) => (
+              {Object.entries(groupedSessions)
+                .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
+                .map(([date, daySessions]) => {
+                const isCollapsed = collapsedDates[date] || false;
+                return (
                 <div key={date} className="relative">
-                  <div className="sticky top-0 bg-card/90 backdrop-blur-sm py-2 z-10 mb-4">
-                    <h2 className="text-lg font-bold text-primary bg-primary/10 inline-block px-4 py-1.5 rounded-full">
+                  <div 
+                    className="sticky top-0 bg-card/90 backdrop-blur-sm py-2 z-10 mb-4 cursor-pointer flex items-center group select-none"
+                    onClick={() => toggleDate(date)}
+                  >
+                    <h2 className="text-lg font-bold text-primary bg-primary/10 inline-flex items-center gap-2 px-4 py-1.5 rounded-full hover:bg-primary/20 transition-colors">
+                      {isCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
                       {format(parseISO(date), "EEEE, dd/MM/yyyy")}
                     </h2>
+                    <span className="ml-3 text-sm font-medium text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                      {daySessions.length} session{daySessions.length > 1 ? 's' : ''}
+                    </span>
                   </div>
+                  {!isCollapsed && (
                   <div className="ml-6 border-l-2 border-border space-y-6">
                     {daySessions.map((session) => {
                       const isChair = session.user_roles?.includes("chair");
@@ -573,8 +606,10 @@ export default function MyAgendaPage() {
                       );
                     })}
                   </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           ))}
 

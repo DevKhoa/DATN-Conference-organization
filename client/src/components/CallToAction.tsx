@@ -16,25 +16,6 @@ const CallToAction: React.FC = () => {
           Join thousands of organizers who trust Conf-Org to streamline their
           academic events. Start your free trial today.
         </p>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Button
-            variant="secondary"
-            size="lg"
-            className="w-full sm:w-auto"
-            // TODO: Implement proper navigation
-            // onClick={onNavigateRegister}
-          >
-            Create Conference
-          </Button>
-          <Button
-            className="border border-brand-700 hover:bg-brand-700 w-full sm:w-auto"
-            size="lg"
-            // TODO: Implement proper navigation
-            // onClick={onNavigateRegister}
-          >
-            Schedule a Demo
-          </Button>
-        </div>
         <p className="mt-6 text-sm text-brand-300">
           Fully compliant with GDPR and scientific data standards.
         </p>
