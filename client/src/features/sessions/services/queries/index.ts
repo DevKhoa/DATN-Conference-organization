@@ -305,93 +305,85 @@ export const useMyAgendaSessionsQuery = () => {
       const chairSessionIds = new Set<number>();
       const authorSessionIds = new Set<number>();
 
-      if (!isAdmin) {
-        if (!userId) {
-          throw new Error("You are not logged in or your session has expired.");
+      if (!userId) {
+        throw new Error("You are not logged in or your session has expired.");
+      }
+
+      // 1. ATTENDEE: Get sessions from completed transactions
+      const { data: registrations, error: regError } = await supabase
+        .from("registrations")
+        .select(
+          `
+          ticket_id,
+          transactions!inner(status)
+        `,
+        )
+        .eq("user_id", userId)
+        .eq("transactions.status", "COMPLETED");
+
+      if (!regError && registrations && registrations.length > 0) {
+        const ticketIds = registrations.map((r) => r.ticket_id);
+        const { data: ticketSessions } = await supabase
+          .from("ticket_session")
+          .select("session_id")
+          .in("ticket_id", ticketIds);
+
+        if (ticketSessions) {
+          ticketSessions.forEach((ts) => {
+            sessionIdsAllowed.add(ts.session_id);
+            attendeeSessionIds.add(ts.session_id);
+          });
         }
+      }
 
-        // 1. ATTENDEE: Get sessions from completed transactions
-        if (roles.includes(Role.ATTENDEE)) {
-          const { data: registrations, error: regError } = await supabase
-            .from("registrations")
-            .select(
-              `
-              ticket_id,
-              transactions!inner(status)
-            `,
-            )
-            .eq("user_id", userId)
-            .eq("transactions.status", "COMPLETED");
+      // 2. CHAIR: Get sessions from session_chairs
+      const { data: chairSessions } = await supabase
+        .from("session_chairs")
+        .select("session_id")
+        .eq("user_id", userId);
 
-          if (!regError && registrations && registrations.length > 0) {
-            const ticketIds = registrations.map((r) => r.ticket_id);
-            const { data: ticketSessions } = await supabase
-              .from("ticket_session")
-              .select("session_id")
-              .in("ticket_id", ticketIds);
+      if (chairSessions) {
+        chairSessions.forEach((cs) => {
+          sessionIdsAllowed.add(cs.session_id);
+          chairSessionIds.add(cs.session_id);
+        });
+      }
 
-            if (ticketSessions) {
-              ticketSessions.forEach((ts) => {
-                sessionIdsAllowed.add(ts.session_id);
-                attendeeSessionIds.add(ts.session_id);
-              });
-            }
-          }
+      // 3. AUTHOR: Get sessions from session_papers + papers + paper_coauthors
+      const { data: primaryPapers } = await supabase
+        .from("papers")
+        .select("paper_id")
+        .eq("primary_author_id", userId);
+
+      const { data: coauthorPapers } = await supabase
+        .from("paper_coauthors")
+        .select("paper_id")
+        .eq("user_id", userId);
+
+      const paperIds = Array.from(
+        new Set([
+          ...(primaryPapers?.map((p) => p.paper_id) || []),
+          ...(coauthorPapers?.map((p) => p.paper_id) || []),
+        ]),
+      );
+
+      if (paperIds.length > 0) {
+        const { data: sessionPapers } = await supabase
+          .from("session_papers")
+          .select("session_id")
+          .in("paper_id", paperIds);
+
+        if (sessionPapers) {
+          sessionPapers.forEach((sp) => {
+            sessionIdsAllowed.add(sp.session_id);
+            authorSessionIds.add(sp.session_id);
+          });
         }
+      }
 
-        // 2. CHAIR: Get sessions from session_chairs
-        if (roles.includes(Role.CHAIR)) {
-          const { data: chairSessions } = await supabase
-            .from("session_chairs")
-            .select("session_id")
-            .eq("user_id", userId);
-
-          if (chairSessions) {
-            chairSessions.forEach((cs) => {
-              sessionIdsAllowed.add(cs.session_id);
-              chairSessionIds.add(cs.session_id);
-            });
-          }
-        }
-
-        // 3. AUTHOR: Get sessions from session_papers + papers + paper_coauthors
-        if (roles.includes(Role.AUTHOR)) {
-          const { data: primaryPapers } = await supabase
-            .from("papers")
-            .select("paper_id")
-            .eq("primary_author_id", userId);
-
-          const { data: coauthorPapers } = await supabase
-            .from("paper_coauthors")
-            .select("paper_id")
-            .eq("user_id", userId);
-
-          const paperIds = Array.from(
-            new Set([
-              ...(primaryPapers?.map((p) => p.paper_id) || []),
-              ...(coauthorPapers?.map((p) => p.paper_id) || []),
-            ]),
-          );
-
-          if (paperIds.length > 0) {
-            const { data: sessionPapers } = await supabase
-              .from("session_papers")
-              .select("session_id")
-              .in("paper_id", paperIds);
-
-            if (sessionPapers) {
-              sessionPapers.forEach((sp) => {
-                sessionIdsAllowed.add(sp.session_id);
-                authorSessionIds.add(sp.session_id);
-              });
-            }
-          }
-        }
-
-        // If not admin and no allowed sessions, return early
-        if (sessionIdsAllowed.size === 0) {
-          return [];
-        }
+      // If not admin and no allowed sessions, return early
+      if (!isAdmin && sessionIdsAllowed.size === 0) {
+        return [];
       }
 
       let query = supabase

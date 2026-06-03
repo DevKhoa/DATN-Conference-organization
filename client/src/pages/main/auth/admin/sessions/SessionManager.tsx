@@ -1343,7 +1343,7 @@ const SessionManagerPage = ({
                               <GripVertical className="w-4 h-4 text-slate-300 mt-0.5 shrink-0" />
                             )}
                             <div>
-                              <p className="font-medium text-slate-900 text-sm line-clamp-2 leading-tight mb-1.5">
+                              <p className="font-medium text-slate-900 text-sm leading-tight mb-1.5">
                                 {p.title}
                               </p>
                               <p className="text-xs text-slate-500 font-medium">
@@ -1477,13 +1477,13 @@ const SessionManagerPage = ({
                                   session.temp_id,
                                   "session_name",
                                   e.target.value,
-                                )
+                                  )
                               }
                               placeholder="Enter Session Title..."
                             />
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 xl:ml-11">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 xl:ml-11">
                             <div className="relative group">
                               <SimpleDateTimePicker
                                 id={`datetime-start-session-${idx + 1}`}
@@ -1512,7 +1512,7 @@ const SessionManagerPage = ({
                                 }
                               />
                             </div>
-                            <div className="relative group">
+                            <div className="relative group md:col-span-2">
                               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
                               <input
                                 id={`input-session-room-${idx + 1}`}
@@ -1792,7 +1792,7 @@ const SessionManagerPage = ({
                                                     ID: {p.paper_id}
                                                   </span>
                                                 </div>
-                                                <h4 className="font-semibold text-slate-800 text-sm line-clamp-2 pr-2 leading-snug">
+                                                <h4 className="font-semibold text-slate-800 text-sm pr-2 leading-snug">
                                                   {p.title}
                                                 </h4>
                                                 {p.author_name && (
@@ -1808,7 +1808,7 @@ const SessionManagerPage = ({
                                                 <SimpleTimePicker
                                                   id={`time-start-session-${idx + 1}-paper-${ap.paper_id}`}
                                                   placeholder="Start"
-                                                  className="w-28 h-8 text-[11px]!"
+                                                  className="w-32 h-8 text-[11px]!"
                                                   value={ap.start_time || ""}
                                                   onChange={(val) =>
                                                     updateSessionPaper(
@@ -1825,7 +1825,7 @@ const SessionManagerPage = ({
                                                 <SimpleTimePicker
                                                   id={`time-end-session-${idx + 1}-paper-${ap.paper_id}`}
                                                   placeholder="End"
-                                                  className="w-28 h-8 text-[11px]!"
+                                                  className="w-32 h-8 text-[11px]!"
                                                   value={ap.end_time || ""}
                                                   onChange={(val) =>
                                                     updateSessionPaper(
