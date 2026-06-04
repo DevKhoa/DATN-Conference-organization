@@ -91,12 +91,23 @@ async def process_checkin(payload: CheckinRequest):
           .execute()
         
         updated_count = len(update_response.data) if update_response.data else 0
+        
+        # Fetch attendee name
+        attendee_name = "Unknown Attendee"
+        try:
+            reg_res = supabase_client.table("registrations").select("profiles(full_name)").eq("registration_id", payload.registration_id).single().execute()
+            if reg_res.data and reg_res.data.get("profiles") and reg_res.data["profiles"].get("full_name"):
+                attendee_name = reg_res.data["profiles"]["full_name"]
+        except Exception as e:
+            logger.error(f"Failed to fetch attendee name for registration {payload.registration_id}: {e}")
+
         logger.info(f"Checkin successful: Updated {updated_count} attendance record(s) for registration_id {payload.registration_id}")
         
         return {
             "status": "success",
             "message": f"Successfully checked in for {updated_count} session(s)",
-            "checked_in_sessions": payload.session_ids
+            "checked_in_sessions": payload.session_ids,
+            "attendee_name": attendee_name
         }
         
     except HTTPException:

@@ -39,13 +39,15 @@ export const useCreateTicketMutation = () => {
 
       return { ticket_id: ticketId };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [TicketsKeys.TicketsByConference],
-      });
-      queryClient.invalidateQueries({
-        queryKey: [ConferencesKeys.ConferenceTickets],
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [TicketsKeys.TicketsByConference],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [ConferencesKeys.ConferenceTickets],
+        }),
+      ]);
     },
   });
 };
@@ -80,13 +82,15 @@ export const useUpdateTicketMutation = () => {
 
       return { ticket_id };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [TicketsKeys.TicketsByConference],
-      });
-      queryClient.invalidateQueries({
-        queryKey: [ConferencesKeys.ConferenceTickets],
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [TicketsKeys.TicketsByConference],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [ConferencesKeys.ConferenceTickets],
+        }),
+      ]);
     },
   });
 };
@@ -109,13 +113,15 @@ export const useDeleteTicketMutation = () => {
 
       return { ticket_id };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [TicketsKeys.TicketsByConference],
-      });
-      queryClient.invalidateQueries({
-        queryKey: [ConferencesKeys.ConferenceTickets],
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [TicketsKeys.TicketsByConference],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [ConferencesKeys.ConferenceTickets],
+        }),
+      ]);
     },
   });
 };

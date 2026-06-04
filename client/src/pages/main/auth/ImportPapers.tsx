@@ -226,7 +226,7 @@ export const ImportPapers = () => {
                   {isUploading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Uploading...
+                      Processing...
                     </>
                   ) : (
                     <>
@@ -239,10 +239,23 @@ export const ImportPapers = () => {
                   variant="outline"
                   onClick={() => setShowManualEntry(!showManualEntry)}
                   className="w-full mt-3"
+                  disabled={isUploading}
                 >
                   <Table2 className="mr-2 h-4 w-4" />
                   {showManualEntry ? "Hide" : "Manual Entry"}
                 </Button>
+
+                {isUploading && (
+                  <div className="w-full mt-4 p-4 rounded-xl bg-primary/10 border border-primary/20 flex items-start text-sm text-primary/90 text-left animate-in fade-in slide-in-from-top-2">
+                    <Loader2 className="w-5 h-5 mr-3 animate-spin shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold mb-1">Processing File...</p>
+                      <p className="text-xs opacity-90 leading-relaxed">
+                        The system is reading your file, validating author emails, downloading PDFs, and importing papers into the conference. This process may take a few minutes depending on the file size. <br/><br/><b>Please do not close or refresh this window.</b>
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {uploadError && (
