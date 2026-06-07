@@ -46,7 +46,7 @@ const CreateConferencePage: React.FC = () => {
     start_date: "",
     end_date: "",
     status: "DRAFT",
-    is_active: false,
+    is_active: true,
     open_for_papers: true,
     format_type: "in-person",
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
