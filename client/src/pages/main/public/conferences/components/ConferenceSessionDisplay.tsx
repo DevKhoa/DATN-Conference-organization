@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/tooltip";
 
 import { ChairSection } from "./ChairSection";
+import { SessionPaperFilesManager } from "./SessionPaperFilesManager";
 import type { ConferenceDetailSession } from "@/features/conferences/services/queries";
 
 type SessionDisplayProps = {
@@ -393,6 +394,11 @@ export const ConferenceSessionDisplay = ({
                           <p className="text-sm leading-relaxed text-muted-foreground">
                             {sp.paper.abstract}
                           </p>
+                          <SessionPaperFilesManager
+                            sessionId={session.session_id}
+                            paperId={sp.paper.paper_id}
+                            primaryAuthorId={sp.paper.primary_author_id}
+                          />
                         </div>
                       </div>
                     </div>

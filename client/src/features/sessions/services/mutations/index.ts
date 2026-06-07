@@ -497,3 +497,91 @@ export const useDeleteSessionMutation = () => {
     },
   });
 };
+
+import type { SessionPaperFiles } from "../queries";
+
+export interface SaveSessionPaperFilesPayload {
+  sessionId: number;
+  paperId: number;
+  fileType: "pdf" | "slide" | "text";
+  file?: File | null;
+  url?: string | null;
+  userId: number;
+}
+
+export const useSaveSessionPaperFilesMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      paperId,
+      fileType,
+      file,
+      url,
+      userId,
+    }: SaveSessionPaperFilesPayload) => {
+      const formData = new FormData();
+      formData.append("file_type", fileType);
+      formData.append("user_id", String(userId));
+      if (file) {
+        formData.append("file", file);
+      }
+      if (url) {
+        formData.append("url", url);
+      }
+
+      return request.post<SessionPaperFiles>(
+        `/sessions/${sessionId}/papers/${paperId}/files`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        },
+      );
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.SessionPaperFiles, variables.sessionId, variables.paperId],
+      });
+      toast.success("Successfully uploaded/updated file.");
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || err?.message || "Failed to save file.");
+    }
+  });
+};
+
+export const useDeleteSessionPaperFileMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      paperId,
+      fileType,
+      userId,
+    }: {
+      sessionId: number;
+      paperId: number;
+      fileType: "pdf" | "slide" | "text";
+      userId: number;
+    }) => {
+      return request.delete(
+        `/sessions/${sessionId}/papers/${paperId}/files/${fileType}`,
+        { params: { user_id: userId } }
+      );
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.SessionPaperFiles, variables.sessionId, variables.paperId],
+      });
+      toast.success("Successfully deleted file.");
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || err?.message || "Failed to delete file.");
+    }
+  });
+};
+
