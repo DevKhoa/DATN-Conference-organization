@@ -43,7 +43,7 @@ const PaperDetailPage: React.FC = () => {
   const saveAwardMarkingMutation = useSavePaperAwardMarkingMutation();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  const canGrade = checkRoles([Role.CHAIR, Role.ATTENDEE, Role.ADMIN]);
+  const canGrade = checkRoles([Role.CHAIR, Role.ATTENDEE]);
   const canEditPaper = checkRoles([Role.ADMIN, Role.SECRETARIAT]);
   const userId = session?.user?.user_metadata["user_id"] as number | undefined;
   const {

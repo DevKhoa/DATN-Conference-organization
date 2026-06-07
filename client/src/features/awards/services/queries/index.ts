@@ -161,5 +161,6 @@ export const useAwardLeaderboardQuery = (conferenceId: number | null) => {
     queryKey: [AwardsKeys.AwardLeaderboard, conferenceId],
     queryFn: conferenceId ? () => fetchAwardLeaderboard(conferenceId) : undefined,
     enabled: Boolean(conferenceId),
+    refetchInterval: 10000,
   });
 };

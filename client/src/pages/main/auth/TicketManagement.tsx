@@ -197,6 +197,19 @@ const TicketManagementPage = () => {
       return;
     }
 
+    if (editingId !== null) {
+      const currentTicket = tickets.find((t) => t.ticket_id === editingId);
+      if (currentTicket && form.quantity_limit) {
+        const newLimit = parseInt(form.quantity_limit);
+        if (newLimit < currentTicket.sold_quantity) {
+          setFormError(
+            `Cannot change limit to ${newLimit} if ${currentTicket.sold_quantity} have been sold.`
+          );
+          return;
+        }
+      }
+    }
+
     let finalSessionIds: number[] = [];
     if (ticketScope === "FULL") {
       finalSessionIds = sessions.map((s) => s.session_id);
