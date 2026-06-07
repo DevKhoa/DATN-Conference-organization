@@ -479,20 +479,9 @@ export const useDeleteSessionMutation = () => {
 
   return useMutation({
     mutationFn: async ({ sessionId }: { sessionId: number }) => {
-      // Delete related session_papers first to satisfy FK constraint
-      const { error: papersError } = await supabase
-        .from("session_papers")
-        .delete()
-        .eq("session_id", sessionId);
-
-      if (papersError) {
-        throw papersError;
-      }
-
-      const { error } = await supabase
-        .from("sessions")
-        .delete()
-        .eq("session_id", sessionId);
+      const { error } = await supabase.rpc("soft_delete_session", {
+        p_session_id: sessionId,
+      });
 
       if (error) {
         throw error;

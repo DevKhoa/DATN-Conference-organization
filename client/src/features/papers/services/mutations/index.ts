@@ -375,3 +375,30 @@ export const useUpdatePaperContentMutation = () => {
     },
   });
 };
+
+export const useDeletePaperMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ paperId }: { paperId: number }) => {
+      const { error } = await supabase
+        .from("delete_papers")
+        .insert([{ paper_id: paperId }]);
+
+      if (error) {
+        throw error;
+      }
+    },
+    onSuccess: (_, { paperId }) => {
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.AuthorPapers],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.ConferencePapers],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.PublicPaperDetailPage, paperId],
+      });
+    },
+  });
+};

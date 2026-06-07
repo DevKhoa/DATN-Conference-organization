@@ -12,6 +12,8 @@ import {
   MapPin,
   Share2,
   Eye,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "@tanstack/react-router";
@@ -22,9 +24,17 @@ import useAuth from "@/features/auth/hooks/useAuth";
 import { Role } from "@/features/auth/types";
 import { toast } from "sonner";
 import { usePublicPaperDetailPageQuery } from "@/features/papers/services/queries";
-import { useSavePaperAwardMarkingMutation } from "@/features/papers/services/mutations";
+import { useSavePaperAwardMarkingMutation, useDeletePaperMutation } from "@/features/papers/services/mutations";
 import type { PaperApplicableAward } from "@/features/papers/types";
 import { EditPaperModal } from "./components/EditPaperModal";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface AwardFormState {
   comments: string;
@@ -41,7 +51,9 @@ const PaperDetailPage: React.FC = () => {
   const { data: currentSubscription } = useMyCurrentSubscriptionQuery();
   const { session, checkRoles } = useAuth();
   const saveAwardMarkingMutation = useSavePaperAwardMarkingMutation();
+  const deletePaperMutation = useDeletePaperMutation();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const canGrade = checkRoles([Role.CHAIR, Role.ATTENDEE]);
   const canEditPaper = checkRoles([Role.ADMIN, Role.SECRETARIAT]);
@@ -319,6 +331,17 @@ const PaperDetailPage: React.FC = () => {
                 {canEditPaper && (
                   <Button variant="outline" size="sm" onClick={() => setIsEditModalOpen(true)}>
                     Edit Paper
+                  </Button>
+                )}
+                {canEditPaper && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setDeleteConfirmOpen(true)}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
                   </Button>
                 )}
                 <Button variant="outline" size="sm">
@@ -744,6 +767,48 @@ const PaperDetailPage: React.FC = () => {
             initialAbstract={paper.abstract || ""}
           />
         )}
+
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Paper</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete the paper "{paper?.title}"? 
+                This action will hide this paper from the system and cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setDeleteConfirmOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (paper) {
+                    deletePaperMutation.mutate(
+                      { paperId: paper.paper_id },
+                      {
+                        onSuccess: () => {
+                          setDeleteConfirmOpen(false);
+                          navigate({ to: "/papers" });
+                        }
+                      }
+                    );
+                  }
+                }}
+                disabled={deletePaperMutation.isPending}
+              >
+                {deletePaperMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DefaultLayout>
   );

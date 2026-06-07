@@ -22,6 +22,7 @@ import {
   Settings,
   Upload,
   Search,
+  Trash2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -46,7 +47,7 @@ import {
   useToggleMeetMutation,
   useDeleteSessionMutation,
 } from "@/features/sessions/services/mutations";
-import { useUpdateConferenceMutation } from "@/features/conferences/services/mutations";
+import { useUpdateConferenceMutation, useDeleteConferenceMutation } from "@/features/conferences/services/mutations";
 import { ConferenceSessionDisplay } from "./components/ConferenceSessionDisplay";
 import { ConferenceRegistrationPanel } from "./components/ConferenceRegistrationPanel";
 import { ConferenceAwardsLeaderboard } from "./components/ConferenceAwardsLeaderboard";
@@ -104,6 +105,7 @@ const ConferenceDetailPage = () => {
   const toggleMeetMutation = useToggleMeetMutation();
   const deleteSessionMutation = useDeleteSessionMutation();
   const updateConferenceMutation = useUpdateConferenceMutation();
+  const deleteConferenceMutation = useDeleteConferenceMutation();
 
   // Auto-close: set status = CLOSED when end_date has passed
   useEffect(() => {
@@ -131,6 +133,7 @@ const ConferenceDetailPage = () => {
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [isEditConfOpen, setIsEditConfOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [conferenceDeleteConfirmOpen, setConferenceDeleteConfirmOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<{
     id: number;
     name: string;
@@ -525,6 +528,17 @@ const ConferenceDetailPage = () => {
                   >
                     <Upload className="w-4 h-4 mr-1" />
                     Import Papers
+                  </Button>
+                )}
+
+                {canEdit && (
+                  <Button
+                    onClick={() => setConferenceDeleteConfirmOpen(true)}
+                    variant="outline"
+                    className="bg-destructive/10 backdrop-blur-md border-destructive/20 text-red-500 hover:bg-destructive/20"
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" />
+                    Delete Conference
                   </Button>
                 )}
               </div>
@@ -956,6 +970,48 @@ const ConferenceDetailPage = () => {
                 disabled={deleteSessionMutation.isPending}
               >
                 {deleteSessionMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={conferenceDeleteConfirmOpen} onOpenChange={setConferenceDeleteConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Conference</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete the conference "{conference?.conf_name}"? 
+                This action will hide this conference and all its sessions and papers. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setConferenceDeleteConfirmOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (conference) {
+                    deleteConferenceMutation.mutate(
+                      { conferenceId: conference.conf_id },
+                      {
+                        onSuccess: () => {
+                          setConferenceDeleteConfirmOpen(false);
+                          navigate({ to: "/conferences" });
+                        }
+                      }
+                    );
+                  }
+                }}
+                disabled={deleteConferenceMutation.isPending}
+              >
+                {deleteConferenceMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
                 Delete
