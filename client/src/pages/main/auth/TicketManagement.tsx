@@ -15,7 +15,17 @@ import {
   Tag,
   Info,
   Video,
+  EyeOff,
+  ShieldAlert,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 import { useRouter } from "@tanstack/react-router";
 import dayjs from "dayjs";
@@ -113,6 +123,8 @@ const TicketManagementPage = () => {
 
   // Delete state
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  // Sold-ticket guard dialog
+  const [soldTicketDialogId, setSoldTicketDialogId] = useState<number | null>(null);
 
   const loading = ticketsLoading || sessionsLoading;
   const error = ticketsError
@@ -418,7 +430,41 @@ const TicketManagementPage = () => {
       await deleteTicketMutation.mutateAsync({ ticket_id: ticketId });
       setConfirmDeleteId(null);
     } catch (err: unknown) {
-      console.error("Failed to delete ticket:", err);
+      const message = err instanceof Error ? err.message : "";
+      if (message.startsWith("TICKET_HAS_SALES")) {
+        setConfirmDeleteId(null);
+        setSoldTicketDialogId(ticketId);
+      } else {
+        console.error("Failed to delete ticket:", err);
+      }
+    }
+  };
+
+  const handleDeactivate = async (ticketId: number) => {
+    try {
+      await updateTicketMutation.mutateAsync({
+        ticket_id: ticketId,
+        is_active: false,
+        // keep all existing fields unchanged — fetch from tickets list
+        ...(() => {
+          const t = tickets.find((x) => x.ticket_id === ticketId);
+          if (!t) return {};
+          return {
+            ticket_name: t.ticket_name,
+            currency: t.currency || "VND",
+            quantity_limit: t.quantity_limit ?? null,
+            open_time: t.open_time,
+            close_time: t.close_time,
+            description: t.description || null,
+            price: t.price ?? 0,
+            session_ids: t.assigned_session_ids,
+            ticket_type: t.ticket_type || "Standard",
+          };
+        })(),
+      });
+      setSoldTicketDialogId(null);
+    } catch (err) {
+      console.error("Failed to deactivate ticket:", err);
     }
   };
 
@@ -633,7 +679,7 @@ const TicketManagementPage = () => {
                             <button
                               onClick={() => {
                                 if (ticket.sold_quantity > 0) {
-                                  alert("This ticket has already been purchased by attendees. You cannot delete it, but you can edit it and set it to Inactive.");
+                                  setSoldTicketDialogId(ticket.ticket_id);
                                 } else {
                                   setConfirmDeleteId(ticket.ticket_id);
                                 }
@@ -949,6 +995,50 @@ const TicketManagementPage = () => {
           </div>
         </div>
       )}
+
+      {/* Sold-Ticket Guard Dialog */}
+      <Dialog
+        open={soldTicketDialogId !== null}
+        onOpenChange={(open) => { if (!open) setSoldTicketDialogId(null); }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-amber-100 shrink-0">
+                <ShieldAlert className="w-5 h-5 text-amber-600" />
+              </div>
+              <DialogTitle className="text-lg font-bold">Cannot Delete Ticket</DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-muted-foreground leading-relaxed pl-[52px]">
+              This ticket has already been purchased by one or more attendees.
+              Deleting it would invalidate their registrations.
+              <br /><br />
+              You can <span className="font-semibold text-foreground">set it to Inactive</span> instead —
+              it will no longer be available for new purchases, but existing registrations remain valid.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 pt-2">
+            <button
+              onClick={() => setSoldTicketDialogId(null)}
+              className="flex-1 px-4 py-2 text-sm font-medium rounded-lg border border-border bg-background hover:bg-accent text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => soldTicketDialogId !== null && handleDeactivate(soldTicketDialogId)}
+              disabled={updateTicketMutation.isPending}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50"
+            >
+              {updateTicketMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <EyeOff className="w-4 h-4" />
+              )}
+              Set Inactive
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
