@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { request } from "@/lib/axios";
 import { supabase } from "@/lib/supabase";
 import { PapersKeys } from "@/features/papers/services/queries/keys";
+import { AwardsKeys } from "@/features/awards/services/queries/keys";
 import type {
   AnalyzeReviewResult,
   CreatePaperPayload,
@@ -264,6 +265,9 @@ export const useSavePaperAwardMarkingMutation = () => {
       });
       queryClient.invalidateQueries({
         queryKey: [PapersKeys.PublicPaperDetailPage, paperId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [AwardsKeys.AwardLeaderboard],
       });
     },
   });
