@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { PapersKeys } from "@/features/papers/services/queries/keys";
 import { ConferencesKeys } from "@/features/conferences/services/queries/keys";
 import { SessionKeys } from "@/features/sessions/services/queries/keys";
+import { AwardsKeys } from "@/features/awards/services/queries/keys";
 import type {
   AnalyzeReviewResult,
   CreatePaperPayload,
@@ -266,6 +267,9 @@ export const useSavePaperAwardMarkingMutation = () => {
       });
       queryClient.invalidateQueries({
         queryKey: [PapersKeys.PublicPaperDetailPage, paperId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [AwardsKeys.AwardLeaderboard],
       });
     },
   });

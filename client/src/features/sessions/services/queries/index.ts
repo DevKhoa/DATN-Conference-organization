@@ -452,3 +452,40 @@ export const useMyAgendaSessionsQuery = () => {
     },
   });
 };
+
+export interface SessionPaperFiles {
+  session_id: number;
+  paper_id: number;
+  pdf_url?: string | null;
+  slide_url?: string | null;
+  text_url?: string | null;
+  uploaded_by?: number | null;
+  uploaded_at?: string | null;
+}
+
+export const fetchSessionPaperFiles = async (
+  sessionId: number,
+  paperId: number,
+  userId: number,
+): Promise<SessionPaperFiles> => {
+  return request.get<SessionPaperFiles>(
+    `/sessions/${sessionId}/papers/${paperId}/files`,
+    { params: { user_id: userId } },
+  );
+};
+
+export const useSessionPaperFilesQuery = (
+  sessionId: number | null | undefined,
+  paperId: number | null | undefined,
+  userId: number | null | undefined,
+) => {
+  return useQuery({
+    queryKey: [SessionKeys.SessionPaperFiles, sessionId, paperId, userId],
+    queryFn:
+      sessionId && paperId && userId
+        ? () => fetchSessionPaperFiles(sessionId, paperId, userId)
+        : skipToken,
+    enabled: Boolean(sessionId && paperId && userId),
+  });
+};
+
