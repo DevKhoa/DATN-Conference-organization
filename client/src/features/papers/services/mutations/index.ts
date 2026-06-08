@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { request } from "@/lib/axios";
 import { supabase } from "@/lib/supabase";
 import { PapersKeys } from "@/features/papers/services/queries/keys";
+import { ConferencesKeys } from "@/features/conferences/services/queries/keys";
+import { SessionKeys } from "@/features/sessions/services/queries/keys";
 import type {
   AnalyzeReviewResult,
   CreatePaperPayload,
@@ -381,9 +383,9 @@ export const useDeletePaperMutation = () => {
 
   return useMutation({
     mutationFn: async ({ paperId }: { paperId: number }) => {
-      const { error } = await supabase
-        .from("delete_papers")
-        .insert([{ paper_id: paperId }]);
+      const { error } = await supabase.rpc("soft_delete_paper", {
+        p_paper_id: paperId,
+      });
 
       if (error) {
         throw error;
@@ -398,6 +400,12 @@ export const useDeletePaperMutation = () => {
       });
       queryClient.invalidateQueries({
         queryKey: [PapersKeys.PublicPaperDetailPage, paperId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [ConferencesKeys.ConferenceDetail],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.SessionsByConference],
       });
     },
   });

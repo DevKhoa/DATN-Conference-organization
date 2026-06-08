@@ -291,7 +291,7 @@ const PaperDetailPage: React.FC = () => {
   }
 
   return (
-    <DefaultLayout meta={{ title: paper.title }}>
+    <DefaultLayout meta={{ title: paper?.title || "Paper Detail" }}>
       <div className="min-h-screen bg-slate-50 font-sans pb-20">
         {/* 1. HEADER SECTION */}
         <div className="bg-white border-b border-slate-200">
@@ -793,10 +793,14 @@ const PaperDetailPage: React.FC = () => {
                       {
                         onSuccess: () => {
                           setDeleteConfirmOpen(false);
+                          toast.success("Paper deleted successfully.");
                           navigate({ to: "/papers" });
+                        },
+                        onError: (error: any) => {
+                          toast.error(error?.message || "Failed to delete paper.");
+                          setDeleteConfirmOpen(false);
                         }
-                      }
-                    );
+                      });
                   }
                 }}
                 disabled={deletePaperMutation.isPending}

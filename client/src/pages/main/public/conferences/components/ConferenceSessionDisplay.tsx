@@ -357,8 +357,8 @@ export const ConferenceSessionDisplay = ({
               </h4>
 
               <div className="space-y-4">
-                {session.session_papers && session.session_papers.length > 0 ? (
-                  session.session_papers.map((sp, paperIdx) => (
+                {session.session_papers && session.session_papers.filter(sp => sp.paper).length > 0 ? (
+                  session.session_papers.filter(sp => sp.paper).map((sp, paperIdx) => (
                     <div
                       key={sp.paper.paper_id}
                       className="group/paper rounded-xl border border-transparent bg-muted/40 p-4 transition-all duration-200 hover:border-border hover:bg-card hover:shadow-sm"
