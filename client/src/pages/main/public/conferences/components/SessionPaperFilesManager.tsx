@@ -23,6 +23,14 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface SessionPaperFilesManagerProps {
   sessionId: number;
@@ -73,6 +81,7 @@ export const SessionPaperFilesManager: React.FC<SessionPaperFilesManagerProps> =
   const [customName, setCustomName] = useState("");
   const [textInput, setTextInput] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [deleteConfirmType, setDeleteConfirmType] = useState<"pdf" | "slide" | "text" | null>(null);
 
   if (!canViewFiles) return null;
 
@@ -143,15 +152,20 @@ export const SessionPaperFilesManager: React.FC<SessionPaperFilesManagerProps> =
     setCustomName("");
   };
 
-  const handleDelete = async (type: "pdf" | "slide" | "text") => {
-    if (!userId) return;
-    if (confirm(`Are you sure you want to delete this file?`)) {
+  const confirmDelete = async () => {
+    if (!userId || !deleteConfirmType) return;
+    const type = deleteConfirmType;
+    setDeleteConfirmType(null); // Optimistically close modal
+    
+    try {
       await deleteMutation.mutateAsync({
         sessionId,
         paperId,
         fileType: type,
         userId,
       });
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -215,7 +229,7 @@ export const SessionPaperFilesManager: React.FC<SessionPaperFilesManagerProps> =
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0 ml-2"
-                    onClick={() => handleDelete(slot.type)}
+                    onClick={() => setDeleteConfirmType(slot.type as any)}
                     disabled={deleteMutation.isPending}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -348,6 +362,38 @@ export const SessionPaperFilesManager: React.FC<SessionPaperFilesManagerProps> =
           )}
         </div>
       )}
+
+      <Dialog
+        open={deleteConfirmType !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteConfirmType(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this presentation file? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmType(null)}
+              disabled={deleteMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

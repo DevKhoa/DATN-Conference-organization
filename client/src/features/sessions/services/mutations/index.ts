@@ -544,8 +544,13 @@ export const useSaveSessionPaperFilesMutation = () => {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: [SessionKeys.SessionPaperFiles, variables.sessionId, variables.paperId],
+        exact: false,
       });
-      toast.success("Successfully uploaded/updated file.");
+      queryClient.refetchQueries({
+        queryKey: [SessionKeys.SessionPaperFiles, variables.sessionId, variables.paperId],
+        exact: false,
+      });
+      toast.success("File uploaded successfully.");
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.detail || err?.message || "Failed to save file.");
@@ -570,14 +575,20 @@ export const useDeleteSessionPaperFileMutation = () => {
     }) => {
       return request.delete(
         `/sessions/${sessionId}/papers/${paperId}/files/${fileType}`,
-        { params: { user_id: userId } }
+        { user_id: userId }
       );
     },
     onSuccess: (_, variables) => {
+      // Invalidate all queries matching this session+paper prefix (userId may vary)
       queryClient.invalidateQueries({
         queryKey: [SessionKeys.SessionPaperFiles, variables.sessionId, variables.paperId],
+        exact: false,
       });
-      toast.success("Successfully deleted file.");
+      queryClient.refetchQueries({
+        queryKey: [SessionKeys.SessionPaperFiles, variables.sessionId, variables.paperId],
+        exact: false,
+      });
+      toast.success("File deleted successfully.");
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.detail || err?.message || "Failed to delete file.");
