@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { PapersKeys } from "./keys";
 import { supabase } from "@/lib/supabase";
+import { request } from "@/lib/axios";
 import { PaginatedParams } from "@/hooks/usePagination";
 import useAuth from "@/features/auth/hooks/useAuth";
 import type {
@@ -156,16 +157,7 @@ export const usePublicPaperDetailPageQuery = ({
           .order("version_id", { ascending: false })
           .limit(1)
           .maybeSingle(),
-        supabase
-          .from("reviews")
-          .select(
-            `
-            review_id, score, recommendation, comments, review_date,
-            reviewer:profiles!reviewer_id (full_name)
-          `,
-          )
-          .eq("paper_id", paperId)
-          .order("review_date", { ascending: false }),
+        request.get<{ status: string; data: any[] }>(userId ? `/papers/${paperId}/reviews?user_id=${userId}` : `/papers/${paperId}/reviews`).then(res => ({ data: res.data, error: null })).catch(error => ({ data: null, error }))
       ]);
 
       if (paperError) throw paperError;
@@ -173,7 +165,7 @@ export const usePublicPaperDetailPageQuery = ({
       
       let finalReviewsData = reviewsData;
       if (reviewsError) {
-        console.warn("Failed to fetch reviews (table might not exist yet):", reviewsError);
+        console.warn("Failed to fetch reviews:", reviewsError);
         finalReviewsData = [];
       }
 
@@ -838,96 +830,22 @@ export const useSubmitExistingPapersQuery = (
 };
 
 export const usePaperMarkingsQuery = (paperId: number | null) => {
+  const { session } = useAuth();
   return useQuery({
-    queryKey: ["papers/markings", paperId],
+    queryKey: ["papers/markings", paperId, session?.user?.user_metadata?.user_id],
     queryFn: async () => {
       if (!paperId || Number.isNaN(paperId)) return [];
 
-      // 1. Fetch marking records
-      const { data: recordsData, error: recordsError } = await supabase
-        .from("marking_records")
-        .select(`
-          mark_id, total_score, comments, marked_at,
-          award:awards(name),
-          marker:profiles!marked_by(user_id, id, full_name)
-        `)
-        .eq("paper_id", paperId)
-        .order("marked_at", { ascending: false });
+      const userId = session?.user?.user_metadata?.user_id;
 
-      if (recordsError) throw recordsError;
-      if (!recordsData || recordsData.length === 0) return [];
-
-      const markIds = recordsData.map((r: any) => r.mark_id);
-      
-      const markerIds = Array.from(new Set(recordsData.map((r: any) => {
-        const marker = Array.isArray(r.marker) ? r.marker[0] : r.marker;
-        return marker?.id; // This is UUID from auth.users
-      }).filter(Boolean)));
-
-      // 2. Fetch marking details
-      const { data: detailsData, error: detailsError } = await supabase
-        .from("marking_details")
-        .select(`
-          mark_id, score,
-          criteria:award_criteria(criteria_name, weight_pct)
-        `)
-        .in("mark_id", markIds);
-
-      if (detailsError) throw detailsError;
-
-      // 3. Fetch roles for the markers
-      let userRolesMap: Record<string, string> = {};
-      if (markerIds.length > 0) {
-        const { data: rolesData, error: rolesError } = await supabase
-          .from("user_roles")
-          .select(`
-            user_id,
-            role:roles(role_name)
-          `)
-          .in("user_id", markerIds);
-
-        if (!rolesError && rolesData) {
-          rolesData.forEach((row: any) => {
-            const role = Array.isArray(row.role) ? row.role[0] : row.role;
-            if (role) {
-              userRolesMap[row.user_id] = role.role_name;
-            }
-          });
-        }
+      try {
+        const url = userId ? `/papers/${paperId}/markings?user_id=${userId}` : `/papers/${paperId}/markings`;
+        const res = await request.get<{ status: string; data: any[] }>(url);
+        return res.data || [];
+      } catch (error) {
+        console.warn("Failed to fetch markings:", error);
+        return [];
       }
-
-      // 4. Map everything together
-      return recordsData.map((record: any) => {
-        const award = Array.isArray(record.award) ? record.award[0] : record.award;
-        const marker = Array.isArray(record.marker) ? record.marker[0] : record.marker;
-        const roleName = marker?.id ? userRolesMap[marker.id] : null;
-
-        const recordDetails = (detailsData || [])
-          .filter((d: any) => d.mark_id === record.mark_id)
-          .map((d: any) => {
-            const criteria = Array.isArray(d.criteria) ? d.criteria[0] : d.criteria;
-            return {
-              criteria_name: criteria?.criteria_name || "Unknown Criteria",
-              weight_pct: criteria?.weight_pct || 0,
-              score: d.score,
-            };
-          });
-
-        return {
-          mark_id: record.mark_id,
-          total_score: record.total_score,
-          comments: record.comments,
-          marked_at: record.marked_at,
-          award: {
-            name: award?.name || "Unknown Award",
-          },
-          marker: {
-            full_name: marker?.full_name || "Unknown User",
-            role: roleName,
-          },
-          details: recordDetails,
-        } as import("../../types").PaperMarkingRecord;
-      });
     },
     enabled: !!paperId,
   });

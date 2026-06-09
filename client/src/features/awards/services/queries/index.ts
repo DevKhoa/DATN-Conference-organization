@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { supabase } from "@/lib/supabase";
+import { request } from "@/lib/axios";
 import { AwardsKeys } from "./keys";
 import type {
   AwardLeaderboardRow,
@@ -142,18 +143,14 @@ export const useConferenceAwardsQuery = (conferenceId: number | null) => {
 export const fetchAwardLeaderboard = async (
   conferenceId: number,
 ): Promise<AwardLeaderboardRow[]> => {
-  const { data, error } = await supabase
-    .from("award_leaderboard_view")
-    .select("*")
-    .eq("conf_id", conferenceId)
-    .order("award_name", { ascending: true })
-    .order("average_score", { ascending: false });
-
-  if (error) {
+  try {
+    const res = await request.get<{ status: string; data: AwardLeaderboardRow[] }>(
+      `/conferences/${conferenceId}/leaderboard`
+    );
+    return res.data || [];
+  } catch (error) {
     throw error;
   }
-
-  return (data || []) as AwardLeaderboardRow[];
 };
 
 export const useAwardLeaderboardQuery = (conferenceId: number | null) => {

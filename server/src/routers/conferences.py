@@ -527,3 +527,21 @@ async def import_papers_csv(
             pass
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/conferences/{conf_id}/leaderboard")
+async def get_conference_leaderboard(conf_id: int):
+    try:
+        res = (
+            supabase_client.table("award_leaderboard_view")
+            .select("*")
+            .eq("conf_id", conf_id)
+            .order("award_name", desc=False)
+            .order("average_score", desc=True)
+            .execute()
+        )
+        return {
+            "status": "success",
+            "data": res.data
+        }
+    except Exception as e:
+        logger.error(f"Get Leaderboard Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
