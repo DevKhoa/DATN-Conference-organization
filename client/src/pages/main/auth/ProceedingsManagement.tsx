@@ -1470,9 +1470,11 @@ const ProceedingsManagementPage: React.FC = () => {
 
   const addText = () => {
     const id = generateUUID();
-    const maxTxtZ = curPg.els
-      .filter((e) => e.type === "text")
-      .reduce((m, e) => Math.max(m, e.zIndex ?? 100), 100);
+    const maxTxtZ = curPg?.els
+      ? curPg.els
+          .filter((e) => e.type === "text")
+          .reduce((m, e) => Math.max(m, e.zIndex ?? 100), 100)
+      : 100;
     patchPage((p) => ({
       ...p,
       els: [
@@ -1562,9 +1564,11 @@ const ProceedingsManagementPage: React.FC = () => {
     const img = new window.Image();
     img.onload = () => {
       const id = generateUUID();
-      const maxImgZ = curPg.els
-        .filter((e) => e.type === "image")
-        .reduce((m, e) => Math.max(m, e.zIndex ?? 10), 10);
+      const maxImgZ = curPg?.els
+        ? curPg.els
+            .filter((e) => e.type === "image")
+            .reduce((m, e) => Math.max(m, e.zIndex ?? 10), 10)
+        : 10;
 
       let imageProps: Partial<EditorEl>;
 
@@ -1619,7 +1623,9 @@ const ProceedingsManagementPage: React.FC = () => {
     const tW = 500,
       tH = rows * 32 + 10;
     const tblData = createEmptyTable(rows, cols, tW, tH);
-    const maxZ = curPg.els.reduce((m, e) => Math.max(m, e.zIndex ?? 10), 10);
+    const maxZ = curPg?.els
+      ? curPg.els.reduce((m, e) => Math.max(m, e.zIndex ?? 10), 10)
+      : 10;
     patchPage((p) => ({
       ...p,
       els: [

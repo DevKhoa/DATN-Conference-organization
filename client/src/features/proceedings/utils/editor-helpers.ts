@@ -3,6 +3,7 @@ import { CANVAS_W, CANVAS_H, THUMB_W, THUMB_H } from "../types";
 import { solidColorImg } from "./canvas-helpers";
 import { renderTableToCanvas } from "@/components/ui/table-editor";
 import { generateUUID } from "@/features/proceedings/utils/uuid";
+import { stripMarkdown } from "@/lib/utils";
 
 // ─── Format abstract text — normalize line-breaks and ligatures ───────────────
 export const formatAbstract = (text?: string): string => {
@@ -222,6 +223,9 @@ export const buildEditorPages = (data: any): EditorPage[] => {
 
     let i = 0;
     while (i < allLines.length) {
+      if (curY + lineH > MAX_Y) {
+        flushPage();
+      }
       const available = MAX_Y - curY;
       const linesThisPage = Math.max(1, Math.floor(available / lineH));
       const chunk = allLines.slice(i, i + linesThisPage);
@@ -247,6 +251,59 @@ export const buildEditorPages = (data: any): EditorPage[] => {
       curY += chunkH;
       i += linesThisPage;
       if (i < allLines.length) flushPage();
+    }
+  };
+
+  const renderMarkdownToPages = (
+    markdownText: string,
+    x: number,
+    w: number,
+    baseOpts: Partial<EditorEl> = {},
+  ) => {
+    if (!markdownText) return;
+    // Split by paragraphs (1 or more newlines)
+    const paragraphs = markdownText.split(/\n{1,}/);
+    for (const p of paragraphs) {
+      let text = p.trim();
+      if (!text) continue;
+
+      let opts = { ...baseOpts };
+      let currentX = x;
+      let currentW = w;
+      let topSpacing = 0;
+      let bottomSpacing = Math.round(2 * scY);
+
+      if (text.startsWith("## ")) {
+        text = text.substring(3).trim();
+        opts.bold = true;
+        opts.fontSize = Math.round((baseOpts.fontSize || 10) * 1.05);
+        opts.color = "#1a3a6b";
+        topSpacing = Math.round(6 * scY);
+        bottomSpacing = Math.round(2 * scY);
+      } else if (text.startsWith("### ")) {
+        text = text.substring(4).trim();
+        opts.bold = true;
+        opts.fontSize = Math.round((baseOpts.fontSize || 10) * 1.0);
+        topSpacing = Math.round(4 * scY);
+        bottomSpacing = Math.round(1 * scY);
+      } else if (text.startsWith("- ")) {
+        text = "•  " + text.substring(2).trim();
+        currentX += Math.round(10 * scY);
+        currentW -= Math.round(10 * scY);
+        bottomSpacing = 0;
+      }
+
+      // Strip inline formatting since Canvas Text doesn't support mixed styles
+      text = text.replace(/\*\*(.*?)\*\*/g, "$1");
+      text = text.replace(/__(.*?)__/g, "$1");
+      text = text.replace(/\*(.*?)\*/g, "$1");
+      text = text.replace(/_(.*?)_/g, "$1");
+      // Convert links [text](url) to just text
+      text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+
+      curY += topSpacing;
+      addTMultiPage(text, currentX, currentW, opts);
+      curY += bottomSpacing;
     }
   };
 
@@ -1093,7 +1150,7 @@ export const buildEditorPages = (data: any): EditorPage[] => {
         curY += Math.round(6 * scY);
 
         const bioFontPx = Math.round(9.5 * scY);
-        addTMultiPage(formatAbstract(k.bio), ML, CW, {
+        renderMarkdownToPages(k.bio, ML, CW, {
           fontSize: bioFontPx,
           color: "#2d3748",
           align: "justify",
