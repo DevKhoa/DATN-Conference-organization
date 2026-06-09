@@ -1,5 +1,6 @@
 import { Document, Page, Text, View, Image } from "@react-pdf/renderer";
 import { pdfStyles } from "./pdf-styles";
+import { stripMarkdown } from "@/lib/utils";
 import type { ProceedingsData, KeynoteSpeaker } from "../../types";
 
 interface ProceedingsDocumentProps {
@@ -403,7 +404,7 @@ export const ProceedingsDocument = ({ data }: ProceedingsDocumentProps) => {
                   <Text style={pdfStyles.abstractText}>{k.abstract}</Text>
                 </View>
               ) : null}
-              {k.bio ? <Text style={pdfStyles.bioText}>{k.bio}</Text> : null}
+              {k.bio ? <Text style={pdfStyles.bioText}>{stripMarkdown(k.bio)}</Text> : null}
             </View>
           ))}
           <View style={pdfStyles.footerContainer} fixed>

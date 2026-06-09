@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from packages.my_email import send_email
 from packages.utils import logger, supabase_client
@@ -33,7 +34,12 @@ def _format_session_time(ts: Optional[str], conf_timezone: str = "UTC") -> str:
         return "TBD"
     try:
         dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        return dt.strftime("%A, %B %d %Y  %H:%M UTC")
+        try:
+            tz = ZoneInfo(conf_timezone)
+        except Exception:
+            tz = ZoneInfo("UTC")
+        dt_local = dt.astimezone(tz)
+        return dt_local.strftime(f"%A, %B %d %Y  %H:%M ({conf_timezone})")
     except Exception:
         return ts
 
