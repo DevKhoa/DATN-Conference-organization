@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import {
+  CheckCircle2,
   ChevronDown,
   Eye,
   EyeOff,
@@ -27,6 +28,8 @@ type SessionDisplayProps = {
   conferenceFormatType?: string | null;
   canAccessVirtual: boolean;
   canEdit: boolean;
+  canViewCheckins?: boolean;
+  checkedInSet?: Set<string>;
   session: ConferenceDetailSession;
   isExpanded: boolean;
   onToggle: () => void;
@@ -50,6 +53,8 @@ export const ConferenceSessionDisplay = ({
   conferenceFormatType,
   canAccessVirtual,
   canEdit,
+  canViewCheckins = false,
+  checkedInSet,
   session,
   isExpanded,
   onToggle,
@@ -386,9 +391,17 @@ export const ConferenceSessionDisplay = ({
                             )}
                           </div>
                           <div className="mb-2 flex items-center text-sm text-muted-foreground">
-                            <User className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="font-medium">
-                              {sp.paper.author?.full_name || "Unknown Author"}
+                            <User className="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span className="font-medium flex items-center flex-wrap gap-2">
+                              <span>{sp.paper.author?.full_name || "Unknown Author"}</span>
+                              {canViewCheckins &&
+                                sp.paper.primary_author_id &&
+                                checkedInSet?.has(`${session.session_id}-${sp.paper.primary_author_id}`) && (
+                                  <span className="inline-flex items-center rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                                    <CheckCircle2 className="mr-1 h-3 w-3" />
+                                    Checked-in
+                                  </span>
+                                )}
                             </span>
                           </div>
                           <p className="text-sm leading-relaxed text-muted-foreground">

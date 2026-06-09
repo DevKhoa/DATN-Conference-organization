@@ -102,10 +102,49 @@ const ConferenceDetailPage = () => {
   const conference = conferenceDetail?.conference ?? null;
   const sessions = conferenceDetail?.sessions ?? [];
   const canEdit = checkRoles([Role.ADMIN, Role.SECRETARIAT]);
+  const canViewCheckins = checkRoles([Role.CHAIR, Role.ADMIN, Role.SECRETARIAT]);
   const toggleMeetMutation = useToggleMeetMutation();
   const deleteSessionMutation = useDeleteSessionMutation();
   const updateConferenceMutation = useUpdateConferenceMutation();
   const deleteConferenceMutation = useDeleteConferenceMutation();
+
+  const [checkedInSet, setCheckedInSet] = useState<Set<string>>(new Set());
+  const sessionIds = useMemo(() => sessions.map((s) => s.session_id), [sessions]);
+
+  useEffect(() => {
+    if (!canViewCheckins || sessionIds.length === 0) return;
+
+    const fetchCheckins = async () => {
+      const { data } = await supabase
+        .from("attendences")
+        .select("session_id, user_id, registration_id, registrations(user_id)")
+        .in("session_id", sessionIds)
+        .eq("is_checkin", true);
+
+      const checkins = new Set<string>();
+      (data || []).forEach((r: any) => {
+        const directUserId = r.user_id;
+        const regUserId = Array.isArray(r.registrations)
+          ? r.registrations[0]?.user_id
+          : r.registrations?.user_id;
+        const userId = directUserId ?? regUserId;
+        if (userId && r.session_id) {
+          checkins.add(`${r.session_id}-${userId}`);
+        }
+      });
+      setCheckedInSet(checkins);
+    };
+
+    fetchCheckins();
+
+    const channelName = `checkin_badge_${sessionIds.join("_")}`;
+    const channel = supabase
+      .channel(channelName)
+      .on("postgres_changes", { event: "*", schema: "public", table: "attendences" }, fetchCheckins)
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [sessionIds.join(","), canViewCheckins]);
 
   // Auto-close: set status = CLOSED when end_date has passed
   useEffect(() => {
@@ -713,6 +752,8 @@ const ConferenceDetailPage = () => {
                                       }
                                       canAccessVirtual={!!canAccessSessionVirtual}
                                       canEdit={canEdit}
+                                      canViewCheckins={canViewCheckins}
+                                      checkedInSet={checkedInSet}
                                       session={session}
                                       isExpanded={isExpanded}
                                       onToggle={() =>

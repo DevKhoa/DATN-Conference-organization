@@ -23,7 +23,7 @@ import { useMyCurrentSubscriptionQuery } from "@/features/subscriptions/services
 import useAuth from "@/features/auth/hooks/useAuth";
 import { Role } from "@/features/auth/types";
 import { toast } from "sonner";
-import { usePublicPaperDetailPageQuery } from "@/features/papers/services/queries";
+import { usePublicPaperDetailPageQuery, usePaperMarkingsQuery } from "@/features/papers/services/queries";
 import { useSavePaperAwardMarkingMutation, useDeletePaperMutation } from "@/features/papers/services/mutations";
 import type { PaperApplicableAward } from "@/features/papers/types";
 import { EditPaperModal } from "./components/EditPaperModal";
@@ -67,6 +67,8 @@ const PaperDetailPage: React.FC = () => {
     userId,
     canGrade,
   });
+
+  const { data: markings = [], isLoading: markingsLoading } = usePaperMarkingsQuery(Number.isNaN(paperId) ? null : paperId);
   const paper = detailData?.paper ?? null;
   const pdfUrl = detailData?.pdfUrl ?? null;
   const reviews = detailData?.reviews ?? [];
@@ -344,10 +346,7 @@ const PaperDetailPage: React.FC = () => {
                     Delete
                   </Button>
                 )}
-                <Button variant="outline" size="sm">
-                  <Share2 className="w-5 h-5 mr-2" />
-                  Share
-                </Button>
+
                 {pdfUrl && hasValidSubscription && (
                   <a
                     href={pdfUrl}
@@ -632,37 +631,38 @@ const PaperDetailPage: React.FC = () => {
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-bold text-slate-900 flex items-center">
                     <MessageSquare className="w-5 h-5 mr-2 text-brand-500" />
-                    Peer Reviews
+                    Peer Reviews & Markings
                     <span className="ml-2 text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">
-                      {reviews.length}
+                      {reviews.length + markings.length}
                     </span>
                   </h3>
                 </div>
 
-                {reviews.length === 0 ? (
+                {reviews.length === 0 && markings.length === 0 ? (
                   <div className="text-center py-8 bg-slate-50 rounded-lg border border-dashed border-slate-200">
                     <p className="text-slate-500 italic">
-                      No reviews published for this paper yet.
+                      No reviews or markings published for this paper yet.
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-6">
+                    {/* Standard Reviews */}
                     {reviews.map((review) => (
                       <div
-                        key={review.review_id}
+                        key={`review-${review.review_id}`}
                         className="border-b border-slate-100 last:border-0 pb-6 last:pb-0"
                       >
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-xs font-bold">
+                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-xs font-bold shrink-0">
                               {review.reviewer?.full_name?.charAt(0) || "R"}
                             </div>
                             <div>
-                              <p className="text-sm font-bold text-slate-900">
+                              <p className="text-sm font-bold text-slate-900 leading-none">
                                 {review.reviewer?.full_name ||
                                   "Anonymous Reviewer"}
                               </p>
-                              <p className="text-xs text-slate-400">
+                              <p className="text-xs text-slate-400 mt-1">
                                 {formatDate(review.review_date || "")}
                               </p>
                             </div>
@@ -677,9 +677,71 @@ const PaperDetailPage: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                        <p className="text-sm text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <p className="text-sm text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100 mt-2 whitespace-pre-wrap">
                           {review.comments}
                         </p>
+                      </div>
+                    ))}
+
+                    {/* Award Markings */}
+                    {markings.map((marking) => (
+                      <div
+                        key={`marking-${marking.mark_id}`}
+                        className="border-b border-slate-100 last:border-0 pb-6 last:pb-0"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-3 gap-2">
+                          <div className="flex items-start gap-2">
+                            <div className="w-8 h-8 rounded-full bg-brand-50 flex items-center justify-center text-brand-600 border border-brand-100 text-xs font-bold shrink-0">
+                              {marking.marker?.full_name?.charAt(0) || "M"}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-bold text-slate-900 leading-none">
+                                  {marking.marker?.full_name || "Anonymous Marker"}
+                                </p>
+                                {marking.marker?.role && (
+                                  <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                                    {marking.marker.role.replace("_", " ")}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                                <span>{formatDate(marking.marked_at || "")}</span>
+                                <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                                <span className="text-brand-600 font-medium">
+                                  {marking.award?.name}
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center text-sm font-bold text-slate-900 bg-amber-50 border border-amber-200 px-3 py-1 rounded-lg shrink-0 w-fit">
+                            <Star className="w-4 h-4 text-amber-500 mr-1.5 fill-amber-500" />
+                            Total: {marking.total_score != null ? Number(marking.total_score).toFixed(2) : "N/A"}
+                          </div>
+                        </div>
+
+                        {marking.details && marking.details.length > 0 && (
+                          <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {marking.details.map((detail, idx) => (
+                              <div key={idx} className="bg-slate-50 border border-slate-100 rounded px-3 py-2 flex items-start justify-between text-xs">
+                                <span className="text-slate-600 mr-2 break-words" title={detail.criteria_name}>
+                                  {detail.criteria_name}
+                                </span>
+                                <span className="font-bold text-slate-800 shrink-0">
+                                  {detail.score} <span className="text-slate-400 font-normal">/ 100</span>
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {marking.comments && (
+                          <div className="text-sm text-slate-600 leading-relaxed bg-white border border-slate-200 shadow-sm p-3 rounded-lg relative">
+                            <div className="absolute top-0 left-0 w-1 h-full bg-brand-400 rounded-l-lg"></div>
+                            <span className="italic">"{marking.comments}"</span>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -693,32 +755,64 @@ const PaperDetailPage: React.FC = () => {
                 {/* 2. AUTHOR INFO */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-4">
-                  Primary Author
+                  Authors
                 </h3>
 
-                <div className="flex items-start gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-brand-50 flex items-center justify-center text-brand-600 font-bold text-lg shrink-0 border border-brand-100">
-                    {paper.author?.full_name?.charAt(0) || "U"}
+                <div className="space-y-4">
+                  {/* Primary Author */}
+                  {/* Primary Author */}
+                  <div
+                    className="flex items-start gap-4 p-2 -ml-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors"
+                    onClick={() => {
+                      if (paper.author?.email) {
+                        navigate({ to: "/profile", search: { email: paper.author.email } } as any);
+                      }
+                    }}
+                  >
+                    <div className="w-12 h-12 rounded-full bg-brand-50 flex items-center justify-center text-brand-600 font-bold text-lg shrink-0 border border-brand-100">
+                      {paper.author?.full_name?.charAt(0) || "U"}
+                    </div>
+                    <div>
+                      <h4 className="text-base font-bold text-slate-900 leading-tight">
+                        {paper.author?.full_name || "Unknown"}
+                      </h4>
+                      <p className="text-xs text-brand-600 font-medium mt-0.5">
+                        {paper.author?.organization || "Organization N/A"}
+                        <span className="ml-2 text-slate-400 font-normal border-l border-slate-300 pl-2">Primary Author</span>
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-base font-bold text-slate-900 leading-tight">
-                      {paper.author?.full_name || "Unknown"}
-                    </h4>
-                    <p className="text-xs text-brand-600 font-medium mt-0.5">
-                      {paper.author?.organization || "Organization N/A"}
-                    </p>
-                  </div>
+
+                  {/* Coauthors */}
+                  {paper.coauthors?.map((co, idx) => (
+                    <div
+                      key={`coauthor-${idx}`}
+                      className="flex items-start gap-4 pt-4 border-t border-slate-100 p-2 -ml-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors"
+                      onClick={() => {
+                        if (co.profile?.email) {
+                          navigate({ to: "/profile", search: { email: co.profile.email } } as any);
+                        }
+                      }}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 font-bold text-base shrink-0 border border-slate-200">
+                        {co.profile?.full_name?.charAt(0) || "U"}
+                      </div>
+                      <div className="overflow-hidden">
+                        <h4 className="text-sm font-bold text-slate-900 leading-tight truncate">
+                          {co.profile?.full_name || "Unknown"}
+                        </h4>
+                        <p className="text-xs text-slate-500 mt-0.5 truncate">
+                          {co.profile?.organization || "Organization N/A"}
+                          <span className="ml-2 text-slate-400 font-normal border-l border-slate-300 pl-2">Co-author</span>
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
-                {paper.author?.description && (
-                  <div className="text-sm text-slate-600 mb-4 line-clamp-3 italic">
-                    "{paper.author.description}"
-                  </div>
-                )}
-
-                <div className="text-xs text-slate-400 pt-4 border-t border-slate-100 flex items-center">
+                <div className="text-xs text-slate-400 pt-4 mt-4 border-t border-slate-100 flex items-center">
                   <CheckCircle className="w-3 h-3 mr-1.5 text-green-500" />{" "}
-                  Verified Researcher
+                  Verified Researchers
                 </div>
               </div>
 

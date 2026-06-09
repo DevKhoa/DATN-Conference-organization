@@ -41,6 +41,10 @@ class SessionLink(BaseModel):
     presentation_order: Optional[int]
     session: Optional[SessionInfo]
 
+class CoauthorInfo(BaseModel):
+    author_order: Optional[int]
+    profile: Optional[AuthorInfo]
+
 class PaperDetailResponse(BaseModel):
     paper_id: int
     title: str
@@ -49,6 +53,7 @@ class PaperDetailResponse(BaseModel):
     created_at: str
     
     author: Optional[AuthorInfo]
+    coauthors: List[CoauthorInfo] = []
     conference: Optional[ConferenceInfo]
     versions: List[VersionInfo] = []
     reviews: List[ReviewInfo] = []

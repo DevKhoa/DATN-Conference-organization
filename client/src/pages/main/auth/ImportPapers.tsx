@@ -8,6 +8,8 @@ import { DefaultLayout } from "@/layouts/DefaultLayout";
 import { toast } from "sonner";
 import useAuth from "@/features/auth/hooks/useAuth";
 import { useAxios } from "@/lib/axios";
+import { ConferencesKeys } from "@/features/conferences/services/queries/keys";
+import { PapersKeys } from "@/features/papers/services/queries/keys";
 
 export const ImportPapers = () => {
   const { conferenceId } = useParams({ strict: false }) as any;
@@ -84,6 +86,11 @@ export const ImportPapers = () => {
       
       queryClient.invalidateQueries({ queryKey: ["importHistory", conferenceId] });
       queryClient.invalidateQueries({ queryKey: ["importLogs", conferenceId] });
+      // Invalidate related data so UI refreshes seamlessly
+      queryClient.invalidateQueries({ queryKey: [ConferencesKeys.ConferenceDetail, Number(conferenceId)] });
+      queryClient.invalidateQueries({ queryKey: [PapersKeys.PapersCount] });
+      queryClient.invalidateQueries({ queryKey: [PapersKeys.PaginatedPapers] });
+      queryClient.invalidateQueries({ queryKey: [PapersKeys.AcceptedPapers, Number(conferenceId)] });
     },
     onError: (error: any) => {
       const errorMsg = error.response?.data?.detail || error.message || "Failed to import papers";

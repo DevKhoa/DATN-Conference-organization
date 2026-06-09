@@ -142,6 +142,7 @@ export const usePublicPaperDetailPageQuery = ({
             `
             paper_id, title, abstract, status, created_at, submitted_conf,
             author:profiles!primary_author_id (full_name, email, organization, description),
+            coauthors:paper_coauthors (author_order, profile:profiles (full_name, email, organization, description)),
             conference:conferences!submitted_conf (conf_name, description, location, start_date, end_date)
           `,
           )
@@ -181,6 +182,14 @@ export const usePublicPaperDetailPageQuery = ({
         author: Array.isArray(paperData.author)
           ? (paperData.author[0] ?? null)
           : (paperData.author ?? null),
+        coauthors: Array.isArray(paperData.coauthors)
+          ? paperData.coauthors
+              .map((c: any) => ({
+                author_order: c.author_order,
+                profile: Array.isArray(c.profile) ? c.profile[0] : c.profile,
+              }))
+              .sort((a: any, b: any) => (a.author_order || 0) - (b.author_order || 0))
+          : [],
         conference: Array.isArray(paperData.conference)
           ? (paperData.conference[0] ?? null)
           : (paperData.conference ?? null),
@@ -825,5 +834,101 @@ export const useSubmitExistingPapersQuery = (
       }) as SubmitExistingPaper[];
     },
     enabled: !!conferenceId && enabled,
+  });
+};
+
+export const usePaperMarkingsQuery = (paperId: number | null) => {
+  return useQuery({
+    queryKey: ["papers/markings", paperId],
+    queryFn: async () => {
+      if (!paperId || Number.isNaN(paperId)) return [];
+
+      // 1. Fetch marking records
+      const { data: recordsData, error: recordsError } = await supabase
+        .from("marking_records")
+        .select(`
+          mark_id, total_score, comments, marked_at,
+          award:awards(name),
+          marker:profiles!marked_by(user_id, id, full_name)
+        `)
+        .eq("paper_id", paperId)
+        .order("marked_at", { ascending: false });
+
+      if (recordsError) throw recordsError;
+      if (!recordsData || recordsData.length === 0) return [];
+
+      const markIds = recordsData.map((r: any) => r.mark_id);
+      
+      const markerIds = Array.from(new Set(recordsData.map((r: any) => {
+        const marker = Array.isArray(r.marker) ? r.marker[0] : r.marker;
+        return marker?.id; // This is UUID from auth.users
+      }).filter(Boolean)));
+
+      // 2. Fetch marking details
+      const { data: detailsData, error: detailsError } = await supabase
+        .from("marking_details")
+        .select(`
+          mark_id, score,
+          criteria:award_criteria(criteria_name, weight_pct)
+        `)
+        .in("mark_id", markIds);
+
+      if (detailsError) throw detailsError;
+
+      // 3. Fetch roles for the markers
+      let userRolesMap: Record<string, string> = {};
+      if (markerIds.length > 0) {
+        const { data: rolesData, error: rolesError } = await supabase
+          .from("user_roles")
+          .select(`
+            user_id,
+            role:roles(role_name)
+          `)
+          .in("user_id", markerIds);
+
+        if (!rolesError && rolesData) {
+          rolesData.forEach((row: any) => {
+            const role = Array.isArray(row.role) ? row.role[0] : row.role;
+            if (role) {
+              userRolesMap[row.user_id] = role.role_name;
+            }
+          });
+        }
+      }
+
+      // 4. Map everything together
+      return recordsData.map((record: any) => {
+        const award = Array.isArray(record.award) ? record.award[0] : record.award;
+        const marker = Array.isArray(record.marker) ? record.marker[0] : record.marker;
+        const roleName = marker?.id ? userRolesMap[marker.id] : null;
+
+        const recordDetails = (detailsData || [])
+          .filter((d: any) => d.mark_id === record.mark_id)
+          .map((d: any) => {
+            const criteria = Array.isArray(d.criteria) ? d.criteria[0] : d.criteria;
+            return {
+              criteria_name: criteria?.criteria_name || "Unknown Criteria",
+              weight_pct: criteria?.weight_pct || 0,
+              score: d.score,
+            };
+          });
+
+        return {
+          mark_id: record.mark_id,
+          total_score: record.total_score,
+          comments: record.comments,
+          marked_at: record.marked_at,
+          award: {
+            name: award?.name || "Unknown Award",
+          },
+          marker: {
+            full_name: marker?.full_name || "Unknown User",
+            role: roleName,
+          },
+          details: recordDetails,
+        } as import("../../types").PaperMarkingRecord;
+      });
+    },
+    enabled: !!paperId,
   });
 };

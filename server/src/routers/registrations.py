@@ -57,7 +57,15 @@ async def create_registration_before_payment(
         if quantity_limit is not None and sold_quantity >= quantity_limit:
             raise HTTPException(status_code=400, detail="This ticket is sold out.")
 
-        total_amount = int(ticket_info.get("price") or 0)
+        currency = ticket_info.get("currency", "VND").upper()
+        base_price = float(ticket_info.get("price") or 0)
+        
+        if currency == "USD" and base_price > 0:
+            from packages.utils import get_exchange_rate_to_vnd
+            rate = get_exchange_rate_to_vnd("USD")
+            total_amount = int(base_price * rate)
+        else:
+            total_amount = int(base_price)
 
         # Guard: for FREE tickets, only allow 1 registration per user per ticket
         if total_amount <= 0:
@@ -237,7 +245,15 @@ async def _create_payment_for_registration(
 ):
     """Shared payment creation logic used by both registration endpoints."""
     ticket_id = ticket_info["ticket_id"]
-    total_amount = int(ticket_info.get("price") or 0)
+    currency = ticket_info.get("currency", "VND").upper()
+    base_price = float(ticket_info.get("price") or 0)
+
+    if currency == "USD" and base_price > 0:
+        from packages.utils import get_exchange_rate_to_vnd
+        rate = get_exchange_rate_to_vnd("USD")
+        total_amount = int(base_price * rate)
+    else:
+        total_amount = int(base_price)
 
     if total_amount <= 0:
         raise HTTPException(status_code=400, detail="Ticket price must be greater than 0.")

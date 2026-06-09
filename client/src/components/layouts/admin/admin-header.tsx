@@ -12,7 +12,7 @@ export const AdminHeader = () => {
           <Separator orientation="vertical" className="h-6" />
         </div>
 
-        <div className="flex min-w-0 flex-1 justify-end">
+        <div className="flex min-w-0 flex-1 justify-end items-center gap-3">
           <AdminSearch
             className="w-full max-w-52 sm:max-w-60"
             placeholder="Search..."
