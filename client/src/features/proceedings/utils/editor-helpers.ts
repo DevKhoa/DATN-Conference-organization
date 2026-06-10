@@ -271,25 +271,27 @@ export const buildEditorPages = (data: any): EditorPage[] => {
       let currentX = x;
       let currentW = w;
       let topSpacing = 0;
-      let bottomSpacing = Math.round(2 * scY);
+      let bottomSpacing = Math.round(1 * scY);
 
       if (text.startsWith("## ")) {
         text = text.substring(3).trim();
         opts.bold = true;
-        opts.fontSize = Math.round((baseOpts.fontSize || 10) * 1.05);
+        opts.fontSize = Math.round((baseOpts.fontSize || 10) * 1.0);
         opts.color = "#1a3a6b";
-        topSpacing = Math.round(6 * scY);
-        bottomSpacing = Math.round(2 * scY);
+        topSpacing = Math.round(2 * scY);
+        bottomSpacing = Math.round(1 * scY);
       } else if (text.startsWith("### ")) {
         text = text.substring(4).trim();
         opts.bold = true;
-        opts.fontSize = Math.round((baseOpts.fontSize || 10) * 1.0);
-        topSpacing = Math.round(4 * scY);
+        opts.italic = true;
+        opts.fontSize = Math.round((baseOpts.fontSize || 10) * 0.95);
+        topSpacing = Math.round(2 * scY);
         bottomSpacing = Math.round(1 * scY);
       } else if (text.startsWith("- ")) {
         text = "•  " + text.substring(2).trim();
         currentX += Math.round(10 * scY);
         currentW -= Math.round(10 * scY);
+        topSpacing = 0;
         bottomSpacing = 0;
       }
 

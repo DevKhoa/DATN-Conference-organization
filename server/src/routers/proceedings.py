@@ -519,11 +519,29 @@ async def list_proceedings_papers(
         if include_abstract:
             columns = "paper_id, title, abstract, primary_author_id, author:profiles!primary_author_id(full_name, organization)"
 
+        # Only include papers that are actually scheduled in a session
+        sessions_res = supabase_client.table("sessions").select("session_id").eq("conf_id", conf_id).execute()
+        session_ids = [s["session_id"] for s in (sessions_res.data or []) if s.get("session_id")]
+        
+        valid_paper_ids = []
+        if session_ids:
+            sp_res = supabase_client.table("session_papers").select("paper_id").in_("session_id", session_ids).execute()
+            valid_paper_ids = [sp["paper_id"] for sp in (sp_res.data or []) if sp.get("paper_id")]
+            
+        if not valid_paper_ids:
+            return {
+                "papers": [],
+                "total": 0,
+                "limit": limit,
+                "offset": offset,
+            }
+
         res = (
             supabase_client.table("papers")
             .select(columns, count="exact")
             .eq("submitted_conf", conf_id)
             .eq("status", "ACCEPTED")
+            .in_("paper_id", valid_paper_ids)
             .order("paper_id", desc=False)
             .range(offset, offset + limit - 1)
             .execute()
@@ -654,17 +672,28 @@ async def bootstrap_proceedings(conf_id: int, limit: int = Query(50, ge=1, le=50
             "paper_id, title, abstract, primary_author_id, "
             "author:profiles!papers_primary_author_id_fkey(full_name, organization)"
         )
-        papers_res = (
-            supabase_client.table("papers")
-            .select(columns, count="exact")
-            .eq("submitted_conf", conf_id)
-            .eq("status", "ACCEPTED")
-            .order("paper_id", desc=False)
-            .range(0, limit - 1)
-            .execute()
-        )
-        papers = papers_res.data or []
-        total = papers_res.count or 0
+        
+        valid_paper_ids = []
+        if session_ids_list:
+            sp_res = supabase_client.table("session_papers").select("paper_id").in_("session_id", session_ids_list).execute()
+            valid_paper_ids = [sp["paper_id"] for sp in (sp_res.data or []) if sp.get("paper_id")]
+
+        if not valid_paper_ids:
+            papers = []
+            total = 0
+        else:
+            papers_res = (
+                supabase_client.table("papers")
+                .select(columns, count="exact")
+                .eq("submitted_conf", conf_id)
+                .eq("status", "ACCEPTED")
+                .in_("paper_id", valid_paper_ids)
+                .order("paper_id", desc=False)
+                .range(0, limit - 1)
+                .execute()
+            )
+            papers = papers_res.data or []
+            total = papers_res.count or 0
 
         paper_ids = [p.get("paper_id") for p in papers if p.get("paper_id") is not None]
         session_map: Dict[int, Dict[str, Any]] = {}

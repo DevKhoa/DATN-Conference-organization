@@ -166,7 +166,9 @@ def send_session_start_notifications(session_id: int) -> None:
 
     conference = conf_res.data or {}
     conf_name = conference.get("conf_name") or f"Conference #{conf_id}"
-    conf_tz = conference.get("timezone") or "UTC"
+    conf_tz = conference.get("timezone")
+    if not conf_tz or conf_tz.upper() == "UTC":
+        conf_tz = "Asia/Ho_Chi_Minh"
 
     session_name = session.get("session_name") or f"Session #{session_id}"
     start_time_str = _format_session_time(session.get("start_time"), conf_tz)
