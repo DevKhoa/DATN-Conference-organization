@@ -330,8 +330,15 @@ async def import_papers_csv(
         existing_users = {p["email"]: p["user_id"] for p in profiles_res.data}
         
         # Fetch existing papers in this conference for duplicate check
-        existing_papers_res = supabase_client.table("papers").select("title").eq("submitted_conf", conf_id).execute()
-        existing_titles = {p["title"].strip().lower() for p in existing_papers_res.data} if existing_papers_res.data else set()
+        existing_papers_res = supabase_client.table("papers").select("paper_id, title").eq("submitted_conf", conf_id).execute()
+        existing_papers = {p["title"].strip().lower(): p["paper_id"] for p in existing_papers_res.data} if existing_papers_res.data else {}
+        
+        # Fetch soft-deleted papers for this conference
+        if existing_papers:
+            deleted_papers_res = supabase_client.table("delete_papers").select("paper_id").in_("paper_id", list(existing_papers.values())).execute()
+            deleted_paper_ids = {p["paper_id"] for p in deleted_papers_res.data} if deleted_papers_res.data else set()
+        else:
+            deleted_paper_ids = set()
         
         # Check for missing users + duplicates
         all_errors = []
@@ -342,9 +349,14 @@ async def import_papers_csv(
             
             # Check duplicate title
             title = row.get("title", "").strip()
-            if title and title.lower() in existing_titles:
-                all_errors.append(f"Row {row_num}: Paper '{title}' already exists in this conference.")
-                row_has_error = True
+            if title and title.lower() in existing_papers:
+                paper_id = existing_papers[title.lower()]
+                if paper_id in deleted_paper_ids:
+                    row["_is_restore"] = True
+                    row["_restore_paper_id"] = paper_id
+                else:
+                    all_errors.append(f"Row {row_num}: Paper '{title}' already exists in this conference.")
+                    row_has_error = True
             
             primary_email = row.get("primary_author_email", "").strip()
             
@@ -405,13 +417,22 @@ async def import_papers_csv(
             if created_at_val:
                 insert_data["created_at"] = created_at_val
 
-            # Insert paper
-            paper_res = supabase_client.table("papers").insert(insert_data).execute()
-
-            if not paper_res.data:
-                continue
-
-            paper_id = paper_res.data[0]["paper_id"]
+            if row.get("_is_restore"):
+                paper_id = row["_restore_paper_id"]
+                # 1. Update the existing paper record
+                supabase_client.table("papers").update(insert_data).eq("paper_id", paper_id).execute()
+                # 2. Remove from delete_papers
+                supabase_client.table("delete_papers").delete().eq("paper_id", paper_id).execute()
+                # 3. Clear old co-authors to prepare for new ones
+                supabase_client.table("paper_coauthors").delete().eq("paper_id", paper_id).execute()
+            else:
+                # Insert paper
+                paper_res = supabase_client.table("papers").insert(insert_data).execute()
+    
+                if not paper_res.data:
+                    continue
+    
+                paper_id = paper_res.data[0]["paper_id"]
 
             # Insert co-authors
             co_authors_str = row.get("co_author_emails", "")
@@ -461,8 +482,16 @@ async def import_papers_csv(
                     logger.error(err_msg)
                     all_errors.append(err_msg)
                     
-                    # ROLLBACK: delete the inserted paper
-                    supabase_client.table("papers").delete().eq("paper_id", paper_id).execute()
+                    # ROLLBACK
+                    if row.get("_is_restore"):
+                        # If we restored it, revert by putting it back to delete_papers
+                        supabase_client.table("delete_papers").insert({
+                            "paper_id": paper_id,
+                            "deleted_by": uploader_id
+                        }).execute()
+                    else:
+                        # delete the inserted paper
+                        supabase_client.table("papers").delete().eq("paper_id", paper_id).execute()
                     
                     continue
 
