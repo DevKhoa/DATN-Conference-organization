@@ -469,7 +469,18 @@ export const useDeleteSessionMutation = () => {
 
   return useMutation({
     mutationFn: async ({ sessionId }: { sessionId: number }) => {
-      const { error } = await supabase.rpc("soft_delete_session", {
+      // Hard delete presentation order and paper assignments from session_papers table
+      const { error: spError } = await supabase
+        .from("session_papers")
+        .delete()
+        .eq("session_id", sessionId);
+
+      if (spError) {
+        throw spError;
+      }
+
+      // Soft delete the session itself
+      const { error } = await (supabase as any).rpc("soft_delete_session", {
         p_session_id: sessionId,
       });
 

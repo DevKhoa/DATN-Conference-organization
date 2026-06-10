@@ -387,7 +387,7 @@ export const useDeletePaperMutation = () => {
 
   return useMutation({
     mutationFn: async ({ paperId }: { paperId: number }) => {
-      const { error } = await supabase.rpc("soft_delete_paper", {
+      const { error } = await (supabase as any).rpc("soft_delete_paper", {
         p_paper_id: paperId,
       });
 
@@ -397,13 +397,25 @@ export const useDeletePaperMutation = () => {
     },
     onSuccess: (_, { paperId }) => {
       queryClient.invalidateQueries({
-        queryKey: [PapersKeys.AuthorPapers],
+        queryKey: [PapersKeys.AcceptedPapers],
       });
       queryClient.invalidateQueries({
-        queryKey: [PapersKeys.ConferencePapers],
+        queryKey: [PapersKeys.PaginatedPapers],
       });
       queryClient.invalidateQueries({
-        queryKey: [PapersKeys.PublicPaperDetailPage, paperId],
+        queryKey: [PapersKeys.PapersCount],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.MyPapers],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.MyPaperDetail],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.PublicPaperDetail],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.PublicPaperDetailPage],
       });
       queryClient.invalidateQueries({
         queryKey: [ConferencesKeys.ConferenceDetail],

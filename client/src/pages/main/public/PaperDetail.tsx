@@ -23,6 +23,7 @@ import { useMyCurrentSubscriptionQuery } from "@/features/subscriptions/services
 import useAuth from "@/features/auth/hooks/useAuth";
 import { Role } from "@/features/auth/types";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 import { usePublicPaperDetailPageQuery, usePaperMarkingsQuery } from "@/features/papers/services/queries";
 import { useSavePaperAwardMarkingMutation, useDeletePaperMutation } from "@/features/papers/services/mutations";
 import type { PaperApplicableAward } from "@/features/papers/types";
@@ -684,7 +685,17 @@ const PaperDetailPage: React.FC = () => {
                     ))}
 
                     {/* Award Markings */}
-                    {markings.map((marking) => (
+                    {[...markings]
+                      .sort((a, b) => {
+                        const aRole = (a.marker?.role || "").toLowerCase().replace(/_/g, "");
+                        const bRole = (b.marker?.role || "").toLowerCase().replace(/_/g, "");
+                        const aIsChair = aRole === "sessionchair";
+                        const bIsChair = bRole === "sessionchair";
+                        if (aIsChair && !bIsChair) return -1;
+                        if (!aIsChair && bIsChair) return 1;
+                        return 0;
+                      })
+                      .map((marking) => (
                       <div
                         key={`marking-${marking.mark_id}`}
                         className="border-b border-slate-100 last:border-0 pb-6 last:pb-0"
@@ -723,7 +734,7 @@ const PaperDetailPage: React.FC = () => {
 
                         {marking.details && marking.details.length > 0 && (
                           <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                            {marking.details.map((detail, idx) => (
+                            {marking.details.map((detail: any, idx: number) => (
                               <div key={idx} className="bg-slate-50 border border-slate-100 rounded px-3 py-2 flex items-start justify-between text-xs">
                                 <span className="text-slate-600 mr-2 break-words" title={detail.criteria_name}>
                                   {detail.criteria_name}
@@ -880,21 +891,63 @@ const PaperDetailPage: React.FC = () => {
               </Button>
               <Button
                 variant="destructive"
-                onClick={() => {
+                onClick={async () => {
                   if (paper) {
-                    deletePaperMutation.mutate(
-                      { paperId: paper.paper_id },
-                      {
-                        onSuccess: () => {
-                          setDeleteConfirmOpen(false);
-                          toast.success("Paper deleted successfully.");
-                          navigate({ to: "/papers" });
-                        },
-                        onError: (error: any) => {
-                          toast.error(error?.message || "Failed to delete paper.");
-                          setDeleteConfirmOpen(false);
+                    try {
+                      const { data: sessionPapers, error: spError } = await supabase
+                        .from("session_papers")
+                        .select(`
+                          session:sessions(
+                            session_name,
+                            conference:conferences(conf_name)
+                          )
+                        `)
+                        .eq("paper_id", paper.paper_id);
+
+                      if (spError) {
+                        toast.error("Failed to check session assignments: " + spError.message);
+                        return;
+                      }
+
+                      if (sessionPapers && sessionPapers.length > 0) {
+                        const sessionDetails = sessionPapers
+                          .map((sp: any) => {
+                            const s = sp.session;
+                            if (!s) return null;
+                            const confName = s.conference?.conf_name || "Unknown Conference";
+                            const sName = s.session_name || "Untitled Session";
+                            return `session "${sName}" in conference "${confName}"`;
+                          })
+                          .filter(Boolean)
+                          .join(", ");
+                        toast.error(
+                          `This paper is currently scheduled in: ${sessionDetails || "Unknown Session"}. Please remove it from the session(s) first before deleting.`
+                        );
+                        setDeleteConfirmOpen(false);
+                        return;
+                      }
+
+                      deletePaperMutation.mutate(
+                        { paperId: paper.paper_id },
+                        {
+                          onSuccess: () => {
+                            setDeleteConfirmOpen(false);
+                            toast.success("Paper deleted successfully.");
+                            if (window.history.length > 2) {
+                              window.history.back();
+                            } else {
+                              navigate({ to: "/papers" });
+                            }
+                          },
+                          onError: (error: any) => {
+                            toast.error(error?.message || "Failed to delete paper.");
+                            setDeleteConfirmOpen(false);
+                          },
                         }
-                      });
+                      );
+                    } catch (err: any) {
+                      toast.error("An error occurred: " + err.message);
+                    }
                   }
                 }}
                 disabled={deletePaperMutation.isPending}
