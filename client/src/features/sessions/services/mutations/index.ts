@@ -398,13 +398,18 @@ export const useAcceptChairInvitationMutation = () => {
         email,
       });
     },
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: [SessionKeys.ChairInvitations, variables.token],
       });
       queryClient.invalidateQueries({
         queryKey: [SessionKeys.ChairInvitations],
       });
+      try {
+        await supabase.auth.refreshSession();
+      } catch (refreshErr) {
+        console.error("Failed to refresh session:", refreshErr);
+      }
     },
   });
 };
