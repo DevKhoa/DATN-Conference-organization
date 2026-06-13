@@ -74,20 +74,27 @@ def _fetch_session_and_conference(session_id: int) -> tuple[dict, dict]:
     return session_data, conference_data
 
 
+class SupabaseSingleResponse:
+    def __init__(self, data):
+        self.data = data
+
+
 def _select_profile_by_email(email: str):
-    return supabase_client.table("profiles") \
+    res = supabase_client.table("profiles") \
         .select("user_id, full_name, email, organization") \
         .eq("email", email) \
-        .single() \
         .execute()
+    data = res.data[0] if res.data else None
+    return SupabaseSingleResponse(data)
 
 
 def _select_profile_by_user_id(user_id: int):
-    return supabase_client.table("profiles") \
+    res = supabase_client.table("profiles") \
         .select("user_id, full_name, email, organization") \
         .eq("user_id", user_id) \
-        .single() \
         .execute()
+    data = res.data[0] if res.data else None
+    return SupabaseSingleResponse(data)
 
 
 def _get_session_capacity(session_id: int) -> dict:
