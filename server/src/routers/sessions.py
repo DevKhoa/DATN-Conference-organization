@@ -756,12 +756,10 @@ async def accept_chair_invitation(token: str, request: ChairInvitationDecisionRe
             
         current_role_ids = {r["role_id"] for r in (current_roles_res.data or [])}
         
-        # 2. Check and delete Attendee (5) or Author (3) roles
+        # 2. Check and delete Attendee (5) roles
         roles_to_delete = []
         if 5 in current_role_ids:
             roles_to_delete.append(5)
-        if 3 in current_role_ids:
-            roles_to_delete.append(3)
             
         if roles_to_delete:
             supabase_client.table("user_roles") \
