@@ -81,7 +81,7 @@ class SupabaseSingleResponse:
 
 def _select_profile_by_email(email: str):
     res = supabase_client.table("profiles") \
-        .select("user_id, full_name, email, organization") \
+        .select("id, user_id, full_name, email, organization") \
         .eq("email", email) \
         .execute()
     data = res.data[0] if res.data else None
@@ -90,7 +90,7 @@ def _select_profile_by_email(email: str):
 
 def _select_profile_by_user_id(user_id: int):
     res = supabase_client.table("profiles") \
-        .select("user_id, full_name, email, organization") \
+        .select("id, user_id, full_name, email, organization") \
         .eq("user_id", user_id) \
         .execute()
     data = res.data[0] if res.data else None
@@ -562,12 +562,21 @@ async def create_chair_invitation(
     session_name = session_data.get("session_name") or "Session"
     conference_name = conference_data.get("conf_name") or "Conference"
 
+    base_url = (
+        request.client_url
+        or os.environ.get("CLIENT_URL")
+        or "http://localhost:3000"
+    ).rstrip("/")
+    register_link = f"{base_url}/register?redirect=%2Fchair-invitations%2F{token}"
+
     email_subject = f"Invitation to Chair: {session_name}"
 
     email_plain_body = (
         f"Dear Colleague,\n\n"
         f"You are cordially invited to serve as the Session Chair for the session '{session_name}' "
         f"at the upcoming conference '{conference_name}'.\n\n"
+        f"If you do not have an account yet, please click this link to create one first:\n"
+        f"{register_link}\n\n"
         f"Please view details and respond using this link:\n"
         f"{invite_link}\n\n"
         f"Thank you for your time and support.\n\n"
@@ -578,6 +587,7 @@ async def create_chair_invitation(
     email_html_body = (
         f"<p>Dear Colleague,</p>"
         f"<p>You are cordially invited to serve as the Session Chair for the session '{session_name}' at the upcoming conference '{conference_name}'.</p>"
+        f"<p>If you do not have an account yet, please <a href='{register_link}' style='color: #4f46e5; font-weight: bold; text-decoration: underline;'>click here to create an account first</a>.</p>"
         f"<p>Please review details and respond using the following link:</p>"
         f"<p><a href='{invite_link}' style='color: #4f46e5; font-weight: bold; text-decoration: underline;'>"
         f"Enter this invitation link</a></p>"
@@ -736,14 +746,34 @@ async def accept_chair_invitation(token: str, request: ChairInvitationDecisionRe
 
     try:
         user_uuid = invitee_profile.get("id") if invitee_profile else None
-        if user_uuid:
+        target_user_id = user_uuid if user_uuid else invitee_user_id
+        
+        # 1. Fetch current roles of the user
+        current_roles_res = supabase_client.table("user_roles") \
+            .select("role_id") \
+            .eq("user_id", target_user_id) \
+            .execute()
+            
+        current_role_ids = {r["role_id"] for r in (current_roles_res.data or [])}
+        
+        # 2. Check and delete Attendee (5) or Author (3) roles
+        roles_to_delete = []
+        if 5 in current_role_ids:
+            roles_to_delete.append(5)
+        if 3 in current_role_ids:
+            roles_to_delete.append(3)
+            
+        if roles_to_delete:
+            supabase_client.table("user_roles") \
+                .delete() \
+                .eq("user_id", target_user_id) \
+                .in_("role_id", roles_to_delete) \
+                .execute()
+                
+        # 3. Check and insert Chair role (6)
+        if CHAIR_ROLE_ID not in current_role_ids:
             supabase_client.table("user_roles").insert({
-                "user_id": user_uuid,
-                "role_id": CHAIR_ROLE_ID,
-            }).execute()
-        else:
-            supabase_client.table("user_roles").insert({
-                "user_id": invitee_user_id,
+                "user_id": target_user_id,
                 "role_id": CHAIR_ROLE_ID,
             }).execute()
     except Exception as role_error:

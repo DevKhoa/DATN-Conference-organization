@@ -323,71 +323,7 @@ const ConferencesPage: React.FC = () => {
               </div>
             </div>
 
-            {allKeywords.length > 0 && (
-              <div className="mt-6 pt-5 border-t border-border">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-semibold text-foreground flex items-center">
-                    <Tag className="w-4 h-4 mr-2 text-primary" />
-                    Popular Topics
-                  </span>
-                  <div className="relative w-48 md:w-64">
-                    <input
-                      type="text"
-                      value={topicSearch}
-                      onChange={(e) => setTopicSearch(e.target.value)}
-                      placeholder="Filter topics..."
-                      className="w-full pl-8 pr-8 py-1.5 text-xs bg-background border border-input rounded-md focus:border-ring focus:ring-1 focus:ring-ring outline-none transition-all"
-                    />
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
-                    {topicSearch && (
-                      <button
-                        onClick={() => setTopicSearch("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
 
-                <div className="bg-muted rounded-lg border border-border p-3 max-h-35 overflow-y-auto custom-scrollbar">
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => setSelectedKeyword("")}
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all border ${
-                        selectedKeyword === ""
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                          : "bg-background text-muted-foreground border-border hover:border-border hover:bg-accent"
-                      }`}
-                    >
-                      All Topics
-                    </button>
-                    {displayedKeywords.map((keyword) => (
-                      <button
-                        key={keyword}
-                        onClick={() =>
-                          setSelectedKeyword(
-                            keyword === selectedKeyword ? "" : keyword,
-                          )
-                        }
-                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all border ${
-                          selectedKeyword === keyword
-                            ? "bg-primary/10 text-primary border-primary/20 shadow-sm font-semibold"
-                            : "bg-background text-muted-foreground border-border hover:border-primary/30 hover:text-primary"
-                        }`}
-                      >
-                        {keyword}
-                      </button>
-                    ))}
-                    {displayedKeywords.length === 0 && (
-                      <p className="text-xs text-muted-foreground w-full text-center py-2 italic">
-                        No topics found matching "{topicSearch}"
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* LOADING STATE */}

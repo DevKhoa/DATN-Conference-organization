@@ -27,9 +27,10 @@ export const ImportPapers = () => {
     abstract: string;
     primary_author_email: string;
     co_author_emails: string;
+    external_pdf_url: string;
   };
 
-  const emptyRow: ManualRow = { title: "", abstract: "", primary_author_email: "", co_author_emails: "" };
+  const emptyRow: ManualRow = { title: "", abstract: "", primary_author_email: "", co_author_emails: "", external_pdf_url: "" };
   const [manualRows, setManualRows] = useState<ManualRow[]>([{ ...emptyRow }]);
   const [isSavingManual, setIsSavingManual] = useState(false);
 
@@ -161,9 +162,9 @@ export const ImportPapers = () => {
     }
 
     // Convert to CSV
-    const headers = "title,abstract,primary_author_email,co_author_emails";
+    const headers = "title,abstract,primary_author_email,co_author_emails,external_pdf_url";
     const csvRows = filledRows.map(r =>
-      `"${r.title.replace(/"/g, '""')}","${r.abstract.replace(/"/g, '""')}","${r.primary_author_email}","${r.co_author_emails}"`
+      `"${r.title.replace(/"/g, '""')}","${r.abstract.replace(/"/g, '""')}","${r.primary_author_email}","${r.co_author_emails}","${r.external_pdf_url}"`
     );
     const csvContent = [headers, ...csvRows].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv" });
@@ -185,7 +186,7 @@ export const ImportPapers = () => {
   return (
     <DefaultLayout meta={{ title: "Import Papers" }}>
       <div className="min-h-screen bg-background pb-24 text-foreground p-6">
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto max-w-7xl">
           <div className="flex items-center gap-4 mb-8">
             <Button
               variant="outline"
@@ -342,10 +343,11 @@ export const ImportPapers = () => {
                       <thead className="text-xs uppercase bg-muted text-muted-foreground">
                         <tr>
                           <th className="px-2 py-3 w-8 text-center">#</th>
-                          <th className="px-2 py-3 min-w-[180px]">Title <span className="text-destructive">*</span></th>
-                          <th className="px-2 py-3 min-w-[220px]">Abstract</th>
-                          <th className="px-2 py-3 min-w-[180px]">Author Email <span className="text-destructive">*</span></th>
-                          <th className="px-2 py-3 min-w-[180px]">Co-authors (;)</th>
+                          <th className="px-2 py-3 min-w-[150px]">Title <span className="text-destructive">*</span></th>
+                          <th className="px-2 py-3 min-w-[180px]">Abstract</th>
+                          <th className="px-2 py-3 min-w-[150px]">Author Email <span className="text-destructive">*</span></th>
+                          <th className="px-2 py-3 min-w-[150px]">Co-authors (;)</th>
+                          <th className="px-2 py-3 min-w-[150px]">Drive Link</th>
                           <th className="px-2 py-3 w-10"></th>
                         </tr>
                       </thead>
@@ -389,6 +391,15 @@ export const ImportPapers = () => {
                                 onChange={e => updateManualRow(idx, "co_author_emails", e.target.value)}
                                 className="w-full px-2 py-1.5 text-xs rounded border border-input bg-background focus:ring-1 focus:ring-ring outline-none"
                                 placeholder="a@b.com;c@d.com"
+                              />
+                            </td>
+                            <td className="px-1 py-1">
+                              <input
+                                type="text"
+                                value={row.external_pdf_url}
+                                onChange={e => updateManualRow(idx, "external_pdf_url", e.target.value)}
+                                className="w-full px-2 py-1.5 text-xs rounded border border-input bg-background focus:ring-1 focus:ring-ring outline-none"
+                                placeholder="Google Drive link"
                               />
                             </td>
                             <td className="px-1 py-1 text-center">
