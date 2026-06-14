@@ -9,7 +9,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import requests
 from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from PIL import Image, ImageDraw

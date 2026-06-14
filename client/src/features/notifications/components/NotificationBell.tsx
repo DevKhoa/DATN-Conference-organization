@@ -23,12 +23,33 @@ import {
   shouldHideNotification,
 } from "@/features/notifications/utils/notificationContent";
 
-const formatRelativeTime = (isoString?: string | null): string => {
-  if (!isoString) return "Just now";
+// Normalize ISO string from Supabase Python SDK into a JS-parseable UTC string.
+// The SDK may return "2026-06-14 10:00:00+00:00" (space instead of T).
+const normalizeIso = (isoString: string): string => {
+  let s = isoString.trim();
+  // Replace space date-time separator with 'T' for ISO 8601 compliance
+  s = s.replace(/^(\d{4}-\d{2}-\d{2}) (\d)/, "$1T$2");
+  // If no timezone info present, assume UTC
+  if (!/Z$|[+-]\d{2}:\d{2}$|[+-]\d{4}$/.test(s)) {
+    s += "Z";
+  }
+  return s;
+};
+
+const formatRelativeTime = (...candidates: (string | null | undefined)[]): string => {
+  // Try each candidate in order, use the first valid one
+  const isoString = candidates.find((c) => c != null && c.trim() !== "");
+  if (!isoString) return "No Date";
+
+  const normalized = normalizeIso(isoString);
   const now = new Date();
-  const past = new Date(isoString);
-  if (Number.isNaN(past.getTime())) return "Just now";
-  const diffMs = now.getTime() - past.getTime();
+  const past = new Date(normalized);
+  if (Number.isNaN(past.getTime())) return "Invalid Date";
+
+  let diffMs = now.getTime() - past.getTime();
+  // Clamp to 0 in case of minor clock skew
+  if (diffMs < 0) diffMs = 0;
+
   const diffSecs = Math.floor(diffMs / 1000);
   const diffMins = Math.floor(diffSecs / 60);
   const diffHours = Math.floor(diffMins / 60);
@@ -41,6 +62,23 @@ const formatRelativeTime = (isoString?: string | null): string => {
     return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
   if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
   return past.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+};
+
+// Full date + time string shown in detail modal (always exact, regardless of age)
+const formatDetailTime = (...candidates: (string | null | undefined)[]): string => {
+  const isoString = candidates.find((c) => c != null && c.trim() !== "");
+  if (!isoString) return "";
+  const normalized = normalizeIso(isoString);
+  const d = new Date(normalized);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 };
 
 const NotificationBell = () => {
@@ -231,7 +269,7 @@ const NotificationBell = () => {
                     <div className="flex items-center gap-1 mt-1.5">
                       <Clock className="w-3 h-3 text-slate-300" />
                       <span className="text-[11px] text-slate-400">
-                        {formatRelativeTime(n.notifications?.created_at)}
+                        {formatRelativeTime(n.notifications?.created_at, n.read_at)}
                       </span>
                     </div>
                   </div>
@@ -270,8 +308,18 @@ const NotificationBell = () => {
                     <p className="text-xs text-slate-400">
                       {formatRelativeTime(
                         selectedNotif.notifications?.created_at,
+                        selectedNotif.read_at,
                       )}
                     </p>
+                    {(() => {
+                      const detail = formatDetailTime(
+                        selectedNotif.notifications?.created_at,
+                        selectedNotif.read_at,
+                      );
+                      return detail ? (
+                        <p className="text-[11px] text-slate-300 mt-0.5">{detail}</p>
+                      ) : null;
+                    })()}
                   </div>
                 </div>
                 <button
