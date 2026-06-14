@@ -1316,7 +1316,6 @@ const CreatePushNotificationsPage: React.FC<CreatePushNotificationsProps> = ({
                                   value={t.template_id}
                                 >
                                   {t.template_name}
-                                  {t.conf_id === null ? " (Global)" : ""}
                                 </option>
                               ))}
                             </select>
