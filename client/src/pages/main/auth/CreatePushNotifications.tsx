@@ -673,8 +673,16 @@ const CreatePushNotificationsPage: React.FC<CreatePushNotificationsProps> = ({
     }
   };
 
-  // Render
-  const filteredTemplates = templates;
+  // Filter templates based on selected conferences
+  const filteredTemplates = templates.filter((t) => {
+    // Global templates are always visible
+    if (t.conf_id === null) return true;
+    // If sending to 'all' conferences, hide conference-specific templates
+    if (confScope === "all") return false;
+    // Show only if the selected conference EXACTLY matches the template's conference
+    // (If multiple are selected, we cannot use a single conference's template)
+    return selectedConfIds.length === 1 && selectedConfIds[0] === t.conf_id;
+  });
   const confDropdownRef = useRef<HTMLDivElement>(null);
 
   const filteredConferences = conferences.filter((c) => {

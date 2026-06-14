@@ -778,8 +778,7 @@ const SessionManagerPage = ({
     // Fetch all existing sessions from DB to check for conflicts against sessions NOT currently being edited
     const { data: allDbSessions } = await supabase
       .from("sessions")
-      .select("session_id, session_name, start_time, end_time, session_papers(paper_id, start_time, end_time)")
-      .eq("conf_id", conferenceIdNum);
+      .select("session_id, session_name, start_time, end_time, conf_id, conferences(conf_name), session_papers(paper_id, start_time, end_time)");
 
     const dbPaperTimeEntries: PaperTimeEntry[] = [];
     if (allDbSessions) {
@@ -794,17 +793,31 @@ const SessionManagerPage = ({
             ? dayjs(t)
             : dayjs(`${sessionStart.format("YYYY-MM-DD")}T${t.length === 5 ? t + ":00" : t}`);
             
+        // Extract conference name
+        let confNameStr = "";
+        if (dbS.conferences) {
+            confNameStr = Array.isArray(dbS.conferences) ? (dbS.conferences[0] as any)?.conf_name : (dbS.conferences as any)?.conf_name;
+        }
+        const fullSessionName = confNameStr ? `[${confNameStr}] ${dbS.session_name}` : dbS.session_name;
+
         for (const p of dbS.session_papers || []) {
           if (!p.start_time || !p.end_time) continue;
           dbPaperTimeEntries.push({
             paper_id: p.paper_id,
-            sessionName: dbS.session_name,
+            sessionName: fullSessionName,
             sessionTempId: `db_${dbS.session_id}`,
             start: parseTime(p.start_time),
             end: parseTime(p.end_time),
           });
         }
       }
+    }
+
+    const currentConfName = conferenceData?.conference?.conf_name || "Current Conference";
+    
+    // Update local paper entries with current conference name
+    for (const e of paperTimeEntries) {
+        e.sessionName = `[${currentConfName}] ${e.sessionName}`;
     }
 
     const allPaperTimeEntries = [...paperTimeEntries, ...dbPaperTimeEntries];
@@ -866,31 +879,67 @@ const SessionManagerPage = ({
     }
 
     // ── Chair schedule conflict check ──
+    // For chair conflict, we should also check against all sessions globally for these chairs
     const dbSessionIds = sessions.map((s) => s.db_id).filter(Boolean) as number[];
     if (dbSessionIds.length > 0) {
-      const { data: chairsData } = await supabase
+      // First, get all chairs for the sessions being edited
+      const { data: currentChairsData } = await supabase
         .from("session_chairs")
         .select("user_id, session_id, profile:profiles(full_name)")
         .in("session_id", dbSessionIds);
 
-      if (chairsData && chairsData.length > 0) {
-        const chairTimeEntries: { userId: number; userName: string; sessionId: number; sessionName: string; tempId: string; start: dayjs.Dayjs; end: dayjs.Dayjs }[] = [];
-        for (const row of chairsData) {
-          const s = sessions.find((sess) => sess.db_id === row.session_id);
-          if (!s || !s.start_time || !s.end_time) continue;
-          const start = dayjs(formatToLocal(s.start_time));
-          const end = dayjs(formatToLocal(s.end_time));
-          const userName = Array.isArray(row.profile) ? row.profile[0]?.full_name : (row.profile as any)?.full_name || "Unknown Chair";
+      if (currentChairsData && currentChairsData.length > 0) {
+        const chairUserIds = [...new Set(currentChairsData.map(c => c.user_id))];
+        
+        // Fetch ALL sessions these chairs are assigned to across all conferences
+        const { data: allChairSessionsData } = await supabase
+            .from("session_chairs")
+            .select("user_id, session_id, sessions(session_name, start_time, end_time, conferences(conf_name))")
+            .in("user_id", chairUserIds);
 
-          chairTimeEntries.push({
-            userId: row.user_id,
-            userName,
-            sessionId: row.session_id,
-            sessionName: s.session_name,
-            tempId: s.temp_id,
-            start,
-            end,
-          });
+        const chairTimeEntries: { userId: number; userName: string; sessionId: number; sessionName: string; tempId: string; start: dayjs.Dayjs; end: dayjs.Dayjs }[] = [];
+        
+        if (allChairSessionsData) {
+            for (const row of allChairSessionsData) {
+                // Determine if this is a session currently being edited
+                const editingSession = sessions.find((sess) => sess.db_id === row.session_id);
+                
+                let start, end, sessNameStr, tempId;
+                
+                if (editingSession) {
+                    if (!editingSession.start_time || !editingSession.end_time) continue;
+                    start = dayjs(formatToLocal(editingSession.start_time));
+                    end = dayjs(formatToLocal(editingSession.end_time));
+                    sessNameStr = `[${currentConfName}] ${editingSession.session_name}`;
+                    tempId = editingSession.temp_id;
+                } else {
+                    const s = row.sessions as any;
+                    if (!s || !s.start_time || !s.end_time) continue;
+                    start = dayjs(s.start_time);
+                    end = dayjs(s.end_time);
+                    
+                    let confNameStr = "";
+                    if (s.conferences) {
+                        confNameStr = Array.isArray(s.conferences) ? s.conferences[0]?.conf_name : s.conferences?.conf_name;
+                    }
+                    sessNameStr = confNameStr ? `[${confNameStr}] ${s.session_name}` : s.session_name;
+                    tempId = `db_${row.session_id}`;
+                }
+                
+                // Try to find user name from currentChairsData
+                const currentChairRec = currentChairsData.find(c => c.user_id === row.user_id);
+                const userName = currentChairRec ? (Array.isArray(currentChairRec.profile) ? currentChairRec.profile[0]?.full_name : (currentChairRec.profile as any)?.full_name) : "Unknown Chair";
+
+                chairTimeEntries.push({
+                    userId: row.user_id,
+                    userName: userName || "Unknown Chair",
+                    sessionId: row.session_id,
+                    sessionName: sessNameStr,
+                    tempId,
+                    start,
+                    end,
+                });
+            }
         }
 
         const chairGroups = new Map<number, typeof chairTimeEntries>();

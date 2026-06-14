@@ -283,7 +283,7 @@ async def auto_generate_sessions(request: AutoSessionRequest):
 
     except Exception as e:
         logger.error(f"Auto-schedule failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="The auto-scheduling process failed. Please try again later.")
+        raise HTTPException(status_code=500, detail=f"The auto-scheduling process failed: {str(e)}")
 
 
 @router.post("/sessions/{session_id}/recommend-chair", response_model=SessionChairResponse)
