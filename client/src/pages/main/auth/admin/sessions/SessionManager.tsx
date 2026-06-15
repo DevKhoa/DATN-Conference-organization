@@ -863,6 +863,8 @@ const SessionManagerPage = ({
             const a = authorEntries[i];
             const b = authorEntries[j];
             if (a.sessionTempId === b.sessionTempId) continue; // same session, already handled above
+            if (a.sessionTempId.startsWith("db_") && b.sessionTempId.startsWith("db_")) continue; // ignore conflicts between two past database sessions
+
             // Overlap: a.start < b.end AND b.start < a.end
             if (a.start.isBefore(b.end) && b.start.isBefore(a.end)) {
               const titleA =
@@ -956,6 +958,8 @@ const SessionManagerPage = ({
               const a = entries[i];
               const b = entries[j];
               if (a.tempId === b.tempId) continue;
+              if (a.tempId.startsWith("db_") && b.tempId.startsWith("db_")) continue; // ignore conflicts between two past database sessions
+
               if (a.start.isBefore(b.end) && b.start.isBefore(a.end)) {
                 newAuthorWarnings.push(`Chair conflict: ${a.userName} is assigned to "${a.sessionName}" (${a.start.format("HH:mm")}–${a.end.format("HH:mm")}) and "${b.sessionName}" (${b.start.format("HH:mm")}–${b.end.format("HH:mm")}) which overlap.`);
               }
