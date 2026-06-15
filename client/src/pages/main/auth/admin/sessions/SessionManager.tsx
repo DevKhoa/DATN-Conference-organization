@@ -138,7 +138,7 @@ const SessionManagerPage = ({
     null,
   );
 
-  const BASE_API_URL = import.meta.env.VITE_API_BASE_URL as string;
+  const BASE_API_URL = ((import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:8080").replace(/\/$/, "");
 
   // Fetch existing sessions if editing
   React.useEffect(() => {
@@ -775,16 +775,65 @@ const SessionManagerPage = ({
       }
     }
 
+    // Fetch all existing sessions from DB to check for conflicts against sessions NOT currently being edited
+    const { data: allDbSessions } = await supabase
+      .from("sessions")
+      .select("session_id, session_name, start_time, end_time, conf_id, conferences(conf_name), session_papers(paper_id, start_time, end_time)");
+
+    const dbPaperTimeEntries: PaperTimeEntry[] = [];
+    if (allDbSessions) {
+      const editingDbIds = sessions.map(s => s.db_id).filter(Boolean);
+      for (const dbS of allDbSessions) {
+        if (editingDbIds.includes(dbS.session_id)) continue;
+        if (!dbS.start_time || !dbS.end_time) continue;
+        
+        const sessionStart = dayjs(dbS.start_time);
+        const parseTime = (t: string) =>
+          t.includes("T")
+            ? dayjs(t)
+            : dayjs(`${sessionStart.format("YYYY-MM-DD")}T${t.length === 5 ? t + ":00" : t}`);
+            
+        // Extract conference name
+        let confNameStr = "";
+        if (dbS.conferences) {
+            confNameStr = Array.isArray(dbS.conferences) ? (dbS.conferences[0] as any)?.conf_name : (dbS.conferences as any)?.conf_name;
+        }
+        const fullSessionName = confNameStr ? `[${confNameStr}] ${dbS.session_name}` : dbS.session_name;
+
+        for (const p of dbS.session_papers || []) {
+          if (!p.start_time || !p.end_time) continue;
+          dbPaperTimeEntries.push({
+            paper_id: p.paper_id,
+            sessionName: fullSessionName,
+            sessionTempId: `db_${dbS.session_id}`,
+            start: parseTime(p.start_time),
+            end: parseTime(p.end_time),
+          });
+        }
+      }
+    }
+
+    const currentConfName = conferenceData?.conference?.conf_name || "Current Conference";
+    
+    // Update local paper entries with current conference name
+    for (const e of paperTimeEntries) {
+        e.sessionName = `[${currentConfName}] ${e.sessionName}`;
+    }
+
+    const allPaperTimeEntries = [...paperTimeEntries, ...dbPaperTimeEntries];
     const newAuthorWarnings: string[] = [];
 
-    if (paperTimeEntries.length > 0) {
+    if (allPaperTimeEntries.length > 0) {
       // Get primary_author_id for all involved papers
-      const involvedPaperIds = [
-        ...new Set(paperTimeEntries.map((e) => e.paper_id)),
-      ];
+      const involvedPaperIds = [...new Set(allPaperTimeEntries.map((e) => e.paper_id))];
       const { data: papersData } = await supabase
         .from("papers")
         .select("paper_id, primary_author_id")
+        .in("paper_id", involvedPaperIds);
+
+      const { data: coauthorsData } = await supabase
+        .from("paper_coauthors")
+        .select("paper_id, user_id")
         .in("paper_id", involvedPaperIds);
 
       // Build map: author → list of paper_ids they authored (among involved papers)
@@ -792,16 +841,22 @@ const SessionManagerPage = ({
       for (const row of papersData || []) {
         if (!row.primary_author_id) continue;
         const list = authorPaperMap.get(row.primary_author_id) ?? [];
-        list.push(row.paper_id);
+        if (!list.includes(row.paper_id)) list.push(row.paper_id);
         authorPaperMap.set(row.primary_author_id, list);
       }
+      for (const row of coauthorsData || []) {
+        if (!row.user_id) continue;
+        const list = authorPaperMap.get(row.user_id) ?? [];
+        if (!list.includes(row.paper_id)) list.push(row.paper_id);
+        authorPaperMap.set(row.user_id, list);
+      }
 
-      // For each author that has more than one paper with a time, check cross-session overlap
+      // For each author that has more than one presentation with a time, check cross-session overlap
       for (const [, paperIds] of authorPaperMap.entries()) {
-        if (paperIds.length < 2) continue;
-        const authorEntries = paperTimeEntries.filter((e) =>
+        const authorEntries = allPaperTimeEntries.filter((e) =>
           paperIds.includes(e.paper_id),
         );
+        if (authorEntries.length < 2) continue;
         // Check every pair
         for (let i = 0; i < authorEntries.length; i++) {
           for (let j = i + 1; j < authorEntries.length; j++) {
@@ -823,9 +878,101 @@ const SessionManagerPage = ({
       }
     }
 
+    // ── Chair schedule conflict check ──
+    // For chair conflict, we should also check against all sessions globally for these chairs
+    const dbSessionIds = sessions.map((s) => s.db_id).filter(Boolean) as number[];
+    if (dbSessionIds.length > 0) {
+      // First, get all chairs for the sessions being edited
+      const { data: currentChairsData } = await supabase
+        .from("session_chairs")
+        .select("user_id, session_id, profile:profiles(full_name)")
+        .in("session_id", dbSessionIds);
+
+      if (currentChairsData && currentChairsData.length > 0) {
+        const chairUserIds = [...new Set(currentChairsData.map(c => c.user_id))];
+        
+        // Fetch ALL sessions these chairs are assigned to across all conferences
+        const { data: allChairSessionsData } = await supabase
+            .from("session_chairs")
+            .select("user_id, session_id, sessions(session_name, start_time, end_time, conferences(conf_name))")
+            .in("user_id", chairUserIds);
+
+        const chairTimeEntries: { userId: number; userName: string; sessionId: number; sessionName: string; tempId: string; start: dayjs.Dayjs; end: dayjs.Dayjs }[] = [];
+        
+        if (allChairSessionsData) {
+            for (const row of allChairSessionsData) {
+                // Determine if this is a session currently being edited
+                const editingSession = sessions.find((sess) => sess.db_id === row.session_id);
+                
+                let start, end, sessNameStr, tempId;
+                
+                if (editingSession) {
+                    if (!editingSession.start_time || !editingSession.end_time) continue;
+                    start = dayjs(formatToLocal(editingSession.start_time));
+                    end = dayjs(formatToLocal(editingSession.end_time));
+                    sessNameStr = `[${currentConfName}] ${editingSession.session_name}`;
+                    tempId = editingSession.temp_id;
+                } else {
+                    const s = row.sessions as any;
+                    if (!s || !s.start_time || !s.end_time) continue;
+                    start = dayjs(s.start_time);
+                    end = dayjs(s.end_time);
+                    
+                    let confNameStr = "";
+                    if (s.conferences) {
+                        confNameStr = Array.isArray(s.conferences) ? s.conferences[0]?.conf_name : s.conferences?.conf_name;
+                    }
+                    sessNameStr = confNameStr ? `[${confNameStr}] ${s.session_name}` : s.session_name;
+                    tempId = `db_${row.session_id}`;
+                }
+                
+                // Try to find user name from currentChairsData
+                const currentChairRec = currentChairsData.find(c => c.user_id === row.user_id);
+                const userName = currentChairRec ? (Array.isArray(currentChairRec.profile) ? currentChairRec.profile[0]?.full_name : (currentChairRec.profile as any)?.full_name) : "Unknown Chair";
+
+                chairTimeEntries.push({
+                    userId: row.user_id,
+                    userName: userName || "Unknown Chair",
+                    sessionId: row.session_id,
+                    sessionName: sessNameStr,
+                    tempId,
+                    start,
+                    end,
+                });
+            }
+        }
+
+        const chairGroups = new Map<number, typeof chairTimeEntries>();
+        chairTimeEntries.forEach((e) => {
+          const list = chairGroups.get(e.userId) || [];
+          list.push(e);
+          chairGroups.set(e.userId, list);
+        });
+
+        for (const [, entries] of chairGroups.entries()) {
+          if (entries.length < 2) continue;
+          for (let i = 0; i < entries.length; i++) {
+            for (let j = i + 1; j < entries.length; j++) {
+              const a = entries[i];
+              const b = entries[j];
+              if (a.tempId === b.tempId) continue;
+              if (a.start.isBefore(b.end) && b.start.isBefore(a.end)) {
+                newAuthorWarnings.push(`Chair conflict: ${a.userName} is assigned to "${a.sessionName}" (${a.start.format("HH:mm")}–${a.end.format("HH:mm")}) and "${b.sessionName}" (${b.start.format("HH:mm")}–${b.end.format("HH:mm")}) which overlap.`);
+              }
+            }
+          }
+        }
+      }
+    }
+
     // Pass all validations
+    if (newAuthorWarnings.length > 0) {
+      // Block save if there are any author conflicts
+      setError(newAuthorWarnings.join("\n"));
+      return;
+    }
     setError("");
-    setAuthorConflictWarnings(newAuthorWarnings);
+    setAuthorConflictWarnings([]);
 
     const updateMeetSessionIds: number[] = [];
     const manualMeetWarningSessionNames: string[] = [];
@@ -1245,7 +1392,7 @@ const SessionManagerPage = ({
                               <GripVertical className="w-4 h-4 text-slate-300 mt-0.5 shrink-0" />
                             )}
                             <div>
-                              <p className="font-medium text-slate-900 text-sm line-clamp-2 leading-tight mb-1.5">
+                              <p className="font-medium text-slate-900 text-sm leading-tight mb-1.5">
                                 {p.title}
                               </p>
                               <p className="text-xs text-slate-500 font-medium">
@@ -1379,13 +1526,13 @@ const SessionManagerPage = ({
                                   session.temp_id,
                                   "session_name",
                                   e.target.value,
-                                )
+                                  )
                               }
                               placeholder="Enter Session Title..."
                             />
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 xl:ml-11">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 xl:ml-11">
                             <div className="relative group">
                               <SimpleDateTimePicker
                                 id={`datetime-start-session-${idx + 1}`}
@@ -1414,7 +1561,7 @@ const SessionManagerPage = ({
                                 }
                               />
                             </div>
-                            <div className="relative group">
+                            <div className="relative group md:col-span-2">
                               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
                               <input
                                 id={`input-session-room-${idx + 1}`}
@@ -1694,7 +1841,7 @@ const SessionManagerPage = ({
                                                     ID: {p.paper_id}
                                                   </span>
                                                 </div>
-                                                <h4 className="font-semibold text-slate-800 text-sm line-clamp-2 pr-2 leading-snug">
+                                                <h4 className="font-semibold text-slate-800 text-sm pr-2 leading-snug">
                                                   {p.title}
                                                 </h4>
                                                 {p.author_name && (
@@ -1710,7 +1857,7 @@ const SessionManagerPage = ({
                                                 <SimpleTimePicker
                                                   id={`time-start-session-${idx + 1}-paper-${ap.paper_id}`}
                                                   placeholder="Start"
-                                                  className="w-24 h-8 text-[11px]!"
+                                                  className="w-32 h-8 text-[11px]!"
                                                   value={ap.start_time || ""}
                                                   onChange={(val) =>
                                                     updateSessionPaper(
@@ -1727,7 +1874,7 @@ const SessionManagerPage = ({
                                                 <SimpleTimePicker
                                                   id={`time-end-session-${idx + 1}-paper-${ap.paper_id}`}
                                                   placeholder="End"
-                                                  className="w-24 h-8 text-[11px]!"
+                                                  className="w-32 h-8 text-[11px]!"
                                                   value={ap.end_time || ""}
                                                   onChange={(val) =>
                                                     updateSessionPaper(

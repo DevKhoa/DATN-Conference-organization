@@ -46,7 +46,7 @@ const CreateConferencePage: React.FC = () => {
     start_date: "",
     end_date: "",
     status: "DRAFT",
-    is_active: false,
+    is_active: true,
     open_for_papers: true,
     format_type: "in-person",
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -514,26 +514,6 @@ const CreateConferencePage: React.FC = () => {
                 <div className="pt-6 border-t border-slate-100">
                   {/* Toggle Switches Container */}
                   <div className="flex flex-col sm:flex-row sm:items-center gap-6 sm:gap-12">
-                    {/* Toggle: Publish Conference */}
-                    <label className="flex items-center cursor-pointer relative group">
-                      <input
-                        id="btn-publish-toggle"
-                        type="checkbox"
-                        checked={formData.is_active}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            is_active: e.target.checked,
-                          })
-                        }
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                      <span className="ml-3 text-sm font-medium text-slate-700 group-hover:text-brand-700 transition-colors">
-                        Publish Conference
-                      </span>
-                    </label>
-
                     {/* Toggle: Open For Papers (MỚI) */}
                     <label className="flex items-center cursor-pointer relative group">
                       <input
@@ -555,6 +535,7 @@ const CreateConferencePage: React.FC = () => {
                     </label>
                   </div>
                 </div>
+
 
                 <div className="flex justify-end pt-6">
                   <Button
@@ -666,11 +647,16 @@ const CreateConferencePage: React.FC = () => {
                   </div>
                   <Button
                     id="btn-finish-setup"
-                    onClick={() => navigate({ to: "/conferences" })}
+                    onClick={() =>
+                      navigate({
+                        to: "/conferences/$conferenceId",
+                        params: { conferenceId: String(confId) },
+                      })
+                    }
                     size="lg"
                     className="flex-1 sm:flex-none"
                   >
-                    Finish & View List
+                    Finish & View Conference
                   </Button>
                 </div>
               </div>

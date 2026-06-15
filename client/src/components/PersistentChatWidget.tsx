@@ -248,6 +248,20 @@ export const PersistentChatWidget: React.FC = () => {
                     return msg;
                   }),
                 );
+              } else if (data.parts && data.parts.type === "error") {
+                const reason = data.status?.finish_reason || "Unknown error";
+                const isTokenError = reason.toLowerCase().includes("token") || reason.toLowerCase().includes("subscription");
+                
+                setChatMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === assistantMsgId
+                      ? { 
+                          ...msg, 
+                          content: msg.content + `\n\n> ⚠️ **Error:** ${isTokenError ? "You have run out of AI tokens! Please [upgrade your subscription](/subscriptions) to continue using the assistant." : reason}`
+                        }
+                      : msg,
+                  ),
+                );
               } else if (data.status?.is_finish) {
                 // stream finished
                 if (data.metadata?.title && !activeConvId) {

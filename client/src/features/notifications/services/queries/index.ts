@@ -41,6 +41,10 @@ export interface NotificationUserResult {
   email: string;
 }
 
+import { request } from "@/lib/axios";
+
+// ... existing code ...
+
 export const useUserNotifications = () => {
   const { session } = useAuth();
   const userId = session?.user?.user_metadata["user_id"] as number | undefined;
@@ -51,24 +55,15 @@ export const useUserNotifications = () => {
     queryFn: async () => {
       if (!userId) return [];
 
-      const { data, error } = await supabase
-        .from("user_notifications")
-        .select(
-          `id, notification_id, is_read, read_at, dynamic_title, dynamic_content,
-               notifications ( notification_id, title, content, type, created_at, conf_id, attachments, target_criteria )`,
-        )
-        .eq("user_id", userId)
-        .order("id", { ascending: false })
-        .limit(30);
-
-      if (error) throw error;
-
-      const rows =
-        (data as Array<
+      const data = await request.get<
+        Array<
           Tables<"user_notifications"> & {
             notifications: NotificationMeta | NotificationMeta[] | null;
           }
-        > | null) ?? [];
+        >
+      >(`/notifications/user-notifications/${userId}`);
+
+      const rows = data ?? [];
 
       return rows
         .map((row) => ({

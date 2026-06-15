@@ -8,6 +8,8 @@ import { DefaultLayout } from "@/layouts/DefaultLayout";
 import { toast } from "sonner";
 import useAuth from "@/features/auth/hooks/useAuth";
 import { useAxios } from "@/lib/axios";
+import { ConferencesKeys } from "@/features/conferences/services/queries/keys";
+import { PapersKeys } from "@/features/papers/services/queries/keys";
 
 export const ImportPapers = () => {
   const { conferenceId } = useParams({ strict: false }) as any;
@@ -25,9 +27,10 @@ export const ImportPapers = () => {
     abstract: string;
     primary_author_email: string;
     co_author_emails: string;
+    external_pdf_url: string;
   };
 
-  const emptyRow: ManualRow = { title: "", abstract: "", primary_author_email: "", co_author_emails: "" };
+  const emptyRow: ManualRow = { title: "", abstract: "", primary_author_email: "", co_author_emails: "", external_pdf_url: "" };
   const [manualRows, setManualRows] = useState<ManualRow[]>([{ ...emptyRow }]);
   const [isSavingManual, setIsSavingManual] = useState(false);
 
@@ -84,6 +87,11 @@ export const ImportPapers = () => {
       
       queryClient.invalidateQueries({ queryKey: ["importHistory", conferenceId] });
       queryClient.invalidateQueries({ queryKey: ["importLogs", conferenceId] });
+      // Invalidate related data so UI refreshes seamlessly
+      queryClient.invalidateQueries({ queryKey: [ConferencesKeys.ConferenceDetail, Number(conferenceId)] });
+      queryClient.invalidateQueries({ queryKey: [PapersKeys.PapersCount] });
+      queryClient.invalidateQueries({ queryKey: [PapersKeys.PaginatedPapers] });
+      queryClient.invalidateQueries({ queryKey: [PapersKeys.AcceptedPapers, Number(conferenceId)] });
     },
     onError: (error: any) => {
       const errorMsg = error.response?.data?.detail || error.message || "Failed to import papers";
@@ -154,9 +162,9 @@ export const ImportPapers = () => {
     }
 
     // Convert to CSV
-    const headers = "title,abstract,primary_author_email,co_author_emails";
+    const headers = "title,abstract,primary_author_email,co_author_emails,external_pdf_url";
     const csvRows = filledRows.map(r =>
-      `"${r.title.replace(/"/g, '""')}","${r.abstract.replace(/"/g, '""')}","${r.primary_author_email}","${r.co_author_emails}"`
+      `"${r.title.replace(/"/g, '""')}","${r.abstract.replace(/"/g, '""')}","${r.primary_author_email}","${r.co_author_emails}","${r.external_pdf_url}"`
     );
     const csvContent = [headers, ...csvRows].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv" });
@@ -178,7 +186,7 @@ export const ImportPapers = () => {
   return (
     <DefaultLayout meta={{ title: "Import Papers" }}>
       <div className="min-h-screen bg-background pb-24 text-foreground p-6">
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto max-w-7xl">
           <div className="flex items-center gap-4 mb-8">
             <Button
               variant="outline"
@@ -226,7 +234,7 @@ export const ImportPapers = () => {
                   {isUploading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Uploading...
+                      Processing...
                     </>
                   ) : (
                     <>
@@ -239,10 +247,23 @@ export const ImportPapers = () => {
                   variant="outline"
                   onClick={() => setShowManualEntry(!showManualEntry)}
                   className="w-full mt-3"
+                  disabled={isUploading}
                 >
                   <Table2 className="mr-2 h-4 w-4" />
                   {showManualEntry ? "Hide" : "Manual Entry"}
                 </Button>
+
+                {isUploading && (
+                  <div className="w-full mt-4 p-4 rounded-xl bg-primary/10 border border-primary/20 flex items-start text-sm text-primary/90 text-left animate-in fade-in slide-in-from-top-2">
+                    <Loader2 className="w-5 h-5 mr-3 animate-spin shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold mb-1">Processing File...</p>
+                      <p className="text-xs opacity-90 leading-relaxed">
+                        The system is reading your file, validating author emails, downloading PDFs, and importing papers into the conference. This process may take a few minutes depending on the file size. <br/><br/><b>Please do not close or refresh this window.</b>
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {uploadError && (
@@ -322,10 +343,11 @@ export const ImportPapers = () => {
                       <thead className="text-xs uppercase bg-muted text-muted-foreground">
                         <tr>
                           <th className="px-2 py-3 w-8 text-center">#</th>
-                          <th className="px-2 py-3 min-w-[180px]">Title <span className="text-destructive">*</span></th>
-                          <th className="px-2 py-3 min-w-[220px]">Abstract</th>
-                          <th className="px-2 py-3 min-w-[180px]">Author Email <span className="text-destructive">*</span></th>
-                          <th className="px-2 py-3 min-w-[180px]">Co-authors (;)</th>
+                          <th className="px-2 py-3 min-w-[150px]">Title <span className="text-destructive">*</span></th>
+                          <th className="px-2 py-3 min-w-[180px]">Abstract</th>
+                          <th className="px-2 py-3 min-w-[150px]">Author Email <span className="text-destructive">*</span></th>
+                          <th className="px-2 py-3 min-w-[150px]">Co-authors (;)</th>
+                          <th className="px-2 py-3 min-w-[150px]">Drive Link</th>
                           <th className="px-2 py-3 w-10"></th>
                         </tr>
                       </thead>
@@ -369,6 +391,15 @@ export const ImportPapers = () => {
                                 onChange={e => updateManualRow(idx, "co_author_emails", e.target.value)}
                                 className="w-full px-2 py-1.5 text-xs rounded border border-input bg-background focus:ring-1 focus:ring-ring outline-none"
                                 placeholder="a@b.com;c@d.com"
+                              />
+                            </td>
+                            <td className="px-1 py-1">
+                              <input
+                                type="text"
+                                value={row.external_pdf_url}
+                                onChange={e => updateManualRow(idx, "external_pdf_url", e.target.value)}
+                                className="w-full px-2 py-1.5 text-xs rounded border border-input bg-background focus:ring-1 focus:ring-ring outline-none"
+                                placeholder="Google Drive link"
                               />
                             </td>
                             <td className="px-1 py-1 text-center">

@@ -4,8 +4,13 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
 } from "@/components/ui/sidebar";
 import { useLayout } from "@/contexts/layout-provider";
+import { Link } from "@tanstack/react-router";
+import { Home } from "lucide-react";
 
 import { AdminAppTitle } from "./admin-app-title";
 import { adminSidebarData } from "./admin-sidebar-data";
@@ -36,9 +41,25 @@ export const AdminSidebar = () => {
         ))}
       </SidebarContent>
       <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              size="lg"
+              tooltip="Back to Website"
+              className="mb-1 font-semibold text-primary hover:text-primary hover:bg-primary/10 transition-colors"
+            >
+              <Link to="/" className="flex items-center gap-3">
+                <Home className="h-5 w-5" />
+                <span>Back to Website</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
         <NavUser user={userData} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );
 };
+

@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Globe,
   Video,
+  ChevronDown,
 } from "lucide-react";
 import {
   format,
@@ -40,6 +41,7 @@ dayjs.extend(timezonePlugin);
 const userTimezone = dayjs.tz.guess();
 import { DefaultLayout } from "@/layouts/DefaultLayout";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   useMyAgendaSessionsQuery,
   type AgendaSession,
@@ -139,6 +141,9 @@ export default function MyAgendaPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [useUserTimezone, setUseUserTimezone] = useState(false);
 
+  // State for toggled dates in list view
+  const [collapsedDates, setCollapsedDates] = useState<Record<string, boolean>>({});
+  
   // States for Timeline view
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -182,6 +187,23 @@ export default function MyAgendaPage() {
       })
       .sort((a, b) => a.displayStartJS.getTime() - b.displayStartJS.getTime());
   }, [sessions, useUserTimezone]);
+
+  // Collapse past dates initially
+  useEffect(() => {
+    const today = format(new Date(), "yyyy-MM-dd");
+    const initial: Record<string, boolean> = {};
+    displaySessions.forEach(s => {
+      const d = s.displayDateOnly;
+      if (!(d in initial)) {
+        initial[d] = d < today;
+      }
+    });
+    setCollapsedDates(initial);
+  }, [displaySessions]);
+
+  const toggleDate = (date: string) => {
+    setCollapsedDates(prev => ({ ...prev, [date]: !prev[date] }));
+  };
 
   const conferenceTimezones = useMemo(() => {
     const tzs = new Set<string>();
@@ -283,6 +305,43 @@ export default function MyAgendaPage() {
 
   const isCurrentDay = isToday(selectedDate);
   const selectedDayCount = sessionCountByDate[selectedDateStr] || 0;
+
+  const getTimelineColors = (session: Session, isNextDay: boolean) => {
+    if (isNextDay) {
+      return {
+        bg: "border-l-purple-500 border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 bg-[radial-gradient(#e9d5ff_1px,transparent_1px)] [background-size:16px_16px]",
+        text: "text-purple-600",
+        hoverText: "group-hover:text-purple-600"
+      };
+    }
+    const roles = session.user_roles || [];
+    if (roles.includes("chair")) {
+      return {
+        bg: "border-l-amber-500 border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20",
+        text: "text-amber-600",
+        hoverText: "group-hover:text-amber-600"
+      };
+    }
+    if (roles.includes("author")) {
+      return {
+        bg: "border-l-emerald-500 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20",
+        text: "text-emerald-600",
+        hoverText: "group-hover:text-emerald-600"
+      };
+    }
+    if (roles.includes("attendee")) {
+      return {
+        bg: "border-l-primary border-primary/20 bg-primary/10 hover:bg-primary/15",
+        text: "text-primary",
+        hoverText: "group-hover:text-primary"
+      };
+    }
+    return {
+      bg: "border-l-slate-400 border-slate-400/30 bg-slate-400/10 hover:bg-slate-400/20",
+      text: "text-slate-600",
+      hoverText: "group-hover:text-slate-600"
+    };
+  };
 
   // --- Helpers for List View ---
   const groupedSessions = displaySessions.reduce(
@@ -437,17 +496,38 @@ export default function MyAgendaPage() {
             </div>
           ) : (
             <div className="space-y-10">
-              {Object.entries(groupedSessions).map(([date, daySessions]) => (
+              {Object.entries(groupedSessions)
+                .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
+                .map(([date, daySessions]) => {
+                const isCollapsed = collapsedDates[date] || false;
+                return (
                 <div key={date} className="relative">
-                  <div className="sticky top-0 bg-card/90 backdrop-blur-sm py-2 z-10 mb-4">
-                    <h2 className="text-lg font-bold text-primary bg-primary/10 inline-block px-4 py-1.5 rounded-full">
+                  <div 
+                    className="sticky top-0 bg-card/90 backdrop-blur-sm py-2 z-10 mb-4 cursor-pointer flex items-center group select-none"
+                    onClick={() => toggleDate(date)}
+                  >
+                    <h2 className="text-lg font-bold text-primary bg-primary/10 inline-flex items-center gap-2 px-4 py-1.5 rounded-full hover:bg-primary/20 transition-colors">
+                      {isCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
                       {format(parseISO(date), "EEEE, dd/MM/yyyy")}
                     </h2>
+                    <span className="ml-3 text-sm font-medium text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                      {daySessions.length} session{daySessions.length > 1 ? 's' : ''}
+                    </span>
                   </div>
+                  {!isCollapsed && (
                   <div className="ml-6 border-l-2 border-border space-y-6">
-                    {daySessions.map((session) => (
+                    {daySessions.map((session) => {
+                      const isChair = session.user_roles?.includes("chair");
+                      const isAuthor = session.user_roles?.includes("author");
+                      const isAttendee = session.user_roles?.includes("attendee");
+                      let dotColor = "bg-slate-400";
+                      if (isChair) dotColor = "bg-amber-500";
+                      else if (isAuthor) dotColor = "bg-emerald-500";
+                      else if (isAttendee) dotColor = "bg-primary";
+
+                      return (
                       <div key={session.session_id} className="relative pl-6">
-                        <div className="absolute w-3 h-3 bg-primary rounded-full -left-1.75 top-2 border-2 border-card"></div>
+                        <div className={`absolute w-3 h-3 ${dotColor} rounded-full -left-1.75 top-2 border-2 border-card`}></div>
                         <div
                           className="bg-card border border-border p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer"
                           onClick={() =>
@@ -463,9 +543,20 @@ export default function MyAgendaPage() {
                               <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-1">
                                 {session.conference_name}
                               </p>
-                              <h3 className="text-lg font-semibold text-foreground mb-2">
-                                {session.session_name}
-                              </h3>
+                              <div className="flex items-center flex-wrap gap-2 mb-2">
+                                <h3 className="text-lg font-semibold text-foreground">
+                                  {session.session_name}
+                                </h3>
+                                {isChair && (
+                                  <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200 uppercase text-[9px] tracking-wider font-bold h-5 px-1.5 rounded-sm">Chair</Badge>
+                                )}
+                                {isAuthor && (
+                                  <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-200 uppercase text-[9px] tracking-wider font-bold h-5 px-1.5 rounded-sm">Author</Badge>
+                                )}
+                                {isAttendee && (
+                                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 uppercase text-[9px] tracking-wider font-bold h-5 px-1.5 rounded-sm">Attendee</Badge>
+                                )}
+                              </div>
                               <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
                                 <div className="flex items-center gap-1.5">
                                   <Clock
@@ -512,10 +603,13 @@ export default function MyAgendaPage() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           ))}
 
@@ -727,13 +821,13 @@ export default function MyAgendaPage() {
                       session.displayStartJS,
                       session.displayEndJS,
                     );
+                    const tlColors = getTimelineColors(session, isNextDay);
+                    const isEarly = session.displayStartJS.getHours() < 4;
+                    
                     return (
                       <div
                         key={session.session_id}
-                        className={`absolute cursor-pointer group z-20 rounded-md border-l-[3px] border hover:-translate-y-0.5 transition-all shadow-sm px-2 py-1 ${isNextDay
-                            ? "border-l-purple-500 border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 bg-[radial-gradient(#e9d5ff_1px,transparent_1px)] [background-size:16px_16px]"
-                            : "border-l-primary border-primary/20 bg-primary/10 hover:bg-primary/15"
-                          }`}
+                        className={`absolute cursor-pointer group z-20 rounded-md border-l-[3px] border hover:-translate-y-0.5 transition-all shadow-sm px-2 py-1 ${tlColors.bg}`}
                         style={getEventStyle(
                           session.displayStartJS,
                           session.displayEndJS,
@@ -751,7 +845,7 @@ export default function MyAgendaPage() {
                         <div className="flex flex-col h-full relative">
                           <div className="flex items-start justify-between gap-1">
                             <span
-                              className={`text-[11px] font-semibold text-foreground truncate leading-tight transition-colors ${isNextDay ? "group-hover:text-purple-600" : "group-hover:text-primary"}`}
+                              className={`text-[11px] font-semibold text-foreground truncate leading-tight transition-colors ${tlColors.hoverText}`}
                             >
                               {session.session_name}
                             </span>
@@ -760,7 +854,7 @@ export default function MyAgendaPage() {
                             {session.conference_name}
                           </div>
                           <div
-                            className={`text-[10px] font-medium mt-auto pt-1 leading-tight inline-flex items-center flex-wrap gap-1 ${isNextDay ? "text-purple-600" : "text-primary"}`}
+                            className={`text-[10px] font-medium mt-auto pt-1 leading-tight inline-flex items-center flex-wrap gap-1 ${tlColors.text}`}
                           >
                             <span>
                               {format(session.displayStartJS, "HH:mm")}–
@@ -779,12 +873,17 @@ export default function MyAgendaPage() {
                           </div>
 
                           {/* Hover Details Card */}
-                          <div className="absolute left-0 bottom-full mb-2 w-max max-w-[250px] bg-foreground text-background text-xs p-3 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] pointer-events-none before:content-[''] before:absolute before:top-full before:left-4 before:-ml-1 before:border-4 before:border-transparent before:border-t-foreground">
+                          <div className={`absolute left-0 w-max max-w-[250px] bg-foreground text-background text-xs p-3 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] pointer-events-none before:content-[''] before:absolute before:left-4 before:-ml-1 before:border-4 before:border-transparent ${isEarly ? "top-full mt-2 before:bottom-full before:border-b-foreground" : "bottom-full mb-2 before:top-full before:border-t-foreground"}`}>
                             <div className="font-bold text-sm mb-1 leading-tight">
                               {session.session_name}
                             </div>
-                            <div className="text-muted font-medium mb-3 leading-tight">
-                              {session.conference_name}
+                            <div className="text-muted font-medium mb-3 leading-tight flex items-center justify-between gap-2">
+                              <span>{session.conference_name}</span>
+                              <div className="flex gap-1">
+                                {session.user_roles?.includes("chair") && <span className="bg-amber-500 text-amber-950 text-[8px] font-bold px-1 rounded-sm uppercase">Chair</span>}
+                                {session.user_roles?.includes("author") && <span className="bg-emerald-500 text-emerald-950 text-[8px] font-bold px-1 rounded-sm uppercase">Author</span>}
+                                {session.user_roles?.includes("attendee") && <span className="bg-primary text-primary-foreground text-[8px] font-bold px-1 rounded-sm uppercase">Attendee</span>}
+                              </div>
                             </div>
                             <div className="flex flex-col gap-2 text-background/90">
                               <span className="flex items-center gap-1.5 flex-wrap">

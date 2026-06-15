@@ -427,3 +427,23 @@ export const useSendNotificationMutation = () => {
     },
   });
 };
+
+export const useDeleteNotificationTemplateMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (templateId: number) => {
+      const { error } = await supabase
+        .from("notification_templates")
+        .delete()
+        .eq("template_id", templateId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [NotificationsKeys.NotificationTemplates],
+      });
+    },
+  });
+};

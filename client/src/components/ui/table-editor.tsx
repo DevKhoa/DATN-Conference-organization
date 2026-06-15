@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { View, Text as PdfText } from "@react-pdf/renderer";
 import { FontSelector, cssFontFamily } from "./font-manager";
+import { generateUUID } from "@/features/proceedings/utils/uuid";
 
 // ─── Data Model ───────────────────────────────────────────────────────────────
 
@@ -73,7 +74,7 @@ export const createEmptyTable = (
     const row: TableCell[] = [];
     for (let c = 0; c < cols; c++) {
       row.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         text: "",
         align: "center",
         colSpan: 1,
@@ -136,7 +137,7 @@ export const createTableFromCSV = (data: string[][], w: number): TableData => {
     const row: TableCell[] = [];
     for (let c = 0; c < cols; c++) {
       row.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         text: data[r]?.[c] || "",
         align: "left",
         colSpan: 1,
@@ -240,7 +241,7 @@ export const splitSelected = (td: TableData, sel: CellCoord[]): TableData => {
 export const addRow = (td: TableData, afterIdx?: number): TableData => {
   const idx = afterIdx !== undefined ? afterIdx + 1 : td.rows;
   const newRow: TableCell[] = Array.from({ length: td.cols }, () => ({
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     text: "",
     align: "left" as const,
     colSpan: 1,
@@ -271,7 +272,7 @@ export const addColumn = (td: TableData, afterIdx?: number): TableData => {
   const nc = td.cells.map((row) => {
     const nr = [...row];
     nr.splice(idx, 0, {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       text: "",
       align: "left" as const,
       colSpan: 1,

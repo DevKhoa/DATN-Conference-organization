@@ -46,6 +46,7 @@ export interface AgendaSession {
   chair_name: string;
   timezone?: string;
   session_type?: string;
+  user_roles?: ("attendee" | "chair" | "author")[];
 }
 
 export interface ChairInvitationItem {
@@ -300,89 +301,89 @@ export const useMyAgendaSessionsQuery = () => {
         | number
         | undefined;
       const sessionIdsAllowed = new Set<number>();
+      const attendeeSessionIds = new Set<number>();
+      const chairSessionIds = new Set<number>();
+      const authorSessionIds = new Set<number>();
 
-      if (!isAdmin) {
-        if (!userId) {
-          throw new Error("You are not logged in or your session has expired.");
+      if (!userId) {
+        throw new Error("You are not logged in or your session has expired.");
+      }
+
+      // 1. ATTENDEE: Get sessions from completed transactions
+      const { data: registrations, error: regError } = await supabase
+        .from("registrations")
+        .select(
+          `
+          ticket_id,
+          transactions!inner(status)
+        `,
+        )
+        .eq("user_id", userId)
+        .eq("transactions.status", "COMPLETED");
+
+      if (!regError && registrations && registrations.length > 0) {
+        const ticketIds = registrations.map((r) => r.ticket_id);
+        const { data: ticketSessions } = await supabase
+          .from("ticket_session")
+          .select("session_id")
+          .in("ticket_id", ticketIds);
+
+        if (ticketSessions) {
+          ticketSessions.forEach((ts) => {
+            sessionIdsAllowed.add(ts.session_id);
+            attendeeSessionIds.add(ts.session_id);
+          });
         }
+      }
 
-        // 1. ATTENDEE: Get sessions from completed transactions
-        if (roles.includes(Role.ATTENDEE)) {
-          const { data: registrations, error: regError } = await supabase
-            .from("registrations")
-            .select(
-              `
-              ticket_id,
-              transactions!inner(status)
-            `,
-            )
-            .eq("user_id", userId)
-            .eq("transactions.status", "COMPLETED");
+      // 2. CHAIR: Get sessions from session_chairs
+      const { data: chairSessions } = await supabase
+        .from("session_chairs")
+        .select("session_id")
+        .eq("user_id", userId);
 
-          if (!regError && registrations && registrations.length > 0) {
-            const ticketIds = registrations.map((r) => r.ticket_id);
-            const { data: ticketSessions } = await supabase
-              .from("ticket_session")
-              .select("session_id")
-              .in("ticket_id", ticketIds);
+      if (chairSessions) {
+        chairSessions.forEach((cs) => {
+          sessionIdsAllowed.add(cs.session_id);
+          chairSessionIds.add(cs.session_id);
+        });
+      }
 
-            if (ticketSessions) {
-              ticketSessions.forEach((ts) =>
-                sessionIdsAllowed.add(ts.session_id),
-              );
-            }
-          }
+      // 3. AUTHOR: Get sessions from session_papers + papers + paper_coauthors
+      const { data: primaryPapers } = await supabase
+        .from("papers")
+        .select("paper_id")
+        .eq("primary_author_id", userId);
+
+      const { data: coauthorPapers } = await supabase
+        .from("paper_coauthors")
+        .select("paper_id")
+        .eq("user_id", userId);
+
+      const paperIds = Array.from(
+        new Set([
+          ...(primaryPapers?.map((p) => p.paper_id) || []),
+          ...(coauthorPapers?.map((p) => p.paper_id) || []),
+        ]),
+      );
+
+      if (paperIds.length > 0) {
+        const { data: sessionPapers } = await supabase
+          .from("session_papers")
+          .select("session_id")
+          .in("paper_id", paperIds);
+
+        if (sessionPapers) {
+          sessionPapers.forEach((sp) => {
+            sessionIdsAllowed.add(sp.session_id);
+            authorSessionIds.add(sp.session_id);
+          });
         }
+      }
 
-        // 2. CHAIR: Get sessions from session_chairs
-        if (roles.includes(Role.CHAIR)) {
-          const { data: chairSessions } = await supabase
-            .from("session_chairs")
-            .select("session_id")
-            .eq("user_id", userId);
-
-          if (chairSessions) {
-            chairSessions.forEach((cs) => sessionIdsAllowed.add(cs.session_id));
-          }
-        }
-
-        // 3. AUTHOR: Get sessions from session_papers + papers + paper_coauthors
-        if (roles.includes(Role.AUTHOR)) {
-          const { data: primaryPapers } = await supabase
-            .from("papers")
-            .select("paper_id")
-            .eq("primary_author_id", userId);
-
-          const { data: coauthorPapers } = await supabase
-            .from("paper_coauthors")
-            .select("paper_id")
-            .eq("user_id", userId);
-
-          const paperIds = Array.from(
-            new Set([
-              ...(primaryPapers?.map((p) => p.paper_id) || []),
-              ...(coauthorPapers?.map((p) => p.paper_id) || []),
-            ]),
-          );
-
-          if (paperIds.length > 0) {
-            const { data: sessionPapers } = await supabase
-              .from("session_papers")
-              .select("session_id")
-              .in("paper_id", paperIds);
-
-            if (sessionPapers) {
-              sessionPapers.forEach((sp) =>
-                sessionIdsAllowed.add(sp.session_id),
-              );
-            }
-          }
-        }
-
-        // If not admin and no allowed sessions, return early
-        if (sessionIdsAllowed.size === 0) {
-          return [];
-        }
+      // If not admin and no allowed sessions, return early
+      if (!isAdmin && sessionIdsAllowed.size === 0) {
+        return [];
       }
 
       let query = supabase
@@ -425,6 +426,11 @@ export const useMyAgendaSessionsQuery = () => {
             })
             .filter(Boolean);
 
+          const user_roles: ("attendee" | "chair" | "author")[] = [];
+          if (attendeeSessionIds.has(s.session_id)) user_roles.push("attendee");
+          if (chairSessionIds.has(s.session_id)) user_roles.push("chair");
+          if (authorSessionIds.has(s.session_id)) user_roles.push("author");
+
           return {
             session_id: s.session_id,
             session_name: s.session_name || "Untitled session",
@@ -437,6 +443,7 @@ export const useMyAgendaSessionsQuery = () => {
               chairNames.length > 0 ? chairNames.join(", ") : "Unassigned",
             timezone: s.conferences?.timezone || undefined,
             session_type: s.session_type || undefined,
+            user_roles,
           };
         },
       );
@@ -445,3 +452,40 @@ export const useMyAgendaSessionsQuery = () => {
     },
   });
 };
+
+export interface SessionPaperFiles {
+  session_id: number;
+  paper_id: number;
+  pdf_url?: string | null;
+  slide_url?: string | null;
+  text_url?: string | null;
+  uploaded_by?: number | null;
+  uploaded_at?: string | null;
+}
+
+export const fetchSessionPaperFiles = async (
+  sessionId: number,
+  paperId: number,
+  userId: number,
+): Promise<SessionPaperFiles> => {
+  return request.get<SessionPaperFiles>(
+    `/sessions/${sessionId}/papers/${paperId}/files`,
+    { params: { user_id: userId } },
+  );
+};
+
+export const useSessionPaperFilesQuery = (
+  sessionId: number | null | undefined,
+  paperId: number | null | undefined,
+  userId: number | null | undefined,
+) => {
+  return useQuery({
+    queryKey: [SessionKeys.SessionPaperFiles, sessionId, paperId, userId],
+    queryFn:
+      sessionId && paperId && userId
+        ? () => fetchSessionPaperFiles(sessionId, paperId, userId)
+        : skipToken,
+    enabled: Boolean(sessionId && paperId && userId),
+  });
+};
+

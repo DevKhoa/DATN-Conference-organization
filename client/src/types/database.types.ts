@@ -137,6 +137,7 @@ export type Database = {
           is_checkin: boolean | null
           registration_id: number | null
           session_id: number | null
+          user_id: number | null
         }
         Insert: {
           at_id?: number
@@ -144,6 +145,7 @@ export type Database = {
           is_checkin?: boolean | null
           registration_id?: number | null
           session_id?: number | null
+          user_id?: number | null
         }
         Update: {
           at_id?: number
@@ -151,6 +153,7 @@ export type Database = {
           is_checkin?: boolean | null
           registration_id?: number | null
           session_id?: number | null
+          user_id?: number | null
         }
         Relationships: [
           {
@@ -166,6 +169,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sessions"
             referencedColumns: ["session_id"]
+          },
+          {
+            foreignKeyName: "attendences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }

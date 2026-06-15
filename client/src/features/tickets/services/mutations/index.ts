@@ -39,13 +39,15 @@ export const useCreateTicketMutation = () => {
 
       return { ticket_id: ticketId };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [TicketsKeys.TicketsByConference],
-      });
-      queryClient.invalidateQueries({
-        queryKey: [ConferencesKeys.ConferenceTickets],
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [TicketsKeys.TicketsByConference],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [ConferencesKeys.ConferenceTickets],
+        }),
+      ]);
     },
   });
 };
@@ -80,13 +82,15 @@ export const useUpdateTicketMutation = () => {
 
       return { ticket_id };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [TicketsKeys.TicketsByConference],
-      });
-      queryClient.invalidateQueries({
-        queryKey: [ConferencesKeys.ConferenceTickets],
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [TicketsKeys.TicketsByConference],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [ConferencesKeys.ConferenceTickets],
+        }),
+      ]);
     },
   });
 };
@@ -96,6 +100,22 @@ export const useDeleteTicketMutation = () => {
 
   return useMutation({
     mutationFn: async ({ ticket_id }: IDeleteTicketPayload) => {
+      // Guard: check if any COMPLETED transaction exists for this ticket
+      const { data: soldRegistrations, error: checkError } = await supabase
+        .from("registrations")
+        .select("registration_id, transactions!inner(status)")
+        .eq("ticket_id", ticket_id)
+        .eq("transactions.status", "COMPLETED")
+        .limit(1);
+
+      if (checkError) throw checkError;
+
+      if (soldRegistrations && soldRegistrations.length > 0) {
+        throw new Error(
+          "TICKET_HAS_SALES: This ticket has confirmed purchases and cannot be deleted. You can set it to Inactive instead."
+        );
+      }
+
       // Delete ticket_session links first
       await supabase.from("ticket_session").delete().eq("ticket_id", ticket_id);
 
@@ -109,13 +129,15 @@ export const useDeleteTicketMutation = () => {
 
       return { ticket_id };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [TicketsKeys.TicketsByConference],
-      });
-      queryClient.invalidateQueries({
-        queryKey: [ConferencesKeys.ConferenceTickets],
-      });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [TicketsKeys.TicketsByConference],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [ConferencesKeys.ConferenceTickets],
+        }),
+      ]);
     },
   });
 };

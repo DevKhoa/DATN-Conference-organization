@@ -832,8 +832,8 @@ export const ProceedingsEditorSection = ({
                                           Page {selPage + 1} / {edPages.length}
                                         </p>
                                         <p className="text-xs text-slate-400">
-                                          {curPg.els.length} element
-                                          {curPg.els.length !== 1 ? "s" : ""} on
+                                          {curPg?.els?.length ?? 0} element
+                                          {(curPg?.els?.length ?? 0) !== 1 ? "s" : ""} on
                                           this page
                                         </p>
                                         <button

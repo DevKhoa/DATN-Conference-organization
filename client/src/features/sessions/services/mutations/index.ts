@@ -107,14 +107,16 @@ export const useSaveSessionsMutation = () => {
             .insert(paperInserts);
           if (pError) throw pError;
 
-          // Assign authors & coauthors to checkin (attendences table)
+          // Assign authors & coauthors to attendences table using user_id directly
+          // (Authors/co-authors are NOT ticket holders — they must be stored via user_id,
+          //  NOT via registration_id, per the attendences schema convention)
           const paperIds = s.assigned_papers.map((p) => p.paper_id);
-          
+
           const { data: papersData } = await supabase
             .from("papers")
             .select("primary_author_id")
             .in("paper_id", paperIds);
-            
+
           const { data: coauthorsData } = await supabase
             .from("paper_coauthors")
             .select("user_id")
@@ -129,39 +131,27 @@ export const useSaveSessionsMutation = () => {
           });
 
           if (authorIds.size > 0) {
-            const { data: regs } = await supabase
-              .from("registrations")
-              .select("registration_id, user_id")
+            // Check which authors already have an attendence record for this session
+            const { data: existingAtt } = await supabase
+              .from("attendences")
+              .select("user_id")
+              .eq("session_id", currentDbId)
               .in("user_id", Array.from(authorIds));
 
-            if (regs && regs.length > 0) {
-              const regIds = regs.map((r) => r.registration_id);
-              const userIdToRegId = new Map<number, number>();
-              regs.forEach((r) => {
-                if (r.user_id && r.registration_id) {
-                  userIdToRegId.set(r.user_id, r.registration_id);
-                }
-              });
+            const existingUserIds = new Set(
+              (existingAtt || []).map((e) => e.user_id).filter(Boolean)
+            );
 
-              const { data: existingAtt } = await supabase
-                .from("attendences")
-                .select("registration_id")
-                .eq("session_id", currentDbId)
-                .in("registration_id", regIds);
+            const newAtts = Array.from(authorIds)
+              .filter((userId) => !existingUserIds.has(userId))
+              .map((userId) => ({
+                session_id: currentDbId,
+                user_id: userId,
+                is_checkin: false,
+              }));
 
-              const existingRegIds = new Set(existingAtt?.map((e) => e.registration_id) || []);
-              const newAtts = Array.from(authorIds)
-                .map((userId) => userIdToRegId.get(userId))
-                .filter((regId): regId is number => !!regId && !existingRegIds.has(regId))
-                .map((regId) => ({
-                  session_id: currentDbId,
-                  registration_id: regId,
-                  is_checkin: false,
-                }));
-
-              if (newAtts.length > 0) {
-                await supabase.from("attendences").insert(newAtts);
-              }
+            if (newAtts.length > 0) {
+              await supabase.from("attendences").insert(newAtts);
             }
           }
         }
@@ -366,14 +356,17 @@ export const useCreateChairInvitationMutation = () => {
       sessionId,
       email,
       invitedBy,
+      clientUrl,
     }: {
       sessionId: number;
       email: string;
       invitedBy?: number;
+      clientUrl?: string;
     }) => {
       return request.post(`/sessions/${sessionId}/chair-invitations`, {
         email,
         invited_by: invitedBy,
+        client_url: clientUrl,
       });
     },
     onSuccess: (_, variables) => {
@@ -405,13 +398,18 @@ export const useAcceptChairInvitationMutation = () => {
         email,
       });
     },
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: [SessionKeys.ChairInvitations, variables.token],
       });
       queryClient.invalidateQueries({
         queryKey: [SessionKeys.ChairInvitations],
       });
+      try {
+        await supabase.auth.refreshSession();
+      } catch (refreshErr) {
+        console.error("Failed to refresh session:", refreshErr);
+      }
     },
   });
 };
@@ -476,20 +474,20 @@ export const useDeleteSessionMutation = () => {
 
   return useMutation({
     mutationFn: async ({ sessionId }: { sessionId: number }) => {
-      // Delete related session_papers first to satisfy FK constraint
-      const { error: papersError } = await supabase
+      // Hard delete presentation order and paper assignments from session_papers table
+      const { error: spError } = await supabase
         .from("session_papers")
         .delete()
         .eq("session_id", sessionId);
 
-      if (papersError) {
-        throw papersError;
+      if (spError) {
+        throw spError;
       }
 
-      const { error } = await supabase
-        .from("sessions")
-        .delete()
-        .eq("session_id", sessionId);
+      // Soft delete the session itself
+      const { error } = await (supabase as any).rpc("soft_delete_session", {
+        p_session_id: sessionId,
+      });
 
       if (error) {
         throw error;
@@ -505,3 +503,102 @@ export const useDeleteSessionMutation = () => {
     },
   });
 };
+
+import type { SessionPaperFiles } from "../queries";
+
+export interface SaveSessionPaperFilesPayload {
+  sessionId: number;
+  paperId: number;
+  fileType: "pdf" | "slide" | "text";
+  file?: File | null;
+  url?: string | null;
+  userId: number;
+}
+
+export const useSaveSessionPaperFilesMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      paperId,
+      fileType,
+      file,
+      url,
+      userId,
+    }: SaveSessionPaperFilesPayload) => {
+      const formData = new FormData();
+      formData.append("file_type", fileType);
+      formData.append("user_id", String(userId));
+      if (file) {
+        formData.append("file", file);
+      }
+      if (url) {
+        formData.append("url", url);
+      }
+
+      return request.post<SessionPaperFiles>(
+        `/sessions/${sessionId}/papers/${paperId}/files`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        },
+      );
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.SessionPaperFiles, variables.sessionId, variables.paperId],
+        exact: false,
+      });
+      queryClient.refetchQueries({
+        queryKey: [SessionKeys.SessionPaperFiles, variables.sessionId, variables.paperId],
+        exact: false,
+      });
+      toast.success("File uploaded successfully.");
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || err?.message || "Failed to save file.");
+    }
+  });
+};
+
+export const useDeleteSessionPaperFileMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      paperId,
+      fileType,
+      userId,
+    }: {
+      sessionId: number;
+      paperId: number;
+      fileType: "pdf" | "slide" | "text";
+      userId: number;
+    }) => {
+      return request.delete(
+        `/sessions/${sessionId}/papers/${paperId}/files/${fileType}`,
+        { user_id: userId }
+      );
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate all queries matching this session+paper prefix (userId may vary)
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.SessionPaperFiles, variables.sessionId, variables.paperId],
+        exact: false,
+      });
+      queryClient.refetchQueries({
+        queryKey: [SessionKeys.SessionPaperFiles, variables.sessionId, variables.paperId],
+        exact: false,
+      });
+      toast.success("File deleted successfully.");
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || err?.message || "Failed to delete file.");
+    }
+  });
+};
+

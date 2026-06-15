@@ -67,11 +67,12 @@ export const DebouncedMultiKeySearch = ({
   const debouncedSearchValue = useDebounce(value, debounceMs);
 
   useEffect(() => {
-    if (!defaultSearchKey && selectedSearchKey) return;
-    if (!fallbackKey) return;
-
-    setSelectedSearchKey(defaultSearchKey || fallbackKey);
-  }, [defaultSearchKey, fallbackKey, selectedSearchKey]);
+    if (defaultSearchKey) {
+      setSelectedSearchKey(defaultSearchKey);
+    } else if (fallbackKey) {
+      setSelectedSearchKey(fallbackKey);
+    }
+  }, [defaultSearchKey, fallbackKey]);
 
   useEffect(() => {
     if (!onDebouncedChange || !selectedSearchKey) return;

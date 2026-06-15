@@ -71,13 +71,15 @@ const AttendancesManagementPage: React.FC = () => {
 
   // Set default conference when data loads
   useEffect(() => {
+    if (isLoadingConferences) return;
     if (conferences.length > 0 && !selectedConfId) {
       setSelectedConfId(conferences[0].conf_id);
     }
-  }, [conferences, selectedConfId]);
+  }, [conferences, selectedConfId, isLoadingConferences]);
 
   // Set default session when sessions load or conference changes
   useEffect(() => {
+    if (isLoadingSessions) return;
     if (sessions.length > 0) {
       const isCurrentValid = sessions.some(
         (s) => s.session_id === selectedSessionId,
@@ -88,7 +90,7 @@ const AttendancesManagementPage: React.FC = () => {
     } else {
       setSelectedSessionId(null);
     }
-  }, [sessions, selectedSessionId]);
+  }, [sessions, selectedSessionId, isLoadingSessions]);
 
   // Realtime subscription for attendance changes
   useEffect(() => {

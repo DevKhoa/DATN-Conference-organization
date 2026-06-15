@@ -290,6 +290,61 @@ export const faqData: FAQSection[] = [
           "In the \"Manual Entry\" section, enter the information for each paper on each row (click \"Add Row\" to add a new row). Required info: paper title (mandatory), abstract, primary author's email (mandatory), co-authors' emails (separated by ;).\nNote: All emails must belong to existing users in the system, otherwise the data will be rejected."
         ],
         expectedResult: "- New papers are added to the conference.\n- A new information row is added in the \"Import History\" and \"Import Logs\" sections on the \"Import Papers\" page."
+      },
+      {
+        id: "papers-delete-paper",
+        question: "How do I delete a paper?",
+        audience: "organizer",
+        steps: [
+          "1. Log in successfully.",
+          "2. Navigate to the **Papers** page or find the paper within a session.",
+          "3. Click on the paper you want to delete to open its detail page.",
+          "4. On the detail page, click the **Delete** button (trash icon).",
+          "5. A confirmation dialog will appear. Click **Delete** to confirm.",
+          "\nNote: **Exception:** If the paper is currently assigned to a session, an error message will display showing which session(s) it belongs to. You must remove the paper from those sessions before deleting it."
+        ],
+        expectedResult: "The paper is deleted from the system, and you are navigated back to the previous page."
+      },
+      {
+        id: "papers-upload-presentation",
+        question: "How do I upload a file or raw text as a presentation material for my paper?",
+        audience: "attendee",
+        steps: [
+          "1. Log in successfully as the author or co-author of the paper.",
+          "2. Navigate to the session page where your paper is scheduled.",
+          "3. Locate your paper and expand its details.",
+          "4. In the **Presentation Materials** section, click the button to add a new material.",
+          "5. Select your preferred upload mode:\n   - **Upload File** — optionally enter a custom name, then select a file from your device.\n   - **Raw Text** — enter a custom name and paste your text into the provided text area (it will be saved automatically as a `.txt` file).",
+          "6. Click **Save** to submit."
+        ],
+        expectedResult: "The uploaded file or raw text document is saved and immediately displayed under your paper's **Presentation Materials** list."
+      },
+      {
+        id: "papers-delete-presentation",
+        question: "How do I delete an uploaded presentation file from my paper in a session?",
+        audience: "attendee",
+        steps: [
+          "1. Log in successfully as the author or co-author of the paper.",
+          "2. Navigate to the session page containing your paper.",
+          "3. Locate your paper and expand its details.",
+          "4. In the **Presentation Materials** section, find the file you wish to remove.",
+          "5. Click the trash icon next to that file.",
+          "6. A confirmation dialog will appear. Click **Delete** to confirm."
+        ],
+        expectedResult: "The file is deleted and no longer appears under the **Presentation Materials** section of your paper."
+      },
+      {
+        id: "papers-view-presentation",
+        question: "How do I view an uploaded presentation file in a session?",
+        audience: "both",
+        steps: [
+          "1. Log in successfully.",
+          "2. Navigate to the session containing the paper.",
+          "3. Locate the paper and expand its details.",
+          "4. In the **Presentation Materials** section, click the file link or the external link icon next to the file you want to view.",
+          "\nNote: **Access rules by role:**\n- **Author / Co-author** — can only view files attached to their own paper. They cannot view files uploaded by other authors.\n- **Organizer** — can view all files uploaded by all authors across all papers."
+        ],
+        expectedResult: "The file opens in a new browser tab or downloads to your device."
       }
     ]
   },
@@ -343,6 +398,18 @@ export const faqData: FAQSection[] = [
           "Once the system finishes uploading the image, click the \"Finish & View List\" button."
         ],
         expectedResult: "- After step 5, it will navigate to the Step 2 \"Banners & Assets\" page with the following notification on the page: \"Conference Created! Now, add some visual banners to make it stand out.\"\n- After step 8, the conference is created successfully and automatically redirects to the \"Active Conferences\" page. The newly created conference can be found on the \"Active Conferences\" page."
+      },
+      {
+        id: "conferences-delete-conference",
+        question: "How do I delete a conference?",
+        audience: "organizer",
+        steps: [
+          "1. Log in successfully.",
+          "2. Click **Conferences** in the navigation bar and select the desired conference.",
+          "3. On the conference detail page, click the **Delete Conference** button (trash icon).",
+          "4. A confirmation dialog will appear. Click **Delete** to confirm."
+        ],
+        expectedResult: "The conference and all its associated sessions and papers are removed from the system. You are redirected back to the Conferences list."
       }
     ]
   },
@@ -406,6 +473,20 @@ export const faqData: FAQSection[] = [
           "Click the \"Confirm Registration\" button."
         ],
         expectedResult: "- After step 6, a message displays under the selected ticket: \"Free Registration. No payment required. Your QR code will be sent by email.\"\n- After step 7:\n  + Displays popup message \"Registration confirmed! You are now registered. Your QR check-in code has been sent to your email.\"\n  + Receive an email with the registered ticket info and QR check-in code.\n  + The \"Registration Open\" section on the conference details page displays the line \"You already have a ticket\" and a \"View My Agenda\" button."
+      },
+      {
+        id: "tickets-delete-ticket",
+        question: "How do I delete a ticket?",
+        audience: "organizer",
+        steps: [
+          "1. Log in successfully.",
+          "2. Click **Conferences** in the navigation bar and select the desired conference.",
+          "3. On the conference detail page, click the **Tickets** button.",
+          "4. On the **Ticket Management** page, click the trash icon on the ticket you want to delete.",
+          "5. Click **Yes** to confirm deletion.",
+          "\nNote: **Exception:** If the ticket has already been purchased by attendees, it cannot be deleted to prevent invalidating existing registrations. A **Cannot Delete Ticket** dialog will appear. In this case, you can set the ticket to **Inactive** instead — this stops new purchases while keeping existing registrations valid."
+        ],
+        expectedResult: "The deleted ticket no longer appears on the Ticket Management page."
       }
     ]
   },
@@ -557,6 +638,30 @@ export const faqData: FAQSection[] = [
           "In the \"Agenda & Sessions\" section on the conference details page, click the \"Recommend Chair\" button on the session to invite a chair."
         ],
         expectedResult: "Displays \"Recommended Chairs\" suggesting the 5 most suitable chairs for the session."
+      },
+      {
+        id: "session-ai-chair-recommendation",
+        question: "How does the AI-powered chair recommendation work?",
+        audience: "organizer",
+        steps: [
+          "1. Log in successfully.",
+          "2. Click **Conferences** in the navigation bar and select your conference.",
+          "3. In the **Agenda & Sessions** section on the conference detail page, click the **Recommend Chair** button on the session you want to assign a chair to."
+        ],
+        expectedResult: "The system displays a **Recommended Chairs** list of the 5 most suitable candidates for the session, ranked by relevance."
+      },
+      {
+        id: "session-respond-chair-invitation-no-account",
+        question: "How do I respond to a chair invitation if I don't have an account yet?",
+        audience: "attendee",
+        steps: [
+          "1. Open the chair invitation email sent to your email address.",
+          "2. Click the invitation response link in the email.",
+          "3. If you do not have an account, register a new account (your account will initially have the Attendee role).",
+          "4. Once logged in, return to the email and click the invitation response link again. You will be redirected to the **Chair Invitation** detail page.",
+          "5. Review the conference and session details, then choose one of the following:\n   - Click **Accept Invitation** to accept.\n   - Click **Reject Invitation** to decline."
+        ],
+        expectedResult: "- **If accepted:** The invitation status updates to **ACCEPTED**, your account role is upgraded to Chair, and a confirmation message appears with a **Go to My Agenda** button.\n- **If rejected:** The invitation status updates to **REJECTED**, and your account role remains as Attendee."
       }
     ]
   },
@@ -647,6 +752,19 @@ export const faqData: FAQSection[] = [
           "View info on the leading papers for each award, including:"
         ],
         expectedResult: ""
+      },
+      {
+        id: "best-paper-view-scores-reviews",
+        question: "How do I view the scores and reviews of a paper?",
+        audience: "both",
+        steps: [
+          "1. Log in successfully.",
+          "2. Click on your user profile menu and select **My Papers** (or navigate directly to your papers dashboard).",
+          "3. On the **My Papers** list, click on the paper you want to check.",
+          "4. On the paper detail page, scroll down to the **Peer Reviews & Markings** section.",
+          "\nNote: **Access rules by role:**\n- **Authors** — can only view scores and comments for their own papers.\n- **Chairs and Attendees** — can only view the scores and comments they themselves have submitted.\n- **Organizers** — can view all scores and comments across all papers."
+        ],
+        expectedResult: "The **Peer Reviews & Markings** section displays a list of reviews and markings, each containing: the reviewer's profile, the review date, the reviewer's final recommendation status, the review score, and detailed comments."
       }
     ]
   },

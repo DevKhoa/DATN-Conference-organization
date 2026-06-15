@@ -181,6 +181,7 @@ const ChairInvitationsPage = () => {
         sessionId: Number(selectedSessionId),
         email: inviteEmail.trim(),
         invitedBy,
+        clientUrl: window.location.origin,
       });
       setInviteEmail("");
       setSelectedChair(null);

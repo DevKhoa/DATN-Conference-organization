@@ -88,11 +88,12 @@ const CheckinScannerPage = () => {
           session_ids: sessionIds,
         },
         {
-          onSuccess: () => {
+          onSuccess: (response: any) => {
             playSuccessSound();
+            const attendeeName = response?.attendee_name || `ID: ${registrationId}`;
             setScanResult({
               status: "success",
-              message: `Successfully checked in ID: ${registrationId}`,
+              message: `Successfully checked in ${attendeeName}`,
             });
             resetScanner();
           },

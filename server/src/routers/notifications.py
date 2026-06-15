@@ -18,6 +18,20 @@ from packages.utils import logger, supabase_client
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
+@router.get("/user-notifications/{user_id}")
+async def get_user_notifications(user_id: int):
+    try:
+        res = supabase_client.table("user_notifications") \
+            .select("id, notification_id, is_read, read_at, dynamic_title, dynamic_content, notifications(notification_id, title, content, type, created_at, conf_id, attachments, target_criteria)") \
+            .eq("user_id", user_id) \
+            .order("id", desc=True) \
+            .limit(30) \
+            .execute()
+        return res.data
+    except Exception as e:
+        logger.error(f"[Notifications] Error fetching user notifications: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch notifications")
+
 
 class SendEmailPayload(BaseModel):
     user_ids: List[int]

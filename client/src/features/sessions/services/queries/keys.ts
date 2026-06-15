@@ -3,4 +3,6 @@ export enum SessionKeys {
   SessionsByConference = "sessions/byConference",
   MyAgendaSessions = "sessions/myAgenda",
   ChairInvitations = "sessions/chairInvitations",
+  SessionPaperFiles = "sessions/sessionPaperFiles",
 }
+

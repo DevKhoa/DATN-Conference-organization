@@ -15,7 +15,17 @@ import {
   Tag,
   Info,
   Video,
+  EyeOff,
+  ShieldAlert,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 import { useRouter } from "@tanstack/react-router";
 import dayjs from "dayjs";
@@ -113,6 +123,8 @@ const TicketManagementPage = () => {
 
   // Delete state
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  // Sold-ticket guard dialog
+  const [soldTicketDialogId, setSoldTicketDialogId] = useState<number | null>(null);
 
   const loading = ticketsLoading || sessionsLoading;
   const error = ticketsError
@@ -197,6 +209,19 @@ const TicketManagementPage = () => {
       return;
     }
 
+    if (editingId !== null) {
+      const currentTicket = tickets.find((t) => t.ticket_id === editingId);
+      if (currentTicket && form.quantity_limit) {
+        const newLimit = parseInt(form.quantity_limit);
+        if (newLimit < currentTicket.sold_quantity) {
+          setFormError(
+            `Cannot change limit to ${newLimit} if ${currentTicket.sold_quantity} have been sold.`
+          );
+          return;
+        }
+      }
+    }
+
     let finalSessionIds: number[] = [];
     if (ticketScope === "FULL") {
       finalSessionIds = sessions.map((s) => s.session_id);
@@ -224,6 +249,17 @@ const TicketManagementPage = () => {
     if (newPrice === 0 && (!form.quantity_limit || parseInt(form.quantity_limit) <= 0)) {
       setFormError("Free tickets must have a specific quantity limit.");
       return;
+    }
+
+    if (newPrice > 0) {
+      if (form.currency === "VND" && newPrice < 2000) {
+        setFormError("The minimum ticket price is 2,000 VND (or 0 for free).");
+        return;
+      }
+      if (form.currency === "USD" && newPrice < 0.1) {
+        setFormError("The minimum ticket price is 0.10 USD (or 0 for free).");
+        return;
+      }
     }
 
     if (newOpen >= newClose) {
@@ -394,7 +430,41 @@ const TicketManagementPage = () => {
       await deleteTicketMutation.mutateAsync({ ticket_id: ticketId });
       setConfirmDeleteId(null);
     } catch (err: unknown) {
-      console.error("Failed to delete ticket:", err);
+      const message = err instanceof Error ? err.message : "";
+      if (message.startsWith("TICKET_HAS_SALES")) {
+        setConfirmDeleteId(null);
+        setSoldTicketDialogId(ticketId);
+      } else {
+        console.error("Failed to delete ticket:", err);
+      }
+    }
+  };
+
+  const handleDeactivate = async (ticketId: number) => {
+    try {
+      await updateTicketMutation.mutateAsync({
+        ticket_id: ticketId,
+        is_active: false,
+        // keep all existing fields unchanged — fetch from tickets list
+        ...(() => {
+          const t = tickets.find((x) => x.ticket_id === ticketId);
+          if (!t) return {};
+          return {
+            ticket_name: t.ticket_name,
+            currency: t.currency || "VND",
+            quantity_limit: t.quantity_limit ?? null,
+            open_time: t.open_time,
+            close_time: t.close_time,
+            description: t.description || null,
+            price: t.price ?? 0,
+            session_ids: t.assigned_session_ids,
+            ticket_type: t.ticket_type || "Standard",
+          };
+        })(),
+      });
+      setSoldTicketDialogId(null);
+    } catch (err) {
+      console.error("Failed to deactivate ticket:", err);
     }
   };
 
@@ -607,9 +677,13 @@ const TicketManagementPage = () => {
                               <Edit2 className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() =>
-                                setConfirmDeleteId(ticket.ticket_id)
-                              }
+                              onClick={() => {
+                                if (ticket.sold_quantity > 0) {
+                                  setSoldTicketDialogId(ticket.ticket_id);
+                                } else {
+                                  setConfirmDeleteId(ticket.ticket_id);
+                                }
+                              }}
                               className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                               title="Delete"
                             >
@@ -718,15 +792,23 @@ const TicketManagementPage = () => {
                     placeholder="0"
                     className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition"
                   />
-                  {form.currency === "VND" &&
+                  {form.price !== "" && Number(form.price) > 0 && (
+                    (form.currency === "VND" && Number(form.price) < 2000) ||
+                    (form.currency === "USD" && Number(form.price) < 0.1)
+                  ) ? (
+                    <p className="text-red-600 text-[13px] mt-2 flex items-start gap-1.5 font-medium animate-in slide-in-from-top-1">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      Minimum price is {form.currency === "VND" ? "2,000 VND" : "0.10 USD"} (or 0 for free).
+                    </p>
+                  ) : form.currency === "VND" &&
                     form.price !== "" &&
                     Number(form.price) > 0 &&
-                    Number(form.price) < MinPriceThreshold && (
-                      <p className="text-amber-600 text-[13px] mt-2 flex items-start gap-1.5 font-medium animate-in slide-in-from-top-1">
-                        <AlertCircle className="w-4 h-4 shrink-0" />
-                        Warning: Ticket price is too low.
-                      </p>
-                    )}
+                    Number(form.price) < MinPriceThreshold ? (
+                    <p className="text-amber-600 text-[13px] mt-2 flex items-start gap-1.5 font-medium animate-in slide-in-from-top-1">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      Warning: Ticket price is too low.
+                    </p>
+                  ) : null}
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-foreground mb-1.5">
@@ -913,6 +995,50 @@ const TicketManagementPage = () => {
           </div>
         </div>
       )}
+
+      {/* Sold-Ticket Guard Dialog */}
+      <Dialog
+        open={soldTicketDialogId !== null}
+        onOpenChange={(open) => { if (!open) setSoldTicketDialogId(null); }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-amber-100 shrink-0">
+                <ShieldAlert className="w-5 h-5 text-amber-600" />
+              </div>
+              <DialogTitle className="text-lg font-bold">Cannot Delete Ticket</DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-muted-foreground leading-relaxed pl-[52px]">
+              This ticket has already been purchased by one or more attendees.
+              Deleting it would invalidate their registrations.
+              <br /><br />
+              You can <span className="font-semibold text-foreground">set it to Inactive</span> instead —
+              it will no longer be available for new purchases, but existing registrations remain valid.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 pt-2">
+            <button
+              onClick={() => setSoldTicketDialogId(null)}
+              className="flex-1 px-4 py-2 text-sm font-medium rounded-lg border border-border bg-background hover:bg-accent text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => soldTicketDialogId !== null && handleDeactivate(soldTicketDialogId)}
+              disabled={updateTicketMutation.isPending}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50"
+            >
+              {updateTicketMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <EyeOff className="w-4 h-4" />
+              )}
+              Set Inactive
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

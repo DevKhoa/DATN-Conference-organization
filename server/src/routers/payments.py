@@ -41,7 +41,7 @@ async def complete_registration_after_payment(
 			raise HTTPException(status_code=400, detail=f"Transaction is in status '{trans['status']}', cannot complete.")
 
 		# Verify payment with PayOS
-		payment_info = await payos_client.payment_requests.getPaymentLinkInformation(int(order_code))
+		payment_info = await payos_client.payment_requests.get(int(order_code))
 		if not payment_info or payment_info.status != "PAID":
 			raise HTTPException(status_code=400, detail="Payment has not been confirmed by PayOS yet.")
 
@@ -56,7 +56,36 @@ async def complete_registration_after_payment(
 		ticket_data = metadata.get("ticket_data") or metadata
 		sessions = ticket_data.get("sessions") or []
 
+		# Update sold_quantity
+		ticket_id = ticket_data.get("ticket_id")
+		if ticket_id:
+			try:
+				t_res = supabase_client.table("ticket_configs").select("sold_quantity").eq("ticket_id", ticket_id).single().execute()
+				current_sold = (t_res.data or {}).get("sold_quantity") or 0
+				supabase_client.table("ticket_configs").update({"sold_quantity": current_sold + 1}).eq("ticket_id", ticket_id).execute()
+			except Exception as e:
+				logger.error(f"Failed to increment sold_quantity for ticket {ticket_id}: {e}")
+
 		if registration_id:
+			# Re-create attendances because we deleted them upon registration creation for paid tickets
+			if sessions:
+				attendance_records = [
+					{
+						"registration_id": registration_id,
+						"session_id": s["session_id"],
+						"is_checkin": False,
+					}
+					for s in sessions if s.get("session_id")
+				]
+				if attendance_records:
+					supabase_client.table("attendences") \
+						.upsert(
+							attendance_records,
+							on_conflict="registration_id,session_id",
+							ignore_duplicates=True,
+						) \
+						.execute()
+
 			user_res = supabase_client.table("registrations") \
 				.select("user:profiles(email, full_name)") \
 				.eq("registration_id", registration_id) \
@@ -185,6 +214,16 @@ async def confirm_payment_webhook(request: Request, background_tasks: Background
 			registration_id = trans.get("registration_id")
 			ticket_data = metadata.get("ticket_data") or metadata
 			sessions = ticket_data.get("sessions") or []
+
+			# Update sold_quantity
+			ticket_id = ticket_data.get("ticket_id")
+			if ticket_id:
+				try:
+					t_res = supabase_client.table("ticket_configs").select("sold_quantity").eq("ticket_id", ticket_id).single().execute()
+					current_sold = (t_res.data or {}).get("sold_quantity") or 0
+					supabase_client.table("ticket_configs").update({"sold_quantity": current_sold + 1}).eq("ticket_id", ticket_id).execute()
+				except Exception as e:
+					logger.error(f"Failed to increment sold_quantity for ticket {ticket_id}: {e}")
 
 			if registration_id and sessions:
 				attendance_records = [

@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 export const DIRS = ["n", "s", "e", "w", "ne", "nw", "se", "sw"] as const;
 export type ResizeDirection = (typeof DIRS)[number];
 
-const BASE_API_URL = import.meta.env.VITE_API_BASE_URL as string;
+const BASE_API_URL = ((import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:8080").replace(/\/$/, "");
 
 export const DIR_CURSOR: Record<ResizeDirection, string> = {
   n: "ns-resize",
@@ -59,9 +59,9 @@ export const solidColorImg = (color: string, w: number, h: number): string => {
 export const urlToBase64 = async (url: string): Promise<string> => {
   if (url.startsWith("data:")) return url;
 
-  try {
+ try {
     const resp = await fetch(
-      `${BASE_API_URL}/proxy-image?url=${encodeURIComponent(url)}`,
+      `${BASE_API_URL}/proxy-image?url=${encodeURIComponent(url)}`
     );
     if (resp.ok) {
       const json = await resp.json();

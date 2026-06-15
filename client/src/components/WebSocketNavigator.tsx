@@ -29,7 +29,10 @@ export const WebSocketNavigator = ({
       `[WebSocketNavigator] Connecting... UserID: ${userId}, TabID: ${tabId}`,
     );
 
-    const ws = new WebSocket(`${wsProtocolUrl}/ws/${userId}/${tabId}`);
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+    const wsProto = apiBaseUrl.startsWith("https") ? "wss" : "ws";
+    const wsHost = apiBaseUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    const ws = new WebSocket(`${wsProto}://${wsHost}/ws/${userId}/${tabId}`);
 
     ws.onopen = () => {
       console.log(`[WebSocketNavigator] Connected! TabID is: ${tabId}`);

@@ -67,14 +67,9 @@ const ConferencesPage: React.FC = () => {
   // Filter States
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [sortOrder, setSortOrder] = useState<
-    | "START_DATE_ASC"
-    | "START_DATE_DESC"
-    | "ONGOING_FIRST"
-    | "UPCOMING_FIRST"
-    | "CLOSED_FIRST"
-    | "AZ"
-  >("START_DATE_ASC");
+  const [timeFilter, setTimeFilter] = useState<
+    "ALL" | "UPCOMING" | "IN_PROGRESS" | "COMPLETED"
+  >("ALL");
   const [selectedKeyword, setSelectedKeyword] = useState<string>("");
 
   // Topic search state
@@ -179,11 +174,11 @@ const ConferencesPage: React.FC = () => {
 
         let matchesTiming = true;
         const score = getEventTimingScore(conf);
-        if (sortOrder === "ONGOING_FIRST") {
+        if (timeFilter === "IN_PROGRESS") {
           matchesTiming = score === 1;
-        } else if (sortOrder === "UPCOMING_FIRST") {
+        } else if (timeFilter === "UPCOMING") {
           matchesTiming = score === 2;
-        } else if (sortOrder === "CLOSED_FIRST") {
+        } else if (timeFilter === "COMPLETED") {
           matchesTiming = score === 3;
         }
 
@@ -192,53 +187,17 @@ const ConferencesPage: React.FC = () => {
         );
       })
       .sort((a, b) => {
-        if (sortOrder === "START_DATE_ASC") {
-          return (
-            new Date(a.start_date ?? 0).getTime() -
-            new Date(b.start_date ?? 0).getTime()
-          );
-        } else if (sortOrder === "START_DATE_DESC") {
-          return (
-            new Date(b.start_date ?? 0).getTime() -
-            new Date(a.start_date ?? 0).getTime()
-          );
-        } else if (sortOrder === "ONGOING_FIRST") {
-          const scoreA = getEventTimingScore(a);
-          const scoreB = getEventTimingScore(b);
-          if (scoreA === 1 && scoreB !== 1) return -1;
-          if (scoreB === 1 && scoreA !== 1) return 1;
-          return (
-            new Date(a.start_date ?? 0).getTime() -
-            new Date(b.start_date ?? 0).getTime()
-          );
-        } else if (sortOrder === "UPCOMING_FIRST") {
-          const scoreA = getEventTimingScore(a);
-          const scoreB = getEventTimingScore(b);
-          if (scoreA === 2 && scoreB !== 2) return -1;
-          if (scoreB === 2 && scoreA !== 2) return 1;
-          return (
-            new Date(a.start_date ?? 0).getTime() -
-            new Date(b.start_date ?? 0).getTime()
-          );
-        } else if (sortOrder === "CLOSED_FIRST") {
-          const scoreA = getEventTimingScore(a);
-          const scoreB = getEventTimingScore(b);
-          if (scoreA === 3 && scoreB !== 3) return -1;
-          if (scoreB === 3 && scoreA !== 3) return 1;
-          return (
-            new Date(b.start_date ?? 0).getTime() -
-            new Date(a.start_date ?? 0).getTime()
-          );
-        } else {
-          return a.conf_name.localeCompare(b.conf_name);
-        }
+        return (
+          new Date(a.start_date ?? 0).getTime() -
+          new Date(b.start_date ?? 0).getTime()
+        );
       });
   }, [
     conferences,
     searchTerm,
     statusFilter,
     selectedKeyword,
-    sortOrder,
+    timeFilter,
     getEventTimingScore,
   ]);
 
@@ -341,26 +300,30 @@ const ConferencesPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="w-full sm:w-48">
+                <div className="w-full sm:w-auto">
                   <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1.5 ml-1">
-                    Sort By
+                    Time Filter
                   </label>
-                  <select
-                    className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground text-sm focus:ring-2 focus:ring-ring outline-none"
-                    value={sortOrder}
-                    onChange={(e) => setSortOrder(e.target.value as any)}
-                  >
-                    <option value="START_DATE_ASC">
-                      Start Date (Earliest first)
-                    </option>
-                    <option value="START_DATE_DESC">
-                      Start Date (Latest first)
-                    </option>
-                    <option value="ONGOING_FIRST">Status: Ongoing</option>
-                    <option value="UPCOMING_FIRST">Status: Upcoming</option>
-                    <option value="CLOSED_FIRST">Status: Closed</option>
-                    <option value="AZ">Alphabetical (A-Z)</option>
-                  </select>
+                  <div className="flex gap-2 bg-muted p-1 rounded-lg border border-border overflow-x-auto">
+                    {[
+                      { value: "ALL", label: "All" },
+                      { value: "UPCOMING", label: "Upcoming" },
+                      { value: "IN_PROGRESS", label: "In Progress" },
+                      { value: "COMPLETED", label: "Completed" },
+                    ].map((tab) => (
+                      <button
+                        key={tab.value}
+                        onClick={() => setTimeFilter(tab.value as any)}
+                        className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                          timeFilter === tab.value
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>

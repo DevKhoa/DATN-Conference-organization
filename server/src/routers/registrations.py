@@ -57,7 +57,15 @@ async def create_registration_before_payment(
         if quantity_limit is not None and sold_quantity >= quantity_limit:
             raise HTTPException(status_code=400, detail="This ticket is sold out.")
 
-        total_amount = int(ticket_info.get("price") or 0)
+        currency = ticket_info.get("currency", "VND").upper()
+        base_price = float(ticket_info.get("price") or 0)
+        
+        if currency == "USD" and base_price > 0:
+            from packages.utils import get_exchange_rate_to_vnd
+            rate = get_exchange_rate_to_vnd("USD")
+            total_amount = int(base_price * rate)
+        else:
+            total_amount = int(base_price)
 
         # Guard: for FREE tickets, only allow 1 registration per user per ticket
         if total_amount <= 0:
@@ -86,6 +94,7 @@ async def create_registration_before_payment(
                 reg_id = reg["registration_id"]
                 try:
                     supabase_client.table("transactions").delete().eq("registration_id", reg_id).execute()
+                    supabase_client.table("attendences").delete().eq("registration_id", reg_id).execute()
                     supabase_client.table("registrations").delete().eq("registration_id", reg_id).execute()
                     logger.info(f"Cleaned up abandoned unpaid registration {reg_id}")
                 except Exception as e:
@@ -116,6 +125,13 @@ async def create_registration_before_payment(
             )
 
         # 4b. Paid ticket — chain into PayOS payment creation
+        # IMPORTANT: Since trigger auto-creates attendences upon registration insert, 
+        # but payment is not yet completed, we must delete them. They will be recreated on success.
+        try:
+            supabase_client.table("attendences").delete().eq("registration_id", registration_id).execute()
+        except Exception as e:
+            logger.warning(f"Failed to delete initial attendences for {registration_id}: {e}")
+
         return await _create_payment_for_registration(
             registration_id=registration_id,
             ticket_info=ticket_info,
@@ -169,7 +185,7 @@ async def _complete_free_registration(
         "sessions": sessions,
     }
 
-	# Record a COMPLETED transaction for audit trail
+    # Record a COMPLETED transaction for audit trail
     supabase_client.table("transactions").insert({
         "order_type": "REGISTRATION",
         "registration_id": registration_id,
@@ -181,6 +197,14 @@ async def _complete_free_registration(
         "created_at": now,
         "updated_at": now,
     }).execute()
+
+    # Update sold_quantity for free ticket
+    try:
+        t_res = supabase_client.table("ticket_configs").select("sold_quantity").eq("ticket_id", ticket_id).single().execute()
+        current_sold = (t_res.data or {}).get("sold_quantity") or 0
+        supabase_client.table("ticket_configs").update({"sold_quantity": current_sold + 1}).eq("ticket_id", ticket_id).execute()
+    except Exception as e:
+        logger.error(f"Failed to increment sold_quantity for free ticket {ticket_id}: {e}")
 
     # Fetch user email for QR email
     user_res = supabase_client.table("registrations") \
@@ -221,7 +245,15 @@ async def _create_payment_for_registration(
 ):
     """Shared payment creation logic used by both registration endpoints."""
     ticket_id = ticket_info["ticket_id"]
-    total_amount = int(ticket_info.get("price") or 0)
+    currency = ticket_info.get("currency", "VND").upper()
+    base_price = float(ticket_info.get("price") or 0)
+
+    if currency == "USD" and base_price > 0:
+        from packages.utils import get_exchange_rate_to_vnd
+        rate = get_exchange_rate_to_vnd("USD")
+        total_amount = int(base_price * rate)
+    else:
+        total_amount = int(base_price)
 
     if total_amount <= 0:
         raise HTTPException(status_code=400, detail="Ticket price must be greater than 0.")
