@@ -274,6 +274,24 @@ const TicketManagementPage = () => {
       return;
     }
 
+    if (ticketScope === "FULL" && conferenceData?.conference?.end_date) {
+      const confEnd = dayjs(conferenceData.conference.end_date).endOf("day").valueOf();
+      if (newClose > confEnd) {
+        setFormError(
+          `Sale close time cannot be after the conference end date (${dayjs(conferenceData.conference.end_date).format("DD/MM/YYYY")}).`
+        );
+        return;
+      }
+    } else if (ticketScope === "SINGLE" && selectedDate) {
+      const singleDayEnd = dayjs(selectedDate).endOf("day").valueOf();
+      if (newClose > singleDayEnd) {
+        setFormError(
+          `Sale close time cannot be after the ticket's valid date (${dayjs(selectedDate).format("DD/MM/YYYY")}).`
+        );
+        return;
+      }
+    }
+
     // Filter existing tickets belonging to the same Ticket Class (case-insensitive)
     const currentTicketTypeLower = form.ticket_type.trim().toLowerCase();
     const sameClassTickets = tickets.filter(
