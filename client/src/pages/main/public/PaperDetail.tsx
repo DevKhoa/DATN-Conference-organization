@@ -301,7 +301,7 @@ const PaperDetailPage: React.FC = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <button
               onClick={() => {
-                if (window.history.length > 2) {
+                if (window.history.length > 1) {
                   window.history.back();
                 } else {
                   navigate({ to: "/papers" });
@@ -933,7 +933,7 @@ const PaperDetailPage: React.FC = () => {
                           onSuccess: () => {
                             setDeleteConfirmOpen(false);
                             toast.success("Paper deleted successfully.");
-                            if (window.history.length > 2) {
+                            if (window.history.length > 1) {
                               window.history.back();
                             } else {
                               navigate({ to: "/papers" });

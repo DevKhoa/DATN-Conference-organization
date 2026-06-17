@@ -5,7 +5,8 @@ import pathlib
 import uuid
 from typing import Optional, List
 
-from fastapi import APIRouter, File, Query, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Query, Form, HTTPException, UploadFile, Body
+from pydantic import BaseModel
 from packages.schema import PaperDetailResponse, PaperSummary, PaperFormatReview
 from packages.file_storage import StorageClient
 from packages.embeddings import EmbeddingPipeline
@@ -143,6 +144,56 @@ async def upload_paper(
     except Exception as e:
         logger.error(f"API Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+class UploadLinkRequest(BaseModel):
+    link: str
+
+@router.post("/papers/{paper_id}/{version_id}/upload-link")
+async def upload_paper_link(
+    paper_id: str,
+    version_id: str,
+    payload: UploadLinkRequest
+):
+    try:
+        from packages.pdf_service import fetch_and_upload_pdf
+        
+        logger.info(f"Processing drive link upload for paper {paper_id}, version {version_id}")
+        
+        public_url = await fetch_and_upload_pdf(payload.link, paper_id, version_id)
+
+        if not public_url:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to upload file to storage"
+            )
+        
+        try:
+            update_res = supabase_client.table("paper_versions").update({
+                "file_path": public_url,
+            }).eq("version_id", int(version_id)).eq("paper_id", int(paper_id)).execute()
+
+            if not update_res.data:
+                logger.warning(f"File uploaded to GCS but Version ID {version_id} not found in DB to update.")
+                raise HTTPException(status_code=404, detail="Version ID not found in database")
+            logger.info(f"Database updated for Version {version_id}")
+
+        except Exception as db_e:
+            logger.error(f"Database Update Error: {db_e}")
+            raise HTTPException(status_code=500, detail="Uploaded to Storage but failed to update Database.")
+
+        return {
+            "message": "Upload successful",
+            "paper_id": paper_id,
+            "version_id": version_id,
+            "url": public_url
+        }
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"API Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.get("/storage/{paper_id}/files")
