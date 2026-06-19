@@ -149,6 +149,8 @@ export const useNotificationConferenceUsersPoolQuery = (
       }
 
       let attendeeIds: number[] = [];
+      let authorIds: number[] = [];
+
       if (sessionIds.length > 0) {
         const { data: ticketSessionData } = await supabase
           .from("ticket_session")
@@ -173,9 +175,44 @@ export const useNotificationConferenceUsersPoolQuery = (
             .map((registration: any) => registration.user_id)
             .filter(Boolean);
         }
+
+        const { data: sessionPapersData } = await supabase
+          .from("session_papers")
+          .select("paper_id")
+          .in("session_id", sessionIds);
+
+        const paperIds = [
+          ...new Set(
+            (sessionPapersData || [])
+              .map((sessionPaper: any) => sessionPaper.paper_id)
+              .filter(Boolean),
+          ),
+        ];
+
+        if (paperIds.length > 0) {
+          const { data: authorsData } = await supabase
+            .from("papers")
+            .select("primary_author_id")
+            .in("paper_id", paperIds);
+
+          const primaryAuthorIds = (authorsData || [])
+            .map((paper: any) => paper.primary_author_id)
+            .filter(Boolean);
+
+          const { data: coAuthorsData } = await supabase
+            .from("paper_coauthors")
+            .select("user_id")
+            .in("paper_id", paperIds);
+
+          const coAuthorIds = (coAuthorsData || [])
+            .map((coAuthor: any) => coAuthor.user_id)
+            .filter(Boolean);
+
+          authorIds = [...primaryAuthorIds, ...coAuthorIds];
+        }
       }
 
-      return [...new Set([...chairIds, ...attendeeIds])];
+      return [...new Set([...chairIds, ...attendeeIds, ...authorIds])];
     },
   });
 };
