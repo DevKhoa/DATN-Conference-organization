@@ -16,7 +16,7 @@ logger = Logger()
 user_id_var = contextvars.ContextVar("user_id", default=None)
 tab_id_var = contextvars.ContextVar("tab_id", default=None)
 
-BASE_URL = f"{os.environ.get("API_BASE_URL")}/trigger-action"
+BASE_URL = f"{os.environ.get('API_BASE_URL', 'http://localhost:8080')}/trigger-action"
 
 
 def make_query(sql_query: str) -> str:

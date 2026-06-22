@@ -53,7 +53,7 @@ export const WebSocketNavigator = ({
         const getCleanedHtml = () => {
           const clone = document.body.cloneNode(true) as HTMLElement;
           const elementsToRemove = clone.querySelectorAll(
-            "script, style, svg, noscript, iframe",
+            "script, style, svg, noscript, iframe, [data-agent-ignore='true']",
           );
           elementsToRemove.forEach((el) => el.remove());
 

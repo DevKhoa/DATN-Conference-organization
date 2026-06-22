@@ -68,7 +68,7 @@ async def trigger_action(user_id: str, tab_id: str, payload: ActionPayload):
             return {
                 "status": "success",
                 "url": result.get("url"), 
-                # "available_ids": result.get("available_ids"),
+                "available_ids": result.get("available_ids"),
                 "html": result.get("html"),
                 "message": result.get("message", "Trigger action successed"),
                 "user_roles": result.get("user_roles", [])
