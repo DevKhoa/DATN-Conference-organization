@@ -1,4 +1,5 @@
 import { AdminLayout } from "@/layouts/AdminLayout";
+import { useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Search,
@@ -308,6 +309,14 @@ const UserRow = ({
   onSaveRequest,
 }: UserRowProps) => {
   const roleIds = user.user_roles.map((ur) => ur.role_id);
+  const navigate = useNavigate();
+
+  const handleProfileClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (user.email) {
+      navigate({ to: "/profile", search: { email: user.email } } as any);
+    }
+  };
 
   return (
     <div
@@ -316,39 +325,46 @@ const UserRow = ({
       }`}
     >
       <div className="p-4 flex items-center gap-4">
-        {/* Avatar */}
-        <div className="shrink-0">
-          {user.avatar_url ? (
-            <img
-              src={user.avatar_url}
-              alt={user.full_name || ""}
-              className="w-10 h-10 rounded-full object-cover ring-2 ring-border"
-            />
-          ) : (
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center text-primary font-bold text-sm ring-2 ring-border">
-              {getInitials(user.full_name)}
-            </div>
-          )}
-        </div>
+        {/* Avatar & Info Wrapper */}
+        <div 
+          className="flex items-center gap-4 flex-1 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
+          onClick={handleProfileClick}
+          title="Click to view profile"
+        >
+          {/* Avatar */}
+          <div className="shrink-0">
+            {user.avatar_url ? (
+              <img
+                src={user.avatar_url}
+                alt={user.full_name || ""}
+                className="w-10 h-10 rounded-full object-cover ring-2 ring-border"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/40 flex items-center justify-center text-primary font-bold text-sm ring-2 ring-border">
+                {getInitials(user.full_name)}
+              </div>
+            )}
+          </div>
 
-        {/* Info */}
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold text-foreground truncate">
-            {user.full_name || <span className="italic text-muted-foreground">No name</span>}
-          </p>
-          <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
-            {user.email && (
-              <span className="flex items-center gap-1 truncate">
-                <Mail className="w-3 h-3 shrink-0" />
-                {user.email}
-              </span>
-            )}
-            {user.organization && (
-              <span className="hidden sm:flex items-center gap-1 truncate">
-                <Building2 className="w-3 h-3 shrink-0" />
-                {user.organization}
-              </span>
-            )}
+          {/* Info */}
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-foreground truncate">
+              {user.full_name || <span className="italic text-muted-foreground">No name</span>}
+            </p>
+            <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
+              {user.email && (
+                <span className="flex items-center gap-1 truncate">
+                  <Mail className="w-3 h-3 shrink-0" />
+                  {user.email}
+                </span>
+              )}
+              {user.organization && (
+                <span className="hidden sm:flex items-center gap-1 truncate">
+                  <Building2 className="w-3 h-3 shrink-0" />
+                  {user.organization}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

@@ -360,7 +360,15 @@ export const useUpdatePaperContentMutation = () => {
           throw new Error("File upload failed, no URL returned.");
         }
       } else if (driveLink) {
-        finalFilePath = driveLink;
+        const uploadData = await request.post<{ url?: string }>(
+          `/papers/${paperId}/${activeVersionId}/upload-link`,
+          { link: driveLink },
+        );
+        if (uploadData?.url) {
+          finalFilePath = uploadData.url;
+        } else {
+          throw new Error("Link upload failed, no URL returned.");
+        }
       }
 
       if (finalFilePath) {

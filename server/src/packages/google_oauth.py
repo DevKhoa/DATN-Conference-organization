@@ -16,14 +16,14 @@ class GoogleMeetService:
         ]
         
         # Lấy đường dẫn file từ biến môi trường
-        credentials_file_path = os.environ.get("GOOGLE_MEET_CREDENTIALS_FILE")
+        credentials_file_path = os.environ.get("GOOGLE_MEET_CREDENTIALS")
 
         # Đọc nội dung file JSON và gán vào client_config
         if credentials_file_path and os.path.exists(credentials_file_path):
             with open(credentials_file_path, 'r', encoding='utf-8') as f:
                 self.client_config = json.load(f)
         else:
-            logger.warning("GOOGLE_MEET_CREDENTIALS_FILE not set or file not found. Google Meet integration will be disabled.")
+            logger.warning("GOOGLE_MEET_CREDENTIALS not set or file not found. Google Meet integration will be disabled.")
             self.client_config = None
 
     def get_authorization_url(self, email: str):
