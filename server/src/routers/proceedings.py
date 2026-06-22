@@ -518,8 +518,8 @@ async def list_proceedings_papers(
         if include_abstract:
             columns = "paper_id, title, abstract, primary_author_id, author:profiles!primary_author_id(full_name, organization)"
 
-        # Only include papers that are actually scheduled in a session
-        sessions_res = supabase_client.table("sessions").select("session_id").eq("conf_id", conf_id).execute()
+        # Only include papers that are actually scheduled in an active session
+        sessions_res = supabase_client.table("sessions").select("session_id").eq("conf_id", conf_id).is_("deleted_at", "null").execute()
         session_ids = [s["session_id"] for s in (sessions_res.data or []) if s.get("session_id")]
         
         valid_paper_ids = []
@@ -588,6 +588,7 @@ async def list_proceedings_reviewers(conf_id: int):
             supabase_client.table("sessions")
             .select("session_id")
             .eq("conf_id", conf_id)
+            .is_("deleted_at", "null")
             .execute()
         )
         session_ids = [s["session_id"] for s in (sessions_res.data or []) if s.get("session_id")]
@@ -638,6 +639,7 @@ async def bootstrap_proceedings(conf_id: int, limit: int = Query(50, ge=1, le=50
             supabase_client.table("sessions")
             .select("*")
             .eq("conf_id", conf_id)
+            .is_("deleted_at", "null")
             .order("start_time", desc=False)
             .execute()
         )
