@@ -247,3 +247,7 @@ Credentials/
 *.ipynb
 
 /database-schema.md
+
+/benchmark/sample_cvs
+/benchmark/
+*.json

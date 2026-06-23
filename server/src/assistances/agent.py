@@ -1,6 +1,7 @@
 from typing import List, AsyncGenerator, Any
 
 import inspect
+from datetime import datetime
 
 from google.genai import types
 
@@ -43,8 +44,12 @@ class RootAgent:
         Main function to send request to the agent, perform multiple action and return responses once
         """
         self.logger.info(f"Received request: {message}")
+        
+        current_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        dynamic_instruction = f"{self.instruction}\n\n[CRITICAL SYSTEM INFO]: The current server date and time is {current_time_str}. Please use this exact date and time for any relative time calculations (e.g., 'today', 'tomorrow', 'current year') or when filling out datetime forms."
+        
         config = types.GenerateContentConfig(
-            system_instruction=self.instruction,
+            system_instruction=dynamic_instruction,
             tools=self.tools,
         )
         contents = list(local_memory) if local_memory else []
@@ -62,8 +67,11 @@ class RootAgent:
         """
         self.logger.info(f"Received stream event request: {message}")
         
+        current_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        dynamic_instruction = f"{self.instruction}\n\n[CRITICAL SYSTEM INFO]: The current server date and time is {current_time_str}. Please use this exact date and time for any relative time calculations (e.g., 'today', 'tomorrow', 'current year') or when filling out datetime forms."
+        
         config = types.GenerateContentConfig(
-            system_instruction=self.instruction,
+            system_instruction=dynamic_instruction,
             tools=self.tools,
             automatic_function_calling= types.AutomaticFunctionCallingConfig(disable=True)
         )
@@ -120,8 +128,11 @@ class RootAgent:
 
         self.logger.info(f"Received stream event request: {message}")
         
+        current_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        dynamic_instruction = f"{self.instruction}\n\n[CRITICAL SYSTEM INFO]: The current server date and time is {current_time_str}. Please use this exact date and time for any relative time calculations (e.g., 'today', 'tomorrow', 'current year') or when filling out datetime forms."
+        
         config = types.GenerateContentConfig(
-            system_instruction=self.instruction,
+            system_instruction=dynamic_instruction,
             tools=self.tools,
             automatic_function_calling= types.AutomaticFunctionCallingConfig(disable=True)
         )
