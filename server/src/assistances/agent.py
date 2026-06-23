@@ -5,7 +5,7 @@ import inspect
 from google.genai import types
 
 from assistances.agent_tools import make_query, navigate, click, fill, current_tab, fill_enter, fill_datetime
-from packages.utils import Logger, genai_client, ASSISTANCE_INSTRUCTION
+from packages.utils import Logger, genai_client, get_assistance_instruction
 
 logger = Logger()
 
@@ -15,12 +15,12 @@ MAX_DEPTH = 10
 TOOLS = [make_query, navigate, click, fill, current_tab, fill_datetime, fill_enter]
 
 class RootAgent:
-    def __init__(self, client=genai_client, model=MODEL, max_token=MAX_OUTPUT_TOKEN, tools=TOOLS, instruction=ASSISTANCE_INSTRUCTION):
+    def __init__(self, client=genai_client, model=MODEL, max_token=MAX_OUTPUT_TOKEN, tools=TOOLS, instruction=None):
         self.client = client 
         self.model = model 
         self.max_token = max_token
         self.tools = tools 
-        self.instruction = instruction
+        self.instruction = instruction if instruction is not None else get_assistance_instruction()
         self.logger = Logger()
         
     async def _execute_tool(self, name: str, args: dict) -> dict:

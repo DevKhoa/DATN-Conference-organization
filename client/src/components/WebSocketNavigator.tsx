@@ -43,27 +43,102 @@ export const WebSocketNavigator = ({
         const data = JSON.parse(event.data);
         console.log("[WebSocketNavigator] Received action:", data);
 
-        const getPageContextIds = () => {
-          const elements = document.querySelectorAll(
-            "button[id], a[id], input[id], form[id], textarea[id], select[id]",
+        const isElementVisible = (el: Element): boolean => {
+          const style = window.getComputedStyle(el);
+          return (
+            style.display !== "none" &&
+            style.visibility !== "hidden" &&
+            style.opacity !== "0" &&
+            (el as HTMLElement).offsetParent !== null
           );
-          return Array.from(elements).map((el) => el.id);
         };
 
-        const getCleanedHtml = () => {
-          const clone = document.body.cloneNode(true) as HTMLElement;
-          const elementsToRemove = clone.querySelectorAll(
-            "script, style, svg, noscript, iframe",
+        const getPageContextIds = (): string[] => {
+          const interactableSelector = [
+            "button:not([disabled])[id]",
+            "a[href][id]",
+            "input:not([type='hidden']):not([disabled])[id]",
+            "textarea:not([disabled])[id]",
+            "select:not([disabled])[id]",
+          ].join(", ");
+          const elements = document.querySelectorAll(interactableSelector);
+          return Array.from(elements)
+            .filter((el) => isElementVisible(el))
+            .map((el) => el.id);
+        };
+
+        const getCleanedHtml = (): string => {
+          const SKIP_TAGS = new Set([
+            "script", "style", "svg", "noscript", "iframe",
+            "path", "defs", "g", "head", "meta", "link",
+          ]);
+          const INTERACTIVE_TAGS = new Set(["button", "a", "input", "textarea", "select"]);
+          const CONTENT_TAGS = new Set([
+            "h1", "h2", "h3", "h4", "h5", "h6",
+            "p", "li", "label", "th", "td", "option",
+          ]);
+
+          const lines: string[] = [];
+
+          const processElement = (el: Element): void => {
+            const tag = el.tagName.toLowerCase();
+            if (SKIP_TAGS.has(tag)) return;
+            if (!isElementVisible(el)) return;
+
+            if (INTERACTIVE_TAGS.has(tag)) {
+              const attrs: string[] = [];
+              if (el.id) attrs.push(`id="${el.id}"`);
+
+              const type = el.getAttribute("type");
+              if (type) attrs.push(`type="${type}"`);
+
+              const placeholder = el.getAttribute("placeholder");
+              if (placeholder) attrs.push(`placeholder="${placeholder}"`);
+
+              const ariaLabel = el.getAttribute("aria-label");
+              if (ariaLabel) attrs.push(`aria-label="${ariaLabel}"`);
+
+              const href = el.getAttribute("href");
+              if (href && !href.startsWith("#")) attrs.push(`href="${href}"`);
+
+              if ((el as HTMLButtonElement).disabled) attrs.push("disabled");
+
+              const attrStr = attrs.length ? " " + attrs.join(" ") : "";
+              const text = el.textContent?.trim().replace(/\s+/g, " ") || "";
+
+              if (tag === "input") {
+                const val = (el as HTMLInputElement).value;
+                const valStr = val ? ` value="${val}"` : "";
+                lines.push(`<${tag}${attrStr}${valStr}/>`);
+              } else if (tag === "textarea") {
+                const val = (el as HTMLTextAreaElement).value;
+                lines.push(`<${tag}${attrStr}>${val}</${tag}>`);
+              } else if (tag === "select") {
+                const val = (el as HTMLSelectElement).value;
+                if (val) attrs.push(`value="${val}"`);
+                lines.push(`<${tag}${attrStr}/>`);
+              } else {
+                // button, a
+                if (text) lines.push(`<${tag}${attrStr}>${text}</${tag}>`);
+              }
+              return; // do not recurse into interactive elements
+            }
+
+            if (CONTENT_TAGS.has(tag)) {
+              const text = el.textContent?.trim().replace(/\s+/g, " ") || "";
+              if (text) lines.push(`<${tag}>${text}</${tag}>`);
+              return; // do not recurse further
+            }
+
+            // Structural wrapper — transparent, recurse into children in DOM order
+            Array.from(el.children).forEach((child) => processElement(child));
+          };
+
+          Array.from(document.body.children).forEach((child) =>
+            processElement(child),
           );
-          elementsToRemove.forEach((el) => el.remove());
 
-          const allElements = clone.querySelectorAll("*");
-          allElements.forEach((el) => {
-            el.removeAttribute("class");
-            el.removeAttribute("style");
-          });
-
-          return clone.outerHTML;
+          return lines.join("\n");
         };
 
         const sendResponse = (

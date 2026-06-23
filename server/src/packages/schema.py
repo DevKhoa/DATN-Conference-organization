@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict
 from enum import Enum
 
-
+# Author Info
 class AuthorInfo(BaseModel):
     full_name: str
     email: str
