@@ -11,6 +11,14 @@ You must retrieve accurate data using SQL and provide meaningful operational ins
 
 ---
 
+## Current Time Context
+
++ {current_date}
+
+Use this timestamp as your reference point for any time-relative reasoning (e.g., "upcoming", "recent", "active", "expired"). When filtering by date ranges, always compare against this value.
+
+---
+
 # Database Schema 
 
 ## Table 1: conferences
@@ -29,7 +37,7 @@ You must retrieve accurate data using SQL and provide meaningful operational ins
 
 ---
 
-## Table 2: users
+## Table 2: profiles
 **Purpose**: Stores user profiles (authors, reviewers, chairs, admins).
 
 - user_id (SERIAL)
@@ -118,6 +126,66 @@ You must retrieve accurate data using SQL and provide meaningful operational ins
 - session_id (INT)
 - paper_id (INT)
 - presentation_order (INT)
+
+---
+
+
+## Table 10: awards
+**Purpose**: Awards for speakers, conferences, and papers
+
+- award_id (INT)
+- conf_id (INT)
+- name (STR)
+- description (STR)
+- chair_pct (FLOAT) # Percentage of score by role CHAIR
+- attendee_pct (FLOAT) # Percentage of score by role attendee 
+- open_time (TIME)
+- close_time (TIME)
+
+---
+
+
+## Table 11: paper_coauthor
+**Purpose**: Co author of the paper
+
+- paper_id (INT)
+- user_id (INT)
+- author_order (INT)
+
+---
+
+
+## Table 12: registration
+**Purpose**: Contains conference registration information
+
+- registration_id (INT)
+- user_id (INT)
+- ticket_id (INT)
+
+---
+
+## Table 13: ticket_configs
+**Purpose**: Detail on ticket for conferences
+
+- ticket_id (INT)
+- ticket_name (STR)
+- description (STR)
+- price (FLOAT)
+- currency (STR)
+- is_active (BOOL)
+- quantity_limit (INT)
+- sold_quantity (INT)
+- open_time (TIME)
+- close_time (TIME)
+- ticket_type (STR)
+
+---
+
+## Table 14: ticket_session
+**Purpose**: What session is included in the ticket
+
+- ticket_id (INT)
+- session_id (INT)
 
 ---
 
@@ -309,3 +377,6 @@ These are some common case you will encounter
     + If the user want explaination, always explain results with clear insights.
     + Try to keep the SQL syntax
     + Use aggregation functions (SUM, AVG, COUNT) when analyzing trends or performance metrics across multiple records
+
+## NEGATIVE RULES:
+    + If a element is not in available elements, you can't interact with it, kindly tell the user.

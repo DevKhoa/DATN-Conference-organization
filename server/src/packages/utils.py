@@ -4,6 +4,7 @@ import logging
 import json
 import re
 import pathlib
+from datetime import datetime
 
 from bs4 import BeautifulSoup, NavigableString, Tag
 
@@ -144,7 +145,12 @@ SCHOLAR_PROMPT = _load_prompt_file("scholar_retriever.txt")
 
 CV_RETRIEVER = _load_prompt_file("cv_retriever.txt")
 
-ASSISTANCE_INSTRUCTION = _load_prompt_file("assistance_agent.txt")
+_ASSISTANCE_INSTRUCTION_TEMPLATE = _load_prompt_file("assistance_agent.txt")
+
+def get_assistance_instruction() -> str:
+    """Return the assistance agent prompt with the current datetime injected."""
+    current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return _ASSISTANCE_INSTRUCTION_TEMPLATE.replace("{current_date}", current_date)
 
 CONV_TITLE_GIVER = _load_prompt_file("conversation_title_giver.txt")
 

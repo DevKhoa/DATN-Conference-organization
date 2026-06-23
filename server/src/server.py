@@ -11,7 +11,6 @@ HOST = '0.0.0.0'
 # HOST = 'localhost'
 PORT = 8080
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start background scheduler on startup; stop it on shutdown."""

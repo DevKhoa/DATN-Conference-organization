@@ -471,6 +471,7 @@ export const PersistentChatWidget: React.FC = () => {
                         {msg.content && (
                           <div className="m-0 p-0 prose prose-sm dark:prose-invert max-w-none break-words leading-relaxed">
                             <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
                               components={{
                                 p: ({ node, ...props }) => (
                                   <p
