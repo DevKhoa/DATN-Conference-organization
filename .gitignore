@@ -249,5 +249,6 @@ Credentials/
 /database-schema.md
 
 /benchmark/sample_cvs
-/benchmark/
-*.json
+/benchmark/*.json
+/benchmark/*.txt
+/benchmark/*.xlsx

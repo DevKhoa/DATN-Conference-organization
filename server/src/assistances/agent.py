@@ -1,12 +1,12 @@
 from typing import List, AsyncGenerator, Any
 
 import inspect
-from datetime import datetime
 
 from google.genai import types
 
 from assistances.agent_tools import make_query, navigate, click, fill, current_tab, fill_enter, fill_datetime
-from packages.utils import Logger, genai_client, ASSISTANCE_INSTRUCTION
+from packages.utils import Logger, genai_client, get_assistance_instruction
+from assistances.agent_tools import user_id_var, tab_id_var
 
 logger = Logger()
 
@@ -16,12 +16,12 @@ MAX_DEPTH = 10
 TOOLS = [make_query, navigate, click, fill, current_tab, fill_datetime, fill_enter]
 
 class RootAgent:
-    def __init__(self, client=genai_client, model=MODEL, max_token=MAX_OUTPUT_TOKEN, tools=TOOLS, instruction=ASSISTANCE_INSTRUCTION):
+    def __init__(self, client=genai_client, model=MODEL, max_token=MAX_OUTPUT_TOKEN, tools=TOOLS, instruction=None):
         self.client = client 
         self.model = model 
         self.max_token = max_token
         self.tools = tools 
-        self.instruction = instruction
+        self.instruction = instruction if instruction is not None else get_assistance_instruction()
         self.logger = Logger()
         
     async def _execute_tool(self, name: str, args: dict) -> dict:
@@ -44,12 +44,8 @@ class RootAgent:
         Main function to send request to the agent, perform multiple action and return responses once
         """
         self.logger.info(f"Received request: {message}")
-        
-        current_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        dynamic_instruction = f"{self.instruction}\n\n[CRITICAL SYSTEM INFO]: The current server date and time is {current_time_str}. Please use this exact date and time for any relative time calculations (e.g., 'today', 'tomorrow', 'current year') or when filling out datetime forms."
-        
         config = types.GenerateContentConfig(
-            system_instruction=dynamic_instruction,
+            system_instruction=self.instruction,
             tools=self.tools,
         )
         contents = list(local_memory) if local_memory else []
@@ -67,11 +63,8 @@ class RootAgent:
         """
         self.logger.info(f"Received stream event request: {message}")
         
-        current_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        dynamic_instruction = f"{self.instruction}\n\n[CRITICAL SYSTEM INFO]: The current server date and time is {current_time_str}. Please use this exact date and time for any relative time calculations (e.g., 'today', 'tomorrow', 'current year') or when filling out datetime forms."
-        
         config = types.GenerateContentConfig(
-            system_instruction=dynamic_instruction,
+            system_instruction=self.instruction,
             tools=self.tools,
             automatic_function_calling= types.AutomaticFunctionCallingConfig(disable=True)
         )
@@ -128,11 +121,8 @@ class RootAgent:
 
         self.logger.info(f"Received stream event request: {message}")
         
-        current_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        dynamic_instruction = f"{self.instruction}\n\n[CRITICAL SYSTEM INFO]: The current server date and time is {current_time_str}. Please use this exact date and time for any relative time calculations (e.g., 'today', 'tomorrow', 'current year') or when filling out datetime forms."
-        
         config = types.GenerateContentConfig(
-            system_instruction=dynamic_instruction,
+            system_instruction=self.instruction,
             tools=self.tools,
             automatic_function_calling= types.AutomaticFunctionCallingConfig(disable=True)
         )
@@ -166,9 +156,14 @@ class RootAgent:
                     for part in chunk.candidates[0].content.parts:
                         if part.function_call:
                             fc_id = part.function_call.id
-                            if fc_id not in fc_states:
+                            if fc_id is None:
+                                # Null IDs can't be used to correlate streaming chunks.
+                                # Treat each null-id part as a distinct function call.
+                                fc_states[f"__null_{len(fc_states)}"] = part
+                            elif fc_id not in fc_states:
                                 fc_states[fc_id] = part
                             else:
+                                # Accumulate streamed args for the same function call
                                 fc_states[fc_id].function_call.args = part.function_call.args
 
             current_fc_parts = list(fc_states.values())
@@ -209,4 +204,10 @@ class RootAgent:
                 yield {"type": "FINISH", "content": "Maximum depth reached"}
 
 
-agent = RootAgent()
+def create_agent(user_id: int = None, user_role: str = "unknown") -> RootAgent:
+    """Create a per-request RootAgent with user context injected into the system prompt."""
+    instruction = get_assistance_instruction(
+        user_id=user_id if user_id is not None else "unknown",
+        user_role=user_role
+    )
+    return RootAgent(instruction=instruction)

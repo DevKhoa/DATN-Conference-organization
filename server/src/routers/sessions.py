@@ -1,12 +1,12 @@
 import os
 import uuid
 from datetime import datetime, timezone
-
+from typing import Optional
 import pandas as pd
 import numpy as np
 from k_means_constrained import KMeansConstrained
 
-from fastapi import APIRouter, HTTPException, Query, Path, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, Path, BackgroundTasks, File, UploadFile, Form
 from fastapi.responses import RedirectResponse, HTMLResponse
 from google.genai import types
 
@@ -26,17 +26,21 @@ from packages.schema import (
     MeetCreationRequest,
     MeetCreationResponse,
 )
-from packages.utils import logger, supabase_client, genai_client, MODEL, EMBEDDING_MODEL_NAME, VECTOR_DIMENSION, CHAIR_ROLE_ID, PAPER_MATCH_REVIEWER
+from packages.utils import logger, supabase_client, genai_client, MODEL, EMBEDDING_MODEL_NAME, VECTOR_DIMENSION, CHAIR_ROLE_ID, PAPER_MATCH_REVIEWER, BUCKET_NAME, storage_client
+from packages.file_storage import StorageClient
 from packages.auto_session import get_batch_embeddings, generate_session_title
+
+storage_service = StorageClient(client=storage_client, bucket_name=BUCKET_NAME)
 from packages.session_notifier import send_session_start_notifications, get_session_recipients
 from packages.google_oauth import google_meet_service
 
 
 router = APIRouter(tags=["sessions"])
 
-def _build_invite_link(token: str) -> str:
+def _build_invite_link(token: str, client_url: str = None) -> str:
     base_url = (
-        os.environ.get("CLIENT_URL")
+        client_url
+        or os.environ.get("CLIENT_URL")
         or "http://localhost:3000"
     ).rstrip("/")
     return f"{base_url}/chair-invitations/{token}"
@@ -70,20 +74,27 @@ def _fetch_session_and_conference(session_id: int) -> tuple[dict, dict]:
     return session_data, conference_data
 
 
+class SupabaseSingleResponse:
+    def __init__(self, data):
+        self.data = data
+
+
 def _select_profile_by_email(email: str):
-    return supabase_client.table("profiles") \
-        .select("user_id, full_name, email, organization") \
+    res = supabase_client.table("profiles") \
+        .select("id, user_id, full_name, email, organization") \
         .eq("email", email) \
-        .single() \
         .execute()
+    data = res.data[0] if res.data else None
+    return SupabaseSingleResponse(data)
 
 
 def _select_profile_by_user_id(user_id: int):
-    return supabase_client.table("profiles") \
-        .select("user_id, full_name, email, organization") \
+    res = supabase_client.table("profiles") \
+        .select("id, user_id, full_name, email, organization") \
         .eq("user_id", user_id) \
-        .single() \
         .execute()
+    data = res.data[0] if res.data else None
+    return SupabaseSingleResponse(data)
 
 
 def _get_session_capacity(session_id: int) -> dict:
@@ -272,7 +283,7 @@ async def auto_generate_sessions(request: AutoSessionRequest):
 
     except Exception as e:
         logger.error(f"Auto-schedule failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="The auto-scheduling process failed. Please try again later.")
+        raise HTTPException(status_code=500, detail=f"The auto-scheduling process failed: {str(e)}")
 
 
 @router.post("/sessions/{session_id}/recommend-chair", response_model=SessionChairResponse)
@@ -547,9 +558,16 @@ async def create_chair_invitation(
         raise HTTPException(status_code=500, detail="Failed to create chair invitation.")
 
     invitation = create_res.data[0]
-    invite_link = _build_invite_link(token)
+    invite_link = _build_invite_link(token, request.client_url)
     session_name = session_data.get("session_name") or "Session"
     conference_name = conference_data.get("conf_name") or "Conference"
+
+    base_url = (
+        request.client_url
+        or os.environ.get("CLIENT_URL")
+        or "http://localhost:3000"
+    ).rstrip("/")
+    register_link = f"{base_url}/register?redirect=%2Fchair-invitations%2F{token}"
 
     email_subject = f"Invitation to Chair: {session_name}"
 
@@ -557,6 +575,8 @@ async def create_chair_invitation(
         f"Dear Colleague,\n\n"
         f"You are cordially invited to serve as the Session Chair for the session '{session_name}' "
         f"at the upcoming conference '{conference_name}'.\n\n"
+        f"If you do not have an account yet, please click this link to create one first:\n"
+        f"{register_link}\n\n"
         f"Please view details and respond using this link:\n"
         f"{invite_link}\n\n"
         f"Thank you for your time and support.\n\n"
@@ -567,6 +587,7 @@ async def create_chair_invitation(
     email_html_body = (
         f"<p>Dear Colleague,</p>"
         f"<p>You are cordially invited to serve as the Session Chair for the session '{session_name}' at the upcoming conference '{conference_name}'.</p>"
+        f"<p>If you do not have an account yet, please <a href='{register_link}' style='color: #4f46e5; font-weight: bold; text-decoration: underline;'>click here to create an account first</a>.</p>"
         f"<p>Please review details and respond using the following link:</p>"
         f"<p><a href='{invite_link}' style='color: #4f46e5; font-weight: bold; text-decoration: underline;'>"
         f"Enter this invitation link</a></p>"
@@ -725,14 +746,32 @@ async def accept_chair_invitation(token: str, request: ChairInvitationDecisionRe
 
     try:
         user_uuid = invitee_profile.get("id") if invitee_profile else None
-        if user_uuid:
+        target_user_id = user_uuid if user_uuid else invitee_user_id
+        
+        # 1. Fetch current roles of the user
+        current_roles_res = supabase_client.table("user_roles") \
+            .select("role_id") \
+            .eq("user_id", target_user_id) \
+            .execute()
+            
+        current_role_ids = {r["role_id"] for r in (current_roles_res.data or [])}
+        
+        # 2. Check and delete Attendee (5) roles
+        roles_to_delete = []
+        if 5 in current_role_ids:
+            roles_to_delete.append(5)
+            
+        if roles_to_delete:
+            supabase_client.table("user_roles") \
+                .delete() \
+                .eq("user_id", target_user_id) \
+                .in_("role_id", roles_to_delete) \
+                .execute()
+                
+        # 3. Check and insert Chair role (6)
+        if CHAIR_ROLE_ID not in current_role_ids:
             supabase_client.table("user_roles").insert({
-                "user_id": user_uuid,
-                "role_id": CHAIR_ROLE_ID,
-            }).execute()
-        else:
-            supabase_client.table("user_roles").insert({
-                "user_id": invitee_user_id,
+                "user_id": target_user_id,
                 "role_id": CHAIR_ROLE_ID,
             }).execute()
     except Exception as role_error:
@@ -1107,3 +1146,177 @@ async def check_chair_schedule_conflict(
     except Exception as e:
         logger.error(f"Chair conflict check error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def _is_admin_or_btc(user_id: int) -> bool:
+    try:
+        profile_res = supabase_client.table("profiles").select("id").eq("user_id", user_id).execute()
+        if not profile_res.data:
+            return False
+        user_uuid = profile_res.data[0]["id"]
+        roles_res = supabase_client.table("user_roles").select("role_id").eq("user_id", user_uuid).execute()
+        role_ids = {r["role_id"] for r in roles_res.data or []}
+        return 1 in role_ids or 2 in role_ids
+    except Exception as e:
+        logger.error(f"Error checking admin/btc status: {e}")
+        return False
+
+
+def _is_author_or_coauthor(paper_id: int, user_id: int) -> bool:
+    try:
+        paper_res = supabase_client.table("papers").select("primary_author_id").eq("paper_id", paper_id).single().execute()
+        if paper_res.data and paper_res.data.get("primary_author_id") == user_id:
+            return True
+        coauthor_res = supabase_client.table("paper_coauthors").select("user_id").eq("paper_id", paper_id).eq("user_id", user_id).execute()
+        if coauthor_res.data:
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Error checking author status: {e}")
+        return False
+
+
+def _is_paper_assigned_to_session(session_id: int, paper_id: int) -> bool:
+    try:
+        res = supabase_client.table("session_papers").select("session_id").eq("session_id", session_id).eq("paper_id", paper_id).execute()
+        return bool(res.data)
+    except Exception as e:
+        logger.error(f"Error checking paper session link: {e}")
+        return False
+
+
+@router.get("/sessions/{session_id}/papers/{paper_id}/files")
+async def get_session_paper_files(
+    session_id: int,
+    paper_id: int,
+    user_id: int = Query(..., description="Currently logged in user ID")
+):
+    if not _is_paper_assigned_to_session(session_id, paper_id):
+        raise HTTPException(status_code=400, detail="Paper is not assigned to this session.")
+        
+    is_admin = _is_admin_or_btc(user_id)
+    is_author = _is_author_or_coauthor(paper_id, user_id)
+    
+    if not is_admin and not is_author:
+        raise HTTPException(status_code=403, detail="Access denied. You do not have permission to view these files.")
+        
+    res = supabase_client.table("session_paper_files").select("*").eq("session_id", session_id).eq("paper_id", paper_id).execute()
+    if res.data:
+        return res.data[0]
+    return {
+        "session_id": session_id,
+        "paper_id": paper_id,
+        "pdf_url": None,
+        "slide_url": None,
+        "text_url": None,
+        "uploaded_by": None,
+        "uploaded_at": None
+    }
+
+
+@router.post("/sessions/{session_id}/papers/{paper_id}/files")
+async def save_session_paper_files(
+    session_id: int,
+    paper_id: int,
+    file_type: str = Form(...),
+    url: Optional[str] = Form(None),
+    file: Optional[UploadFile] = File(None),
+    user_id: int = Form(...)
+):
+    if file_type not in ["pdf", "slide", "text"]:
+        raise HTTPException(status_code=400, detail="Invalid file type. Must be pdf, slide, or text.")
+        
+    if not _is_paper_assigned_to_session(session_id, paper_id):
+        raise HTTPException(status_code=400, detail="Paper is not assigned to this session.")
+        
+    is_author = _is_author_or_coauthor(paper_id, user_id)
+    if not is_author:
+        raise HTTPException(status_code=403, detail="Access denied. Only authors/co-authors can upload or edit files.")
+        
+    final_url = url
+    if file:
+        file.file.seek(0, 2)
+        file_size = file.file.tell()
+        file.file.seek(0)
+        
+        MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
+        if file_size > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail="File size exceeds the 20MB limit.")
+
+        import tempfile
+        import shutil
+        original_name = os.path.basename(file.filename)
+        clean_filename = original_name.lower().replace(" ", "_")
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_file_path = os.path.join(temp_dir, clean_filename)
+            with open(temp_file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+                
+            destination_path = f"sessions/{session_id}/papers/{paper_id}/{file_type}_{clean_filename}"
+            public_url = storage_service.upload_blob(temp_file_path, destination_path)
+            
+            if not public_url:
+                raise HTTPException(status_code=500, detail="Failed to upload file to storage.")
+            final_url = public_url
+
+    existing = supabase_client.table("session_paper_files").select("file_id").eq("session_id", session_id).eq("paper_id", paper_id).execute()
+    
+    update_data = {
+        "session_id": session_id,
+        "paper_id": paper_id,
+        "uploaded_by": user_id,
+        "uploaded_at": datetime.now(timezone.utc).isoformat()
+    }
+    if file_type == "pdf":
+        update_data["pdf_url"] = final_url
+    elif file_type == "slide":
+        update_data["slide_url"] = final_url
+    elif file_type == "text":
+        update_data["text_url"] = final_url
+
+    if existing.data:
+        res = supabase_client.table("session_paper_files").update(update_data).eq("session_id", session_id).eq("paper_id", paper_id).execute()
+    else:
+        res = supabase_client.table("session_paper_files").insert(update_data).execute()
+        
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to update database record.")
+        
+    return res.data[0]
+
+
+@router.delete("/sessions/{session_id}/papers/{paper_id}/files/{file_type}")
+async def delete_session_paper_file(
+    session_id: int,
+    paper_id: int,
+    file_type: str,
+    user_id: int = Query(...)
+):
+    if file_type not in ["pdf", "slide", "text"]:
+        raise HTTPException(status_code=400, detail="Invalid file type.")
+        
+    if not _is_paper_assigned_to_session(session_id, paper_id):
+        raise HTTPException(status_code=400, detail="Paper is not assigned to this session.")
+        
+    is_author = _is_author_or_coauthor(paper_id, user_id)
+    if not is_author:
+        raise HTTPException(status_code=403, detail="Access denied. Only authors/co-authors can delete files.")
+        
+    existing = supabase_client.table("session_paper_files").select("*").eq("session_id", session_id).eq("paper_id", paper_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="No files found for this paper in the session.")
+        
+    current_data = existing.data[0]
+    file_url = current_data.get(f"{file_type}_url")
+    if file_url:
+        storage_service.delete_file(file_url)
+        
+    update_data = {
+        f"{file_type}_url": None,
+        "uploaded_by": user_id,
+        "uploaded_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    res = supabase_client.table("session_paper_files").update(update_data).eq("session_id", session_id).eq("paper_id", paper_id).execute()
+    return res.data[0]

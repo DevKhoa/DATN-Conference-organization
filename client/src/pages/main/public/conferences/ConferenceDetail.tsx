@@ -21,6 +21,8 @@ import {
   X,
   Settings,
   Upload,
+  Search,
+  Trash2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -45,7 +47,7 @@ import {
   useToggleMeetMutation,
   useDeleteSessionMutation,
 } from "@/features/sessions/services/mutations";
-import { useUpdateConferenceMutation } from "@/features/conferences/services/mutations";
+import { useUpdateConferenceMutation, useDeleteConferenceMutation } from "@/features/conferences/services/mutations";
 import { ConferenceSessionDisplay } from "./components/ConferenceSessionDisplay";
 import { ConferenceRegistrationPanel } from "./components/ConferenceRegistrationPanel";
 import { ConferenceAwardsLeaderboard } from "./components/ConferenceAwardsLeaderboard";
@@ -100,9 +102,49 @@ const ConferenceDetailPage = () => {
   const conference = conferenceDetail?.conference ?? null;
   const sessions = conferenceDetail?.sessions ?? [];
   const canEdit = checkRoles([Role.ADMIN, Role.SECRETARIAT]);
+  const canViewCheckins = checkRoles([Role.CHAIR, Role.ADMIN, Role.SECRETARIAT]);
   const toggleMeetMutation = useToggleMeetMutation();
   const deleteSessionMutation = useDeleteSessionMutation();
   const updateConferenceMutation = useUpdateConferenceMutation();
+  const deleteConferenceMutation = useDeleteConferenceMutation();
+
+  const [checkedInSet, setCheckedInSet] = useState<Set<string>>(new Set());
+  const sessionIds = useMemo(() => sessions.map((s) => s.session_id), [sessions]);
+
+  useEffect(() => {
+    if (!canViewCheckins || sessionIds.length === 0) return;
+
+    const fetchCheckins = async () => {
+      const { data } = await supabase
+        .from("attendences")
+        .select("session_id, user_id, registration_id, registrations(user_id)")
+        .in("session_id", sessionIds)
+        .eq("is_checkin", true);
+
+      const checkins = new Set<string>();
+      (data || []).forEach((r: any) => {
+        const directUserId = r.user_id;
+        const regUserId = Array.isArray(r.registrations)
+          ? r.registrations[0]?.user_id
+          : r.registrations?.user_id;
+        const userId = directUserId ?? regUserId;
+        if (userId && r.session_id) {
+          checkins.add(`${r.session_id}-${userId}`);
+        }
+      });
+      setCheckedInSet(checkins);
+    };
+
+    fetchCheckins();
+
+    const channelName = `checkin_badge_${sessionIds.join("_")}`;
+    const channel = supabase
+      .channel(channelName)
+      .on("postgres_changes", { event: "*", schema: "public", table: "attendences" }, fetchCheckins)
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [sessionIds.join(","), canViewCheckins]);
 
   // Auto-close: set status = CLOSED when end_date has passed
   useEffect(() => {
@@ -130,6 +172,7 @@ const ConferenceDetailPage = () => {
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [isEditConfOpen, setIsEditConfOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [conferenceDeleteConfirmOpen, setConferenceDeleteConfirmOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<{
     id: number;
     name: string;
@@ -141,6 +184,17 @@ const ConferenceDetailPage = () => {
   const [selectedSessionsForCheckin, setSelectedSessionsForCheckin] = useState<
     number[]
   >([]);
+  const [acceptedPapersSearchTerm, setAcceptedPapersSearchTerm] = useState("");
+
+  const filteredAcceptedPapers = useMemo(() => {
+    if (!acceptedPapersSearchTerm.trim()) return acceptedPapers;
+    const lower = acceptedPapersSearchTerm.toLowerCase();
+    return acceptedPapers.filter(
+      (p) =>
+        (p.title || "").toLowerCase().includes(lower) ||
+        (p.author_name || "").toLowerCase().includes(lower)
+    );
+  }, [acceptedPapers, acceptedPapersSearchTerm]);
 
   const currentUserId = session?.user?.user_metadata?.["user_id"] as number | undefined;
 
@@ -515,6 +569,17 @@ const ConferenceDetailPage = () => {
                     Import Papers
                   </Button>
                 )}
+
+                {canEdit && (
+                  <Button
+                    onClick={() => setConferenceDeleteConfirmOpen(true)}
+                    variant="outline"
+                    className="bg-destructive/10 backdrop-blur-md border-destructive/20 text-red-500 hover:bg-destructive/20"
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" />
+                    Delete Conference
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -677,7 +742,7 @@ const ConferenceDetailPage = () => {
                                   const hasTicket = registeredSessionIds?.has(session.session_id);
                                   const isCoauthorOrAgenda = allowedSessionIds.has(session.session_id);
 
-                                  const canAccessSessionVirtual = canEdit || isChair || isAuthor || hasTicket || isCoauthorOrAgenda;
+                                  const canAccessSessionVirtual = !!currentUserId && (canEdit || isChair || isAuthor || hasTicket || isCoauthorOrAgenda);
 
                                   return (
                                     <ConferenceSessionDisplay
@@ -687,6 +752,8 @@ const ConferenceDetailPage = () => {
                                       }
                                       canAccessVirtual={!!canAccessSessionVirtual}
                                       canEdit={canEdit}
+                                      canViewCheckins={canViewCheckins}
+                                      checkedInSet={checkedInSet}
                                       session={session}
                                       isExpanded={isExpanded}
                                       onToggle={() =>
@@ -754,7 +821,7 @@ const ConferenceDetailPage = () => {
               </section>
 
               <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
-                <div className="mb-6 flex items-center justify-between">
+                <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <div className="rounded-lg bg-primary/10 p-2">
                       <CheckCircle2 className="h-6 w-6 text-primary" />
@@ -762,9 +829,20 @@ const ConferenceDetailPage = () => {
                     <h2 className="text-2xl font-bold text-foreground">
                       Accepted Papers
                     </h2>
+                    <div className="hidden sm:flex rounded-full border border-border bg-muted px-3 py-1 text-sm font-medium text-muted-foreground">
+                      {acceptedPapers.length} Papers
+                    </div>
                   </div>
-                  <div className="rounded-full border border-border bg-muted px-3 py-1 text-sm font-medium text-muted-foreground">
-                    {acceptedPapers.length} Papers
+                  
+                  <div className="relative w-full sm:w-72">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      placeholder="Search by title or author..."
+                      value={acceptedPapersSearchTerm}
+                      onChange={(e) => setAcceptedPapersSearchTerm(e.target.value)}
+                      className="w-full rounded-full border border-border bg-muted/50 py-2 pl-9 pr-4 text-sm outline-none transition-colors focus:border-primary focus:bg-background"
+                    />
                   </div>
                 </div>
 
@@ -773,9 +851,9 @@ const ConferenceDetailPage = () => {
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Loading accepted papers...
                   </div>
-                ) : acceptedPapers.length === 0 ? (
+                ) : filteredAcceptedPapers.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-                    No accepted papers yet.
+                    {acceptedPapersSearchTerm ? "No papers match your search." : "No accepted papers yet."}
                   </div>
                 ) : (
                   <div className="overflow-x-auto rounded-xl border border-border">
@@ -794,7 +872,7 @@ const ConferenceDetailPage = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {acceptedPapers.map((paper) => (
+                        {filteredAcceptedPapers.map((paper) => (
                           <tr
                             key={paper.paper_id}
                             className="border-t border-border hover:bg-accent/30"
@@ -933,6 +1011,48 @@ const ConferenceDetailPage = () => {
                 disabled={deleteSessionMutation.isPending}
               >
                 {deleteSessionMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={conferenceDeleteConfirmOpen} onOpenChange={setConferenceDeleteConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Conference</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete the conference "{conference?.conf_name}"? 
+                This action will hide this conference and all its sessions and papers. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setConferenceDeleteConfirmOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (conference) {
+                    deleteConferenceMutation.mutate(
+                      { conferenceId: conference.conf_id },
+                      {
+                        onSuccess: () => {
+                          setConferenceDeleteConfirmOpen(false);
+                          navigate({ to: "/conferences" });
+                        }
+                      }
+                    );
+                  }
+                }}
+                disabled={deleteConferenceMutation.isPending}
+              >
+                {deleteConferenceMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : null}
                 Delete

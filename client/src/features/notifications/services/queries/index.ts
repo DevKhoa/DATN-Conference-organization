@@ -41,6 +41,10 @@ export interface NotificationUserResult {
   email: string;
 }
 
+import { request } from "@/lib/axios";
+
+// ... existing code ...
+
 export const useUserNotifications = () => {
   const { session } = useAuth();
   const userId = session?.user?.user_metadata["user_id"] as number | undefined;
@@ -51,24 +55,15 @@ export const useUserNotifications = () => {
     queryFn: async () => {
       if (!userId) return [];
 
-      const { data, error } = await supabase
-        .from("user_notifications")
-        .select(
-          `id, notification_id, is_read, read_at, dynamic_title, dynamic_content,
-               notifications ( notification_id, title, content, type, created_at, conf_id, attachments, target_criteria )`,
-        )
-        .eq("user_id", userId)
-        .order("id", { ascending: false })
-        .limit(30);
-
-      if (error) throw error;
-
-      const rows =
-        (data as Array<
+      const data = await request.get<
+        Array<
           Tables<"user_notifications"> & {
             notifications: NotificationMeta | NotificationMeta[] | null;
           }
-        > | null) ?? [];
+        >
+      >(`/notifications/user-notifications/${userId}`);
+
+      const rows = data ?? [];
 
       return rows
         .map((row) => ({
@@ -154,6 +149,8 @@ export const useNotificationConferenceUsersPoolQuery = (
       }
 
       let attendeeIds: number[] = [];
+      let authorIds: number[] = [];
+
       if (sessionIds.length > 0) {
         const { data: ticketSessionData } = await supabase
           .from("ticket_session")
@@ -178,9 +175,44 @@ export const useNotificationConferenceUsersPoolQuery = (
             .map((registration: any) => registration.user_id)
             .filter(Boolean);
         }
+
+        const { data: sessionPapersData } = await supabase
+          .from("session_papers")
+          .select("paper_id")
+          .in("session_id", sessionIds);
+
+        const paperIds = [
+          ...new Set(
+            (sessionPapersData || [])
+              .map((sessionPaper: any) => sessionPaper.paper_id)
+              .filter(Boolean),
+          ),
+        ];
+
+        if (paperIds.length > 0) {
+          const { data: authorsData } = await supabase
+            .from("papers")
+            .select("primary_author_id")
+            .in("paper_id", paperIds);
+
+          const primaryAuthorIds = (authorsData || [])
+            .map((paper: any) => paper.primary_author_id)
+            .filter(Boolean);
+
+          const { data: coAuthorsData } = await supabase
+            .from("paper_coauthors")
+            .select("user_id")
+            .in("paper_id", paperIds);
+
+          const coAuthorIds = (coAuthorsData || [])
+            .map((coAuthor: any) => coAuthor.user_id)
+            .filter(Boolean);
+
+          authorIds = [...primaryAuthorIds, ...coAuthorIds];
+        }
       }
 
-      return [...new Set([...chairIds, ...attendeeIds])];
+      return [...new Set([...chairIds, ...attendeeIds, ...authorIds])];
     },
   });
 };

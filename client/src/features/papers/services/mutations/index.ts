@@ -2,6 +2,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { request } from "@/lib/axios";
 import { supabase } from "@/lib/supabase";
 import { PapersKeys } from "@/features/papers/services/queries/keys";
+import { ConferencesKeys } from "@/features/conferences/services/queries/keys";
+import { SessionKeys } from "@/features/sessions/services/queries/keys";
+import { AwardsKeys } from "@/features/awards/services/queries/keys";
 import type {
   AnalyzeReviewResult,
   CreatePaperPayload,
@@ -265,6 +268,9 @@ export const useSavePaperAwardMarkingMutation = () => {
       queryClient.invalidateQueries({
         queryKey: [PapersKeys.PublicPaperDetailPage, paperId],
       });
+      queryClient.invalidateQueries({
+        queryKey: [AwardsKeys.AwardLeaderboard],
+      });
     },
   });
 };
@@ -354,7 +360,15 @@ export const useUpdatePaperContentMutation = () => {
           throw new Error("File upload failed, no URL returned.");
         }
       } else if (driveLink) {
-        finalFilePath = driveLink;
+        const uploadData = await request.post<{ url?: string }>(
+          `/papers/${paperId}/${activeVersionId}/upload-link`,
+          { link: driveLink },
+        );
+        if (uploadData?.url) {
+          finalFilePath = uploadData.url;
+        } else {
+          throw new Error("Link upload failed, no URL returned.");
+        }
       }
 
       if (finalFilePath) {
@@ -371,6 +385,51 @@ export const useUpdatePaperContentMutation = () => {
     onSuccess: (paperId) => {
       queryClient.invalidateQueries({
         queryKey: [PapersKeys.PublicPaperDetailPage, paperId],
+      });
+    },
+  });
+};
+
+export const useDeletePaperMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ paperId }: { paperId: number }) => {
+      const { error } = await (supabase as any).rpc("soft_delete_paper", {
+        p_paper_id: paperId,
+      });
+
+      if (error) {
+        throw error;
+      }
+    },
+    onSuccess: (_, { paperId }) => {
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.AcceptedPapers],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.PaginatedPapers],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.PapersCount],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.MyPapers],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.MyPaperDetail],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.PublicPaperDetail],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [PapersKeys.PublicPaperDetailPage],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [ConferencesKeys.ConferenceDetail],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [SessionKeys.SessionsByConference],
       });
     },
   });

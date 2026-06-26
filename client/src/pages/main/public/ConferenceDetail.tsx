@@ -235,6 +235,64 @@ const ConferenceDetailPage: React.FC = () => {
     sessionName: string;
   } | null>(null);
 
+  const canViewCheckins = checkRoles([Role.CHAIR, Role.ADMIN, Role.SECRETARIAT]);
+  const [checkedInSet, setCheckedInSet] = useState<Set<string>>(new Set());
+
+  const sessionIds = useMemo(() => sessions.map(s => s.session_id), [sessions]);
+
+  useEffect(() => {
+    if (!canViewCheckins || sessionIds.length === 0) return;
+
+    const fetchCheckins = async () => {
+      // Single query — handles both cases:
+      // 1. Authors/Chairs: attendences.user_id set directly (int4 FK → profiles)
+      // 2. Ticket buyers: attendences.registration_id → registrations.user_id (int4 FK → profiles)
+      const { data } = await supabase
+        .from("attendences")
+        .select("session_id, user_id, registration_id, registrations(user_id)")
+        .in("session_id", sessionIds)
+        .eq("is_checkin", true);
+
+      const checkins = new Set<string>();
+
+      (data || []).forEach((r: any) => {
+        const directUserId = r.user_id;
+        const regUserId = Array.isArray(r.registrations)
+          ? r.registrations[0]?.user_id
+          : r.registrations?.user_id;
+        const userId = directUserId ?? regUserId;
+        if (userId && r.session_id) {
+          checkins.add(`${r.session_id}-${userId}`);
+        }
+      });
+
+      setCheckedInSet(checkins);
+    };
+
+    fetchCheckins();
+
+    // Use a unique channel name so re-runs don't collide with the previous subscription
+    const channelName = `attendences_realtime_${sessionIds.join("_")}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "attendences",
+        },
+        () => {
+          fetchCheckins();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [sessionIds.join(","), canViewCheckins]);
+
   const checkMeetToggleConfirmation = (sessionObj: any, nextActive: boolean) => {
     if (!sessionObj.start_time || !sessionObj.end_time) return { needsConfirm: false, message: "" };
 
@@ -1074,6 +1132,7 @@ const ConferenceDetailPage: React.FC = () => {
                                               <div className="flex items-center gap-2 flex-wrap justify-end">
                                                 {session.format_type !==
                                                   "in-person" &&
+                                                  currentUserId &&
                                                   (canAccessVirtual || allowedSessionIds.has(session.session_id)) && (
                                                     <>
                                                       {renderMeetButton(session)}
@@ -1234,11 +1293,19 @@ const ConferenceDetailPage: React.FC = () => {
                                                               )}
                                                             </div>
                                                             <div className="flex items-center text-sm text-muted-foreground mb-2">
-                                                              <User className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
-                                                              <span className="font-medium">
-                                                                {sp.paper.author
-                                                                  ?.full_name ||
-                                                                  "Unknown Author"}
+                                                              <User className="w-3.5 h-3.5 mr-1.5 text-muted-foreground shrink-0" />
+                                                              <span className="font-medium flex items-center flex-wrap gap-2">
+                                                                <span>
+                                                                  {sp.paper.author
+                                                                    ?.full_name ||
+                                                                    "Unknown Author"}
+                                                                </span>
+                                                                {canViewCheckins && sp.paper.primary_author_id && checkedInSet.has(`${session.session_id}-${sp.paper.primary_author_id}`) && (
+                                                                  <span className="inline-flex items-center bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide">
+                                                                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                                                                    Checked-in
+                                                                  </span>
+                                                                )}
                                                               </span>
                                                             </div>
                                                             <p className="text-sm text-muted-foreground leading-relaxed">

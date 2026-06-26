@@ -5,7 +5,8 @@ import pathlib
 import uuid
 from typing import Optional, List
 
-from fastapi import APIRouter, File, Query, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Query, Form, HTTPException, UploadFile, Body
+from pydantic import BaseModel
 from packages.schema import PaperDetailResponse, PaperSummary, PaperFormatReview
 from packages.file_storage import StorageClient
 from packages.embeddings import EmbeddingPipeline
@@ -29,6 +30,7 @@ async def get_paper_details(paper_id: int):
         query = supabase_client.table("papers").select(
             "paper_id, title, abstract, status, created_at, "
             "author:profiles!primary_author_id(full_name, email, organization), "
+            "coauthors:paper_coauthors(author_order, profile:profiles(full_name, email, organization)), "
             "conference:conferences(conf_name, is_active, format_type, timezone), "
             "versions:paper_versions(version_id, version_number, file_path, is_final, plagiarism_safe, format_ok, upload_date), "
             "reviews:reviews(review_id, score, recommendation, status), "
@@ -142,6 +144,56 @@ async def upload_paper(
     except Exception as e:
         logger.error(f"API Error: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+class UploadLinkRequest(BaseModel):
+    link: str
+
+@router.post("/papers/{paper_id}/{version_id}/upload-link")
+async def upload_paper_link(
+    paper_id: str,
+    version_id: str,
+    payload: UploadLinkRequest
+):
+    try:
+        from packages.pdf_service import fetch_and_upload_pdf
+        
+        logger.info(f"Processing drive link upload for paper {paper_id}, version {version_id}")
+        
+        public_url = await fetch_and_upload_pdf(payload.link, paper_id, version_id)
+
+        if not public_url:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to upload file to storage"
+            )
+        
+        try:
+            update_res = supabase_client.table("paper_versions").update({
+                "file_path": public_url,
+            }).eq("version_id", int(version_id)).eq("paper_id", int(paper_id)).execute()
+
+            if not update_res.data:
+                logger.warning(f"File uploaded to GCS but Version ID {version_id} not found in DB to update.")
+                raise HTTPException(status_code=404, detail="Version ID not found in database")
+            logger.info(f"Database updated for Version {version_id}")
+
+        except Exception as db_e:
+            logger.error(f"Database Update Error: {db_e}")
+            raise HTTPException(status_code=500, detail="Uploaded to Storage but failed to update Database.")
+
+        return {
+            "message": "Upload successful",
+            "paper_id": paper_id,
+            "version_id": version_id,
+            "url": public_url
+        }
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"API Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.get("/storage/{paper_id}/files")
@@ -350,3 +402,168 @@ async def recommend_reviewers_avg_method(
     except Exception as e:
         logger.error(f"Recommend Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/papers/{paper_id}/reviews")
+async def get_paper_reviews(paper_id: int, user_id: Optional[int] = Query(None)):
+    try:
+        can_view_all = False
+        if user_id:
+            profile_res = supabase_client.table("profiles").select("id").eq("user_id", user_id).execute()
+            uuid = profile_res.data[0].get("id") if profile_res.data else None
+            
+            is_admin = False
+            if uuid:
+                role_res = supabase_client.table("user_roles").select("roles(role_name)").eq("user_id", uuid).execute()
+                is_admin = any(
+                    isinstance(r.get("roles"), dict) and r.get("roles", {}).get("role_name", "").upper() == "ADMIN"
+                    for r in role_res.data or []
+                )
+            
+            paper_res = supabase_client.table("papers").select("primary_author_id").eq("paper_id", paper_id).execute()
+            is_author = False
+            if paper_res.data and len(paper_res.data) > 0:
+                is_author = paper_res.data[0].get("primary_author_id") == user_id
+                
+            coauthor_res = supabase_client.table("paper_coauthors").select("user_id").eq("paper_id", paper_id).eq("user_id", user_id).execute()
+            is_coauthor = coauthor_res.data and len(coauthor_res.data) > 0
+
+            can_view_all = is_admin or is_author or is_coauthor
+
+        query = supabase_client.table("reviews").select(
+            "review_id, score, recommendation, comments, review_date, "
+            "reviewer:profiles!reviewer_id (full_name), reviewer_id"
+        ).eq("paper_id", paper_id)
+
+        if not can_view_all:
+            if user_id:
+                query = query.eq("reviewer_id", user_id)
+            else:
+                return {"status": "success", "data": []}
+
+        res = query.order("review_date", desc=True).execute()
+        return {"status": "success", "data": res.data}
+    except Exception as e:
+        logger.error(f"Get Paper Reviews Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/papers/{paper_id}/markings")
+async def get_paper_markings(paper_id: int, user_id: Optional[int] = Query(None)):
+    try:
+        can_view_all = False
+        if user_id:
+            profile_res = supabase_client.table("profiles").select("id").eq("user_id", user_id).execute()
+            uuid = profile_res.data[0].get("id") if profile_res.data else None
+            
+            is_admin = False
+            if uuid:
+                role_res = supabase_client.table("user_roles").select("roles(role_name)").eq("user_id", uuid).execute()
+                is_admin = any(
+                    isinstance(r.get("roles"), dict) and r.get("roles", {}).get("role_name", "").upper() == "ADMIN"
+                    for r in role_res.data or []
+                )
+            
+            paper_res = supabase_client.table("papers").select("primary_author_id").eq("paper_id", paper_id).execute()
+            is_author = False
+            if paper_res.data and len(paper_res.data) > 0:
+                is_author = paper_res.data[0].get("primary_author_id") == user_id
+                
+            coauthor_res = supabase_client.table("paper_coauthors").select("user_id").eq("paper_id", paper_id).eq("user_id", user_id).execute()
+            is_coauthor = coauthor_res.data and len(coauthor_res.data) > 0
+
+            can_view_all = is_admin or is_author or is_coauthor
+
+        query = supabase_client.table("marking_records").select(
+            "mark_id, total_score, comments, marked_at, marked_by, "
+            "award:awards(name), "
+            "marker:profiles!marked_by(user_id, id, full_name)"
+        ).eq("paper_id", paper_id)
+
+        if not can_view_all:
+            if user_id:
+                query = query.eq("marked_by", user_id)
+            else:
+                return {"status": "success", "data": []}
+
+        records_res = query.order("marked_at", desc=True).execute()
+
+        records_data = records_res.data
+        if not records_data:
+            return {"status": "success", "data": []}
+
+        mark_ids = [r["mark_id"] for r in records_data]
+        
+        marker_ids = []
+        for r in records_data:
+            marker = r.get("marker")
+            if isinstance(marker, list):
+                marker = marker[0] if marker else None
+            if marker and marker.get("id"):
+                marker_ids.append(marker["id"])
+        
+        marker_ids = list(set(marker_ids))
+
+        details_data = []
+        if mark_ids:
+            details_res = supabase_client.table("marking_details").select(
+                "mark_id, score, criteria:award_criteria(criteria_name, weight_pct)"
+            ).in_("mark_id", mark_ids).execute()
+            details_data = details_res.data
+
+        user_roles_map = {}
+        if marker_ids:
+            roles_res = supabase_client.table("user_roles").select(
+                "user_id, role:roles(role_name)"
+            ).in_("user_id", marker_ids).execute()
+            
+            for row in roles_res.data:
+                role = row.get("role")
+                if isinstance(role, list):
+                    role = role[0] if role else None
+                if role:
+                    user_roles_map[row["user_id"]] = role["role_name"]
+
+        results = []
+        for record in records_data:
+            award = record.get("award")
+            if isinstance(award, list):
+                award = award[0] if award else None
+                
+            marker = record.get("marker")
+            if isinstance(marker, list):
+                marker = marker[0] if marker else None
+                
+            role_name = user_roles_map.get(marker["id"]) if marker and "id" in marker else None
+
+            record_details = []
+            for d in details_data:
+                if d["mark_id"] == record["mark_id"]:
+                    criteria = d.get("criteria")
+                    if isinstance(criteria, list):
+                        criteria = criteria[0] if criteria else None
+                    record_details.append({
+                        "criteria_name": criteria.get("criteria_name", "Unknown Criteria") if criteria else "Unknown Criteria",
+                        "weight_pct": criteria.get("weight_pct", 0) if criteria else 0,
+                        "score": d.get("score")
+                    })
+
+            results.append({
+                "mark_id": record["mark_id"],
+                "total_score": record["total_score"],
+                "comments": record["comments"],
+                "marked_at": record["marked_at"],
+                "award": {
+                    "name": award.get("name", "Unknown Award") if award else "Unknown Award",
+                },
+                "marker": {
+                    "full_name": marker.get("full_name", "Unknown User") if marker else "Unknown User",
+                    "role": role_name,
+                },
+                "details": record_details,
+            })
+
+        return {"status": "success", "data": results}
+
+    except Exception as e:
+        logger.error(f"Get Paper Markings Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+

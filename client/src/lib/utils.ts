@@ -55,3 +55,19 @@ export function getPageNumbers(currentPage: number, totalPages: number) {
 
   return rangeWithDots;
 }
+
+export function stripMarkdown(text: string | null | undefined): string {
+  if (!text) return '';
+  let stripped = text
+    .replace(/<[^>]*>?/gm, '')
+    .replace(/(\*\*|__)(.*?)\1/g, '$2')
+    .replace(/(\*|_)(.*?)\1/g, '$2')
+    .replace(/^#+\s+(.*)$/gm, '\n$1\n')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^[-*+]\s+/gm, '')
+    .replace(/^>\s+/gm, '')
+    .replace(/`([^]+)`/g, '$1')
+    .replace(/([^]+)/g, '$1')
+    .replace(/\n{3,}/g, '\n\n');
+  return stripped.trim();
+}

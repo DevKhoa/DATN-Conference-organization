@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { PapersKeys } from "./keys";
 import { supabase } from "@/lib/supabase";
+import { request } from "@/lib/axios";
 import { PaginatedParams } from "@/hooks/usePagination";
 import useAuth from "@/features/auth/hooks/useAuth";
 import type {
@@ -142,6 +143,7 @@ export const usePublicPaperDetailPageQuery = ({
             `
             paper_id, title, abstract, status, created_at, submitted_conf,
             author:profiles!primary_author_id (full_name, email, organization, description),
+            coauthors:paper_coauthors (author_order, profile:profiles (full_name, email, organization, description)),
             conference:conferences!submitted_conf (conf_name, description, location, start_date, end_date)
           `,
           )
@@ -155,16 +157,7 @@ export const usePublicPaperDetailPageQuery = ({
           .order("version_id", { ascending: false })
           .limit(1)
           .maybeSingle(),
-        supabase
-          .from("reviews")
-          .select(
-            `
-            review_id, score, recommendation, comments, review_date,
-            reviewer:profiles!reviewer_id (full_name)
-          `,
-          )
-          .eq("paper_id", paperId)
-          .order("review_date", { ascending: false }),
+        request.get<{ status: string; data: any[] }>(userId ? `/papers/${paperId}/reviews?user_id=${userId}` : `/papers/${paperId}/reviews`).then(res => ({ data: res.data, error: null })).catch(error => ({ data: null, error }))
       ]);
 
       if (paperError) throw paperError;
@@ -172,7 +165,7 @@ export const usePublicPaperDetailPageQuery = ({
       
       let finalReviewsData = reviewsData;
       if (reviewsError) {
-        console.warn("Failed to fetch reviews (table might not exist yet):", reviewsError);
+        console.warn("Failed to fetch reviews:", reviewsError);
         finalReviewsData = [];
       }
 
@@ -181,6 +174,14 @@ export const usePublicPaperDetailPageQuery = ({
         author: Array.isArray(paperData.author)
           ? (paperData.author[0] ?? null)
           : (paperData.author ?? null),
+        coauthors: Array.isArray(paperData.coauthors)
+          ? paperData.coauthors
+              .map((c: any) => ({
+                author_order: c.author_order,
+                profile: Array.isArray(c.profile) ? c.profile[0] : c.profile,
+              }))
+              .sort((a: any, b: any) => (a.author_order || 0) - (b.author_order || 0))
+          : [],
         conference: Array.isArray(paperData.conference)
           ? (paperData.conference[0] ?? null)
           : (paperData.conference ?? null),
@@ -825,5 +826,27 @@ export const useSubmitExistingPapersQuery = (
       }) as SubmitExistingPaper[];
     },
     enabled: !!conferenceId && enabled,
+  });
+};
+
+export const usePaperMarkingsQuery = (paperId: number | null) => {
+  const { session } = useAuth();
+  return useQuery({
+    queryKey: ["papers/markings", paperId, session?.user?.user_metadata?.user_id],
+    queryFn: async () => {
+      if (!paperId || Number.isNaN(paperId)) return [];
+
+      const userId = session?.user?.user_metadata?.user_id;
+
+      try {
+        const url = userId ? `/papers/${paperId}/markings?user_id=${userId}` : `/papers/${paperId}/markings`;
+        const res = await request.get<{ status: string; data: any[] }>(url);
+        return res.data || [];
+      } catch (error) {
+        console.warn("Failed to fetch markings:", error);
+        return [];
+      }
+    },
+    enabled: !!paperId,
   });
 };

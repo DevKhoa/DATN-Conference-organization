@@ -1,4 +1,4 @@
-import { LayoutDashboard, AwardIcon, BookDashed } from "lucide-react";
+import { LayoutDashboard, AwardIcon, BookDashed, Users } from "lucide-react";
 
 import type { LucideIcon } from "lucide-react";
 
@@ -30,9 +30,9 @@ export const adminSidebarData: AdminSidebarData = {
       title: "General",
       items: [
         {
-          title: "Dashboard",
+          title: "User Management",
           url: "/admin",
-          icon: LayoutDashboard,
+          icon: Users,
           isActive: true,
         },
       ],

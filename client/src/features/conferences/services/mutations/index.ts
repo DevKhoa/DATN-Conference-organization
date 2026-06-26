@@ -135,3 +135,30 @@ export const useUpdateConferenceMutation = () => {
     },
   });
 };
+
+export const useDeleteConferenceMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ conferenceId }: { conferenceId: number }) => {
+      const { error } = await supabase
+        .from("delete_conference")
+        .insert([{ conf_id: conferenceId }]);
+
+      if (error) {
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [ConferencesKeys.ActiveConferences],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [ConferencesKeys.PaginatedConferences],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [ConferencesKeys.ConferencesCount],
+      });
+    },
+  });
+};

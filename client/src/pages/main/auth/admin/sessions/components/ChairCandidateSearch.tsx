@@ -22,7 +22,6 @@ type ChairCandidateSearchProps = {
 const SEARCH_KEYS: MultiKeySearchOption[] = [
   { value: "full_name", label: "Name" },
   { value: "email", label: "Email" },
-  { value: "organization", label: "Org" },
 ];
 
 export const ChairCandidateSearch = ({
@@ -72,7 +71,6 @@ export const ChairCandidateSearch = ({
     useSearchChairCandidatesBySessionQuery({
       searchKey: searchPayload.searchKey,
       searchTerm: searchPayload.searchValue,
-      limit: 12,
       sessionId: Number(sessionTempId),
       enabled: isDropdownOpen,
     });
@@ -123,7 +121,8 @@ export const ChairCandidateSearch = ({
         />
 
         {isDropdownOpen && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 max-h-72 overflow-y-auto">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-50 flex flex-col">
+            <div className="max-h-72 overflow-y-auto">
             {isLoading ? (
               <div className="p-3 text-sm text-slate-500 flex items-center justify-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -209,6 +208,12 @@ export const ChairCandidateSearch = ({
                   </div>
                 );
               })
+            )}
+            </div>
+            {!isLoading && uniqueCandidates.length > 0 && (
+              <div className="text-sm text-slate-500 border-t border-slate-100 py-2 px-3 bg-slate-50 shrink-0">
+                Showing {uniqueCandidates.length} results &middot; Type to search all chairs
+              </div>
             )}
           </div>
         )}

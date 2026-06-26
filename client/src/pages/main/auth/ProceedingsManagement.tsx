@@ -41,9 +41,14 @@ import {
   RotateCw,
   Grid3X3,
   Sparkles,
+  ChevronsUpDown,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { DefaultLayout } from "@/layouts/DefaultLayout";
 import {
@@ -97,6 +102,7 @@ import {
 } from "@/features/proceedings/management/constants";
 import { ProceedingsBasicTabsSection } from "@/features/proceedings/management/sections/ProceedingsBasicTabsSection";
 import { ProceedingsEditorSection } from "@/features/proceedings/management/sections/ProceedingsEditorSection";
+import { generateUUID } from "@/features/proceedings/utils/uuid";
 
 const handlePos = getHandlePosition;
 // ─── Tab definitions ──────────────────────────────────────────────────────────
@@ -161,6 +167,10 @@ const ProceedingsManagementPage: React.FC = () => {
     useUploadProceedingsPdfCacheMutation();
   const renderProceedingsPdfMutation = useRenderProceedingsPdfMutation();
   const saving = saveProceedingsConfigMutation.isPending;
+
+  const [openConfSelector, setOpenConfSelector] = useState(false);
+  const initialProcDataStrRef = useRef<string>("");
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   useEffect(() => {
     if (activeTab === "cover") {
@@ -379,6 +389,13 @@ const ProceedingsManagementPage: React.FC = () => {
   const [papersLoading, setPapersLoading] = useState(false);
   const [papersError, setPapersError] = useState<string | null>(null);
   const procDataRef = useRef(procData);
+
+  useEffect(() => {
+    if (!initialProcDataStrRef.current) return;
+    const currentStr = JSON.stringify(procData);
+    setHasUnsavedChanges(currentStr !== initialProcDataStrRef.current);
+  }, [procData]);
+
   const confStartRef = useRef<Date | null>(null);
   const pendingBannerUrlsRef = useRef<string[]>([]);
   const bannerLogosPendingRef = useRef(false);
@@ -482,7 +499,7 @@ const ProceedingsManagementPage: React.FC = () => {
       }
 
       return {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         paperTitle: p.title,
         authors: a?.full_name || "",
         abstract: p.abstract || "",
@@ -700,7 +717,7 @@ const ProceedingsManagementPage: React.FC = () => {
         const c = getObj(s.chair);
         if (c?.full_name && !chairSet.has(c.full_name))
           chairSet.set(c.full_name, {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             name: c.full_name,
             role: "Session Chair",
             affiliation: c.organization || "",
@@ -710,7 +727,7 @@ const ProceedingsManagementPage: React.FC = () => {
       reviewers?.forEach((rv: any) => {
         if (rv?.full_name && !reviewerSet.has(rv.full_name))
           reviewerSet.set(rv.full_name, {
-            id: rv.id || crypto.randomUUID(),
+            id: rv.id || generateUUID(),
             name: rv.full_name,
             role: "Program Committee",
             affiliation: rv.organization || "",
@@ -763,7 +780,7 @@ const ProceedingsManagementPage: React.FC = () => {
                 (1000 * 3600 * 24),
             ) + 1;
           return {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             date: `Day ${dayDiff} - ${currentSlot.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}`,
             time: `${currentSlot.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – ${new Date(s.end_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
             location: s.room_location,
@@ -784,6 +801,8 @@ const ProceedingsManagementPage: React.FC = () => {
       };
       setProcData(newProcData);
       procDataRef.current = newProcData;
+      initialProcDataStrRef.current = JSON.stringify(newProcData);
+      setHasUnsavedChanges(false);
       setPapersTotal(total || (papers?.length ?? 0));
 
       if (new Date(conf.end_date) > new Date()) {
@@ -835,6 +854,9 @@ const ProceedingsManagementPage: React.FC = () => {
 
       await saveProceedingsConfigMutation.mutateAsync(payload);
       setError(null);
+      initialProcDataStrRef.current = JSON.stringify(procData);
+      setHasUnsavedChanges(false);
+      toast.success("Proceedings saved successfully!");
     } catch (e: any) {
       setError("Save failed: " + (e?.message || "Unknown error"));
     }
@@ -918,8 +940,9 @@ const ProceedingsManagementPage: React.FC = () => {
           setPreviewBlobUrl(url);
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Preview generation failed", e);
+      toast.error("Failed to generate PDF preview: " + (e?.message || "Unknown error"));
     } finally {
       if (!bgGenAbortRef.current) setPreviewGenerating(false);
     }
@@ -974,8 +997,9 @@ const ProceedingsManagementPage: React.FC = () => {
         setPreviewBlobUrl(url);
         await downloadPdfFromUrl(url, "proceedings-edited.pdf");
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Export PDF failed", e);
+      toast.error("Failed to export PDF: " + (e?.message || "Unknown error"));
     } finally {
       setExportingPdf(false);
     }
@@ -1427,7 +1451,7 @@ const ProceedingsManagementPage: React.FC = () => {
       // 5. Ctrl+V Paste — patchPage saves history
       if ((e.ctrlKey || e.metaKey) && e.key === "v" && clipboard) {
         e.preventDefault();
-        const newId = crypto.randomUUID();
+        const newId = generateUUID();
         const pastedEl = {
           ...clipboard,
           id: newId,
@@ -1445,10 +1469,12 @@ const ProceedingsManagementPage: React.FC = () => {
   }, [selEl, clipboard, selPage, selElId, edPages]);
 
   const addText = () => {
-    const id = crypto.randomUUID();
-    const maxTxtZ = curPg.els
-      .filter((e) => e.type === "text")
-      .reduce((m, e) => Math.max(m, e.zIndex ?? 100), 100);
+    const id = generateUUID();
+    const maxTxtZ = curPg?.els
+      ? curPg.els
+          .filter((e) => e.type === "text")
+          .reduce((m, e) => Math.max(m, e.zIndex ?? 100), 100)
+      : 100;
     patchPage((p) => ({
       ...p,
       els: [
@@ -1498,7 +1524,7 @@ const ProceedingsManagementPage: React.FC = () => {
   const applyBgImage = (src: string, scope: "current" | "all") => {
     saveHistory();
     const makeEl = (): EditorEl => ({
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       type: "image",
       src,
       x: 0,
@@ -1537,10 +1563,12 @@ const ProceedingsManagementPage: React.FC = () => {
   const addImage = (src: string, isBackground: boolean = false) => {
     const img = new window.Image();
     img.onload = () => {
-      const id = crypto.randomUUID();
-      const maxImgZ = curPg.els
-        .filter((e) => e.type === "image")
-        .reduce((m, e) => Math.max(m, e.zIndex ?? 10), 10);
+      const id = generateUUID();
+      const maxImgZ = curPg?.els
+        ? curPg.els
+            .filter((e) => e.type === "image")
+            .reduce((m, e) => Math.max(m, e.zIndex ?? 10), 10)
+        : 10;
 
       let imageProps: Partial<EditorEl>;
 
@@ -1591,11 +1619,13 @@ const ProceedingsManagementPage: React.FC = () => {
   };
 
   const addTable = (rows: number, cols: number) => {
-    const id = crypto.randomUUID();
+    const id = generateUUID();
     const tW = 500,
       tH = rows * 32 + 10;
     const tblData = createEmptyTable(rows, cols, tW, tH);
-    const maxZ = curPg.els.reduce((m, e) => Math.max(m, e.zIndex ?? 10), 10);
+    const maxZ = curPg?.els
+      ? curPg.els.reduce((m, e) => Math.max(m, e.zIndex ?? 10), 10)
+      : 10;
     patchPage((p) => ({
       ...p,
       els: [
@@ -1698,7 +1728,7 @@ const ProceedingsManagementPage: React.FC = () => {
   const insertPage = (afterIdx: number) => {
     saveHistory();
     const blank: EditorPage = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       bg: "",
       bgColor: "#ffffff",
       els: [],
@@ -1769,7 +1799,7 @@ const ProceedingsManagementPage: React.FC = () => {
     updateKeynotes([
       ...procData.keynotes,
       {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         name: "",
         photo: "",
         presentationTitle: "",
@@ -1872,7 +1902,7 @@ const ProceedingsManagementPage: React.FC = () => {
     updateCommittee([
       ...procData.committee,
       {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         role: "Program Committee",
         name: "",
         affiliation: "",
@@ -2100,23 +2130,57 @@ const ProceedingsManagementPage: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-3">
-              <select
-                className="text-sm bg-slate-50 border border-slate-200 text-slate-700 px-3 py-2 rounded-lg outline-none cursor-pointer focus:ring-2 focus:ring-indigo-500"
-                onChange={(e) => setSelectedConfId(Number(e.target.value))}
-                value={selectedConfId || ""}
-              >
-                <option value="">— Select Conference —</option>
-                {conferences.map((c) => (
-                  <option key={c.conf_id} value={c.conf_id}>
-                    {c.conf_name}
-                  </option>
-                ))}
-              </select>
+              <Popover open={openConfSelector} onOpenChange={setOpenConfSelector}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openConfSelector}
+                    className="w-[300px] justify-between bg-slate-50 text-slate-700"
+                  >
+                    <span className="truncate flex-1 text-left">
+                      {selectedConfId
+                        ? conferences.find((c) => c.conf_id === selectedConfId)?.conf_name
+                        : "— Select Conference —"}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0">
+                  <Command>
+                    <CommandInput placeholder="Search conference..." />
+                    <CommandList>
+                      <CommandEmpty>No conference found.</CommandEmpty>
+                      <CommandGroup>
+                        {conferences.map((c) => (
+                          <CommandItem
+                            key={c.conf_id}
+                            value={c.conf_name}
+                            onSelect={() => {
+                              setSelectedConfId(c.conf_id);
+                              setOpenConfSelector(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedConfId === c.conf_id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {c.conf_name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
               <Button
-                variant="outline"
+                variant={hasUnsavedChanges ? "default" : "outline"}
                 onClick={handleSaveConfig}
                 disabled={!selectedConfId || saving}
-                className="rounded-lg text-sm flex items-center gap-1.5"
+                className={cn("rounded-lg text-sm flex items-center gap-1.5", hasUnsavedChanges && "bg-indigo-600 hover:bg-indigo-700 text-white")}
               >
                 <Save className="w-4 h-4" />
                 {saving ? "Saving…" : "Save"}
@@ -2131,6 +2195,18 @@ const ProceedingsManagementPage: React.FC = () => {
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
               <p className="text-sm text-amber-800">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Unsaved Changes Warning ── */}
+        {hasUnsavedChanges && !error && (
+          <div className="max-w-screen-xl mx-auto px-6 pt-4">
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 flex items-start gap-2.5 shadow-sm transition-all">
+              <Info className="w-4 h-4 text-indigo-600 mt-0.5 shrink-0" />
+              <p className="text-sm text-indigo-800">
+                You have unsaved changes. Don't forget to click "Save" to keep your updates.
+              </p>
             </div>
           </div>
         )}

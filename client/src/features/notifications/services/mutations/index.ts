@@ -64,43 +64,37 @@ export const resolveNotificationTargetUsers = async ({
     return selectedUserIds;
   }
 
-  if (peopleScope === "byRole") {
-    if (selectedRoles.length === 0) return [];
+  if (confScope === "all" && peopleScope === "all") {
+    const { data } = await supabase.from("profiles").select("user_id");
+    return (data || []).map((user: any) => user.user_id).filter(Boolean);
+  }
 
-    const userIdSets: number[][] = [];
-    const confIds = confScope === "specific" ? selectedConfIds : null;
+  const rolesToFetch =
+    peopleScope === "all" ? ["author", "chairperson", "attendee"] : selectedRoles;
 
-    if (selectedRoles.includes("author")) {
-      let paperIds: number[] = [];
+  if (rolesToFetch.length === 0) return [];
 
-      if (confIds) {
-        const { data: sessionsData } = await supabase
-          .from("sessions")
-          .select("session_id")
-          .in("conf_id", confIds);
+  const userIdSets: number[][] = [];
+  const confIds = confScope === "specific" ? selectedConfIds : null;
 
-        const sessionIds = (sessionsData || [])
-          .map((session: any) => session.session_id)
-          .filter(Boolean);
+  if (rolesToFetch.includes("author")) {
+    let paperIds: number[] = [];
 
-        if (sessionIds.length > 0) {
-          const { data: sessionPapersData } = await supabase
-            .from("session_papers")
-            .select("paper_id")
-            .in("session_id", sessionIds);
+    if (confIds) {
+      const { data: sessionsData } = await supabase
+        .from("sessions")
+        .select("session_id")
+        .in("conf_id", confIds);
 
-          paperIds = [
-            ...new Set(
-              (sessionPapersData || [])
-                .map((sessionPaper: any) => sessionPaper.paper_id)
-                .filter(Boolean),
-            ),
-          ];
-        }
-      } else {
+      const sessionIds = (sessionsData || [])
+        .map((session: any) => session.session_id)
+        .filter(Boolean);
+
+      if (sessionIds.length > 0) {
         const { data: sessionPapersData } = await supabase
           .from("session_papers")
-          .select("paper_id");
+          .select("paper_id")
+          .in("session_id", sessionIds);
 
         paperIds = [
           ...new Set(
@@ -110,166 +104,131 @@ export const resolveNotificationTargetUsers = async ({
           ),
         ];
       }
+    } else {
+      const { data: sessionPapersData } = await supabase
+        .from("session_papers")
+        .select("paper_id");
 
-      if (paperIds.length > 0) {
-        const { data: authorsData } = await supabase
-          .from("papers")
-          .select("primary_author_id")
-          .in("paper_id", paperIds);
-
-        const primaryAuthorIds = (authorsData || [])
-          .map((paper: any) => paper.primary_author_id)
-          .filter(Boolean);
-
-        const { data: coAuthorsData } = await supabase
-          .from("paper_coauthors")
-          .select("user_id")
-          .in("paper_id", paperIds);
-
-        const coAuthorIds = (coAuthorsData || [])
-          .map((coAuthor: any) => coAuthor.user_id)
-          .filter(Boolean);
-
-        userIdSets.push([...primaryAuthorIds, ...coAuthorIds]);
-      }
+      paperIds = [
+        ...new Set(
+          (sessionPapersData || [])
+            .map((sessionPaper: any) => sessionPaper.paper_id)
+            .filter(Boolean),
+        ),
+      ];
     }
 
-    if (selectedRoles.includes("chairperson")) {
-      let chairIds: number[] = [];
+    if (paperIds.length > 0) {
+      const { data: authorsData } = await supabase
+        .from("papers")
+        .select("primary_author_id")
+        .in("paper_id", paperIds);
 
-      if (confIds) {
-        const { data: sessionsData } = await supabase
-          .from("sessions")
-          .select("session_id")
-          .in("conf_id", confIds);
+      const primaryAuthorIds = (authorsData || [])
+        .map((paper: any) => paper.primary_author_id)
+        .filter(Boolean);
 
-        const sessionIds = (sessionsData || [])
-          .map((session: any) => session.session_id)
-          .filter(Boolean);
+      const { data: coAuthorsData } = await supabase
+        .from("paper_coauthors")
+        .select("user_id")
+        .in("paper_id", paperIds);
 
-        if (sessionIds.length > 0) {
-          const { data: chairData } = await supabase
-            .from("session_chairs")
-            .select("user_id")
-            .in("session_id", sessionIds);
+      const coAuthorIds = (coAuthorsData || [])
+        .map((coAuthor: any) => coAuthor.user_id)
+        .filter(Boolean);
 
-          chairIds = (chairData || [])
-            .map((sessionChair: any) => sessionChair.user_id)
-            .filter(Boolean);
-        }
-      } else {
+      userIdSets.push([...primaryAuthorIds, ...coAuthorIds]);
+    }
+  }
+
+  if (rolesToFetch.includes("chairperson")) {
+    let chairIds: number[] = [];
+
+    if (confIds) {
+      const { data: sessionsData } = await supabase
+        .from("sessions")
+        .select("session_id")
+        .in("conf_id", confIds);
+
+      const sessionIds = (sessionsData || [])
+        .map((session: any) => session.session_id)
+        .filter(Boolean);
+
+      if (sessionIds.length > 0) {
         const { data: chairData } = await supabase
           .from("session_chairs")
-          .select("user_id");
+          .select("user_id")
+          .in("session_id", sessionIds);
 
         chairIds = (chairData || [])
           .map((sessionChair: any) => sessionChair.user_id)
           .filter(Boolean);
       }
+    } else {
+      const { data: chairData } = await supabase
+        .from("session_chairs")
+        .select("user_id");
 
-      userIdSets.push(chairIds);
+      chairIds = (chairData || [])
+        .map((sessionChair: any) => sessionChair.user_id)
+        .filter(Boolean);
     }
 
-    if (selectedRoles.includes("attendee")) {
-      if (confIds) {
-        const { data: sessionsData } = await supabase
-          .from("sessions")
-          .select("session_id")
-          .in("conf_id", confIds);
+    userIdSets.push(chairIds);
+  }
 
-        const sessionIds = (sessionsData || [])
-          .map((session: any) => session.session_id)
-          .filter(Boolean);
+  if (rolesToFetch.includes("attendee")) {
+    if (confIds) {
+      const { data: sessionsData } = await supabase
+        .from("sessions")
+        .select("session_id")
+        .in("conf_id", confIds);
 
-        if (sessionIds.length > 0) {
-          const { data: ticketSessionData } = await supabase
-            .from("ticket_session")
-            .select("ticket_id")
-            .in("session_id", sessionIds);
+      const sessionIds = (sessionsData || [])
+        .map((session: any) => session.session_id)
+        .filter(Boolean);
 
-          const ticketIds = [
-            ...new Set(
-              (ticketSessionData || [])
-                .map((ticket: any) => ticket.ticket_id)
-                .filter(Boolean),
-            ),
-          ];
+      if (sessionIds.length > 0) {
+        const { data: ticketSessionData } = await supabase
+          .from("ticket_session")
+          .select("ticket_id")
+          .in("session_id", sessionIds);
 
-          if (ticketIds.length > 0) {
-            const { data: registrationsData } = await supabase
-              .from("registrations")
-              .select("user_id")
-              .in("ticket_id", ticketIds);
+        const ticketIds = [
+          ...new Set(
+            (ticketSessionData || [])
+              .map((ticket: any) => ticket.ticket_id)
+              .filter(Boolean),
+          ),
+        ];
 
-            userIdSets.push(
-              (registrationsData || [])
-                .map((registration: any) => registration.user_id)
-                .filter(Boolean),
-            );
-          }
+        if (ticketIds.length > 0) {
+          const { data: registrationsData } = await supabase
+            .from("registrations")
+            .select("user_id")
+            .in("ticket_id", ticketIds);
+
+          userIdSets.push(
+            (registrationsData || [])
+              .map((registration: any) => registration.user_id)
+              .filter(Boolean),
+          );
         }
-      } else {
-        const { data: registrationsData } = await supabase
-          .from("registrations")
-          .select("user_id");
-
-        userIdSets.push(
-          (registrationsData || [])
-            .map((registration: any) => registration.user_id)
-            .filter(Boolean),
-        );
       }
+    } else {
+      const { data: registrationsData } = await supabase
+        .from("registrations")
+        .select("user_id");
+
+      userIdSets.push(
+        (registrationsData || [])
+          .map((registration: any) => registration.user_id)
+          .filter(Boolean),
+      );
     }
-
-    return [...new Set(userIdSets.flat())];
   }
 
-  if (confScope === "all") {
-    const { data } = await supabase.from("profiles").select("user_id");
-    return (data || []).map((user: any) => user.user_id).filter(Boolean);
-  }
-
-  if (selectedConfIds.length === 0) return [];
-
-  const { data: sessionsData, error: sessionsError } = await supabase
-    .from("sessions")
-    .select("session_id")
-    .in("conf_id", selectedConfIds);
-  if (sessionsError) throw sessionsError;
-
-  const sessionIds = (sessionsData || [])
-    .map((session: any) => session.session_id)
-    .filter(Boolean);
-  if (sessionIds.length === 0) return [];
-
-  const { data: ticketSessionData, error: ticketSessionError } = await supabase
-    .from("ticket_session")
-    .select("ticket_id")
-    .in("session_id", sessionIds);
-  if (ticketSessionError) throw ticketSessionError;
-
-  const ticketIds = [
-    ...new Set(
-      (ticketSessionData || [])
-        .map((ticket: any) => ticket.ticket_id)
-        .filter(Boolean),
-    ),
-  ];
-  if (ticketIds.length === 0) return [];
-
-  const { data: registrationsData, error: registrationsError } = await supabase
-    .from("registrations")
-    .select("user_id")
-    .in("ticket_id", ticketIds);
-  if (registrationsError) throw registrationsError;
-
-  return [
-    ...new Set(
-      (registrationsData || [])
-        .map((registration: any) => registration.user_id)
-        .filter(Boolean),
-    ),
-  ];
+  return [...new Set(userIdSets.flat())];
 };
 
 export const useSaveNotificationTemplateMutation = () => {
@@ -424,6 +383,26 @@ export const useSendNotificationMutation = () => {
             console.warn("[NotifEmail] Email dispatch error:", err),
           );
       }
+    },
+  });
+};
+
+export const useDeleteNotificationTemplateMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (templateId: number) => {
+      const { error } = await supabase
+        .from("notification_templates")
+        .delete()
+        .eq("template_id", templateId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [NotificationsKeys.NotificationTemplates],
+      });
     },
   });
 };

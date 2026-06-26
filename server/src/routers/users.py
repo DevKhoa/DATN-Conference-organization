@@ -8,7 +8,7 @@ import asyncio
 import uuid
 
 
-from fastapi import APIRouter, HTTPException, File, UploadFile
+from fastapi import APIRouter, HTTPException, File, UploadFile, Query as QueryParam
 from google.genai import types
 import serpapi
 
@@ -16,6 +16,8 @@ from packages.schema import UserDescriptionRequest, ScholarImportRequest, Schola
 from packages.utils import Logger, supabase_client, genai_client, storage_client, EMBEDDING_MODEL_NAME, VECTOR_DIMENSION, MAX_CV_SIZE_MB, ALLOWED_IMAGE_EXTENSIONS, SERP_API_KEY, SCHOLAR_PROMPT, BUCKET_NAME, CV_RETRIEVER
 from packages.utils import valid_check, clean_text, extract_text_from_pdf, is_image_file, format_cv_profile
 from packages.file_storage import StorageClient
+from pydantic import BaseModel
+from typing import List, Optional
 
 MODEL = "gemini-3-flash-preview"
 
@@ -298,13 +300,13 @@ async def import_scholar_profile(user_id: int, request: ScholarImportRequest):
             {', '.join(interests).title()}
 
             ### Research Fields
-            {'\n'.join([f"- {field}" for field in research_bio.get('research_fields', [])])}
+            {chr(10).join([f"- {field}" for field in research_bio.get('research_fields', [])])}
 
             ### Research Directions
-            {'\n'.join([f"- {direction}" for direction in research_bio.get('research_directions', [])])}
+            {chr(10).join([f"- {direction}" for direction in research_bio.get('research_directions', [])])}
 
             ### Research Themes
-            {'\n'.join([f"- {theme}" for theme in research_bio.get('research_themes', [])])}
+            {chr(10).join([f"- {theme}" for theme in research_bio.get('research_themes', [])])}
 
             ### Articles
             {articles_md}
@@ -349,3 +351,201 @@ async def import_scholar_profile(user_id: int, request: ScholarImportRequest):
         logger.error(f"API Error Import Scholar Profile: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error while importing Scholar profile")
 
+
+# ─── Admin: User Management ──────────────────────────────────────────────────
+
+class RoleUpdateRequest(BaseModel):
+    role_ids: List[int]
+
+
+# Build an admin client using the service role key for Auth metadata sync
+supabase_admin_client = None
+try:
+    from supabase import create_client as _create_admin_client
+    _admin_url = os.environ.get("SUPABASE_URL")
+    _service_key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
+    if _admin_url and _service_key:
+        supabase_admin_client = _create_admin_client(_admin_url, _service_key)
+except Exception as _init_err:
+    logger.warning(f"Could not initialize admin Supabase client: {_init_err}")
+
+
+@router.get("/admin/users")
+async def list_users(
+    page: int = QueryParam(1, ge=1),
+    page_size: int = QueryParam(20, ge=1, le=100),
+    search: Optional[str] = QueryParam(None),
+    role_id: Optional[int] = QueryParam(None),
+):
+    """List all users with their roles. Admin-only."""
+    try:
+        offset = (page - 1) * page_size
+
+        if role_id is not None:
+            # ── Path A: Filter by role ─────────────────────────────────────────
+            # Start from user_roles to get the correct set BEFORE paginating.
+
+            # 1a. Get ALL UUIDs that have this role
+            role_uuids_res = (
+                supabase_client.table("user_roles")
+                .select("user_id")
+                .eq("role_id", role_id)
+                .execute()
+            )
+            all_role_uuids = [r["user_id"] for r in (role_uuids_res.data or [])]
+
+            if not all_role_uuids:
+                return {"status": "success", "total": 0, "page": page, "page_size": page_size, "data": []}
+
+            # 1b. Fetch profiles for those UUIDs (with optional search)
+            prof_query = supabase_client.table("profiles").select(
+                "user_id, id, full_name, email, organization, avatar_url, created_at"
+            ).in_("id", all_role_uuids)
+
+            if search:
+                sl = search.strip()
+                prof_query = prof_query.or_(
+                    f"full_name.ilike.%{sl}%,email.ilike.%{sl}%,organization.ilike.%{sl}%"
+                )
+
+            # Count total in this filtered set
+            count_res = (
+                supabase_client.table("profiles")
+                .select("user_id", count="exact")
+                .in_("id", all_role_uuids)
+            )
+            if search:
+                sl = search.strip()
+                count_res = count_res.or_(
+                    f"full_name.ilike.%{sl}%,email.ilike.%{sl}%,organization.ilike.%{sl}%"
+                )
+            total = (count_res.execute().count or 0)
+
+            profiles_res = (
+                prof_query.order("created_at", desc=True)
+                .range(offset, offset + page_size - 1)
+                .execute()
+            )
+            profiles = profiles_res.data or []
+
+        else:
+            # ── Path B: No role filter — paginate all profiles ─────────────────
+            base_query = supabase_client.table("profiles").select(
+                "user_id, id, full_name, email, organization, avatar_url, created_at"
+            )
+            count_query = supabase_client.table("profiles").select("user_id", count="exact")
+
+            if search:
+                sl = search.strip()
+                filter_expr = f"full_name.ilike.%{sl}%,email.ilike.%{sl}%,organization.ilike.%{sl}%"
+                base_query = base_query.or_(filter_expr)
+                count_query = count_query.or_(filter_expr)
+
+            total = (count_query.execute().count or 0)
+            profiles_res = (
+                base_query.order("created_at", desc=True)
+                .range(offset, offset + page_size - 1)
+                .execute()
+            )
+            profiles = profiles_res.data or []
+
+        # ── Step 2: Fetch all roles for this page's profiles ──────────────────
+        uuids = [p["id"] for p in profiles if p.get("id")]
+        roles_map: dict = {uid: [] for uid in uuids}
+
+        if uuids:
+            roles_res = (
+                supabase_client.table("user_roles")
+                .select("user_id, role_id, roles(role_name)")
+                .in_("user_id", uuids)
+                .execute()
+            )
+            for row in (roles_res.data or []):
+                uid = row["user_id"]
+                if uid in roles_map:
+                    roles_map[uid].append({
+                        "role_id": row["role_id"],
+                        "roles": row.get("roles"),
+                    })
+
+        # ── Step 3: Merge ──────────────────────────────────────────────────────
+        for p in profiles:
+            p["user_roles"] = roles_map.get(p.get("id"), [])
+
+        return {
+            "status": "success",
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "data": profiles,
+        }
+
+    except Exception as e:
+        logger.error(f"Admin List Users Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@router.put("/admin/users/{user_uuid}/roles")
+async def update_user_roles(user_uuid: str, request: RoleUpdateRequest):
+    """
+    Atomically update a user's roles.
+    1. Deletes all existing user_roles rows for this user.
+    2. Inserts the new role rows.
+    3. (Best-effort) Syncs Supabase Auth app_metadata so the JWT reflects
+       the change after the next token refresh.
+    """
+    try:
+        # Verify user exists
+        profile_res = (
+            supabase_client.table("profiles")
+            .select("user_id")
+            .eq("id", user_uuid)
+            .single()
+            .execute()
+        )
+        if not profile_res.data:
+            raise HTTPException(status_code=404, detail="User not found.")
+
+        # Resolve role names for metadata sync
+        role_names: List[str] = []
+        if request.role_ids:
+            roles_res = (
+                supabase_client.table("roles")
+                .select("role_id, role_name")
+                .in_("role_id", request.role_ids)
+                .execute()
+            )
+            role_names = [r["role_name"].upper() for r in (roles_res.data or [])]
+
+        # Atomic swap: delete then insert
+        supabase_client.table("user_roles").delete().eq("user_id", user_uuid).execute()
+        if request.role_ids:
+            new_rows = [{"user_id": user_uuid, "role_id": rid} for rid in request.role_ids]
+            supabase_client.table("user_roles").insert(new_rows).execute()
+
+        # Sync Supabase Auth metadata (best-effort — non-fatal if it fails)
+        if supabase_admin_client:
+            try:
+                # 1. Update app_metadata so new JWT carries correct roles
+                supabase_admin_client.auth.admin.update_user_by_id(
+                    user_uuid,
+                    {"app_metadata": {"roles": role_names}},
+                )
+            except Exception as auth_err:
+                logger.warning(f"Auth metadata/session sync failed (non-fatal): {auth_err}")
+
+        logger.info(f"Updated roles for user {user_uuid}: {role_names}")
+        return {
+            "status": "success",
+            "message": f"Roles updated to: {', '.join(role_names) if role_names else 'none'}",
+            "user_uuid": user_uuid,
+            "role_ids": request.role_ids,
+            "role_names": role_names,
+        }
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Admin Update Roles Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

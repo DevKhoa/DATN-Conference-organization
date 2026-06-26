@@ -7,6 +7,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+import { useNavigate } from "@tanstack/react-router";
+import useAuth from "@/features/auth/hooks/useAuth";
+import { Role } from "@/features/auth/types";
+
 // Image configuration
 const HERO_IMAGES = [
   "https://images.unsplash.com/photo-1587825140708-dfaf72ae4b04?q=80&w=2070&auto=format&fit=crop",
@@ -18,6 +22,12 @@ const HERO_IMAGES = [
 
 const Hero: React.FC = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const navigate = useNavigate();
+  const { session, checkRoles } = useAuth();
+
+  const isAdminOrSec = checkRoles([Role.ADMIN, Role.SECRETARIAT]);
+  const isChair = checkRoles([Role.CHAIR]);
+  const isLoggedIn = !!session;
 
   const nextSlide = useCallback(() => {
     setCurrentSlide((prev) => (prev + 1) % HERO_IMAGES.length);
@@ -77,28 +87,73 @@ const Hero: React.FC = () => {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 pt-2">
-            <Button
-              size="lg"
-              className="shadow-lg shadow-black/10"
-              // TODO: Implement proper navigation
-              // onClick={onNavigateRegister}
-            >
-              Create Conference
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </Button>
-            <Button variant="outline" size="lg">
-              View Demo
-            </Button>
+            {isAdminOrSec ? (
+              <>
+                <Button
+                  size="lg"
+                  className="shadow-lg shadow-black/10"
+                  onClick={() => navigate({ to: "/conferences/create" })}
+                >
+                  Create Conference
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </Button>
+                <Button variant="outline" size="lg" onClick={() => navigate({ to: "/conferences" })}>
+                  Manage Conferences
+                </Button>
+              </>
+            ) : isChair ? (
+              <>
+                <Button
+                  size="lg"
+                  className="shadow-lg shadow-black/10"
+                  onClick={() => navigate({ to: "/chair-invitations" })}
+                >
+                  My Chair Invitations
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </Button>
+                <Button variant="outline" size="lg" onClick={() => navigate({ to: "/conferences" })}>
+                  View Conferences
+                </Button>
+              </>
+            ) : isLoggedIn ? (
+              <>
+                <Button
+                  size="lg"
+                  className="shadow-lg shadow-black/10"
+                  onClick={() => navigate({ to: "/conferences" })}
+                >
+                  Browse Conferences
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </Button>
+                <Button variant="outline" size="lg" onClick={() => navigate({ to: "/agenda/me" })}>
+                  View My Agenda
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  size="lg"
+                  className="shadow-lg shadow-black/10"
+                  onClick={() => navigate({ to: "/conferences" })}
+                >
+                  Browse Conferences
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </Button>
+                <Button variant="outline" size="lg" onClick={() => navigate({ to: "/auth/register" })}>
+                  Get Started
+                </Button>
+              </>
+            )}
           </div>
 
           <div className="pt-4 flex items-center space-x-6 text-sm">
             <div className="flex items-center">
               <CheckCircle2 className="w-4 h-4 text-primary mr-2" />
-              <span>Free 14-day trial</span>
+              <span>Powerful academic tools</span>
             </div>
             <div className="flex items-center">
               <CheckCircle2 className="w-4 h-4 text-primary mr-2" />
-              <span>No credit card required</span>
+              <span>AI-powered assistance</span>
             </div>
           </div>
         </div>

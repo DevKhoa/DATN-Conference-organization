@@ -53,12 +53,12 @@ export const SimpleDateTimePicker = ({
   };
 
   return (
-    <div className="relative group w-full">
-      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors pointer-events-none" />
+    <div className="w-full">
       <input
         id={inputId}
         type="datetime-local"
-        className={`w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-background border border-input text-foreground rounded-xl focus:ring-2 focus:ring-ring focus:border-ring outline-none transition-all ${className || ""}`}
+        step="60"
+        className={`w-full pl-3 pr-2 py-2 text-xs sm:text-sm bg-background border border-input text-foreground rounded-xl focus:ring-2 focus:ring-ring focus:border-ring outline-none transition-all ${className || ""}`}
         value={isoValue}
         onChange={handleChange}
         title={placeholder}
@@ -122,6 +122,7 @@ export const SimpleTimePicker = ({
     <input
       id={inputId}
       type="time"
+      step="60"
       placeholder={placeholder}
       className={`px-2 py-1 text-xs border border-input bg-background text-foreground rounded-md focus:ring-1 focus:ring-ring outline-none ${className || ""}`}
       value={timeValue}

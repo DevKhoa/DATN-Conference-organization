@@ -90,6 +90,11 @@ export interface PaperApplicableAward {
   existingMarking: PaperAwardExistingMarking | null;
 }
 
+export interface PaperDetailCoauthor {
+  author_order: number | null;
+  profile: PaperDetailAuthor | null;
+}
+
 export interface PublicPaperDetailPageData {
   paper: {
     paper_id: number;
@@ -99,9 +104,31 @@ export interface PublicPaperDetailPageData {
     created_at: string | null;
     submitted_conf: number | null;
     author: PaperDetailAuthor | null;
+    coauthors?: PaperDetailCoauthor[];
     conference: PaperDetailConference | null;
   };
   pdfUrl: string | null;
   reviews: PaperDetailReview[];
   applicableAwards: PaperApplicableAward[];
+}
+
+export interface PaperMarkingDetail {
+  criteria_name: string;
+  weight_pct: number;
+  score: number;
+}
+
+export interface PaperMarkingRecord {
+  mark_id: number;
+  total_score: number | null;
+  comments: string | null;
+  marked_at: string | null;
+  award: {
+    name: string;
+  };
+  marker: {
+    full_name: string | null;
+    role: string | null;
+  };
+  details: PaperMarkingDetail[];
 }

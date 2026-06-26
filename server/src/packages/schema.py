@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict
 from enum import Enum
 
-
+# Author Info
 class AuthorInfo(BaseModel):
     full_name: str
     email: str
@@ -41,6 +41,10 @@ class SessionLink(BaseModel):
     presentation_order: Optional[int]
     session: Optional[SessionInfo]
 
+class CoauthorInfo(BaseModel):
+    author_order: Optional[int]
+    profile: Optional[AuthorInfo]
+
 class PaperDetailResponse(BaseModel):
     paper_id: int
     title: str
@@ -49,6 +53,7 @@ class PaperDetailResponse(BaseModel):
     created_at: str
     
     author: Optional[AuthorInfo]
+    coauthors: List[CoauthorInfo] = []
     conference: Optional[ConferenceInfo]
     versions: List[VersionInfo] = []
     reviews: List[ReviewInfo] = []
@@ -117,6 +122,10 @@ class ChairInvitationCreateRequest(BaseModel):
     invited_by: Optional[int] = Field(
         None,
         description="Optional profile user_id of the person creating the invitation",
+    )
+    client_url: Optional[str] = Field(
+        None,
+        description="The base URL of the client to generate the invite link. If not provided, CLIENT_URL env var is used.",
     )
 
 

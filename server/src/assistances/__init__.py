@@ -1,2 +1,2 @@
-from assistances.agent import agent
+from assistances.agent import create_agent
 

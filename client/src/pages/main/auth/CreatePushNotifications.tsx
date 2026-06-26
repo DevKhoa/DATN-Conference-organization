@@ -19,6 +19,14 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   useNotificationConferenceUsersPoolQuery,
   useNotificationConferencesQuery,
   useNotificationTemplatesQuery,
@@ -31,6 +39,7 @@ import {
   resolveNotificationTargetUsers,
   useSaveNotificationTemplateMutation,
   useSendNotificationMutation,
+  useDeleteNotificationTemplateMutation,
 } from "@/features/notifications/services/mutations";
 import useAuth from "@/features/auth/hooks/useAuth";
 import { DefaultLayout } from "@/layouts/DefaultLayout";
@@ -498,6 +507,7 @@ const CreatePushNotificationsPage: React.FC<CreatePushNotificationsProps> = ({
   );
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [saveTemplateMsg, setSaveTemplateMsg] = useState("");
+  const [templateToDelete, setTemplateToDelete] = useState<number | null>(null);
 
   const { data: templates = [] } = useNotificationTemplatesQuery();
   const { data: conferences = [] } = useNotificationConferencesQuery();
@@ -517,8 +527,24 @@ const CreatePushNotificationsPage: React.FC<CreatePushNotificationsProps> = ({
     });
 
   const saveTemplateMutation = useSaveNotificationTemplateMutation();
+  const deleteTemplateMutation = useDeleteNotificationTemplateMutation();
   const sendNotificationMutation = useSendNotificationMutation();
   const submitting = sendNotificationMutation.isPending;
+
+  const deleteTemplate = async (templateId: number) => {
+    try {
+      await deleteTemplateMutation.mutateAsync(templateId);
+      if (selectedTemplate?.template_id === templateId) {
+        setSelectedTemplate(null);
+        setTitle("");
+        setContent("");
+      }
+    } catch (err: any) {
+      console.error("Failed to delete template:", err);
+    } finally {
+      setTemplateToDelete(null);
+    }
+  };
 
   // Save (create or update) template to DB
   const saveTemplate = async () => {
@@ -540,7 +566,7 @@ const CreatePushNotificationsPage: React.FC<CreatePushNotificationsProps> = ({
         templateName: newTmplName.trim(),
         titleTemplate: newTmplTitle.trim(),
         contentTemplate: newTmplContent.trim(),
-        confId: newTmplConfId,
+        confId: null,
         createdBy: senderData?.user_id ?? null,
       });
 
@@ -673,7 +699,6 @@ const CreatePushNotificationsPage: React.FC<CreatePushNotificationsProps> = ({
     }
   };
 
-  // Render
   const filteredTemplates = templates;
   const confDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -1291,7 +1316,6 @@ const CreatePushNotificationsPage: React.FC<CreatePushNotificationsProps> = ({
                                   value={t.template_id}
                                 >
                                   {t.template_name}
-                                  {t.conf_id === null ? " (Global)" : ""}
                                 </option>
                               ))}
                             </select>
@@ -1305,30 +1329,41 @@ const CreatePushNotificationsPage: React.FC<CreatePushNotificationsProps> = ({
 
                           {selectedTemplate && (
                             <>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingTemplateId(
-                                    selectedTemplate.template_id,
-                                  );
-                                  setNewTmplName(
-                                    selectedTemplate.template_name,
-                                  );
-                                  setNewTmplTitle(
-                                    selectedTemplate.title_template,
-                                  );
-                                  setNewTmplContent(
-                                    selectedTemplate.content_template,
-                                  );
-                                  setNewTmplConfId(selectedTemplate.conf_id);
-                                  setSaveTemplateMsg("");
-                                  setShowCreateTemplate(true);
-                                }}
-                                className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
-                              >
-                                <PenLine className="w-3.5 h-3.5" /> Edit this
-                                template
-                              </button>
+                              <div className="flex items-center gap-4">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingTemplateId(
+                                      selectedTemplate.template_id,
+                                    );
+                                    setNewTmplName(
+                                      selectedTemplate.template_name,
+                                    );
+                                    setNewTmplTitle(
+                                      selectedTemplate.title_template,
+                                    );
+                                    setNewTmplContent(
+                                      selectedTemplate.content_template,
+                                    );
+                                    setNewTmplConfId(selectedTemplate.conf_id);
+                                    setSaveTemplateMsg("");
+                                    setShowCreateTemplate(true);
+                                  }}
+                                  className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                                >
+                                  <PenLine className="w-3.5 h-3.5" /> Edit this
+                                  template
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setTemplateToDelete(selectedTemplate.template_id)}
+                                  className="flex items-center gap-1.5 text-xs font-medium text-destructive hover:text-destructive/80 transition-colors"
+                                  disabled={deleteTemplateMutation.isPending}
+                                >
+                                  {deleteTemplateMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                                  Delete Template
+                                </button>
+                              </div>
 
                               <div className="border border-primary/20 rounded-xl p-4 bg-primary/10 space-y-3">
                                 <p className="text-xs font-semibold text-primary uppercase tracking-wide">
@@ -1377,34 +1412,6 @@ const CreatePushNotificationsPage: React.FC<CreatePushNotificationsProps> = ({
                             />
                           </div>
 
-                          <div>
-                            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
-                              Scope
-                            </label>
-                            <div className="relative">
-                              <select
-                                value={newTmplConfId ?? ""}
-                                onChange={(e) =>
-                                  setNewTmplConfId(
-                                    e.target.value === ""
-                                      ? null
-                                      : Number(e.target.value),
-                                  )
-                                }
-                                className="w-full border border-input rounded-xl px-4 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring bg-background appearance-none pr-10"
-                              >
-                                <option value="">
-                                  Global - usable for all conferences
-                                </option>
-                                {conferences.map((c) => (
-                                  <option key={c.conf_id} value={c.conf_id}>
-                                    {c.conf_name}
-                                  </option>
-                                ))}
-                              </select>
-                              <ChevronDown className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground pointer-events-none" />
-                            </div>
-                          </div>
 
                           <div>
                             <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
@@ -1414,7 +1421,7 @@ const CreatePushNotificationsPage: React.FC<CreatePushNotificationsProps> = ({
                               type="text"
                               value={newTmplTitle}
                               onChange={(e) => setNewTmplTitle(e.target.value)}
-                              placeholder="e.g. [Conference_Name] - Call for Papers"
+                              placeholder="Notification title..."
                               className="w-full border border-input rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-background text-foreground"
                             />
                           </div>
@@ -1429,7 +1436,7 @@ const CreatePushNotificationsPage: React.FC<CreatePushNotificationsProps> = ({
                                 setNewTmplContent(e.target.value)
                               }
                               rows={5}
-                              placeholder="Write the body. Use [Conference_Name], [Author_Name], etc."
+                              placeholder="Write the body of the notification..."
                               className="w-full border border-input rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none leading-relaxed bg-background text-foreground"
                             />
                           </div>
@@ -1544,6 +1551,40 @@ const CreatePushNotificationsPage: React.FC<CreatePushNotificationsProps> = ({
           )}
         </div>
       </div>
+
+      <Dialog open={templateToDelete !== null} onOpenChange={(open) => {
+        if (!open) setTemplateToDelete(null);
+      }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Delete Template</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this template? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setTemplateToDelete(null)}
+              disabled={deleteTemplateMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => templateToDelete && deleteTemplate(templateToDelete)}
+              disabled={deleteTemplateMutation.isPending}
+            >
+              {deleteTemplateMutation.isPending && (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              )}
+              Delete Template
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DefaultLayout>
   );
 };

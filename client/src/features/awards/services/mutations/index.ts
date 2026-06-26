@@ -237,29 +237,51 @@ export const useUpdateConferenceAwardMutation = () => {
         }
       }
 
-      const { error: deleteCriteriaError } = await supabase
+      const { data: existingCriteria, error: fetchCriteriaError } = await supabase
         .from("award_criteria")
-        .delete()
+        .select("*")
         .eq("award_id", awardId);
 
-      if (deleteCriteriaError) {
-        throw deleteCriteriaError;
+      if (fetchCriteriaError) throw fetchCriteriaError;
+
+      const existingMap = new Map(existingCriteria.map((c) => [c.criteria_name, c]));
+      const payloadMap = new Map(criteria.map((c) => [c.criteria_name, c]));
+
+      const criteriaToDelete = existingCriteria.filter((c) => !payloadMap.has(c.criteria_name));
+      const criteriaToUpdate = criteria.filter((c) => existingMap.has(c.criteria_name));
+      const criteriaToInsert = criteria.filter((c) => !existingMap.has(c.criteria_name));
+
+      if (criteriaToDelete.length > 0) {
+        const idsToDelete = criteriaToDelete.map((c) => c.criteria_id);
+        const { error: delErr } = await supabase
+          .from("award_criteria")
+          .delete()
+          .in("criteria_id", idsToDelete);
+        if (delErr) throw delErr;
       }
 
-      if (criteria.length > 0) {
-        const { error: insertCriteriaError } = await supabase
+      for (const item of criteriaToUpdate) {
+        const existing = existingMap.get(item.criteria_name)!;
+        if (existing.weight_pct !== item.weight_pct) {
+          const { error: updErr } = await supabase
+            .from("award_criteria")
+            .update({ weight_pct: item.weight_pct })
+            .eq("criteria_id", existing.criteria_id);
+          if (updErr) throw updErr;
+        }
+      }
+
+      if (criteriaToInsert.length > 0) {
+        const { error: insErr } = await supabase
           .from("award_criteria")
           .insert(
-            criteria.map((item) => ({
+            criteriaToInsert.map((item) => ({
               award_id: awardId,
               criteria_name: item.criteria_name,
               weight_pct: item.weight_pct,
             })),
           );
-
-        if (insertCriteriaError) {
-          throw insertCriteriaError;
-        }
+        if (insErr) throw insErr;
       }
 
       return updatedAward;
