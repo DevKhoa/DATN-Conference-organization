@@ -252,3 +252,5 @@ Credentials/
 /benchmark/*.json
 /benchmark/*.txt
 /benchmark/*.xlsx
+
+/data/
