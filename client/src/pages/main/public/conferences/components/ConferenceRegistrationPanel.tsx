@@ -290,22 +290,35 @@ export const ConferenceRegistrationPanel = ({
                     </p>
 
                     {conferenceTickets.map((ticket) => {
-                      const soldOut =
+                      const now = new Date();
+                      const openTime = ticket.open_time ? new Date(ticket.open_time.endsWith('Z') ? ticket.open_time : ticket.open_time + 'Z') : null;
+                      const closeTime = ticket.close_time ? new Date(ticket.close_time.endsWith('Z') ? ticket.close_time : ticket.close_time + 'Z') : null;
+
+                      const isUpcoming = openTime ? now < openTime : false;
+                      const isSoldOut =
                         ticket.quantity_limit !== null &&
                         (ticket.sold_quantity || 0) >= ticket.quantity_limit;
+
+                      const isUnbuyable = isUpcoming || isSoldOut;
                       const isSelected = selectedTicketId === ticket.ticket_id;
                       const remaining =
                         ticket.quantity_limit !== null
                           ? ticket.quantity_limit - (ticket.sold_quantity || 0)
                           : null;
 
+                      let daysLeft: number | null = null;
+                      if (closeTime) {
+                        const msLeft = closeTime.getTime() - now.getTime();
+                        daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+                      }
+
                       return (
                         <div
                           key={ticket.ticket_id}
                           onClick={() =>
-                            !soldOut && setSelectedTicketId(ticket.ticket_id)
+                            !isUnbuyable && setSelectedTicketId(ticket.ticket_id)
                           }
-                          className={`rounded-xl border-2 p-4 transition-all ${soldOut
+                          className={`rounded-xl border-2 p-4 transition-all ${isUnbuyable
                               ? "cursor-not-allowed border-border bg-muted/40 opacity-60"
                               : isSelected
                                 ? "cursor-pointer border-primary bg-primary/10 shadow-md"
@@ -344,15 +357,28 @@ export const ConferenceRegistrationPanel = ({
                                   ticket.currency ?? "VND",
                                 )}
                               </p>
-                              {soldOut ? (
+                              {isUpcoming ? (
+                                <span className="text-xs font-semibold text-amber-500">
+                                  Opens on {openTime?.toLocaleDateString()}
+                                </span>
+                              ) : isSoldOut ? (
                                 <span className="text-xs font-semibold text-destructive">
                                   Sold Out
                                 </span>
-                              ) : remaining !== null ? (
-                                <span className="text-xs text-muted-foreground">
-                                  {remaining} left
-                                </span>
-                              ) : null}
+                              ) : (
+                                <div className="flex flex-col items-end">
+                                  {remaining !== null && (
+                                    <span className="text-xs text-muted-foreground">
+                                      {remaining} left
+                                    </span>
+                                  )}
+                                  {daysLeft !== null && (
+                                    <span className={`text-xs font-medium mt-0.5 ${daysLeft <= 7 ? "text-red-500" : "text-muted-foreground"}`}>
+                                      {daysLeft <= 7 ? `${daysLeft} ${daysLeft === 1 ? "day" : "days"} left` : `Until ${closeTime?.toLocaleDateString()}`}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
 

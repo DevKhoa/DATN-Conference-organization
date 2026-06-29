@@ -55,6 +55,8 @@ export interface ConferenceTicketOption {
   is_active: boolean | null;
   quantity_limit: number | null;
   sold_quantity: number | null;
+  open_time: string | null;
+  close_time: string | null;
   sessions: Array<{
     session_id: number;
     session_name: string | null;
@@ -328,9 +330,8 @@ export const useConferenceTicketsQuery = (
           }>
         ).filter((ticket) => {
           if (!ticket.open_time || !ticket.close_time) return false;
-          const open = new Date(ticket.open_time.endsWith('Z') ? ticket.open_time : ticket.open_time + 'Z').getTime();
           const close = new Date(ticket.close_time.endsWith('Z') ? ticket.close_time : ticket.close_time + 'Z').getTime();
-          return now >= open && now <= close;
+          return now <= close;
         }).map((ticket) => ({
           ...ticket,
           sessions: (ticketSessions[ticket.ticket_id] || [])
