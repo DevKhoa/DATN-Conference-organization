@@ -6,6 +6,7 @@ from google.genai import types
 
 from assistances.agent_tools import make_query, navigate, click, fill, current_tab, fill_enter, fill_datetime
 from packages.utils import Logger, genai_client, get_assistance_instruction
+from assistances.agent_tools import user_id_var, tab_id_var
 
 logger = Logger()
 
@@ -155,9 +156,14 @@ class RootAgent:
                     for part in chunk.candidates[0].content.parts:
                         if part.function_call:
                             fc_id = part.function_call.id
-                            if fc_id not in fc_states:
+                            if fc_id is None:
+                                # Null IDs can't be used to correlate streaming chunks.
+                                # Treat each null-id part as a distinct function call.
+                                fc_states[f"__null_{len(fc_states)}"] = part
+                            elif fc_id not in fc_states:
                                 fc_states[fc_id] = part
                             else:
+                                # Accumulate streamed args for the same function call
                                 fc_states[fc_id].function_call.args = part.function_call.args
 
             current_fc_parts = list(fc_states.values())
@@ -198,4 +204,10 @@ class RootAgent:
                 yield {"type": "FINISH", "content": "Maximum depth reached"}
 
 
-agent = RootAgent()
+def create_agent(user_id: int = None, user_role: str = "unknown") -> RootAgent:
+    """Create a per-request RootAgent with user context injected into the system prompt."""
+    instruction = get_assistance_instruction(
+        user_id=user_id if user_id is not None else "unknown",
+        user_role=user_role
+    )
+    return RootAgent(instruction=instruction)

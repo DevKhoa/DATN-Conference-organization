@@ -242,12 +242,27 @@ export const WebSocketNavigator = ({
               );
               const inputElement = document.querySelector(data.target) as
                 | HTMLInputElement
-                | HTMLTextAreaElement;
+                | HTMLTextAreaElement
+                | HTMLSelectElement;
               if (inputElement) {
                 try {
+                  if (inputElement instanceof HTMLSelectElement) {
+                    const options = Array.from(inputElement.options);
+                    const matchedOption = options.find(
+                      (opt) =>
+                        opt.value.toLowerCase() === String(data.value).toLowerCase() ||
+                        opt.text.toLowerCase() === String(data.value).toLowerCase()
+                    );
+                    if (matchedOption) {
+                      data.value = matchedOption.value;
+                    }
+                  }
+
                   const proto =
                     inputElement instanceof HTMLTextAreaElement
                       ? window.HTMLTextAreaElement.prototype
+                      : inputElement instanceof HTMLSelectElement
+                      ? window.HTMLSelectElement.prototype
                       : window.HTMLInputElement.prototype;
 
                   const nativeInputValueSetter =
@@ -312,12 +327,27 @@ export const WebSocketNavigator = ({
               );
               const inputElement = document.querySelector(data.target) as
                 | HTMLInputElement
-                | HTMLTextAreaElement;
+                | HTMLTextAreaElement
+                | HTMLSelectElement;
               if (inputElement) {
                 try {
+                  if (inputElement instanceof HTMLSelectElement) {
+                    const options = Array.from(inputElement.options);
+                    const matchedOption = options.find(
+                      (opt) =>
+                        opt.value.toLowerCase() === String(data.value).toLowerCase() ||
+                        opt.text.toLowerCase() === String(data.value).toLowerCase()
+                    );
+                    if (matchedOption) {
+                      data.value = matchedOption.value;
+                    }
+                  }
+
                   const proto =
                     inputElement instanceof HTMLTextAreaElement
                       ? window.HTMLTextAreaElement.prototype
+                      : inputElement instanceof HTMLSelectElement
+                      ? window.HTMLSelectElement.prototype
                       : window.HTMLInputElement.prototype;
 
                   const nativeInputValueSetter =
