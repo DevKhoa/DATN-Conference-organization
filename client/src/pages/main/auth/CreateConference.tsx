@@ -316,6 +316,7 @@ const CreateConferencePage: React.FC = () => {
                     <div className="relative">
                       <Video className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
                       <select
+                        id="form-format"
                         required
                         value={formData.format_type}
                         onChange={(e) =>

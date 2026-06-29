@@ -6,7 +6,7 @@ from packages.utils import Logger, supabase_client
 from fastapi.responses import JSONResponse
 from packages.schema import SendMessagePayload
 
-from assistances.agent import agent
+from assistances.agent import create_agent
 from assistances.agent_tools import user_id_var, tab_id_var
 from packages.utils import supabase_client, calculate_token_count
 from packages.auto_conversation import generate_conversation_title, get_local_memory
@@ -43,6 +43,22 @@ def _get_active_subscription_or_raise(user_id: int):
 
     return subscription
 
+
+def _get_user_role(user_id: int) -> str:
+    """Query the highest-priority role name for the given user. Falls back to 'USER' on error."""
+    try:
+        res = supabase_client.table("user_roles") \
+            .select("roles(role_name)") \
+            .eq("user_id", user_id) \
+            .limit(1) \
+            .execute()
+        if res.data:
+            return res.data[0]["roles"]["role_name"]
+    except Exception:
+        pass
+    return "USER"
+
+
 @router.post("/{user_id}/send-message")
 async def send_message_endpoint(
     payload: SendMessagePayload,
@@ -61,7 +77,10 @@ async def send_message_endpoint(
     user_id_var.set(user_id)
     if payload.tab_id:
         tab_id_var.set(payload.tab_id)
-    
+
+    user_role = _get_user_role(user_id)
+    agent = create_agent(user_id=user_id, user_role=user_role)
+
     try:
         _get_active_subscription_or_raise(user_id)
 
@@ -175,11 +194,13 @@ async def send_message_sse_stream_endpoint(
         "metadata": {}
     }
     
-    # Set context variables for tools
     user_id_var.set(user_id)
     if payload.tab_id:
         tab_id_var.set(payload.tab_id)
-    
+
+    user_role = _get_user_role(user_id)
+    agent = create_agent(user_id=user_id, user_role=user_role)
+
     try:
         _get_active_subscription_or_raise(user_id)
 

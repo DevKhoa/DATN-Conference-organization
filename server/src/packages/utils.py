@@ -147,10 +147,15 @@ CV_RETRIEVER = _load_prompt_file("cv_retriever.txt")
 
 _ASSISTANCE_INSTRUCTION_TEMPLATE = _load_prompt_file("assistance_agent.txt")
 
-def get_assistance_instruction() -> str:
-    """Return the assistance agent prompt with the current datetime injected."""
+def get_assistance_instruction(user_id: str = "unknown", user_role: str = "unknown") -> str:
+    """Return the assistance agent prompt with current datetime, user_id, and user_role injected."""
     current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    return _ASSISTANCE_INSTRUCTION_TEMPLATE.replace("{current_date}", current_date)
+    return (
+        _ASSISTANCE_INSTRUCTION_TEMPLATE
+        .replace("{current_date}", current_date)
+        .replace("{current_user_id}", str(user_id))
+        .replace("{current_user_role}", user_role)
+    )
 
 CONV_TITLE_GIVER = _load_prompt_file("conversation_title_giver.txt")
 
