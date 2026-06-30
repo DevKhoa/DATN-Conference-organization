@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from "./routes/__root"
 import { Route as SubscriptionsRouteImport } from "./routes/subscriptions"
+import { Route as ResetPasswordRouteImport } from "./routes/reset-password"
 import { Route as RegisterSuccessRouteImport } from "./routes/register-success"
 import { Route as RegisterConfirmRouteImport } from "./routes/register-confirm"
 import { Route as RegisterRouteImport } from "./routes/register"
@@ -53,6 +54,11 @@ import { Route as appConferencesConferenceIdSessionsSessionIdChairsRouteImport }
 const SubscriptionsRoute = SubscriptionsRouteImport.update({
   id: "/subscriptions",
   path: "/subscriptions",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: "/reset-password",
+  path: "/reset-password",
   getParentRoute: () => rootRouteImport,
 } as any)
 const RegisterSuccessRoute = RegisterSuccessRouteImport.update({
@@ -266,6 +272,7 @@ export interface FileRoutesByFullPath {
   "/register": typeof RegisterRoute
   "/register-confirm": typeof RegisterConfirmRoute
   "/register-success": typeof RegisterSuccessRoute
+  "/reset-password": typeof ResetPasswordRoute
   "/subscriptions": typeof SubscriptionsRoute
   "/admin": typeof appAdminRouteRouteWithChildren
   "/sessions": typeof appSessionsRouteRouteWithChildren
@@ -307,6 +314,7 @@ export interface FileRoutesByTo {
   "/register": typeof RegisterRoute
   "/register-confirm": typeof RegisterConfirmRoute
   "/register-success": typeof RegisterSuccessRoute
+  "/reset-password": typeof ResetPasswordRoute
   "/subscriptions": typeof SubscriptionsRoute
   "/attendances": typeof appAttendancesRoute
   "/checkin": typeof appCheckinRoute
@@ -347,6 +355,7 @@ export interface FileRoutesById {
   "/register": typeof RegisterRoute
   "/register-confirm": typeof RegisterConfirmRoute
   "/register-success": typeof RegisterSuccessRoute
+  "/reset-password": typeof ResetPasswordRoute
   "/subscriptions": typeof SubscriptionsRoute
   "/(app)/admin": typeof appAdminRouteRouteWithChildren
   "/(app)/sessions": typeof appSessionsRouteRouteWithChildren
@@ -390,6 +399,7 @@ export interface FileRouteTypes {
     | "/register"
     | "/register-confirm"
     | "/register-success"
+    | "/reset-password"
     | "/subscriptions"
     | "/admin"
     | "/sessions"
@@ -431,6 +441,7 @@ export interface FileRouteTypes {
     | "/register"
     | "/register-confirm"
     | "/register-success"
+    | "/reset-password"
     | "/subscriptions"
     | "/attendances"
     | "/checkin"
@@ -470,6 +481,7 @@ export interface FileRouteTypes {
     | "/register"
     | "/register-confirm"
     | "/register-success"
+    | "/reset-password"
     | "/subscriptions"
     | "/(app)/admin"
     | "/(app)/sessions"
@@ -513,6 +525,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   RegisterConfirmRoute: typeof RegisterConfirmRoute
   RegisterSuccessRoute: typeof RegisterSuccessRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SubscriptionsRoute: typeof SubscriptionsRoute
   ConferencesConferenceIdRoute: typeof ConferencesConferenceIdRoute
   PapersPaperIdRoute: typeof PapersPaperIdRoute
@@ -527,6 +540,13 @@ declare module "@tanstack/react-router" {
       path: "/subscriptions"
       fullPath: "/subscriptions"
       preLoaderRoute: typeof SubscriptionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/reset-password": {
+      id: "/reset-password"
+      path: "/reset-password"
+      fullPath: "/reset-password"
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     "/register-success": {
@@ -914,6 +934,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   RegisterConfirmRoute: RegisterConfirmRoute,
   RegisterSuccessRoute: RegisterSuccessRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SubscriptionsRoute: SubscriptionsRoute,
   ConferencesConferenceIdRoute: ConferencesConferenceIdRoute,
   PapersPaperIdRoute: PapersPaperIdRoute,

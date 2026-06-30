@@ -12,7 +12,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Route } from "@/routes/login";
-import { useLoginMutation } from "@/features/auth/services/mutations";
+import { Link } from "@tanstack/react-router";
+import { useLoginMutation, useForgotPasswordMutation } from "@/features/auth/services/mutations";
 import useAuth from "@/features/auth/hooks/useAuth";
 
 const CAROUSEL_SLIDES = [
@@ -40,10 +41,11 @@ const LoginPage = () => {
   const { session } = useAuth();
   const navigate = Route.useNavigate();
   const loginMutation = useLoginMutation();
+  const forgotPasswordMutation = useForgotPasswordMutation();
   const { redirect } = Route.useSearch();
 
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [step, setStep] = useState<"credentials" | "success">("credentials");
+  const [step, setStep] = useState<"credentials" | "success" | "forgot-password" | "forgot-password-success">("credentials");
   const [error, setError] = useState("");
 
   const [email, setEmail] = useState("");
@@ -94,6 +96,29 @@ const LoginPage = () => {
     );
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!email || !email.includes("@")) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    setError("");
+
+    forgotPasswordMutation.mutate(
+      { email },
+      {
+        onSuccess: () => {
+          setStep("forgot-password-success");
+        },
+        onError: () => {
+          setError("An unexpected error occurred. Please try again.");
+        },
+      }
+    );
+  };
+
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center font-sans overflow-hidden bg-background text-foreground">
       {/* 1. BACKGROUND CAROUSEL */}
@@ -101,17 +126,16 @@ const LoginPage = () => {
         {CAROUSEL_SLIDES.map((slide, idx) => (
           <div
             key={idx}
-            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-              idx === currentSlide ? "opacity-100" : "opacity-0"
-            }`}
+            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${idx === currentSlide ? "opacity-100" : "opacity-0"
+              }`}
           >
             <img
               src={slide.image}
               alt="Background"
               className="w-full h-full object-cover"
             />
-            {/* Dark Overlay */}
-            <div className="absolute inset-0 bg-background/40" />
+            {/* Gradient Overlay matching Homepage */}
+            <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/75 to-primary/35" />
           </div>
         ))}
       </div>
@@ -122,18 +146,18 @@ const LoginPage = () => {
         <div className="w-full lg:w-1/2 text-foreground space-y-8 animate-in slide-in-from-left-8 duration-700">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="bg-primary/10 backdrop-blur-sm p-2 rounded-xl border border-border">
+            <div className="bg-background/10 backdrop-blur-sm p-2 rounded-xl border border-border text-foreground">
               <Globe className="h-8 w-8 text-primary" />
             </div>
-            <span className="text-2xl font-bold tracking-tight">Conf-Org</span>
+            <span className="text-2xl font-bold tracking-tight text-foreground drop-shadow-sm">Conf-Org</span>
           </div>
 
           {/* Dynamic Slide Text */}
           <div className="space-y-4 max-w-lg">
-            <h1 className="text-4xl lg:text-5xl font-bold leading-tight">
+            <h1 className="text-4xl lg:text-6xl font-extrabold tracking-tight text-foreground leading-[1.15] drop-shadow-sm">
               {CAROUSEL_SLIDES[currentSlide].title}
             </h1>
-            <p className="text-lg text-muted-foreground">
+            <p className="text-lg lg:text-xl text-muted-foreground max-w-2xl drop-shadow-sm">
               {CAROUSEL_SLIDES[currentSlide].subtitle}
             </p>
           </div>
@@ -143,17 +167,16 @@ const LoginPage = () => {
             {CAROUSEL_SLIDES.map((_, idx) => (
               <div
                 key={idx}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  idx === currentSlide
+                className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentSlide
                     ? "w-10 bg-primary"
                     : "w-2 bg-foreground/20"
-                }`}
+                  }`}
               />
             ))}
           </div>
 
           {/* Footer Text */}
-          <div className="pt-8 text-xs text-muted-foreground hidden lg:block">
+          <div className="pt-8 text-xs text-muted-foreground hidden lg:block drop-shadow-sm">
             &copy; {new Date().getFullYear()} Conference Organization Inc.
           </div>
         </div>
@@ -163,15 +186,22 @@ const LoginPage = () => {
           {/* Header inside Card */}
           <div className="px-6 py-4 border-b border-border flex justify-between items-center bg-muted/40">
             <div className="text-sm font-semibold text-muted-foreground">
-              {step === "success" ? "Success" : "Sign In"}
+              {step === "success" ? "Success" : step.startsWith("forgot-password") ? "Password Recovery" : "Sign In"}
             </div>
 
-            {step !== "success" && (
+            {step !== "success" && step !== "forgot-password-success" && (
               <button
-                onClick={() => navigate({ to: "/" })}
+                onClick={() => {
+                  if (step === "forgot-password") {
+                    setStep("credentials");
+                    setError("");
+                  } else {
+                    navigate({ to: "/" });
+                  }
+                }}
                 className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 text-sm font-medium"
               >
-                <ArrowLeft className="w-4 h-4" /> Home
+                <ArrowLeft className="w-4 h-4" /> {step === "forgot-password" ? "Back to Login" : "Home"}
               </button>
             )}
           </div>
@@ -245,6 +275,19 @@ const LoginPage = () => {
                     </div>
                   </div>
 
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStep("forgot-password");
+                        setError("");
+                      }}
+                      className="text-sm font-medium text-primary hover:underline"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+
                   <Button
                     type="submit"
                     className="w-full py-3 text-base shadow-lg"
@@ -273,6 +316,79 @@ const LoginPage = () => {
                     </button>
                   </p>
                 </div>
+              </div>
+            )}
+
+            {/* --- FORGOT PASSWORD FORM --- */}
+            {step === "forgot-password" && (
+              <div className="space-y-6 animate-in fade-in duration-300">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Mail className="w-8 h-8 text-primary" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-foreground">
+                    Reset Password
+                  </h2>
+                  <p className="text-muted-foreground mt-2">
+                    Enter your email to receive a password reset link.
+                  </p>
+                </div>
+
+                <form onSubmit={handleForgotPassword} className="space-y-4 mt-8">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                      Email Address
+                    </label>
+                    <div className="relative group">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors w-5 h-5" />
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 border border-input rounded-lg focus:ring-2 focus:ring-ring focus:border-ring outline-none transition-all bg-background text-foreground"
+                        placeholder="you@example.com"
+                        autoFocus
+                        disabled={forgotPasswordMutation.isPending}
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full py-3 text-base shadow-lg"
+                    disabled={forgotPasswordMutation.isPending}
+                  >
+                    {forgotPasswordMutation.isPending ? (
+                      <Loader2 className="animate-spin w-5 h-5 mx-auto" />
+                    ) : (
+                      "Send Reset Link"
+                    )}
+                  </Button>
+                </form>
+              </div>
+            )}
+
+            {/* --- FORGOT PASSWORD SUCCESS --- */}
+            {step === "forgot-password-success" && (
+              <div className="text-center py-8 animate-in fade-in zoom-in-95 duration-500">
+                <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6 ring-8 ring-primary/10">
+                  <CheckCircle className="w-12 h-12 text-primary" />
+                </div>
+                <h2 className="text-2xl font-bold text-foreground mb-4">
+                  Check your email
+                </h2>
+                <p className="text-muted-foreground mb-8 max-w-sm mx-auto">
+                  We've sent a password reset link to <br />
+                  <span className="font-semibold text-foreground">{email}</span>
+                </p>
+
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setStep("credentials")}
+                >
+                  Back to login
+                </Button>
               </div>
             )}
 
