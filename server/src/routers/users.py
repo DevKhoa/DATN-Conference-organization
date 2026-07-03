@@ -8,7 +8,7 @@ import asyncio
 import uuid
 
 
-from fastapi import APIRouter, HTTPException, File, UploadFile, Query as QueryParam
+from fastapi import APIRouter, HTTPException, File, UploadFile, Query as QueryParam, BackgroundTasks
 from google.genai import types
 import serpapi
 
@@ -16,6 +16,7 @@ from packages.schema import UserDescriptionRequest, ScholarImportRequest, Schola
 from packages.utils import Logger, supabase_client, genai_client, storage_client, EMBEDDING_MODEL_NAME, VECTOR_DIMENSION, MAX_CV_SIZE_MB, ALLOWED_IMAGE_EXTENSIONS, SERP_API_KEY, SCHOLAR_PROMPT, BUCKET_NAME, CV_RETRIEVER
 from packages.utils import valid_check, clean_text, extract_text_from_pdf, is_image_file, format_cv_profile
 from packages.file_storage import StorageClient
+from packages.my_email import send_html_email
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -24,6 +25,50 @@ MODEL = "gemini-3-flash-preview"
 logger = Logger()
 router = APIRouter(tags=["users"])
 storage_service = StorageClient(client=storage_client, bucket_name=BUCKET_NAME)
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+    origin: str
+
+@router.post("/users/forgot-password")
+async def forgot_password_endpoint(request: ForgotPasswordRequest, background_tasks: BackgroundTasks):
+    try:
+        logger.info(f"Generating reset link for: {request.email}")
+        
+        link_response = supabase_client.auth.admin.generate_link({
+            "type": "recovery",
+            "email": request.email,
+            "redirect_to": f"{request.origin}/reset-password"
+        })
+        
+        hashed_token = link_response.properties.hashed_token
+        action_link = f"{request.origin}/reset-password?token_hash={hashed_token}"
+        
+        # HTML Email content
+        html_body = f"""
+        <h2>Password Reset</h2>
+        <p>You requested a password reset. Click the button below to reset your password:</p>
+        <p>
+            <a href="{action_link}" style="display:inline-block;padding:10px 20px;background-color:#0f172a;color:#ffffff;text-decoration:none;border-radius:5px;">
+                Reset Password
+            </a>
+        </p>
+        <p>If you did not request this, please ignore this email.</p>
+        <p>Alternatively, copy and paste this link into your browser:</p>
+        <p>{action_link}</p>
+        """
+        
+        background_tasks.add_task(
+            send_html_email,
+            recipient_email=request.email,
+            subject="Reset Your Password",
+            html_body=html_body
+        )
+        
+        return {"status": "success", "message": "Password reset email sent."}
+    except Exception as e:
+        logger.error(f"Failed to generate forgot password link: {e}")
+        raise HTTPException(status_code=500, detail="Failed to send reset password email.")
 
 
 @router.post("/users/{user_id}/description")

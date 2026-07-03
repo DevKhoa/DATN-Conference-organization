@@ -1,6 +1,13 @@
 import { useMutation } from "@tanstack/react-query";
-import type { ILoginPayload, ISignupPayload } from "./types";
+import type { 
+  ILoginPayload, 
+  ISignupPayload, 
+  IForgotPasswordPayload, 
+  IResetPasswordPayload,
+  IChangePasswordPayload
+} from "./types";
 import { supabase } from "@/lib/supabase";
+import { request as axios } from "@/lib/axios";
 
 export const useLoginMutation = () => {
   return useMutation({
@@ -66,6 +73,72 @@ export const useLogoutMutation = () => {
   return useMutation({
     mutationFn: async () => {
       const response = await supabase.auth.signOut();
+
+      return response;
+    },
+  });
+};
+
+export const useForgotPasswordMutation = () => {
+  return useMutation({
+    mutationFn: async ({ email }: IForgotPasswordPayload) => {
+      const response = await axios.post("/users/forgot-password", {
+        email,
+        origin: window.location.origin
+      });
+
+      return response.data;
+    },
+  });
+};
+
+export const useResetPasswordMutation = () => {
+  return useMutation({
+    mutationFn: async ({ password, token_hash }: IResetPasswordPayload) => {
+      // 1. Verify the token hash to log the user in
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        token_hash,
+        type: 'recovery'
+      });
+      
+      if (verifyError) {
+        throw verifyError;
+      }
+
+      // 2. Now the session is active, update the password
+      const response = await supabase.auth.updateUser({ password });
+
+      return response;
+    },
+  });
+};
+
+export const useChangePasswordMutation = () => {
+  return useMutation({
+    mutationFn: async ({ oldPassword, newPassword, email }: IChangePasswordPayload) => {
+      let userEmail = email;
+
+      if (!userEmail) {
+        const { data: { session } } = await supabase.auth.getSession();
+        userEmail = session?.user?.email;
+      }
+
+      if (!userEmail) {
+        throw new Error("User not found or email not available");
+      }
+
+      // Verify old password
+      const signInResponse = await supabase.auth.signInWithPassword({
+        email: userEmail,
+        password: oldPassword,
+      });
+
+      if (signInResponse.error) {
+        throw new Error("Incorrect old password");
+      }
+
+      // Update with new password
+      const response = await supabase.auth.updateUser({ password: newPassword });
 
       return response;
     },
