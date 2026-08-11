@@ -140,7 +140,7 @@ def compute_bcubed_metrics(all_labels, cluster_assignments):
 def main():
     print("=== Setup: Precomputing Base Embeddings ===")
     
-    df_papers = pd.read_csv(os.path.join(os.path.dirname(__file__), "../riel_paper_ncate.csv"))
+    df_papers = pd.read_csv(os.path.join(os.path.dirname(__file__), "../riel_paper_ncate_temp.csv"))
     df_papers["label_set"] = df_papers["categories"].apply(get_category_set)
     df_papers["text_for_embed"] = df_papers["title"].fillna("") + " " + df_papers["abstract"].fillna("")
     

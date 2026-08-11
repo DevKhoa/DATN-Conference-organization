@@ -141,7 +141,7 @@ def main():
     
     # 3. Clustering Papers
     print("Reading papers and precomputing paper embeddings...")
-    df_papers = pd.read_csv(os.path.join(os.path.dirname(__file__), "../riel_paper_ncate.csv"))
+    df_papers = pd.read_csv(os.path.join(os.path.dirname(__file__), "../riel_paper_ncate_temp.csv"))
     df_papers["label_set"] = df_papers["categories"].apply(get_main_category)
     df_papers["text_for_embed"] = df_papers["title"].fillna("") + " " + df_papers["abstract"].fillna("")
     

@@ -1,5 +1,6 @@
 import os
 import uuid
+import time
 from datetime import datetime, timezone
 from typing import Optional
 import pandas as pd
@@ -26,7 +27,7 @@ from packages.schema import (
     MeetCreationRequest,
     MeetCreationResponse,
 )
-from packages.utils import logger, supabase_client, genai_client, MODEL, EMBEDDING_MODEL_NAME, VECTOR_DIMENSION, CHAIR_ROLE_ID, PAPER_MATCH_REVIEWER, BUCKET_NAME, storage_client
+from packages.utils import logger, supabase_client, genai_client, MODEL, EMBEDDING_MODEL_NAME, VECTOR_DIMENSION, CHAIR_ROLE_ID, PAPER_MATCH_REVIEWER, BUCKET_NAME, storage_client, calculate_token_count
 from packages.file_storage import StorageClient
 from packages.auto_session import get_batch_embeddings, generate_session_title
 
@@ -190,6 +191,8 @@ def _mark_expired_if_needed(invitation: dict, conference_data: dict) -> dict:
 @router.post("/sessions/auto-generate")
 async def auto_generate_sessions(request: AutoSessionRequest):
     logger.info(f"Received request to schedule {len(request.paper_ids)} papers into {request.n_session} sessions.")
+    total_start_time = time.time()
+    db_start_time = time.time()
 
     try:
        
@@ -232,13 +235,20 @@ async def auto_generate_sessions(request: AutoSessionRequest):
         if request.min_paper * request.n_session > total_papers:
              raise HTTPException(status_code=400, detail=f"Minimum requirement not met. Not enough papers to fill {request.n_session} sessions with at least {request.min_paper} papers each.")
 
+        db_time = time.time() - db_start_time
+        logger.info(f"[Phase 1] DB Fetch & Validation Time: {db_time:.2f}s")
+
+        embed_start_time = time.time()
         logger.info("Generating embeddings...")
         df['abstract'] = df['abstract'].fillna('')
         df['text_for_embed'] = df['title'] + " " + df['abstract']
         
         embeddings = get_batch_embeddings(df['text_for_embed'].tolist())
         X = np.array(embeddings)
+        embed_time = time.time() - embed_start_time
+        logger.info(f"[Phase 2] Embedding Generation Time: {embed_time:.2f}s")
         
+        kmeans_start_time = time.time()
         logger.info("Running KMeans Constrained...")
         clf = KMeansConstrained(
             n_clusters=request.n_session,
@@ -248,7 +258,10 @@ async def auto_generate_sessions(request: AutoSessionRequest):
         )
         clf.fit(X)
         df['cluster_id'] = clf.labels_
+        kmeans_time = time.time() - kmeans_start_time
+        logger.info(f"[Phase 3] KMeans Clustering Time: {kmeans_time:.2f}s")
         
+        naming_start_time = time.time()
         logger.info("Generating Session...")
         result_summary = []
         
@@ -274,6 +287,15 @@ async def auto_generate_sessions(request: AutoSessionRequest):
                 "papers": paper_titles
             })
             
+        naming_time = time.time() - naming_start_time
+        logger.info(f"[Phase 4] AI Naming & DB Insert Time: {naming_time:.2f}s")
+        
+        total_time = time.time() - total_start_time
+        logger.info(f"========== AUTO-GENERATE SUMMARY ==========")
+        logger.info(f"Total Papers: {len(df)} | Sessions: {request.n_session}")
+        logger.info(f"Total Processing Time: {total_time:.2f}s")
+        logger.info(f"==========================================")
+
         return {
             "status": "success", 
             "message": f"Successfully created {request.n_session} sessions from {len(df)} papers.",
@@ -329,6 +351,11 @@ async def recommend_chair_for_session(
             session_context_text = session_context_text[:8000]
 
         try:
+            start_time = time.time()
+            
+            # Fallback to local approximation since API count_tokens does not support embedding models here
+            token_count = int(len(session_context_text) / 4)
+
             embed_response = genai_client.models.embed_content(
                 model=EMBEDDING_MODEL_NAME,
                 contents=session_context_text,
@@ -339,6 +366,14 @@ async def recommend_chair_for_session(
                 
             )
             session_vector = embed_response.embeddings[0].values
+            
+            latency = time.time() - start_time
+            logger.info(f"========== EVALUATION LOG ==========")
+            logger.info(f"Feature: Chair Recommendation Embedding")
+            logger.info(f"Tokens: {token_count}")
+            logger.info(f"Latency: {latency:.2f}s")
+            logger.info(f"====================================")
+            
         except Exception as e:
             logger.error(f"GenAI Embedding Error: {e}")
             raise HTTPException(status_code=500, detail="AI analysis is temporarily unavailable. Please try again later.")
@@ -430,6 +465,7 @@ async def match_review_for_session(
             raise HTTPException(status_code=400, detail="This session has no papers to analyze.")
 
         # Step 3: Call Gemini to evaluate match
+        start_time = time.time()
         try:
             ai_response = await genai_client.aio.models.generate_content(
                 model=MODEL,
@@ -443,6 +479,13 @@ async def match_review_for_session(
                     "response_json_schema": AuthorProfileAnalysis.model_json_schema(),
                 },
             )
+            latency = time.time() - start_time
+            token_count = calculate_token_count(ai_response.usage_metadata)
+            logger.info(f"========== EVALUATION LOG ==========")
+            logger.info(f"Feature: Chair Recommendation (Match Review)")
+            logger.info(f"Tokens: {token_count}")
+            logger.info(f"Latency: {latency:.2f}s")
+            logger.info(f"====================================")
         except Exception as e:
             logger.error(f"Gemini API Error in match-review: {e}")
             raise HTTPException(status_code=500, detail="AI analysis is temporarily unavailable. Please try again later.")

@@ -263,6 +263,9 @@ async def send_message_sse_stream_endpoint(
         return StreamingResponse(error_generator(), media_type="text/event-stream")
 
     async def event_generator():
+        import time
+        start_time = time.time()
+        depth = 0
         full_response = ""
         token_count = 0
         
@@ -283,6 +286,7 @@ async def send_message_sse_stream_endpoint(
                     yield f"data: {json.dumps(sse_data)}\n\n"
 
                 elif event["type"] == "tool_call":
+                    depth += 1
                     fc = event["content"]
                     
                     sse_data = {
@@ -305,6 +309,14 @@ async def send_message_sse_stream_endpoint(
                     new_count = calculate_token_count(usage_data)
                     if new_count > 0:
                         token_count = new_count
+
+            latency = time.time() - start_time
+            logger.info(f"========== EVALUATION LOG ==========")
+            logger.info(f"Query: {payload.content}")
+            logger.info(f"Depth (Tool Calls): {depth}")
+            logger.info(f"Tokens: {token_count}")
+            logger.info(f"Latency: {latency:.2f}s")
+            logger.info(f"====================================")
 
             # Upload AI message data
             model_msg_data = {

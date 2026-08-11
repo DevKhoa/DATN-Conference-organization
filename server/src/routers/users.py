@@ -13,7 +13,8 @@ from google.genai import types
 import serpapi
 
 from packages.schema import UserDescriptionRequest, ScholarImportRequest, ScholarAuthor, CVBaseModel
-from packages.utils import Logger, supabase_client, genai_client, storage_client, EMBEDDING_MODEL_NAME, VECTOR_DIMENSION, MAX_CV_SIZE_MB, ALLOWED_IMAGE_EXTENSIONS, SERP_API_KEY, SCHOLAR_PROMPT, BUCKET_NAME, CV_RETRIEVER
+from packages.utils import Logger, supabase_client, genai_client, storage_client, EMBEDDING_MODEL_NAME, VECTOR_DIMENSION, MAX_CV_SIZE_MB, ALLOWED_IMAGE_EXTENSIONS, SERP_API_KEY, SCHOLAR_PROMPT, BUCKET_NAME, CV_RETRIEVER, calculate_token_count
+import time
 from packages.utils import valid_check, clean_text, extract_text_from_pdf, is_image_file, format_cv_profile
 from packages.file_storage import StorageClient
 from pydantic import BaseModel
@@ -44,6 +45,11 @@ async def update_user_description_text(
         logger.info(f"Generating embedding for User {user_id} based on text input...")
 
         try:
+            start_time = time.time()
+            
+            # Fallback to local approximation since API count_tokens does not support embedding models here
+            token_count = int(len(text_content) / 4)
+
             embed_response = genai_client.models.embed_content(
                 model=EMBEDDING_MODEL_NAME, 
                 contents=text_content,
@@ -53,6 +59,13 @@ async def update_user_description_text(
                 )
             )
             embedding_vector = embed_response.embeddings[0].values
+            
+            latency = time.time() - start_time
+            logger.info(f"========== EVALUATION LOG ==========")
+            logger.info(f"Feature: User Description Embedding")
+            logger.info(f"Tokens: {token_count}")
+            logger.info(f"Latency: {latency:.2f}s")
+            logger.info(f"====================================")
 
         except Exception as e:
             logger.error(f"GenAI Embedding Failed: {e}")
@@ -112,6 +125,11 @@ async def upload_user_cv(
 
             logger.info("Generating embedding for CV description...")
             try:
+                start_time = time.time()
+                
+                # Fallback to local approximation since API count_tokens does not support embedding models here
+                token_count = int(len(description_text) / 4)
+
                 embed_response = genai_client.models.embed_content(
                     model=EMBEDDING_MODEL_NAME,
                     contents=description_text,
@@ -121,6 +139,13 @@ async def upload_user_cv(
                     )
                 )
                 embedding_vector = embed_response.embeddings[0].values
+                
+                latency = time.time() - start_time
+                logger.info(f"========== EVALUATION LOG ==========")
+                logger.info(f"Feature: CV Embedding")
+                logger.info(f"Tokens: {token_count}")
+                logger.info(f"Latency: {latency:.2f}s")
+                logger.info(f"====================================")
 
             except Exception as e:
                 logger.error(f"GenAI Embedding Failed: {e}")
@@ -129,6 +154,7 @@ async def upload_user_cv(
             final_description = description_text 
             
             logger.info("Attempting to reformat CV description with AI...")
+            start_time = time.time()
             try:
                 AI_response = await genai_client.aio.models.generate_content(
                     model=MODEL, 
@@ -138,6 +164,14 @@ async def upload_user_cv(
                         "response_json_schema": CVBaseModel.model_json_schema(),
                     },
                 )
+                
+                latency = time.time() - start_time
+                token_count = calculate_token_count(AI_response.usage_metadata)
+                logger.info(f"========== EVALUATION LOG ==========")
+                logger.info(f"Feature: CV Extraction")
+                logger.info(f"Tokens: {token_count}")
+                logger.info(f"Latency: {latency:.2f}s")
+                logger.info(f"====================================")
 
                 response_json = json.loads(AI_response.text)
                 cv_reformat = format_cv_profile(response_json)
@@ -275,6 +309,7 @@ async def import_scholar_profile(user_id: int, request: ScholarImportRequest):
         articles_str = json.dumps(articles, indent=2)
 
         logger.info("Analyzing articles...")
+        start_time = time.time()
         AI_response = await genai_client.aio.models.generate_content(
             model=MODEL,
             contents=[SCHOLAR_PROMPT, articles_str],
@@ -283,6 +318,14 @@ async def import_scholar_profile(user_id: int, request: ScholarImportRequest):
                 "response_json_schema": ScholarAuthor.model_json_schema(),
             },
         )
+        
+        latency = time.time() - start_time
+        token_count = calculate_token_count(AI_response.usage_metadata)
+        logger.info(f"========== EVALUATION LOG ==========")
+        logger.info(f"Feature: Scholar Profile Extraction")
+        logger.info(f"Tokens: {token_count}")
+        logger.info(f"Latency: {latency:.2f}s")
+        logger.info(f"====================================")
         
         research_bio = json.loads(AI_response.text)
 
@@ -315,6 +358,11 @@ async def import_scholar_profile(user_id: int, request: ScholarImportRequest):
         cleaned_text = '\n'.join([line.strip() for line in author_profile.strip().split('\n')])
 
         logger.info("Generating embedding for the cleaned profile...")
+        start_time = time.time()
+        
+        # Fallback to local approximation since API count_tokens does not support embedding models here
+        token_count = int(len(cleaned_text) / 4)
+
         embed_response = genai_client.models.embed_content(
             model=EMBEDDING_MODEL_NAME, 
             contents=cleaned_text,
@@ -324,6 +372,13 @@ async def import_scholar_profile(user_id: int, request: ScholarImportRequest):
             )
         )
         embedding_vector = embed_response.embeddings[0].values
+        
+        latency = time.time() - start_time
+        logger.info(f"========== EVALUATION LOG ==========")
+        logger.info(f"Feature: Scholar Profile Embedding")
+        logger.info(f"Tokens: {token_count}")
+        logger.info(f"Latency: {latency:.2f}s")
+        logger.info(f"====================================")
 
         logger.info(f"Updating Supabase for User {user_id}...")
         update_res = supabase_client.table("profiles").update({
